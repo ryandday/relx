@@ -72,104 +72,116 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
 
 ### Schema Definition
 ```cpp
+namespace sqllib {
+
 // Define a schema
-struct User : Table<"users"> {
-    Column<"id", int> id;
-    Column<"name", std::string> name;
-    Column<"email", std::string> email;
-    Column<"created_at", std::chrono::system_clock::time_point> created_at;
+struct user : table<"users"> {
+    column<"id", int> id;
+    column<"name", std::string> name;
+    column<"email", std::string> email;
+    column<"created_at", std::chrono::system_clock::time_point> created_at;
     
-    PrimaryKey<&User::id> pk;
-    Index<&User::email> email_idx;
+    primary_key<&user::id> pk;
+    index<&user::email> email_idx;
 };
 
-struct Post : Table<"posts"> {
-    Column<"id", int> id;
-    Column<"user_id", int> user_id;
-    Column<"title", std::string> title;
-    Column<"content", std::string> content;
+struct post : table<"posts"> {
+    column<"id", int> id;
+    column<"user_id", int> user_id;
+    column<"title", std::string> title;
+    column<"content", std::string> content;
     
-    PrimaryKey<&Post::id> pk;
-    ForeignKey<&Post::user_id, &User::id> user_fk;
+    primary_key<&post::id> pk;
+    foreign_key<&post::user_id, &user::id> user_fk;
 };
+
+} // namespace sqllib
 ```
 
 ### Query Building
 ```cpp
+namespace sqllib {
+
 // Creating and executing a query
-User u;
-Post p;
+user u;
+post p;
 
-auto query = Select(u.name, u.email, p.title)
-    .From(u)
-    .Join(p, On(u.id == p.user_id))
-    .Where(u.id == 1 && p.title.Like("%important%"))
-    .OrderBy(p.created_at.Desc());
+auto query = select(u.name, u.email, p.title)
+    .from(u)
+    .join(p, on(u.id == p.user_id))
+    .where(u.id == 1 && p.title.like("%important%"))
+    .order_by(p.created_at.desc());
 
-auto results = connection.Execute(query);
+auto results = connection.execute(query);
 
 // Processing results
 for (const auto& row : results) {
-    std::string name = row.Get<0>();  // Type-safe access
-    std::string email = row.Get<1>();
-    std::string title = row.Get<2>();
+    std::string name = row.get<0>();  // Type-safe access
+    std::string email = row.get<1>();
+    std::string title = row.get<2>();
     
     // Process row...
 }
+
+} // namespace sqllib
 ```
 
 ### Enhanced Result Processing
 ```cpp
+namespace sqllib {
+
 // More type-safe result processing
 
 // 1. Member pointer access for compile-time type safety
 for (const auto& row : results) {
-    std::string name = row.Get<&User::name>();     // Access by member pointer
-    std::string email = row.Get<&User::email>();   // Type and column checked at compile time
-    std::string title = row.Get<&Post::title>();   // Error if column wasn't in the SELECT
+    std::string name = row.get<&user::name>();     // Access by member pointer
+    std::string email = row.get<&user::email>();   // Type and column checked at compile time
+    std::string title = row.get<&post::title>();   // Error if column wasn't in the SELECT
     
     // Process row...
 }
 
 // 2. Structured binding support with result traits
-for (const auto& [name, email, title] : results.As<std::string, std::string, std::string>()) {
+for (const auto& [name, email, title] : results.as<std::string, std::string, std::string>()) {
     // Types checked against column types
     // Process with directly bound variables...
 }
 
 // 3. Row object conversion with static reflection
-struct UserPost {
+struct user_post {
     std::string name;
     std::string email;
     std::string title;
 };
 
 // Map fields using member pointers at compile time
-auto userPosts = results.Transform<UserPost>({
-    {&UserPost::name, &User::name},
-    {&UserPost::email, &User::email},
-    {&UserPost::title, &Post::title}
+auto user_posts = results.transform<user_post>({
+    {&user_post::name, &user::name},
+    {&user_post::email, &user::email},
+    {&user_post::title, &post::title}
 });
 
-for (const auto& userPost : userPosts) {
+for (const auto& user_post : user_posts) {
     // Use strongly typed object
-    std::cout << userPost.name << " wrote: " << userPost.title << std::endl;
+    std::cout << user_post.name << " wrote: " << user_post.title << std::endl;
 }
 
 // 4. Direct transformation with lambdas
-auto processedResults = results.Transform([](const auto& row) {
+auto processed_results = results.transform([](const auto& row) {
     return std::make_tuple(
-        row.Get<&User::name>(),
-        row.Get<&User::email>(),
-        row.Get<&Post::title>()
+        row.get<&user::name>(),
+        row.get<&user::email>(),
+        row.get<&post::title>()
     );
 });
 
 // 5. Optional handling for possibly NULL values
-auto maybeEmail = row.GetOptional<&User::email>();  // Returns std::optional<std::string>
-if (maybeEmail) {
-    sendEmail(*maybeEmail);
+auto maybe_email = row.get_optional<&user::email>();  // Returns std::optional<std::string>
+if (maybe_email) {
+    send_email(*maybe_email);
 }
+
+} // namespace sqllib
 ```
 
 ## Dependencies

@@ -16,88 +16,103 @@ This document outlines the design for SQLlib's database connection API. The conn
 
 #### Connection Interface
 ```cpp
-// Generic connection interface supporting different backends
+namespace sqllib {
+
+/// @brief Generic connection interface supporting different database backends
 class Connection {
 public:
-    // Connection creation factory methods
-    static Connection Create(const ConnectionString& connStr);
-    static Connection CreateSQLite(const std::string& filename);
-    static Connection CreateMySQL(const ConnectionParams& params);
-    static Connection CreatePostgreSQL(const ConnectionParams& params);
+    /// @brief Connection creation factory methods
+    static Connection create(const ConnectionString& conn_str);
+    static Connection create_sqlite(const std::string& filename);
+    static Connection create_mysql(const ConnectionParams& params);
+    static Connection create_postgresql(const ConnectionParams& params);
     
-    // Connection state management
-    bool IsConnected() const;
-    void Reconnect();
-    void Close();
+    /// @brief Connection state management
+    bool is_connected() const;
+    void reconnect();
+    void close();
     
-    // Statement execution
-    template<typename QueryType>
-    ResultSet Execute(const QueryType& query);
+    /// @brief Statement execution with type safety
+    template<QueryExprConcept QueryType>
+    ResultSet execute(const QueryType& query);
     
-    // Direct SQL execution (escape hatch for complex queries)
-    ResultSet ExecuteRaw(const std::string& sql, const std::vector<Parameter>& params = {});
+    /// @brief Direct SQL execution (escape hatch for complex queries)
+    ResultSet execute_raw(const std::string& sql, const std::vector<Parameter>& params = {});
     
-    // Transaction control
-    Transaction BeginTransaction();
-    void Commit();
-    void Rollback();
+    /// @brief Transaction control
+    Transaction begin_transaction();
+    void commit();
+    void rollback();
     
-    // Connection configuration
-    void SetTimeout(std::chrono::seconds timeout);
-    void SetOption(ConnectionOption option, const std::any& value);
+    /// @brief Connection configuration
+    void set_timeout(std::chrono::seconds timeout);
+    void set_option(ConnectionOption option, const std::any& value);
+    
+private:
+    std::unique_ptr<ConnectionImpl> impl_;
+    bool is_connected_;
 };
+
+} // namespace sqllib
 ```
 
 #### Connection Pooling
 ```cpp
-// Optional connection pooling
+namespace sqllib {
+
+/// @brief Optional connection pooling
 class ConnectionPool {
 public:
-    ConnectionPool(const ConnectionString& connStr, size_t minPoolSize, size_t maxPoolSize);
+    ConnectionPool(const ConnectionString& conn_str, size_t min_pool_size, size_t max_pool_size);
     
-    // Get a connection from the pool
-    PooledConnection Acquire();
+    /// @brief Get a connection from the pool
+    PooledConnection acquire();
     
-    // Connection pool stats
-    size_t GetActiveConnectionCount() const;
-    size_t GetIdleConnectionCount() const;
+    /// @brief Connection pool stats
+    size_t get_active_connection_count() const;
+    size_t get_idle_connection_count() const;
     
-    // Pool management
-    void SetMaxPoolSize(size_t size);
-    void CloseIdleConnections();
+    /// @brief Pool management
+    void set_max_pool_size(size_t size);
+    void close_idle_connections();
+    
+private:
+    ConnectionString conn_str_;
+    size_t min_pool_size_;
+    size_t max_pool_size_;
+    std::vector<std::unique_ptr<Connection>> connections_;
 };
 
-// RAII wrapper for a pooled connection
+/// @brief RAII wrapper for a pooled connection
 class PooledConnection {
 public:
-    // Pooled connection behaves like a regular connection
-    template<typename QueryType>
-    ResultSet Execute(const QueryType& query);
+    /// @brief Pooled connection behaves like a regular connection
+    template<QueryExprConcept QueryType>
+    ResultSet execute(const QueryType& query);
     
-    Transaction BeginTransaction();
+    Transaction begin_transaction();
     
-    // Automatically returns to pool when destroyed
+    /// @brief Automatically returns to pool when destroyed
     ~PooledConnection();
+    
+private:
+    ConnectionPool* pool_;
+    std::unique_ptr<Connection> conn_;
 };
+
+} // namespace sqllib
 ```
 
 ### Transaction Management
 
 #### RAII Transaction
 ```cpp
-// RAII-based transaction management
+namespace sqllib {
+
+/// @brief RAII-based transaction management
 class Transaction {
 public:
-    // Created via Connection::BeginTransaction()
-    
-    // Transaction control
-    void Commit();
-    void Rollback();
-    
-    // Auto-rollback on destruction if not committed
-    ~Transaction();
-    
-    // Transaction options
+    /// @brief Transaction options
     enum class IsolationLevel {
         ReadUncommitted,
         ReadCommitted,
@@ -105,142 +120,190 @@ public:
         Serializable
     };
     
-    void SetIsolationLevel(IsolationLevel level);
+    /// @brief Transaction control
+    void commit();
+    void rollback();
+    
+    /// @brief Auto-rollback on destruction if not committed
+    ~Transaction();
+    
+    void set_isolation_level(IsolationLevel level);
+    
+private:
+    Connection* conn_;
+    bool committed_;
+    IsolationLevel isolation_level_;
 };
 
-// Example usage
-void TransferMoney(Connection& conn, int fromAccount, int toAccount, double amount) {
-    auto txn = conn.BeginTransaction();
+/// @brief Example usage
+void transfer_money(Connection& conn, int from_account, int to_account, double amount) {
+    auto txn = conn.begin_transaction();
     try {
         // Perform operations using the same connection
-        conn.Execute(Update(Accounts{}).Set(Accounts::balance, Accounts::balance - amount).Where(Accounts::id == fromAccount));
-        conn.Execute(Update(Accounts{}).Set(Accounts::balance, Accounts::balance + amount).Where(Accounts::id == toAccount));
+        Accounts accounts;
+        conn.execute(Update(accounts).set(accounts.balance, accounts.balance - amount).where(accounts.id == from_account));
+        conn.execute(Update(accounts).set(accounts.balance, accounts.balance + amount).where(accounts.id == to_account));
         
-        txn.Commit();
+        txn.commit();
     } catch (...) {
         // Transaction automatically rolled back by destructor
         throw;
     }
 }
+
+} // namespace sqllib
 ```
 
 ### Statement Execution
 
 #### Statement Preparation
 ```cpp
-// Internal prepared statement handling
+namespace sqllib {
+
+/// @brief Internal prepared statement handling
 class PreparedStatement {
+public:
+    /// @brief Parameter binding
+    template<typename T>
+    void bind_parameter(size_t index, const T& value);
+    
+    /// @brief Execution
+    ResultSet execute();
+    
+    /// @brief Statement reuse
+    void reset();
+    
+    /// @brief Resource cleanup
+    ~PreparedStatement();
+    
 private:
-    // Created internally by Connection::Execute
+    // Created internally by Connection::execute
     PreparedStatement(Connection& conn, const std::string& sql);
     
-public:
-    // Parameter binding
-    template<typename T>
-    void BindParameter(size_t index, const T& value);
-    
-    // Execution
-    ResultSet Execute();
-    
-    // Statement reuse
-    void Reset();
-    
-    // Resource cleanup
-    ~PreparedStatement();
+    Connection* conn_;
+    std::string sql_;
+    void* stmt_handle_;
 };
+
+} // namespace sqllib
 ```
 
 #### Parameter Binding
 ```cpp
-// How a type-safe query gets executed
-template<typename QueryType>
-ResultSet Connection::Execute(const QueryType& query) {
+namespace sqllib {
+
+/// @brief How a type-safe query gets executed
+template<QueryExprConcept QueryType>
+ResultSet Connection::execute(const QueryType& query) {
     // Convert QueryType to SQL string and parameter list
-    auto [sql, params] = query.ToSqlAndParams();
+    auto [sql, params] = query.to_sql_and_params();
     
     // Prepare statement
     PreparedStatement stmt(*this, sql);
     
     // Bind parameters with correct types
     for (size_t i = 0; i < params.size(); ++i) {
-        params[i].BindTo(stmt, i);
+        params[i].bind_to(stmt, i);
     }
     
     // Execute and return results
-    return stmt.Execute();
+    return stmt.execute();
 }
+
+} // namespace sqllib
 ```
 
 ### Type-Safe Result Processing
 
 #### ResultSet Interface
 ```cpp
+namespace sqllib {
+
+/// @brief Type-safe result set container
 class ResultSet {
 public:
-    // Result set metadata
-    size_t GetColumnCount() const;
-    std::string GetColumnName(size_t index) const;
-    ColumnType GetColumnType(size_t index) const;
+    /// @brief Result set metadata
+    size_t get_column_count() const;
+    std::string get_column_name(size_t index) const;
+    ColumnType get_column_type(size_t index) const;
     
-    // Row iteration
-    bool Next();
-    bool HasRows() const;
-    size_t GetRowCount() const;
+    /// @brief Row iteration
+    bool next();
+    bool has_rows() const;
+    size_t get_row_count() const;
     
-    // Type-safe value access
+    /// @brief Type-safe value access
     template<size_t Index>
-    auto Get() const;
+    auto get() const;
     
     template<auto MemberPtr>
-    auto Get() const;
+    auto get() const;
     
-    // Optional value handling for NULLs
+    /// @brief Optional value handling for NULLs
     template<auto MemberPtr>
     std::optional<std::remove_reference_t<decltype(std::declval<typename MemberPtrTraits<decltype(MemberPtr)>::ClassType>().*MemberPtr)>> 
-    GetOptional() const;
+    get_optional() const;
     
-    // Transformation helpers
+    /// @brief Transformation helpers
     template<typename T, typename FieldMapper>
-    std::vector<T> Transform(const FieldMapper& mapper) const;
+    std::vector<T> transform(const FieldMapper& mapper) const;
     
-    // C++17 structured binding support
+    /// @brief C++17 structured binding support
     template<typename... Types>
-    ResultView<Types...> As() const;
+    ResultView<Types...> as() const;
+    
+private:
+    std::unique_ptr<ResultSetImpl> impl_;
+    size_t current_row_;
 };
+
+} // namespace sqllib
 ```
 
 ### Database-Specific Adaptors
 
 #### SQLite Adaptor
 ```cpp
+namespace sqllib::detail {
+
+/// @brief SQLite-specific connection implementation
 class SQLiteConnection : public ConnectionImpl {
-private:
-    sqlite3* db_;
-    
 public:
     SQLiteConnection(const std::string& filename);
     
-    ResultSet ExecuteImpl(const std::string& sql, const std::vector<Parameter>& params) override;
-    void BeginTransactionImpl() override;
-    void CommitImpl() override;
-    void RollbackImpl() override;
+    ResultSet execute_impl(const std::string& sql, const std::vector<Parameter>& params) override;
+    void begin_transaction_impl() override;
+    void commit_impl() override;
+    void rollback_impl() override;
+    
+private:
+    sqlite3* db_;
+    bool is_open_;
 };
+
+} // namespace sqllib::detail
 ```
 
 #### MySQL Adaptor
 ```cpp
+namespace sqllib::detail {
+
+/// @brief MySQL-specific connection implementation
 class MySQLConnection : public ConnectionImpl {
-private:
-    MYSQL* conn_;
-    
 public:
     MySQLConnection(const ConnectionParams& params);
     
-    ResultSet ExecuteImpl(const std::string& sql, const std::vector<Parameter>& params) override;
-    void BeginTransactionImpl() override;
-    void CommitImpl() override;
-    void RollbackImpl() override;
+    ResultSet execute_impl(const std::string& sql, const std::vector<Parameter>& params) override;
+    void begin_transaction_impl() override;
+    void commit_impl() override;
+    void rollback_impl() override;
+    
+private:
+    MYSQL* conn_;
+    bool is_connected_;
 };
+
+} // namespace sqllib::detail
 ```
 
 ## Implementation Strategy
@@ -275,8 +338,10 @@ public:
 
 ### Basic Connection and Query
 ```cpp
+namespace sqllib {
+
 // Create a connection
-auto conn = Connection::CreateSQLite("database.db");
+auto conn = Connection::create_sqlite("database.db");
 
 // Define schema
 struct User : Table<"users"> {
@@ -288,19 +353,23 @@ struct User : Table<"users"> {
 
 // Execute a query
 User u;
-auto results = conn.Execute(Select(u.id, u.name).From(u).Where(u.id > 10));
+auto results = conn.execute(Select(u.id, u.name).from(u).where(u.id > 10));
 
 // Process results
 for (const auto& row : results) {
-    int id = row.Get<&User::id>();
-    std::string name = row.Get<&User::name>();
+    int id = row.get<&User::id>();
+    std::string name = row.get<&User::name>();
     std::cout << id << ": " << name << std::endl;
 }
+
+} // namespace sqllib
 ```
 
 ### Transaction with Error Handling
 ```cpp
-Connection conn = Connection::CreateMySQL({
+namespace sqllib {
+
+Connection conn = Connection::create_mysql({
     .host = "localhost",
     .user = "username",
     .password = "password",
@@ -308,71 +377,92 @@ Connection conn = Connection::CreateMySQL({
 });
 
 try {
-    auto txn = conn.BeginTransaction();
-    txn.SetIsolationLevel(Transaction::IsolationLevel::Serializable);
+    auto txn = conn.begin_transaction();
+    txn.set_isolation_level(Transaction::IsolationLevel::Serializable);
     
     // Execute multiple queries in the transaction
-    conn.Execute(/* ... */);
-    conn.Execute(/* ... */);
+    conn.execute(/* ... */);
+    conn.execute(/* ... */);
     
-    txn.Commit();
+    txn.commit();
 } catch (const DatabaseException& e) {
     std::cerr << "Database error: " << e.what() << std::endl;
     // Transaction automatically rolled back
 }
+
+} // namespace sqllib
 ```
 
 ### Connection Pooling
 ```cpp
+namespace sqllib {
+
 // Create a connection pool
 ConnectionPool pool("mysql://username:password@localhost/mydb", 5, 20);
 
 // Function that needs a database connection
-void ProcessUser(int userId) {
+void process_user(int user_id) {
     // Get connection from pool
-    auto conn = pool.Acquire();
+    auto conn = pool.acquire();
     
     // Use the connection
     User u;
-    auto results = conn.Execute(Select(u.name).From(u).Where(u.id == userId));
+    auto results = conn.execute(Select(u.name).from(u).where(u.id == user_id));
     
     // Connection automatically returned to pool when conn goes out of scope
 }
+
+} // namespace sqllib
 ```
 
 ## Error Handling Strategy
 
 ### Exception Hierarchy
 ```cpp
+namespace sqllib {
+
+/// @brief Base exception for all database errors
 class DatabaseException : public std::runtime_error {
 public:
     DatabaseException(const std::string& message);
 };
 
+/// @brief Exception for connection related errors
 class ConnectionException : public DatabaseException {
 public:
     ConnectionException(const std::string& message);
 };
 
+/// @brief Exception for query execution errors
 class QueryException : public DatabaseException {
 public:
     QueryException(const std::string& message, const std::string& query);
-    const std::string& GetQuery() const;
+    const std::string& get_query() const;
+    
+private:
+    std::string query_;
 };
 
+/// @brief Exception for transaction errors
 class TransactionException : public DatabaseException {
 public:
     TransactionException(const std::string& message);
 };
+
+} // namespace sqllib
 ```
 
 ### Error Information
 ```cpp
+namespace sqllib {
+
+/// @brief Detailed error information structure
 struct DatabaseError {
     int code;
     std::string message;
-    std::string sqlState;  // For SQL standard error codes
+    std::string sql_state;  // For SQL standard error codes
 };
 
-DatabaseError Connection::GetLastError() const;
-```
+DatabaseError Connection::get_last_error() const;
+
+} // namespace sqllib
