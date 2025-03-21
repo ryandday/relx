@@ -1,1 +1,0 @@
-. "/Users/ryanday/repos/sqllib/build/Release/generators/deactivate_conanbuildenv-release-armv8.sh"

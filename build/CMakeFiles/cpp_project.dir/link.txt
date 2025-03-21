@@ -1,1 +1,0 @@
-/opt/homebrew/opt/llvm/bin/clang++ -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.5.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/cpp_project.dir/src/main.cpp.o -o cpp_project  -Wl,-rpath,/opt/homebrew/lib /opt/homebrew/lib/libfmt.11.1.4.dylib

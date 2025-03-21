@@ -1,1 +1,0 @@
-. "/Users/ryanday/repos/sqllib/build/Release/generators/conanrunenv-release-armv8.sh"
