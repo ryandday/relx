@@ -1,0 +1,3 @@
+/Users/ryanday/repos/sqllib/build/CMakeFiles/cpp_project.dir
+/Users/ryanday/repos/sqllib/build/CMakeFiles/edit_cache.dir
+/Users/ryanday/repos/sqllib/build/CMakeFiles/rebuild_cache.dir
