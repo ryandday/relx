@@ -118,6 +118,60 @@ for (const auto& row : results) {
 }
 ```
 
+### Enhanced Result Processing
+```cpp
+// More type-safe result processing
+
+// 1. Member pointer access for compile-time type safety
+for (const auto& row : results) {
+    std::string name = row.Get<&User::name>();     // Access by member pointer
+    std::string email = row.Get<&User::email>();   // Type and column checked at compile time
+    std::string title = row.Get<&Post::title>();   // Error if column wasn't in the SELECT
+    
+    // Process row...
+}
+
+// 2. Structured binding support with result traits
+for (const auto& [name, email, title] : results.As<std::string, std::string, std::string>()) {
+    // Types checked against column types
+    // Process with directly bound variables...
+}
+
+// 3. Row object conversion with static reflection
+struct UserPost {
+    std::string name;
+    std::string email;
+    std::string title;
+};
+
+// Map fields using member pointers at compile time
+auto userPosts = results.Transform<UserPost>({
+    {&UserPost::name, &User::name},
+    {&UserPost::email, &User::email},
+    {&UserPost::title, &Post::title}
+});
+
+for (const auto& userPost : userPosts) {
+    // Use strongly typed object
+    std::cout << userPost.name << " wrote: " << userPost.title << std::endl;
+}
+
+// 4. Direct transformation with lambdas
+auto processedResults = results.Transform([](const auto& row) {
+    return std::make_tuple(
+        row.Get<&User::name>(),
+        row.Get<&User::email>(),
+        row.Get<&Post::title>()
+    );
+});
+
+// 5. Optional handling for possibly NULL values
+auto maybeEmail = row.GetOptional<&User::email>();  // Returns std::optional<std::string>
+if (maybeEmail) {
+    sendEmail(*maybeEmail);
+}
+```
+
 ## Dependencies
 - Standard C++ library
 - (Optional) SQLite, MySQL, or PostgreSQL client libraries
