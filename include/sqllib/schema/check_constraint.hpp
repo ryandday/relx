@@ -8,55 +8,61 @@
 namespace sqllib {
 namespace schema {
 
-/// @brief Simple check constraint that accepts a condition string
-/// @details This simplified constraint doesn't perform type checking and
-///          lets the SQL engine handle validation
+/// @brief Check constraint that accepts a condition string at compile time
+/// @details Uses compile-time string literals to define the constraint condition
+/// @tparam Condition The SQL condition as a FixedString
+/// @tparam Name Optional name for the constraint
+template <FixedString Condition, FixedString Name = "">
 class check_constraint {
 public:
-    /// @brief Constructor with condition string
-    /// @param condition The SQL condition as a string
-    /// @param name Optional name for the constraint
-    explicit check_constraint(std::string condition, std::string name = "")
-        : condition_(std::move(condition)), name_(std::move(name)) {}
-    
     /// @brief Get SQL definition for the CHECK constraint
     /// @return SQL string defining the constraint
-    std::string sql_definition() const {
+    constexpr std::string sql_definition() const {
         std::string result;
         
         // Add constraint name if provided
-        if (!name_.empty()) {
-            result = "CONSTRAINT " + name_ + " ";
+        if constexpr (!Name.empty()) {
+            result = "CONSTRAINT " + std::string(std::string_view(Name)) + " ";
         }
         
         // Use the condition as-is
-        result += "CHECK (" + condition_ + ")";
+        result += "CHECK (" + std::string(std::string_view(Condition)) + ")";
         return result;
     }
-
-private:
-    std::string condition_; ///< The SQL condition
-    std::string name_;      ///< Optional constraint name
+    
+    /// @brief Get the condition as a string_view
+    /// @return The condition string
+    constexpr std::string_view condition() const {
+        return std::string_view(Condition);
+    }
+    
+    /// @brief Get the name as a string_view
+    /// @return The constraint name
+    constexpr std::string_view name() const {
+        return std::string_view(Name);
+    }
 };
 
-/// @brief Helper function to create a named check constraint
-/// @param condition The SQL condition
-/// @param name The constraint name
+/// @brief Helper function to create a named check constraint at compile time
+/// @tparam Condition The SQL condition
+/// @tparam Name The constraint name
 /// @return A check constraint with the given condition and name
-inline check_constraint named_check(std::string condition, std::string name) {
-    return check_constraint(std::move(condition), std::move(name));
+template <FixedString Condition, FixedString Name>
+constexpr auto named_check() {
+    return check_constraint<Condition, Name>();
 }
 
-// For backward compatibility with fixed strings
-template <FixedString Condition, FixedString Name = FixedString("")>
-check_constraint make_check_constraint() {
-    return check_constraint(std::string(std::string_view(Condition)), 
-                           std::string(std::string_view(Name)));
+/// @brief Helper function to create an unnamed check constraint at compile time
+/// @tparam Condition The SQL condition
+/// @return A check constraint with the given condition
+template <FixedString Condition>
+constexpr auto check() {
+    return check_constraint<Condition, "">();
 }
 
-/// @brief Helper type alias for backward compatibility
-template <FixedString Condition, FixedString Name = FixedString("")>
-using table_check_constraint = check_constraint;
+/// @brief Helper type alias for backward compatibility with older code
+template <FixedString Condition, FixedString Name = "">
+using table_check_constraint = check_constraint<Condition, Name>;
 
 } // namespace schema
 } // namespace sqllib 

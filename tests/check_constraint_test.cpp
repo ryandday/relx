@@ -6,12 +6,6 @@
 
 using namespace sqllib::schema;
 
-// Define constraint conditions as string constants
-const std::string valid_category_condition = "category IN ('electronics', 'books', 'clothing')";
-const std::string books_pricing_condition = "(price < 100.0 AND category = 'books') OR category != 'books'";
-const std::string price_quantity_condition = "price < quantity * 2.0";
-const std::string electronics_price_condition = "(price <= 1000.0 AND category = 'electronics') OR category != 'electronics'";
-
 // Test table with check constraints
 struct Item {
     static constexpr auto table_name = "items";
@@ -22,13 +16,13 @@ struct Item {
     column<"quantity", int> quantity;
     column<"category", std::string> category;
     
-    // Single column check constraints - now simplified
-    check_constraint positive_price{"price > 0"};
-    check_constraint non_negative_quantity{"quantity >= 0"};
+    // Single column check constraints - now using compile-time strings
+    check_constraint<"price > 0"> positive_price;
+    check_constraint<"quantity >= 0"> non_negative_quantity;
     
-    // Table-level check constraint using string constants
-    check_constraint valid_category{valid_category_condition};
-    check_constraint books_pricing{books_pricing_condition};
+    // Table-level check constraints using compile-time strings
+    check_constraint<"category IN ('electronics', 'books', 'clothing')"> valid_category;
+    check_constraint<"(price < 100.0 AND category = 'books') OR category != 'books'"> books_pricing;
 };
 
 // Special item struct for testing special characters in constraints
@@ -46,29 +40,29 @@ struct NamedItem {
 
 TEST(CheckConstraintTest, SingleColumnConstraints) {
     // Test positive price constraint
-    check_constraint price_check{"price > 0"};
+    auto price_check = check<"price > 0">();
     EXPECT_EQ(price_check.sql_definition(), "CHECK (price > 0)");
     
     // Test non-negative quantity constraint
-    check_constraint quantity_check{"quantity >= 0"};
+    auto quantity_check = check<"quantity >= 0">();
     EXPECT_EQ(quantity_check.sql_definition(), "CHECK (quantity >= 0)");
     
     // Test more complex column constraint
-    check_constraint name_check{"item_name IS NOT NULL AND length(item_name) > 3"};
+    auto name_check = check<"item_name IS NOT NULL AND length(item_name) > 3">();
     EXPECT_EQ(name_check.sql_definition(), "CHECK (item_name IS NOT NULL AND length(item_name) > 3)");
 }
 
 TEST(CheckConstraintTest, TableLevelConstraints) {
-    // Test table-level constraint using string constant
-    check_constraint category_check{valid_category_condition};
+    // Test table-level constraint using compile-time string
+    auto category_check = check<"category IN ('electronics', 'books', 'clothing')">();
     EXPECT_EQ(category_check.sql_definition(), "CHECK (category IN ('electronics', 'books', 'clothing'))");
     
     // Test table-level check constraint 
-    check_constraint price_quantity_check{price_quantity_condition};
+    auto price_quantity_check = check<"price < quantity * 2.0">();
     EXPECT_EQ(price_quantity_check.sql_definition(), "CHECK (price < quantity * 2.0)");
     
     // Test more complex multi-column constraint
-    check_constraint electronics_price{electronics_price_condition};
+    auto electronics_price = check<"(price <= 1000.0 AND category = 'electronics') OR category != 'electronics'">();
     EXPECT_EQ(electronics_price.sql_definition(), 
               "CHECK ((price <= 1000.0 AND category = 'electronics') OR category != 'electronics')");
 }
@@ -90,23 +84,20 @@ TEST(CheckConstraintTest, TableWithCheckConstraints) {
 // Test for handling special characters in check constraints
 TEST(CheckConstraintTest, SpecialCharacters) {
     // Test with single quotes in constraint
-    std::string condition_with_quotes = "item_name LIKE '%special''s item%'";
-    check_constraint quotes_check{condition_with_quotes};
+    auto quotes_check = check<"item_name LIKE '%special''s item%'">();
     EXPECT_EQ(quotes_check.sql_definition(), "CHECK (item_name LIKE '%special''s item%')");
     
     // Test with backslash and double quotes
-    std::string condition_with_backslash = "item_name LIKE '%\\special\\%' OR item_name LIKE '%\"quoted\"%'";
-    check_constraint backslash_check{condition_with_backslash};
+    auto backslash_check = check<"item_name LIKE '%\\special\\%' OR item_name LIKE '%\"quoted\"%'">();
     EXPECT_EQ(backslash_check.sql_definition(), "CHECK (item_name LIKE '%\\special\\%' OR item_name LIKE '%\"quoted\"%')");
     
     // Test with comparison operators and parentheses
-    std::string complex_condition = "(price > 100.0 AND price <= 1000.0) OR (price = 50.0 AND category = 'sale')";
-    check_constraint complex_check{complex_condition};
+    auto complex_check = check<"(price > 100.0 AND price <= 1000.0) OR (price = 50.0 AND category = 'sale')">();
     EXPECT_EQ(complex_check.sql_definition(), 
               "CHECK ((price > 100.0 AND price <= 1000.0) OR (price = 50.0 AND category = 'sale'))");
     
     // Test with column constraint and special characters
-    check_constraint special_name_check{"item_name LIKE '%O''Brien''s%' OR item_name LIKE '%100\\%%'"};
+    auto special_name_check = check<"item_name LIKE '%O''Brien''s%' OR item_name LIKE '%100\\%%'">();
     EXPECT_EQ(special_name_check.sql_definition(), 
               "CHECK (item_name LIKE '%O''Brien''s%' OR item_name LIKE '%100\\%%')");
 }
@@ -114,22 +105,16 @@ TEST(CheckConstraintTest, SpecialCharacters) {
 // Test for named check constraints
 TEST(CheckConstraintTest, NamedConstraints) {
     // Test named column constraint
-    check_constraint named_price_check{"price > 0", "positive_price"};
+    auto named_price_check = named_check<"price > 0", "positive_price">();
     EXPECT_EQ(named_price_check.sql_definition(), "CONSTRAINT positive_price CHECK (price > 0)");
     
     // Test named table constraint
-    std::string quantity_price_condition = "quantity * price >= 1000";
-    check_constraint named_table_check{quantity_price_condition, "min_order_value"};
+    auto named_table_check = named_check<"quantity * price >= 1000", "min_order_value">();
     EXPECT_EQ(named_table_check.sql_definition(), 
               "CONSTRAINT min_order_value CHECK (quantity * price >= 1000)");
     
-    // Test named table constraint with helper function
-    check_constraint named_helper_check = named_check(quantity_price_condition, "min_order_value");
-    EXPECT_EQ(named_helper_check.sql_definition(), 
-              "CONSTRAINT min_order_value CHECK (quantity * price >= 1000)");
-    
     // Test with special characters in constraint name
-    check_constraint special_name_constraint{"price > 100", "premium_price_$"};
+    auto special_name_constraint = named_check<"price > 100", "premium_price_$">();
     EXPECT_EQ(special_name_constraint.sql_definition(), 
               "CONSTRAINT premium_price_$ CHECK (price > 100)");
 } 

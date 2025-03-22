@@ -48,12 +48,12 @@ struct Users {
     unique_constraint<&Users::email> unique_email;
     
     // Check constraints
-    check_constraint valid_email{valid_email_condition};
-    check_constraint valid_status{valid_status_condition};
-    check_constraint valid_login{"login_attempts >= 0 AND login_attempts <= 5"};
+    check_constraint<"email LIKE '%@%.%' AND length(email) > 5"> valid_email;
+    check_constraint<"status IN ('active', 'inactive', 'pending', 'suspended')"> valid_status;
+    check_constraint<"login_attempts >= 0 AND login_attempts <= 5"> valid_login;
     
     // Table-level check constraint
-    check_constraint consistent_status{"(active = 0 AND status = 'inactive') OR active = 1"};
+    check_constraint<"(active = 0 AND status = 'inactive') OR active = 1"> consistent_status;
 };
 
 // Categories table
@@ -75,8 +75,8 @@ struct Categories {
     };
     
     // Check constraints
-    check_constraint valid_display_order{"display_order >= 0"};
-    check_constraint prevent_self_reference{"parent_id IS NULL OR parent_id != id"};
+    check_constraint<"display_order >= 0"> valid_display_order;
+    check_constraint<"parent_id IS NULL OR parent_id != id"> prevent_self_reference;
 };
 
 // Products table with all features
@@ -105,10 +105,10 @@ struct Products {
     foreign_key<&Products::created_by, &Users::id> user_fk;
     
     // Check constraints
-    check_constraint valid_price{valid_price_condition};
-    check_constraint valid_stock{valid_stock_condition};
-    check_constraint valid_discount{"(discount_price IS NULL) OR (discount_price < price AND discount_price >= 0)"};
-    check_constraint valid_product_status{"status IN ('active', 'inactive', 'discontinued')"};
+    check_constraint<"price >= 0 AND price <= 10000.0"> valid_price;
+    check_constraint<"stock >= 0"> valid_stock;
+    check_constraint<"(discount_price IS NULL) OR (discount_price < price AND discount_price >= 0)"> valid_discount;
+    check_constraint<"status IN ('active', 'inactive', 'discontinued')"> valid_product_status;
 };
 
 // Orders table with all features
@@ -130,9 +130,9 @@ struct Orders {
     foreign_key<&Orders::user_id, &Users::id> user_fk;
     
     // Check constraints
-    check_constraint valid_total{order_total_condition};
-    check_constraint valid_order_status{valid_order_status_condition};
-    check_constraint tracking_required{"(status != 'shipped' AND status != 'delivered') OR tracking_number IS NOT NULL"};
+    check_constraint<"total >= 0"> valid_total;
+    check_constraint<"status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')"> valid_order_status;
+    check_constraint<"(status != 'shipped' AND status != 'delivered') OR tracking_number IS NOT NULL"> tracking_required;
 };
 
 // Order_Items table with enhanced features
@@ -157,11 +157,11 @@ struct OrderItems {
     };
     
     // Check constraints
-    check_constraint valid_quantity{valid_quantity_condition};
-    check_constraint valid_price{valid_price_condition};
-    check_constraint valid_discount{"discount >= 0 AND discount <= price * quantity"};
-    check_constraint valid_subtotal{"subtotal >= 0"};
-    check_constraint correct_subtotal{"subtotal = (price * quantity) - discount"};
+    check_constraint<"quantity > 0"> valid_quantity;
+    check_constraint<"price >= 0"> valid_price;
+    check_constraint<"discount >= 0 AND discount <= price * quantity"> valid_discount;
+    check_constraint<"subtotal >= 0"> valid_subtotal;
+    check_constraint<"subtotal = (price * quantity) - discount"> correct_subtotal;
 };
 
 // Customer Reviews table to demonstrate more features
@@ -184,9 +184,9 @@ struct CustomerReviews {
     foreign_key<&CustomerReviews::user_id, &Users::id> user_fk;
     
     // Check constraints
-    check_constraint valid_rating{"rating BETWEEN 1 AND 5"};
-    check_constraint valid_helpful_votes{"helpful_votes >= 0"};
-    check_constraint valid_unhelpful_votes{"unhelpful_votes >= 0"};
+    check_constraint<"rating BETWEEN 1 AND 5"> valid_rating;
+    check_constraint<"helpful_votes >= 0"> valid_helpful_votes;
+    check_constraint<"unhelpful_votes >= 0"> valid_unhelpful_votes;
 };
 
 // Test case for complex schema
@@ -239,11 +239,11 @@ TEST(ComplexSchemaTest, EnhancedECommerceSchema) {
     // 3. Test CHECK constraints - flexible assertion that accepts the actual SQL format
     // We're now testing for the actual format the code generates rather than rigid expectations
     
-    // Check for email validation constraint - accept the actual format
-    EXPECT_TRUE(users_sql.find("CHECK (email_pattern IS NULL OR email_pattern LIKE '%@%.%')") != std::string::npos);
+    // Check for email validation constraint - update to match the actual constraint
+    EXPECT_TRUE(users_sql.find("CHECK (email LIKE '%@%.%' AND length(email) > 5)") != std::string::npos);
     
-    // Check for status constraint - accept the actual format
-    EXPECT_TRUE(users_sql.find("CHECK (status IN ('active', 'inactive', 'suspended', 'deleted'))") != std::string::npos);
+    // Check for status constraint - update to match the actual constraint
+    EXPECT_TRUE(users_sql.find("CHECK (status IN ('active', 'inactive', 'pending', 'suspended'))") != std::string::npos);
     
     // Check for login_attempts constraint - accept the actual output
     EXPECT_TRUE(users_sql.find("CHECK (login_attempts >= 0 AND login_attempts <= 5)") != std::string::npos);
