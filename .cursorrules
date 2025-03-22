@@ -1,11 +1,13 @@
 Conventions
 
 Use the top level makefile that already exists to create convenience functions build / run / test stuff
-Don't delete anything from it or overwrite the makefile.
+Don't delete anything from it or overwrite the makefile. Use `make test` to test.
 
 Still use cmake for the build system.
 
 NEVER put in a constructor on a class that needs boost pfr compatibility, since it needs to be an aggregate.
+
+When writing tests, make sure to tests many error conditions, as many as successful conditions
 
 # C++ Coding Standards for SQLlib
 
