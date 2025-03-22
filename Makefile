@@ -29,15 +29,15 @@ run: build
 # Test commands
 .PHONY: test
 test: build
-	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests && ctest --output-on-failure -V
+	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests --parallel && ctest --output-on-failure -V
 
 .PHONY: test-verbose
 test-verbose: build
-	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests && ./sqllib_tests --gtest_color=yes
+	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests --parallel && ./sqllib_tests --gtest_color=yes
 
 .PHONY: static-test
 static-test: configure
-	cd $(BUILD_DIR) && cmake --build . --target static_assert_tests && ./static_assert_tests
+	cd $(BUILD_DIR) && cmake --build . --target static_assert_tests --parallel && ./static_assert_tests
 
 # Development helpers
 .PHONY: format

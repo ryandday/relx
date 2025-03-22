@@ -23,7 +23,7 @@
  * #include <sqllib/schema.hpp>
  * 
  * // Define a table
- * struct users : sqllib::schema::table<"users"> {
+ * struct users { 
  *     // Define columns
  *     sqllib::schema::column<"id", int> id;
  *     sqllib::schema::column<"name", std::string> name;
@@ -96,8 +96,6 @@ namespace sqllib {
 /**
  * Example usage with raw strings:
  * 
- * // Define tables with raw string literals
- * sqllib::schema::table<"users"> user_table;
  * 
  * // Define columns with raw string literals
  * sqllib::schema::column<"id", int> id_column;

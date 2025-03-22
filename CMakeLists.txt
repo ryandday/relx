@@ -66,6 +66,7 @@ add_executable(sqllib_tests
   tests/optional_column_test.cpp
   tests/composite_foreign_key_test.cpp
   tests/constraint_alias_test.cpp
+  tests/query_test.cpp
 #   tests/break_the_library_test.cpp
 )
 
@@ -85,3 +86,7 @@ target_link_libraries(static_assert_tests PRIVATE ${PROJECT_NAME})
 
 # Register static_assert test
 add_test(NAME static_assert_tests COMMAND static_assert_tests)
+
+# Add a simple query example
+add_executable(query_example examples/query_example.cpp)
+target_link_libraries(query_example PRIVATE ${PROJECT_NAME})

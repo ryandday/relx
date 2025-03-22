@@ -13,8 +13,13 @@ namespace schema {
  * @brief Compile-time string type that can be used as template non-type parameter in C++20
  * 
  * This implementation allows usage like:
- * template <FixedString Name> struct table {};
- * table<"users"> users_table;
+ * 
+ * struct Users {
+ *     static constexpr auto table_name = "users";
+ *     sqllib::schema::column<"id", int> id;
+ *     sqllib::schema::column<"name", std::string> name;
+ *     sqllib::schema::column<"email", std::string> email;
+ * };
  */
 template <std::size_t N>
 struct FixedString {

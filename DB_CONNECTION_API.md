@@ -344,7 +344,8 @@ namespace sqllib {
 auto conn = Connection::create_sqlite("database.db");
 
 // Define schema
-struct User : Table<"users"> {
+struct User {
+    static constexpr auto table_name = "users";
     Column<"id", int> id;
     Column<"name", std::string> name;
     
