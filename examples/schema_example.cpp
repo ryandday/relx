@@ -184,9 +184,6 @@ struct UniqueConstraintDemo {
  * 1. General table-level constraints
  * 2. Column-specific constraints
  * 
- * When using column_check_constraint, be sure to follow the exact format 
- * of the constraint: no spaces between the operator and the value,
- * e.g., ">=18" not ">= 18".
  */
 struct CheckConstraintDemo {
     static constexpr auto table_name = "check_constraints_demo";
@@ -199,10 +196,9 @@ struct CheckConstraintDemo {
     // Primary key
     sqllib::schema::primary_key<&CheckConstraintDemo::id> pk;
     
-    // Column-level check constraints - using column_check_constraint
-    // Note that the operator and value must be directly adjacent without spaces
-    sqllib::schema::column_check_constraint<&CheckConstraintDemo::age, "age>=18"> age_check;
-    sqllib::schema::column_check_constraint<&CheckConstraintDemo::salary, "salary>0"> salary_check;
+    // Column-level check constraints
+    sqllib::schema::column_check_constraint<&CheckConstraintDemo::age, "age >= 18"> age_check;
+    sqllib::schema::column_check_constraint<&CheckConstraintDemo::salary, "salary > 0"> salary_check;
     
     // Table-level check constraint (not associated with any specific column)
     sqllib::schema::check_constraint<"status IN ('active', 'inactive', 'pending')"> status_check;
