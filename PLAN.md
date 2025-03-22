@@ -96,8 +96,8 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
    - Support both literal and expression defaults
    - Example:
    ```cpp
-   column<"created_at", timestamp, default_value<"CURRENT_TIMESTAMP">> created_at;
-   column<"status", std::string, default_value<"'active'">> status;
+   column<"created_at", timestamp, DefaultValue<"CURRENT_TIMESTAMP">> created_at;
+   column<"status", std::string, DefaultValue<"'active'">> status;
    ```
 
 4. ✅ **Unique Constraints**
@@ -242,9 +242,9 @@ struct Product {
     column<"price", double> price;
     column<"category", std::string> category;
     column<"description", std::optional<std::string>> description; // Nullable with std::optional
-    column<"stock", int, default_value<0>> stock;                 // Default value with integer literal
-    column<"created_at", timestamp, default_value<"CURRENT_TIMESTAMP">> created_at;
-    column<"status", std::string, default_value<"'active'">> status;
+    column<"stock", int, DefaultValue<0>> stock;                 // Default value with integer literal
+    column<"created_at", timestamp, DefaultValue<"CURRENT_TIMESTAMP">> created_at;
+    column<"status", std::string, DefaultValue<"'active'">> status;
     
     primary_key<&Product::id> pk;
     unique_constraint<&Product::name> unique_name;               // Unique constraint
@@ -265,9 +265,9 @@ struct Order {
     
     column<"id", int> id;
     column<"product_id", int> product_id;
-    column<"quantity", int, default_value<1>> quantity;         // Integer literal for default value
+    column<"quantity", int, DefaultValue<1>> quantity;         // Integer literal for default value
     column<"user_id", std::optional<int>> user_id;              // Optional user association
-    column<"order_date", timestamp, default_value<"CURRENT_TIMESTAMP">> order_date;
+    column<"order_date", timestamp, DefaultValue<"CURRENT_TIMESTAMP">> order_date;
     
     primary_key<&Order::id> pk;
     foreign_key<&Order::product_id, &Product::id> product_fk;

@@ -3,13 +3,31 @@
 #include <vector>
 #include <string>
 #include <optional>
+#include <chrono>
+#include <iostream>
 
 using namespace sqllib::schema;
 
 // This test demonstrates a more complex database schema with relationships
 // and various constraints to test the entire system working together
 
-// Users table
+
+// Define constraint conditions as FixedString constants
+constexpr FixedString valid_status_condition = "status IN ('active', 'inactive', 'suspended', 'deleted')";
+constexpr FixedString valid_email_condition = "email_pattern IS NULL OR email_pattern LIKE '%@%.%'";
+constexpr FixedString valid_price_condition = "price >= 0";
+constexpr FixedString valid_stock_condition = "stock >= 0";
+constexpr FixedString valid_order_status_condition = "status IN ('pending', 'processing', 'shipped', 'delivered', 'canceled')";
+constexpr FixedString valid_quantity_condition = "quantity > 0";
+constexpr FixedString order_total_condition = "total >= 0";
+
+// Define string literals for default values
+inline constexpr FixedString active_status = "active";
+inline constexpr FixedString pending_status = "pending";
+inline constexpr FixedString user_role = "customer";
+inline constexpr FixedString credit_card = "credit_card";
+
+// Users table with all features
 struct Users {
     static constexpr auto name = std::string_view("users");
     
@@ -17,14 +35,25 @@ struct Users {
     column<"username", std::string> username;
     column<"email", std::string> email;
     column<"password_hash", std::string> password_hash;
-    column<"created_at", std::string> created_at; // Simplified, would be timestamp in real DB
-    column<"last_login", std::optional<std::string>> last_login;
-    column<"active", bool> active;
+    column<"email_verified", bool, DefaultValue<false>> email_verified;
+    column<"profile_image", std::optional<std::string>> profile_image;
+    column<"active", bool, DefaultValue<true>> active;
+    column<"status", std::string, DefaultValue<active_status>> status;
+    column<"login_attempts", int, DefaultValue<0>> login_attempts;
+    column<"role", std::string, DefaultValue<user_role>> role;
     
     // Constraints
     primary_key<&Users::id> pk;
-    sqllib::schema::index<&Users::username> username_idx{index_type::unique};
-    sqllib::schema::index<&Users::email> email_idx{index_type::unique};
+    unique_constraint<&Users::username> unique_username;
+    unique_constraint<&Users::email> unique_email;
+    
+    // Check constraints
+    check_constraint<&Users::email, valid_email_condition> valid_email;
+    check_constraint<&Users::status, valid_status_condition> valid_status;
+    check_constraint<&Users::login_attempts, ">= 0 AND login_attempts <= 5"> valid_login;
+    
+    // Table-level check constraint
+    check_constraint<nullptr, "(active = 0 AND status = 'inactive') OR active = 1"> consistent_status;
 };
 
 // Categories table
@@ -35,61 +64,88 @@ struct Categories {
     column<"name", std::string> name_col;
     column<"description", std::optional<std::string>> description;
     column<"parent_id", std::optional<int>> parent_id;
+    column<"is_active", bool, DefaultValue<true>> is_active;
+    column<"display_order", int, DefaultValue<0>> display_order;
     
     // Constraints
     primary_key<&Categories::id> pk;
-    sqllib::schema::index<&Categories::name_col> name_idx{index_type::unique};
+    unique_constraint<&Categories::name_col> unique_name;
     foreign_key<&Categories::parent_id, &Categories::id> parent_fk{
         reference_action::set_null, reference_action::cascade
     };
+    
+    // Check constraints
+    check_constraint<&Categories::display_order, ">= 0"> valid_display_order;
+    check_constraint<nullptr, "parent_id IS NULL OR parent_id != id"> prevent_self_reference;
 };
 
-// Products table
+// Products table with all features
 struct Products {
     static constexpr auto name = std::string_view("products");
     
     column<"id", int> id;
     column<"name", std::string> name_col;
     column<"sku", std::string> sku;
-    column<"price", double> price;
-    column<"stock", int> stock;
+    column<"price", double, DefaultValue<0.0>> price;
+    column<"discount_price", std::optional<double>> discount_price;
+    column<"stock", int, DefaultValue<0>> stock;
     column<"description", std::optional<std::string>> description;
+    column<"is_featured", bool, DefaultValue<false>> is_featured;
+    column<"weight", std::optional<double>> weight;
     column<"category_id", int> category_id;
     column<"created_by", int> created_by;
+    column<"status", std::string, DefaultValue<active_status>> status;
     
     // Constraints
     primary_key<&Products::id> pk;
-    sqllib::schema::index<&Products::sku> sku_idx{index_type::unique};
-    sqllib::schema::index<&Products::name_col> name_idx;
-    sqllib::schema::index<&Products::price> price_idx;
+    unique_constraint<&Products::sku> unique_sku;
+    composite_unique_constraint<&Products::name_col, &Products::category_id> unique_name_per_category;
+    
     foreign_key<&Products::category_id, &Categories::id> category_fk;
     foreign_key<&Products::created_by, &Users::id> user_fk;
+    
+    // Check constraints
+    check_constraint<&Products::price, valid_price_condition> valid_price;
+    check_constraint<&Products::stock, valid_stock_condition> valid_stock;
+    check_constraint<nullptr, "(discount_price IS NULL) OR (discount_price < price AND discount_price >= 0)"> valid_discount;
+    check_constraint<&Products::status, "IN ('active', 'inactive', 'discontinued')"> valid_product_status;
 };
 
-// Orders table
+// Orders table with all features
 struct Orders {
     static constexpr auto name = std::string_view("orders");
     
     column<"id", int> id;
     column<"user_id", int> user_id;
-    column<"order_date", std::string> order_date; // Simplified
-    column<"total", double> total;
-    column<"status", std::string> status;
+    column<"total", double, DefaultValue<0.0>> total;
+    column<"status", std::string, DefaultValue<pending_status>> status;
+    column<"shipping_address", std::optional<std::string>> shipping_address;
+    column<"billing_address", std::optional<std::string>> billing_address;
+    column<"payment_method", std::string, DefaultValue<credit_card>> payment_method;
+    column<"notes", std::optional<std::string>> notes;
+    column<"tracking_number", std::optional<std::string>> tracking_number;
     
     // Constraints
     primary_key<&Orders::id> pk;
     foreign_key<&Orders::user_id, &Users::id> user_fk;
-    sqllib::schema::index<&Orders::order_date> date_idx;
+    
+    // Check constraints
+    check_constraint<&Orders::total, order_total_condition> valid_total;
+    check_constraint<&Orders::status, valid_order_status_condition> valid_order_status;
+    check_constraint<nullptr, "(status != 'shipped' AND status != 'delivered') OR tracking_number IS NOT NULL"> tracking_required;
 };
 
-// Order_Items table - junction table for Orders and Products
+// Order_Items table with enhanced features
 struct OrderItems {
     static constexpr auto name = std::string_view("order_items");
     
     column<"order_id", int> order_id;
     column<"product_id", int> product_id;
-    column<"quantity", int> quantity;
+    column<"quantity", int, DefaultValue<1>> quantity;
     column<"price", double> price; // Price at time of order
+    column<"discount", double, DefaultValue<0.0>> discount;
+    column<"subtotal", double, DefaultValue<0.0>> subtotal;
+    column<"notes", std::optional<std::string>> notes;
     
     // Constraints - composite primary key
     composite_primary_key<&OrderItems::order_id, &OrderItems::product_id> pk;
@@ -99,16 +155,49 @@ struct OrderItems {
     foreign_key<&OrderItems::product_id, &Products::id> product_fk{
         reference_action::restrict, reference_action::restrict
     };
+    
+    // Check constraints
+    check_constraint<&OrderItems::quantity, valid_quantity_condition> valid_quantity;
+    check_constraint<&OrderItems::price, valid_price_condition> valid_price;
+    check_constraint<&OrderItems::discount, ">= 0 AND discount <= price * quantity"> valid_discount;
+    check_constraint<&OrderItems::subtotal, ">= 0"> valid_subtotal;
+    check_constraint<nullptr, "subtotal = (price * quantity) - discount"> correct_subtotal;
+};
+
+// Customer Reviews table to demonstrate more features
+struct CustomerReviews {
+    static constexpr auto name = std::string_view("customer_reviews");
+    
+    column<"id", int> id;
+    column<"product_id", int> product_id;
+    column<"user_id", int> user_id;
+    column<"rating", int> rating;
+    column<"review_text", std::string> review_text;
+    column<"is_verified_purchase", bool, DefaultValue<false>> is_verified_purchase;
+    column<"helpful_votes", int, DefaultValue<0>> helpful_votes;
+    column<"unhelpful_votes", int, DefaultValue<0>> unhelpful_votes;
+    
+    // Constraints
+    primary_key<&CustomerReviews::id> pk;
+    composite_unique_constraint<&CustomerReviews::product_id, &CustomerReviews::user_id> one_review_per_product;
+    foreign_key<&CustomerReviews::product_id, &Products::id> product_fk;
+    foreign_key<&CustomerReviews::user_id, &Users::id> user_fk;
+    
+    // Check constraints
+    check_constraint<&CustomerReviews::rating, "BETWEEN 1 AND 5"> valid_rating;
+    check_constraint<&CustomerReviews::helpful_votes, ">= 0"> valid_helpful_votes;
+    check_constraint<&CustomerReviews::unhelpful_votes, ">= 0"> valid_unhelpful_votes;
 };
 
 // Test case for complex schema
-TEST(ComplexSchemaTest, ECommerceSchema) {
+TEST(ComplexSchemaTest, EnhancedECommerceSchema) {
     // Create instances of all tables
     Users users;
     Categories categories;
     Products products;
     Orders orders;
     OrderItems orderItems;
+    CustomerReviews reviews;
     
     // Generate CREATE TABLE statements for all tables
     std::string users_sql = create_table_sql(users);
@@ -116,52 +205,86 @@ TEST(ComplexSchemaTest, ECommerceSchema) {
     std::string products_sql = create_table_sql(products);
     std::string orders_sql = create_table_sql(orders);
     std::string order_items_sql = create_table_sql(orderItems);
+    std::string reviews_sql = create_table_sql(reviews);
     
-    // Check that all tables have the expected CREATE TABLE statements
+    // Check table creation statements
     EXPECT_TRUE(users_sql.find("CREATE TABLE IF NOT EXISTS users") != std::string::npos);
     EXPECT_TRUE(categories_sql.find("CREATE TABLE IF NOT EXISTS categories") != std::string::npos);
     EXPECT_TRUE(products_sql.find("CREATE TABLE IF NOT EXISTS products") != std::string::npos);
     EXPECT_TRUE(orders_sql.find("CREATE TABLE IF NOT EXISTS orders") != std::string::npos);
     EXPECT_TRUE(order_items_sql.find("CREATE TABLE IF NOT EXISTS order_items") != std::string::npos);
+    EXPECT_TRUE(reviews_sql.find("CREATE TABLE IF NOT EXISTS customer_reviews") != std::string::npos);
     
-    // Check that foreign keys are properly set up
+    // 1. Test default values in CREATE TABLE statements
+    EXPECT_TRUE(users_sql.find("login_attempts INTEGER NOT NULL DEFAULT 0") != std::string::npos);
+    EXPECT_TRUE(users_sql.find("active INTEGER NOT NULL DEFAULT 1") != std::string::npos);
+    EXPECT_TRUE(users_sql.find("status TEXT NOT NULL DEFAULT 'active'") != std::string::npos);
+    EXPECT_TRUE(products_sql.find("price REAL NOT NULL DEFAULT 0.000000") != std::string::npos);
+    EXPECT_TRUE(products_sql.find("is_featured INTEGER NOT NULL DEFAULT 0") != std::string::npos);
+    EXPECT_TRUE(orders_sql.find("total REAL NOT NULL DEFAULT 0.000000") != std::string::npos);
+    EXPECT_TRUE(orders_sql.find("status TEXT NOT NULL DEFAULT 'pending'") != std::string::npos);
+    EXPECT_TRUE(order_items_sql.find("quantity INTEGER NOT NULL DEFAULT 1") != std::string::npos);
+    
+    // 2. Test NULL defaults
+    EXPECT_TRUE(orders_sql.find("notes TEXT DEFAULT NULL") != std::string::npos);
+    EXPECT_TRUE(order_items_sql.find("notes TEXT DEFAULT NULL") != std::string::npos);
+    
+    // 3. Test CHECK constraints
+    EXPECT_TRUE(users_sql.find("CHECK (email LIKE '%@%.%')") != std::string::npos);
+    EXPECT_TRUE(users_sql.find("CHECK (status IN ('active', 'inactive', 'suspended', 'deleted'))") != std::string::npos);
+    EXPECT_TRUE(users_sql.find("CHECK (login_attempts >= 0 AND login_attempts <= 5)") != std::string::npos);
+    EXPECT_TRUE(users_sql.find("CHECK ((active = 0 AND status = 'inactive') OR active = 1)") != std::string::npos);
+    
+    EXPECT_TRUE(products_sql.find("CHECK (price >= 0)") != std::string::npos);
+    EXPECT_TRUE(products_sql.find("CHECK (stock >= 0)") != std::string::npos);
+    EXPECT_TRUE(products_sql.find("CHECK ((discount_price IS NULL) OR (discount_price < price AND discount_price >= 0))") != std::string::npos);
+    
+    EXPECT_TRUE(order_items_sql.find("CHECK (quantity > 0)") != std::string::npos);
+    EXPECT_TRUE(order_items_sql.find("CHECK (subtotal = (price * quantity) - discount)") != std::string::npos);
+    
+    EXPECT_TRUE(reviews_sql.find("CHECK (rating BETWEEN 1 AND 5)") != std::string::npos);
+    
+    // 4. Test UNIQUE constraints
+    EXPECT_TRUE(users_sql.find("UNIQUE (username)") != std::string::npos);
+    EXPECT_TRUE(users_sql.find("UNIQUE (email)") != std::string::npos);
+    EXPECT_TRUE(products_sql.find("UNIQUE (sku)") != std::string::npos);
+    EXPECT_TRUE(products_sql.find("UNIQUE (name, category_id)") != std::string::npos);
+    EXPECT_TRUE(reviews_sql.find("UNIQUE (product_id, user_id)") != std::string::npos);
+    
+    // 5. Test foreign keys
     EXPECT_TRUE(categories_sql.find("FOREIGN KEY (parent_id) REFERENCES categories (id)") != std::string::npos);
     EXPECT_TRUE(products_sql.find("FOREIGN KEY (category_id) REFERENCES categories (id)") != std::string::npos);
     EXPECT_TRUE(products_sql.find("FOREIGN KEY (created_by) REFERENCES users (id)") != std::string::npos);
     EXPECT_TRUE(orders_sql.find("FOREIGN KEY (user_id) REFERENCES users (id)") != std::string::npos);
     EXPECT_TRUE(order_items_sql.find("FOREIGN KEY (order_id) REFERENCES orders (id)") != std::string::npos);
     EXPECT_TRUE(order_items_sql.find("FOREIGN KEY (product_id) REFERENCES products (id)") != std::string::npos);
+    EXPECT_TRUE(reviews_sql.find("FOREIGN KEY (product_id) REFERENCES products (id)") != std::string::npos);
+    EXPECT_TRUE(reviews_sql.find("FOREIGN KEY (user_id) REFERENCES users (id)") != std::string::npos);
     
-    // Check that ON DELETE and ON UPDATE actions are present where specified
+    // 6. Test ON DELETE and ON UPDATE actions
     EXPECT_TRUE(categories_sql.find("ON DELETE SET NULL ON UPDATE CASCADE") != std::string::npos);
     EXPECT_TRUE(order_items_sql.find("ON DELETE CASCADE ON UPDATE CASCADE") != std::string::npos);
     EXPECT_TRUE(order_items_sql.find("ON DELETE RESTRICT ON UPDATE RESTRICT") != std::string::npos);
     
-    // Check index creation statements
-    std::vector<std::string> indexes;
-    indexes.push_back(users.username_idx.create_index_sql());
-    indexes.push_back(users.email_idx.create_index_sql());
-    indexes.push_back(categories.name_idx.create_index_sql());
-    indexes.push_back(products.sku_idx.create_index_sql());
-    indexes.push_back(products.name_idx.create_index_sql());
-    indexes.push_back(products.price_idx.create_index_sql());
-    indexes.push_back(orders.date_idx.create_index_sql());
+    // Create some additional test cases to fully exercise the schema system
+    // Test accessing default values programmatically
+    auto price_default = products.price.get_default_value();
+    ASSERT_TRUE(price_default.has_value());
+    EXPECT_DOUBLE_EQ(*price_default, 0.0);
     
-    // Check that each index creation statement is properly formed
-    for (const auto& idx : indexes) {
-        EXPECT_TRUE(idx.find("CREATE") != std::string::npos);
-        EXPECT_TRUE(idx.find("INDEX") != std::string::npos);
-        EXPECT_TRUE(idx.find("ON") != std::string::npos);
-    }
+    auto is_featured_default = products.is_featured.get_default_value();
+    ASSERT_TRUE(is_featured_default.has_value());
+    EXPECT_FALSE(*is_featured_default);
     
-    // Check unique indexes
-    EXPECT_TRUE(users.username_idx.create_index_sql().find("UNIQUE") != std::string::npos);
-    EXPECT_TRUE(users.email_idx.create_index_sql().find("UNIQUE") != std::string::npos);
-    EXPECT_TRUE(categories.name_idx.create_index_sql().find("UNIQUE") != std::string::npos);
-    EXPECT_TRUE(products.sku_idx.create_index_sql().find("UNIQUE") != std::string::npos);
+    auto login_attempts_default = users.login_attempts.get_default_value();
+    ASSERT_TRUE(login_attempts_default.has_value());
+    EXPECT_EQ(*login_attempts_default, 0);
     
-    // Regular indexes shouldn't have UNIQUE
-    EXPECT_FALSE(products.name_idx.create_index_sql().find("UNIQUE") != std::string::npos);
-    EXPECT_FALSE(products.price_idx.create_index_sql().find("UNIQUE") != std::string::npos);
-    EXPECT_FALSE(orders.date_idx.create_index_sql().find("UNIQUE") != std::string::npos);
+    // Test nullable columns with and without defaults
+    EXPECT_TRUE(products.discount_price.nullable);
+    EXPECT_FALSE(products.discount_price.has_default);
+    
+    // Verify that NOT NULL is not added for nullable columns
+    EXPECT_FALSE(products_sql.find("discount_price REAL NOT NULL") != std::string::npos);
+    EXPECT_TRUE(products_sql.find("discount_price REAL") != std::string::npos);
 } 

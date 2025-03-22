@@ -15,7 +15,7 @@ struct Customer {
     column<"email", std::optional<std::string>> email;        // Nullable email
     column<"phone", std::optional<std::string>> phone;        // Nullable phone
     column<"age", std::optional<int>> age;                    // Nullable age
-    column<"vip_level", int, default_value<0>> vip_level;     // Non-nullable with default
+    column<"vip_level", int, DefaultValue<0>> vip_level;     // Non-nullable with default
     column<"notes", std::optional<std::string>, null_default> notes; // Nullable with NULL default
 };
 
@@ -31,7 +31,7 @@ TEST(OptionalColumnTest, OptionalProperties) {
     EXPECT_EQ(email_col.sql_definition(), "email TEXT");
     
     // Test std::optional with default
-    column<"count", std::optional<int>, default_value<42>> count_col;
+    column<"count", std::optional<int>, DefaultValue<42>> count_col;
     EXPECT_TRUE(count_col.nullable);
     EXPECT_TRUE(count_col.has_default);
     EXPECT_EQ(count_col.sql_definition(), "count INTEGER DEFAULT 42");

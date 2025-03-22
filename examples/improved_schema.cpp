@@ -16,22 +16,22 @@ struct Product {
     schema::column<"description", std::optional<std::string>> description;
     
     // Column with default value - automatically deduces type (double)
-    schema::column<"price", double, schema::Default_value<0.0>> price;
+    schema::column<"price", double, schema::DefaultValue<0.0>> price;
     
     // Column with default value using a SQL literal
-    schema::column<"created_at", std::string, schema::Default_value<schema::current_timestamp>> created_at;
+    schema::column<"created_at", std::string, schema::DefaultValue<schema::current_timestamp>> created_at;
     
     // Integer with default value - automatically deduces type (int)
-    schema::column<"stock", int, schema::Default_value<0>> stock;
+    schema::column<"stock", int, schema::DefaultValue<0>> stock;
     
     // String with default value - automatically deduces type (string)
-    schema::column<"status", std::string, schema::Default_value<"active">> status;
+    schema::column<"status", std::string, schema::DefaultValue<"active">> status;
     
     // Float with default value - automatically deduces type (double)
-    schema::column<"rate", double, schema::Default_value<1.5>> rate;
+    schema::column<"rate", double, schema::DefaultValue<1.5>> rate;
     
     // Boolean with default value - automatically deduces type (bool)
-    schema::column<"is_featured", bool, schema::Default_value<false>> is_featured;
+    schema::column<"is_featured", bool, schema::DefaultValue<false>> is_featured;
     
     // Nullable integer with DEFAULT NULL
     schema::column<"parent_id", std::optional<int>, schema::null_default> parent_id;
@@ -51,15 +51,15 @@ struct Order {
     schema::column<"product_id", int> product_id;
     
     // Integer with default value
-    schema::column<"quantity", int, schema::Default_value<1>> quantity;
+    schema::column<"quantity", int, schema::DefaultValue<1>> quantity;
     
     schema::column<"user_id", std::optional<int>> user_id;
     
     // SQL literal default
-    schema::column<"order_date", std::string, schema::Default_value<schema::current_timestamp>> order_date;
+    schema::column<"order_date", std::string, schema::DefaultValue<schema::current_timestamp>> order_date;
     
     // Boolean with automatically deduced type
-    schema::column<"is_paid", bool, schema::Default_value<false>> is_paid;
+    schema::column<"is_paid", bool, schema::DefaultValue<false>> is_paid;
     
     schema::primary_key<&order::id> pk;
     schema::foreign_key<&order::product_id, &product::id> product_fk;

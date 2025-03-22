@@ -45,13 +45,13 @@ Columns can now have default values specified at compile time:
 
 ```cpp
 // Simple default values for different types
-column<"stock", int, default_value<0>> stock;
-column<"is_active", bool, default_value<true>> is_active;
-column<"price", double, default_value<0.0>> price;
+column<"stock", int, DefaultValue<0>> stock;
+column<"is_active", bool, DefaultValue<true>> is_active;
+column<"price", double, DefaultValue<0.0>> price;
 
 // SQL expression default values
-column<"created_at", timestamp, default_value<"CURRENT_TIMESTAMP">> created_at;
-column<"status", std::string, default_value<"'active'">> status;
+column<"created_at", timestamp, DefaultValue<"CURRENT_TIMESTAMP">> created_at;
+column<"status", std::string, DefaultValue<"'active'">> status;
 
 // NULL default for nullable columns
 column<"notes", std::optional<std::string>, null_default> notes;
@@ -93,10 +93,10 @@ struct Product {
     
     column<"id", int> id;
     column<"product_name", std::string> product_name;
-    column<"price", double, default_value<0.0>> price;
+    column<"price", double, DefaultValue<0.0>> price;
     column<"description", std::optional<std::string>> description;
-    column<"stock", int, default_value<10>> stock;
-    column<"active", bool, default_value<true>> active;
+    column<"stock", int, DefaultValue<10>> stock;
+    column<"active", bool, DefaultValue<true>> active;
     
     primary_key<&Product::id> pk;
     unique_constraint<&Product::product_name> unique_name;

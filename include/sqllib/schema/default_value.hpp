@@ -40,7 +40,7 @@ inline constexpr current_time_t current_time{};
 /// @brief Type-safe default value with automatic type deduction
 /// @tparam V The literal value (automatically deduces the type)
 template <auto V>
-class Default_value {
+class DefaultValue {
 public:
     // Deduce the value type from the template parameter
     using value_type = decltype(V);
@@ -102,10 +102,6 @@ concept DefaultValueConcept = requires {
     requires std::is_same_v<decltype(T::parse_value()), std::optional<typename T::value_type>> ||
              requires(T t) { { t.parse_value() } -> std::convertible_to<std::optional<typename T::value_type>>; };
 };
-
-// For backward compatibility, keep the lowercase version but with new implementation
-template <auto V>
-using default_value = Default_value<V>;
 
 } // namespace schema
 } // namespace sqllib 

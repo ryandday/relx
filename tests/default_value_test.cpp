@@ -12,14 +12,14 @@ struct Product {
     
     column<"id", int> id;
     column<"product_name", std::string> product_name;
-    column<"price", double, default_value<0.0>> price;
-    column<"stock", int, default_value<10>> stock;
-    column<"active", bool, default_value<true>> active;
+    column<"price", double, DefaultValue<0.0>> price;
+    column<"stock", int, DefaultValue<10>> stock;
+    column<"active", bool, DefaultValue<true>> active;
 };
 
 TEST(DefaultValueTest, BasicDefaultValues) {
     // Test integer default value
-    column<"count", int, default_value<5>> count_col;
+    column<"count", int, DefaultValue<5>> count_col;
     EXPECT_TRUE(count_col.has_default);
     EXPECT_EQ(count_col.sql_definition(), "count INTEGER NOT NULL DEFAULT 5");
     auto count_default = count_col.get_default_value();
@@ -27,7 +27,7 @@ TEST(DefaultValueTest, BasicDefaultValues) {
     EXPECT_EQ(*count_default, 5);
     
     // Test double default value
-    column<"price", double, default_value<19.99>> price_col;
+    column<"price", double, DefaultValue<19.99>> price_col;
     EXPECT_TRUE(price_col.has_default);
     EXPECT_EQ(price_col.sql_definition(), "price REAL NOT NULL DEFAULT 19.990000");
     auto price_default = price_col.get_default_value();
@@ -35,7 +35,7 @@ TEST(DefaultValueTest, BasicDefaultValues) {
     EXPECT_DOUBLE_EQ(*price_default, 19.99);
     
     // Test bool default value
-    column<"is_active", bool, default_value<true>> is_active_col;
+    column<"is_active", bool, DefaultValue<true>> is_active_col;
     EXPECT_TRUE(is_active_col.has_default);
     EXPECT_EQ(is_active_col.sql_definition(), "is_active INTEGER NOT NULL DEFAULT 1");
     auto is_active_default = is_active_col.get_default_value();
@@ -45,7 +45,7 @@ TEST(DefaultValueTest, BasicDefaultValues) {
 
 TEST(DefaultValueTest, NullableColumnsWithDefaults) {
     // Test nullable column with default value
-    column<"count", std::optional<int>, default_value<42>> count_col;
+    column<"count", std::optional<int>, DefaultValue<42>> count_col;
     EXPECT_TRUE(count_col.has_default);
     EXPECT_TRUE(count_col.nullable);
     EXPECT_EQ(count_col.sql_definition(), "count INTEGER DEFAULT 42");

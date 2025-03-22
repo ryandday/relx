@@ -33,19 +33,19 @@
  *     sqllib::schema::column<"bio", std::optional<std::string>> bio;
  *     
  *     // Column with default value - automatically deduces type
- *     sqllib::schema::column<"age", int, sqllib::schema::Default_value<18>> age;
+ *     sqllib::schema::column<"age", int, sqllib::schema::DefaultValue<18>> age;
  *     
  *     // Default value for float - automatically deduces type
- *     sqllib::schema::column<"score", double, sqllib::schema::Default_value<0.0>> score;
+ *     sqllib::schema::column<"score", double, sqllib::schema::DefaultValue<0.0>> score;
  *     
  *     // Default value for boolean - automatically deduces type
- *     sqllib::schema::column<"is_active", bool, sqllib::schema::Default_value<true>> is_active;
+ *     sqllib::schema::column<"is_active", bool, sqllib::schema::DefaultValue<true>> is_active;
  *     
  *     // Default value for string - automatically deduces type
- *     sqllib::schema::column<"status", std::string, sqllib::schema::Default_value<"pending">> status;
+ *     sqllib::schema::column<"status", std::string, sqllib::schema::DefaultValue<"pending">> status;
  *     
  *     // SQL literal default value
- *     sqllib::schema::column<"created_at", std::string, sqllib::schema::Default_value<sqllib::schema::current_timestamp>> created_at;
+ *     sqllib::schema::column<"created_at", std::string, sqllib::schema::DefaultValue<sqllib::schema::current_timestamp>> created_at;
  *     
  *     // Nullable with explicit NULL default
  *     sqllib::schema::column<"notes", std::optional<std::string>, sqllib::schema::null_default> notes;
@@ -107,15 +107,15 @@ namespace sqllib {
  * sqllib::schema::column<"email", std::optional<std::string>> email_column;
  * 
  * // Define columns with strongly typed default values
- * sqllib::schema::column<"age", int, sqllib::schema::Default_value<18>> age_column;
- * sqllib::schema::column<"price", double, sqllib::schema::Default_value<0.0>> price_column;
- * sqllib::schema::column<"is_active", bool, sqllib::schema::Default_value<true>> is_active_column;
+ * sqllib::schema::column<"age", int, sqllib::schema::DefaultValue<18>> age_column;
+ * sqllib::schema::column<"price", double, sqllib::schema::DefaultValue<0.0>> price_column;
+ * sqllib::schema::column<"is_active", bool, sqllib::schema::DefaultValue<true>> is_active_column;
  * 
  * // Define columns with string default values
  * sqllib::schema::string_column_with_default<"status", "active"> status_column;
  * 
  * // Define columns with SQL literals as default
- * sqllib::schema::column<"created_at", std::string, sqllib::schema::Default_value<sqllib::schema::current_timestamp>> created_at_column;
+ * sqllib::schema::column<"created_at", std::string, sqllib::schema::DefaultValue<sqllib::schema::current_timestamp>> created_at_column;
  * 
  * // Define check constraints
  * sqllib::schema::check_constraint<&product::price, "> 0"> price_check;
