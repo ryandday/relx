@@ -109,6 +109,41 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
    unique_constraint<&user::first_name, &user::last_name> unique_name_pair;
    ```
 
+5. **Composite Foreign Keys**
+   - Implement composite foreign keys for relationships with tables having composite primary keys
+   - Support multiple columns for both local and referenced key parts
+   - Support all reference actions (CASCADE, SET NULL, etc.)
+   - Example:
+   ```cpp
+   composite_foreign_key<&Order::customer_id, &Order::order_date, 
+                         &Customer::id, &Customer::registration_date> order_customer_fk;
+   ```
+
+6. **Uniform Constraint Interface**
+   - Create consistent naming and interfaces across all constraint types
+   - Provide unified template aliases like the existing `unique<...>` for primary keys and check constraints
+   - Ensure consistent parameter ordering and defaults
+   - Example:
+   ```cpp
+   pk<&Table::id>                    // For primary key
+   unique<&Table::email>             // For unique constraint (already exists)
+   check<"column > 0">               // For check constraint (already exists but needs standardization)
+   fk<&Table::local, &Other::remote> // For foreign key
+   ```
+
+7. **Explicit Column Check Constraint Association**
+   - Add explicit column binding for single-column check constraints
+   - Maintain the current string-based approach for table-level constraints
+   - Improve error detection for invalid column references
+   - Example:
+   ```cpp
+   // Explicitly column-bound check constraint
+   column_check<&Table::price, "price > 0"> price_positive;
+   
+   // Table-level constraint remains the same
+   check<"total_price = sum(price * quantity)"> total_price_check;
+   ```
+
 ## Usage Examples
 
 ### Schema Definition

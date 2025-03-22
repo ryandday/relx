@@ -97,5 +97,23 @@ private:
     };
 };
 
+/// @brief Helper function to create a primary key
+/// @tparam ColumnPtrs Pointers to the columns that form the primary key
+/// @return A primary key constraint
+template <auto... ColumnPtrs>
+auto make_pk() {
+    if constexpr (sizeof...(ColumnPtrs) == 1) {
+        // Use fold expression to extract the single column pointer
+        return primary_key<([]<auto Ptr>() { return Ptr; }.template operator()<ColumnPtrs>(), ...)>();
+    } else {
+        return composite_primary_key<ColumnPtrs...>();
+    }
+}
+
+/// @brief Helper type alias for primary key constraints
+/// @details Automatically selects between single-column and composite primary key based on the number of columns
+template <auto... ColumnPtrs>
+using pk = decltype(make_pk<ColumnPtrs...>());
+
 } // namespace schema
 } // namespace sqllib

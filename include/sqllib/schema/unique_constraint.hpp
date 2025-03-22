@@ -12,8 +12,6 @@ namespace schema {
 template <auto ColumnPtr>
 class unique_constraint {
 public:
-    /// @brief Default constructor
-    unique_constraint() = default;
     
     /// @brief Get SQL definition for the UNIQUE constraint
     /// @return SQL string defining the constraint

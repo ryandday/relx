@@ -64,6 +64,8 @@ add_executable(sqllib_tests
   tests/check_constraint_test.cpp
   tests/unique_constraint_test.cpp
   tests/optional_column_test.cpp
+  tests/composite_foreign_key_test.cpp
+  tests/constraint_alias_test.cpp
 )
 
 # Link against both gtest and gtest_main libraries

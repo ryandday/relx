@@ -5,7 +5,7 @@ Don't delete anything from it or overwrite the makefile.
 
 Still use cmake for the build system.
 
-NEVER put in a default constructor NEVER.
+NEVER put in a constructor on a class that needs boost pfr compatibility, since it needs to be an aggregate.
 
 # C++ Coding Standards for SQLlib
 
