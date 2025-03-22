@@ -205,6 +205,10 @@ public:
 };
 ```
 
+### Structs
+
+Try to make things structs with all public members where possible. Try to keep things as aggregates so we can use boost::pfr with them.
+
 ## Testing
 
 ### Test Framework

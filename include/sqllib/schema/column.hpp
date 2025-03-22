@@ -32,9 +32,6 @@ public:
     /// @brief Flag indicating if the column can be NULL
     static constexpr bool nullable = column_traits<T>::nullable;
     
-    /// @brief Default constructor
-    column() = default;
-    
     /// @brief Get the SQL definition of this column
     /// @return A string containing the SQL column definition
     std::string sql_definition() const {

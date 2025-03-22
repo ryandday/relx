@@ -2,10 +2,14 @@
 
 #include "column.hpp"
 #include "fixed_string.hpp"
+#include <boost/pfr.hpp>
 #include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <string>
+#include <optional>
+#include <unordered_set>
 
 namespace sqllib {
 namespace schema {
@@ -18,78 +22,106 @@ concept is_column = requires {
     std::declval<T>().sql_definition();
 };
 
-/// @brief Represents a database table
-/// @tparam Name The table name as a string literal
-template <FixedString Name>
-class table {
-public:
-    /// @brief The name of the table
-    static constexpr auto name = Name;
-    
-    /// @brief Static function to get the table name
-    /// @return The table name as a string_view
-    static constexpr std::string_view get_name() {
-        return std::string_view(name);
-    }
-    
-    /// @brief Get SQL CREATE TABLE statement for this table
-    /// @return SQL string to create the table
-    std::string create_table_sql() const {
-        std::string sql = "CREATE TABLE IF NOT EXISTS " + std::string(std::string_view(name)) + " (\n";
-        
-        // Add column definitions
-        sql += collect_column_definitions();
-        
-        // Add constraint definitions
-        std::string constraints = collect_constraint_definitions();
-        if (!constraints.empty()) {
-            sql += ",\n" + constraints;
-        }
-        
-        sql += "\n);";
-        return sql;
-    }
-
-    /// @brief Implementation-specific method to collect column definitions
-    /// This needs to be implemented in derived classes
-    virtual std::string collect_column_definitions() const {
-        return "";
-    }
-    
-    /// @brief Implementation-specific method to collect constraint definitions
-    /// This needs to be implemented in derived classes
-    virtual std::string collect_constraint_definitions() const {
-        return "";
-    }
-    
-private:
-    /// @brief Helper to recursively collect column definitions
-    /// @param obj The object to inspect
-    /// @param column_defs Vector to store column definitions
-    template <typename T>
-    static void collect_columns_impl(const T& obj, std::vector<std::string>& column_defs) {
-        // Use reflection-like inspection of the class (C++20 way)
-        for_each_member(obj, [&](auto& member) {
-            if constexpr (is_column<std::remove_cvref_t<decltype(member)>>) {
-                column_defs.push_back(member.sql_definition());
-            }
-        });
-    }
-    
-    /// @brief Helper to iterate through each member of an object (simplified reflection)
-    /// @tparam T Object type
-    /// @tparam F Function type
-    /// @param obj The object to inspect
-    /// @param f Function to apply to each member
-    template <typename T, typename F>
-    static void for_each_member(const T& obj, F&& f) {
-        // This is a placeholder for C++20 reflection
-        // In real implementation, we would need to use intrusive reflection
-        // or wait for C++23/26 reflection features
-        
-        // For now, we'll have to manually implement this in derived classes
-    }
+/// @brief Concept for a database table type
+/// @details Requires the type to have a static get_name() method that returns a string_view
+template <typename T>
+concept TableConcept = requires {
+    { T::get_name() } -> std::convertible_to<std::string_view>;
 };
+
+/// @brief Helper to detect constraint members in a table
+template <typename T>
+concept is_constraint = requires(T t) {
+    { t.sql_definition() } -> std::convertible_to<std::string>;
+} && !is_column<T>; // Ensure a constraint is not also a column
+
+/// @brief Generate SQL column definitions from a table struct using Boost PFR
+/// @tparam Table The table struct type
+/// @param table_instance An instance of the table
+/// @return String containing SQL column definitions
+template <TableConcept Table>
+std::string collect_column_definitions(const Table& table_instance) {
+    std::vector<std::string> column_defs;
+    std::unordered_set<std::string> added_columns; // Track added columns by name
+    
+    boost::pfr::for_each_field(table_instance, [&](const auto& field) {
+        if constexpr (is_column<std::remove_cvref_t<decltype(field)>>) {
+            // Use column name as key to avoid duplicates
+            std::string col_name = std::string(std::remove_cvref_t<decltype(field)>::get_name());
+            if (added_columns.find(col_name) == added_columns.end()) {
+                column_defs.push_back(field.sql_definition());
+                added_columns.insert(col_name);
+            }
+        }
+    });
+    
+    // Join the column definitions with commas
+    if (column_defs.empty()) {
+        return "";
+    }
+    
+    std::string result = column_defs[0];
+    for (size_t i = 1; i < column_defs.size(); ++i) {
+        result += ",\n" + column_defs[i];
+    }
+    
+    return result;
+}
+
+/// @brief Generate SQL constraint definitions from a table struct
+/// @tparam Table The table struct type
+/// @param table_instance An instance of the table
+/// @return String containing SQL constraint definitions
+template <TableConcept Table>
+std::string collect_constraint_definitions(const Table& table_instance) {
+    std::vector<std::string> constraint_defs;
+    std::unordered_set<std::string> added_constraints; // Track constraints to avoid duplicates
+    
+    boost::pfr::for_each_field(table_instance, [&](const auto& field) {
+        if constexpr (is_constraint<std::remove_cvref_t<decltype(field)>>) {
+            std::string constraint = field.sql_definition();
+            if (added_constraints.find(constraint) == added_constraints.end()) {
+                constraint_defs.push_back(constraint);
+                added_constraints.insert(constraint);
+            }
+        }
+    });
+    
+    // Join the constraint definitions with commas
+    if (constraint_defs.empty()) {
+        return "";
+    }
+    
+    std::string result = constraint_defs[0];
+    for (size_t i = 1; i < constraint_defs.size(); ++i) {
+        result += ",\n" + constraint_defs[i];
+    }
+    
+    return result;
+}
+
+/// @brief Generate CREATE TABLE SQL statement for a table struct
+/// @tparam Table The table struct type
+/// @param table_instance An instance of the table
+/// @return SQL string to create the table
+template <TableConcept Table>
+std::string create_table_sql(const Table& table_instance) {
+    std::string sql = "CREATE TABLE IF NOT EXISTS " + 
+                     std::string(Table::get_name()) + 
+                     " (\n";
+    
+    // Add column definitions
+    sql += collect_column_definitions(table_instance);
+    
+    // Add constraint definitions
+    std::string constraints = collect_constraint_definitions(table_instance);
+    if (!constraints.empty()) {
+        sql += ",\n" + constraints;
+    }
+    
+    sql += "\n);";
+    return sql;
+}
 
 } // namespace schema
 } // namespace sqllib

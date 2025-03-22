@@ -7,10 +7,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find dependencies (Conan-provided)
 find_package(fmt REQUIRED)
+find_package(Boost REQUIRED)
 
-# Add library (header-only for now)
+# Add library (header-only)
 add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE include)
+target_link_libraries(${PROJECT_NAME} INTERFACE Boost::boost)
+
+# compile_commands.json
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Add executable for the main app
 add_executable(sqllib_main src/main.cpp)

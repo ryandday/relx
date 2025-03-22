@@ -1,118 +1,52 @@
-#include <sqllib/schema.hpp>
 #include <iostream>
-#include <string>
+#include <sqllib/schema.hpp>
 
-// Define our tables
-namespace {
+using namespace sqllib::schema;
 
-// User table
-struct user : sqllib::schema::table<"users"> {
-    // Define columns
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"email", std::string> email;
-    sqllib::schema::nullable_column<"bio", std::string> bio;
+// Example of a table definition that satisfies TableConcept
+struct Users {
+    // Static name accessor required by TableConcept
+    static constexpr auto get_name() { return std::string_view("users"); }
     
-    // Define constraints
-    sqllib::schema::primary_key<&user::id> pk;
-    sqllib::schema::index<&user::email> email_idx;
+    // Column definitions
+    column<"id", int> id;
+    column<"name", std::string> name;
+    column<"email", std::string> email;
+    column<"age", int> age;
     
-    // Implement the column definitions collection
-    std::string collect_column_definitions() const override {
-        std::string result;
-        result += "    " + id.sql_definition();
-        result += ",\n    " + name.sql_definition();
-        result += ",\n    " + email.sql_definition();
-        result += ",\n    " + bio.sql_definition();
-        return result;
-    }
-    
-    // Implement the constraint definitions collection
-    std::string collect_constraint_definitions() const override {
-        return "    " + pk.sql_definition();
-    }
+    // Constraints
+    primary_key<&Users::id> pk;
+    sqllib::schema::index<&Users::email> email_idx{index_type::unique};
 };
 
-// Post table
-struct post : sqllib::schema::table<"posts"> {
-    // Define columns
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"user_id", int> user_id;
-    sqllib::schema::column<"title", std::string> title;
-    sqllib::schema::column<"content", std::string> content;
+// Example of a table with nullable columns
+struct Posts {
+    // Static name accessor required by TableConcept
+    static constexpr auto get_name() { return std::string_view("posts"); }
     
-    // Define constraints
-    sqllib::schema::primary_key<&post::id> pk;
-    sqllib::schema::foreign_key<&post::user_id, &user::id> user_fk;
+    // Column definitions
+    column<"id", int> id;
+    column<"title", std::string> title;
+    column<"content", std::string> content;
+    nullable_column<"user_id", int> user_id;
     
-    // Implement the column definitions collection
-    std::string collect_column_definitions() const override {
-        std::string result;
-        result += "    " + id.sql_definition();
-        result += ",\n    " + user_id.sql_definition();
-        result += ",\n    " + title.sql_definition();
-        result += ",\n    " + content.sql_definition();
-        return result;
-    }
-    
-    // Implement the constraint definitions collection
-    std::string collect_constraint_definitions() const override {
-        return "    " + pk.sql_definition() + ",\n    " + user_fk.sql_definition();
-    }
+    // Constraints
+    primary_key<&Posts::id> pk;
+    foreign_key<&Posts::user_id, &Users::id> user_fk;
 };
-
-// Comment table
-struct comment : sqllib::schema::table<"comments"> {
-    // Define columns
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"post_id", int> post_id;
-    sqllib::schema::column<"user_id", int> user_id;
-    sqllib::schema::column<"content", std::string> content;
-    
-    // Define constraints
-    sqllib::schema::primary_key<&comment::id> pk;
-    sqllib::schema::foreign_key<&comment::post_id, &post::id> post_fk;
-    sqllib::schema::foreign_key<&comment::user_id, &user::id> user_fk;
-    
-    // Implement the column definitions collection
-    std::string collect_column_definitions() const override {
-        std::string result;
-        result += "    " + id.sql_definition();
-        result += ",\n    " + post_id.sql_definition();
-        result += ",\n    " + user_id.sql_definition();
-        result += ",\n    " + content.sql_definition();
-        return result;
-    }
-    
-    // Implement the constraint definitions collection
-    std::string collect_constraint_definitions() const override {
-        return "    " + pk.sql_definition() + 
-               ",\n    " + post_fk.sql_definition() +
-               ",\n    " + user_fk.sql_definition();
-    }
-};
-
-} // anonymous namespace
 
 int main() {
-    // Create table instances
-    user u;
-    post p;
-    comment c;
+    // Create instances of tables
+    Users users;
+    Posts posts;
     
-    // Print SQL to create tables
-    std::cout << "Creating Users table:\n";
-    std::cout << u.create_table_sql() << "\n\n";
+    // Generate and print CREATE TABLE statements
+    std::cout << "Users Table SQL:\n" << create_table_sql(users) << "\n\n";
+    std::cout << "Posts Table SQL:\n" << create_table_sql(posts) << std::endl;
     
-    std::cout << "Creating Posts table:\n";
-    std::cout << p.create_table_sql() << "\n\n";
-    
-    std::cout << "Creating Comments table:\n";
-    std::cout << c.create_table_sql() << "\n\n";
-    
-    // Print index creation SQL
-    std::cout << "Creating Indexes:\n";
-    std::cout << u.email_idx.create_index_sql() << "\n";
+    // Generate and print index creation statements
+    std::cout << "\nIndex creation statements:\n";
+    std::cout << users.email_idx.create_index_sql() << std::endl;
     
     return 0;
 }
