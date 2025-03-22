@@ -148,9 +148,8 @@ TEST(JoinTest, JoinWithParamInCondition) {
     
     auto params = query.bind_params();
     // The parameter count is variable depending on how tests are run
-    if (!params.empty()) {
-        EXPECT_EQ(params[0], "10");
-    }
+    EXPECT_EQ(params[0], "10");
+    EXPECT_EQ(params.size(), 1);
 }
 
 TEST(JoinTest, SelfJoin) {
