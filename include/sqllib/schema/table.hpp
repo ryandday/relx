@@ -1,7 +1,7 @@
 #pragma once
 
 #include "column.hpp"
-#include "ct_string.hpp"
+#include "fixed_string.hpp"
 #include <string_view>
 #include <tuple>
 #include <utility>
@@ -20,7 +20,7 @@ concept is_column = requires {
 
 /// @brief Represents a database table
 /// @tparam Name The table name as a string literal
-template <fixed_string Name>
+template <FixedString Name>
 class table {
 public:
     /// @brief The name of the table
@@ -31,9 +31,6 @@ public:
     static constexpr std::string_view get_name() {
         return std::string_view(name);
     }
-    
-    /// @brief Default constructor
-    table() = default;
     
     /// @brief Get SQL CREATE TABLE statement for this table
     /// @return SQL string to create the table

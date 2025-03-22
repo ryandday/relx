@@ -24,7 +24,7 @@ clean:
 # Run the executable
 .PHONY: run
 run: build
-	./$(BUILD_DIR)/cpp_project
+	./$(BUILD_DIR)/schema_example
 
 # Development helpers
 .PHONY: format

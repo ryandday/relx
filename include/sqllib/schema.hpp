@@ -6,7 +6,7 @@
 #include "schema/primary_key.hpp"
 #include "schema/foreign_key.hpp"
 #include "schema/index.hpp"
-#include "schema/ct_string.hpp"
+#include "schema/fixed_string.hpp"
 
 namespace sqllib {
 

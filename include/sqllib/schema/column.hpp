@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core.hpp"
-#include "ct_string.hpp"
+#include "fixed_string.hpp"
 #include <string_view>
 #include <type_traits>
 
@@ -11,7 +11,7 @@ namespace schema {
 /// @brief Represents a column in a database table
 /// @tparam Name The name of the column as a string literal
 /// @tparam T The C++ type of the column
-template <fixed_string Name, ColumnTypeConcept T>
+template <FixedString Name, ColumnTypeConcept T>
 class column {
 public:
     /// @brief The C++ type of the column
@@ -63,7 +63,7 @@ public:
 /// @brief Helper to make a column nullable
 /// @tparam Name Column name
 /// @tparam T Column type
-template <fixed_string Name, ColumnTypeConcept T>
+template <FixedString Name, ColumnTypeConcept T>
 class nullable_column : public column<Name, T> {
 public:
     /// @brief Overrides the nullable trait to true

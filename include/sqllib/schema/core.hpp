@@ -5,7 +5,7 @@
 #include <type_traits>
 #include <tuple>
 #include <utility>
-#include "ct_string.hpp"
+#include "fixed_string.hpp"
 
 namespace sqllib {
 
