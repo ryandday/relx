@@ -5,7 +5,7 @@ using namespace sqllib::schema;
 
 // Test table with standard primary key
 struct User {
-    static constexpr auto name = std::string_view("users");
+    static constexpr auto table_name = "users";
     
     column<"id", int> id;
     column<"username", std::string> username;
@@ -15,7 +15,7 @@ struct User {
 
 // Test table with composite primary key
 struct SessionData {
-    static constexpr auto name = std::string_view("session_data");
+    static constexpr auto table_name = "session_data";
     
     column<"user_id", int> user_id;
     column<"session_id", std::string> session_id;

@@ -23,7 +23,7 @@ struct InvalidColumnType {
 
 // Valid table type with name
 struct ValidTable {
-    static constexpr auto name = std::string_view("valid_table");
+    static constexpr auto table_name = "valid_table";
     column<"id", int> id;
 };
 

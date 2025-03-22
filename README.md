@@ -89,7 +89,7 @@ Here's a complete example using all these features:
 
 ```cpp
 struct Product {
-    static constexpr auto name = std::string_view("products");
+    static constexpr auto table_name = "products";
     
     column<"id", int> id;
     column<"product_name", std::string> product_name;

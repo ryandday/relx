@@ -3,103 +3,60 @@
 #include "core.hpp"
 #include "fixed_string.hpp"
 #include <string_view>
-#include <type_traits>
-#include <optional>
+#include <string>
 
 namespace sqllib {
 namespace schema {
 
-/// @brief Type-safe CHECK constraint for a column
-/// @tparam ColumnPtr Pointer to the column member
-/// @tparam Condition The SQL condition as a string literal
-template <auto ColumnPtr, FixedString Condition>
+/// @brief Simple check constraint that accepts a condition string
+/// @details This simplified constraint doesn't perform type checking and
+///          lets the SQL engine handle validation
 class check_constraint {
 public:
+    /// @brief Constructor with condition string
+    /// @param condition The SQL condition as a string
+    /// @param name Optional name for the constraint
+    explicit check_constraint(std::string condition, std::string name = "")
+        : condition_(std::move(condition)), name_(std::move(name)) {}
     
     /// @brief Get SQL definition for the CHECK constraint
     /// @return SQL string defining the constraint
     std::string sql_definition() const {
-        // Extract the column name from the pointer
-        using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
-        using value_type = typename column_type::value_type;
+        std::string result;
         
-        // Build the constraint with the column name
-        return "CHECK (" + std::string(column_type::name) + " " + 
-               std::string(std::string_view(Condition)) + ")";
+        // Add constraint name if provided
+        if (!name_.empty()) {
+            result = "CONSTRAINT " + name_ + " ";
+        }
+        
+        // Use the condition as-is
+        result += "CHECK (" + condition_ + ")";
+        return result;
     }
 
 private:
-    // Helper to extract the class type from a member pointer
-    template <typename T>
-    struct member_pointer_class;
-    
-    template <typename C, typename T>
-    struct member_pointer_class<T C::*> {
-        using type = C;
-    };
-    
-    // Helper to extract the member type from a member pointer
-    template <typename T>
-    struct member_pointer_type;
-    
-    template <typename C, typename T>
-    struct member_pointer_type<T C::*> {
-        using type = T;
-    };
+    std::string condition_; ///< The SQL condition
+    std::string name_;      ///< Optional constraint name
 };
 
-/// @brief Table-level check constraint
-/// @tparam Condition The SQL condition as a string literal
-template <FixedString Condition>
-class check_constraint<nullptr, Condition> {
-public:
-    /// @brief Default constructor
-    check_constraint() = default;
-    
-    /// @brief Get SQL definition for the table-level CHECK constraint
-    /// @return SQL string defining the constraint
-    std::string sql_definition() const {
-        return "CHECK (" + std::string(std::string_view(Condition)) + ")";
-    }
-};
-
-/// @brief Helper type to create a table-level check constraint
-/// @tparam Condition The SQL condition as a string literal
-template <FixedString Condition>
-using table_check_constraint = check_constraint<nullptr, Condition>;
-
-// Partial condition parsers - these would be expanded for a more complete implementation
-namespace detail {
-    // Helper to check if a condition is valid for a specific column type
-    template <typename T, FixedString Condition>
-    constexpr bool validate_condition() {
-        // In a real implementation, we would parse conditions and validate them
-        // against column types at compile time where possible
-        
-        // For now, we perform basic validation
-        std::string_view cond = std::string_view(Condition);
-        
-        // Basic checks for comparison operators
-        if constexpr (std::is_same_v<T, int> || std::is_same_v<T, double>) {
-            // For numeric types, we should check that the condition involves numeric comparisons
-            return cond.find("=") != std::string_view::npos || 
-                   cond.find("<") != std::string_view::npos || 
-                   cond.find(">") != std::string_view::npos;
-        } else if constexpr (std::is_same_v<T, std::string>) {
-            // For string types, we might want to check for string operations
-            return true;
-        } else {
-            // For other types, do minimal validation
-            return true;
-        }
-    }
+/// @brief Helper function to create a named check constraint
+/// @param condition The SQL condition
+/// @param name The constraint name
+/// @return A check constraint with the given condition and name
+inline check_constraint named_check(std::string condition, std::string name) {
+    return check_constraint(std::move(condition), std::move(name));
 }
 
-/// @brief Concept for a valid check constraint
-template <typename T>
-concept CheckConstraintConcept = requires(T t) {
-    { t.sql_definition() } -> std::convertible_to<std::string>;
-};
+// For backward compatibility with fixed strings
+template <FixedString Condition, FixedString Name = FixedString("")>
+check_constraint make_check_constraint() {
+    return check_constraint(std::string(std::string_view(Condition)), 
+                           std::string(std::string_view(Name)));
+}
+
+/// @brief Helper type alias for backward compatibility
+template <FixedString Condition, FixedString Name = FixedString("")>
+using table_check_constraint = check_constraint;
 
 } // namespace schema
 } // namespace sqllib 

@@ -23,13 +23,13 @@ concept is_column = requires {
 };
 
 /// @brief Concept for a database table type
-/// @details Requires the type to have a static constexpr name member that is
+/// @details Requires the type to have a static constexpr table_name member that is
 /// convertible to std::string_view.
-/// Example: static constexpr auto name = "users";
+/// Example: static constexpr auto table_name = "users";
 template <typename T>
 concept TableConcept = requires {
-    { T::name } -> std::convertible_to<std::string_view>;
-    requires std::is_const_v<std::remove_reference_t<decltype(T::name)>>; // Ensure it's const/constexpr
+    { T::table_name } -> std::convertible_to<std::string_view>;
+    requires std::is_const_v<std::remove_reference_t<decltype(T::table_name)>>; // Ensure it's const/constexpr
 };
 
 /// @brief Helper to detect constraint members in a table
@@ -111,7 +111,7 @@ std::string collect_constraint_definitions(const Table& table_instance) {
 template <TableConcept Table>
 std::string create_table_sql(const Table& table_instance) {
     std::string sql = "CREATE TABLE IF NOT EXISTS " + 
-                     std::string(Table::name) + 
+                     std::string(Table::table_name) + 
                      " (\n";
     
     // Add column definitions

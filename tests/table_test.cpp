@@ -5,7 +5,7 @@ using namespace sqllib::schema;
 
 // Test table with just columns
 struct SimpleTable {
-    static constexpr auto name = std::string_view("simple_table");
+    static constexpr auto table_name = "simple_table";
     
     column<"id", int> id;
     column<"name", std::string> name_col;
@@ -14,7 +14,7 @@ struct SimpleTable {
 
 // Test table with nullable columns
 struct TableWithNullables {
-    static constexpr auto name = std::string_view("nullable_table");
+    static constexpr auto table_name = "nullable_table";
     
     column<"id", int> id;
     column<"name", std::optional<std::string>> name_col;
@@ -23,7 +23,7 @@ struct TableWithNullables {
 
 // Test table with constraints
 struct UsersTable {
-    static constexpr auto name = std::string_view("users");
+    static constexpr auto table_name = "users";
     
     column<"id", int> id;
     column<"username", std::string> username;
@@ -35,7 +35,7 @@ struct UsersTable {
 
 // Test table with foreign key constraint
 struct PostsTable {
-    static constexpr auto name = std::string_view("posts");
+    static constexpr auto table_name = "posts";
     
     column<"id", int> id;
     column<"title", std::string> title;

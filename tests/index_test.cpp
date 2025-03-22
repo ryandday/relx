@@ -5,7 +5,7 @@ using namespace sqllib::schema;
 
 // Test table with various index types
 struct Product {
-    static constexpr auto name = std::string_view("products");
+    static constexpr auto table_name = "products";
     
     column<"id", int> id;
     column<"name", std::string> name_col;

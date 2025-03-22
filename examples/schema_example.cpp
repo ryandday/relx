@@ -5,7 +5,7 @@ using namespace sqllib::schema;
 // Example of a table definition that satisfies TableConcept
 struct Users {
     // Static table name required by TableConcept
-    static constexpr auto name = std::string_view("users");
+    static constexpr auto table_name = "users";
     
     // Column definitions
     column<"id", int> id;
@@ -21,7 +21,7 @@ struct Users {
 // Example of a table with nullable columns
 struct Posts {
     // Static table name required by TableConcept
-    static constexpr auto name = std::string_view("posts");
+    static constexpr auto table_name = "posts";
     
     // Column definitions
     column<"id", int> id;

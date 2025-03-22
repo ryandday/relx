@@ -5,7 +5,7 @@ using namespace sqllib::schema;
 
 // Parent tables
 struct User {
-    static constexpr auto name = std::string_view("users");
+    static constexpr auto table_name = "users";
     
     column<"id", int> id;
     column<"username", std::string> username;
@@ -14,7 +14,7 @@ struct User {
 };
 
 struct Category {
-    static constexpr auto name = std::string_view("categories");
+    static constexpr auto table_name = "categories";
     
     column<"id", int> id;
     column<"name", std::string> name_col;
@@ -24,7 +24,7 @@ struct Category {
 
 // Child table with multiple foreign keys
 struct Post {
-    static constexpr auto name = std::string_view("posts");
+    static constexpr auto table_name = "posts";
     
     column<"id", int> id;
     column<"title", std::string> title;

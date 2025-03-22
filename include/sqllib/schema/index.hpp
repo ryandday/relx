@@ -50,7 +50,7 @@ public:
         using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
         
         // Get the table name directly
-        std::string table_name = std::string(table_type::name);
+        std::string table_name = std::string(table_type::table_name);
         std::string column_name = std::string(column_type::name);
         
         std::string index_name = table_name + "_" + column_name + "_idx";
@@ -138,7 +138,7 @@ private:
         if constexpr (I < sizeof...(ColumnPtrs)) {
             using first_col_ptr_t = std::tuple_element_t<I, std::tuple<decltype(ColumnPtrs)...>>;
             using table_t = typename std::remove_reference_t<typename table_for_column<first_col_ptr_t>::type>;
-            return std::string(table_t::name);
+            return std::string(table_t::table_name);
         }
         return "unknown_table";
     }

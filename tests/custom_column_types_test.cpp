@@ -107,7 +107,7 @@ struct sqllib::schema::column_traits<Timestamp> {
 
 // Test table with custom column types
 struct CustomTypesTable {
-    static constexpr auto name = std::string_view("custom_types");
+    static constexpr auto table_name = "custom_types";
     
     column<"id", int> id;
     column<"role", UserRole> role;

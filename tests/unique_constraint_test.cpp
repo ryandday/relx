@@ -8,7 +8,7 @@ using namespace sqllib::schema;
 
 // Test table with unique constraints
 struct Employee {
-    static constexpr auto name = std::string_view("employees");
+    static constexpr auto table_name = "employees";
     
     column<"id", int> id;
     column<"email", std::string> email;

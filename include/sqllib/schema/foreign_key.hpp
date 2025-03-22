@@ -55,13 +55,8 @@ public:
         using ref_table_type = typename member_pointer_class<decltype(ReferencedColumnPtr)>::type;
         using ref_column_type = typename member_pointer_type<decltype(ReferencedColumnPtr)>::type;
         
-        // Get the table name using the appropriate method
-        std::string ref_table_name;
-        if constexpr (requires { { ref_table_type::name } -> std::convertible_to<std::string_view>; }) {
-            ref_table_name = std::string(ref_table_type::name);
-        } else {
-            ref_table_name = std::string(ref_table_type::table_name);
-        }
+        // Get the table name directly
+        std::string ref_table_name = std::string(ref_table_type::table_name);
         
         // Generate the SQL using the static members
         std::string result = "FOREIGN KEY (" + std::string(local_column_type::name) + ") ";

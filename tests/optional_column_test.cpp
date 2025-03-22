@@ -8,7 +8,20 @@ using namespace sqllib::schema;
 
 // Test table with optional columns
 struct Customer {
-    static constexpr auto name = std::string_view("customers");
+    static constexpr auto table_name = "customers";
+    
+    column<"id", int> id;
+    column<"customer_name", std::string> customer_name;
+    column<"email", std::optional<std::string>> email;        // Nullable email
+    column<"phone", std::optional<std::string>> phone;        // Nullable phone
+    column<"age", std::optional<int>> age;                    // Nullable age
+    column<"vip_level", int, DefaultValue<0>> vip_level;     // Non-nullable with default
+    column<"notes", std::optional<std::string>, null_default> notes; // Nullable with NULL default
+};
+
+// Table with different types of optional columns
+struct Customers {
+    static constexpr auto table_name = "customers";
     
     column<"id", int> id;
     column<"customer_name", std::string> customer_name;

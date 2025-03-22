@@ -8,7 +8,7 @@ using namespace sqllib::schema;
 
 // Test table with default value columns
 struct Product {
-    static constexpr auto name = std::string_view("products");
+    static constexpr auto table_name = "products";
     
     column<"id", int> id;
     column<"product_name", std::string> product_name;
