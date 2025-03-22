@@ -87,15 +87,4 @@ TEST(OptionalColumnTest, TableWithOptionalColumns) {
     // Default values should be present
     EXPECT_TRUE(create_sql.find("vip_level INTEGER NOT NULL DEFAULT 0") != std::string::npos);
     EXPECT_TRUE(create_sql.find("notes TEXT DEFAULT NULL") != std::string::npos);
-}
-
-TEST(OptionalColumnTest, BackwardCompatibility) {
-    // Ensure the legacy nullable_column still works
-    nullable_column<"phone", std::string> phone_col;
-    EXPECT_TRUE(phone_col.nullable);
-    EXPECT_EQ(phone_col.sql_definition(), "phone TEXT");
-    
-    // Verify it's the same as using std::optional
-    column<"phone", std::optional<std::string>> phone_col2;
-    EXPECT_EQ(phone_col.sql_definition(), phone_col2.sql_definition());
 } 

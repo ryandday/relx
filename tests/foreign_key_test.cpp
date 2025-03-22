@@ -30,7 +30,7 @@ struct Post {
     column<"title", std::string> title;
     column<"content", std::string> content;
     column<"user_id", int> user_id;
-    nullable_column<"category_id", int> category_id;
+    column<"category_id", std::optional<int>> category_id;
     
     // Primary key
     primary_key<&Post::id> pk;

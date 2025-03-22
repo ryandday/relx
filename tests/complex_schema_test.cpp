@@ -2,6 +2,7 @@
 #include <sqllib/schema.hpp>
 #include <vector>
 #include <string>
+#include <optional>
 
 using namespace sqllib::schema;
 
@@ -17,7 +18,7 @@ struct Users {
     column<"email", std::string> email;
     column<"password_hash", std::string> password_hash;
     column<"created_at", std::string> created_at; // Simplified, would be timestamp in real DB
-    nullable_column<"last_login", std::string> last_login;
+    column<"last_login", std::optional<std::string>> last_login;
     column<"active", bool> active;
     
     // Constraints
@@ -32,8 +33,8 @@ struct Categories {
     
     column<"id", int> id;
     column<"name", std::string> name_col;
-    nullable_column<"description", std::string> description;
-    nullable_column<"parent_id", int> parent_id;
+    column<"description", std::optional<std::string>> description;
+    column<"parent_id", std::optional<int>> parent_id;
     
     // Constraints
     primary_key<&Categories::id> pk;
@@ -52,7 +53,7 @@ struct Products {
     column<"sku", std::string> sku;
     column<"price", double> price;
     column<"stock", int> stock;
-    nullable_column<"description", std::string> description;
+    column<"description", std::optional<std::string>> description;
     column<"category_id", int> category_id;
     column<"created_by", int> created_by;
     

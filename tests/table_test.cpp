@@ -17,8 +17,8 @@ struct TableWithNullables {
     static constexpr auto name = std::string_view("nullable_table");
     
     column<"id", int> id;
-    nullable_column<"name", std::string> name_col;
-    nullable_column<"description", std::string> description;
+    column<"name", std::optional<std::string>> name_col;
+    column<"description", std::optional<std::string>> description;
 };
 
 // Test table with constraints

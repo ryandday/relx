@@ -113,7 +113,7 @@ struct CustomTypesTable {
     column<"role", UserRole> role;
     column<"uuid", UUID> uuid;
     column<"created_at", Timestamp> created_at;
-    nullable_column<"updated_at", Timestamp> updated_at;
+    column<"updated_at", std::optional<Timestamp>> updated_at;
     
     primary_key<&CustomTypesTable::id> pk;
 };

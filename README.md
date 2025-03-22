@@ -12,9 +12,6 @@ column<"email", std::optional<std::string>> email;
 
 // The column will be defined without NOT NULL constraint in SQL
 // SQL: email TEXT
-
-// For backward compatibility, the older syntax still works
-nullable_column<"phone", std::string> phone;
 ```
 
 ### 2. Check Constraints

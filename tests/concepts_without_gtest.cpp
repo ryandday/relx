@@ -35,8 +35,8 @@ struct TableWithNullables {
     static constexpr auto name = std::string_view("nullable_table");
     
     column<"id", int> id;
-    nullable_column<"name", std::string> name_col;
-    nullable_column<"description", std::string> description;
+    column<"name", std::optional<std::string>> name_col;
+    column<"description", std::optional<std::string>> description;
 };
 
 // Test table with constraints
@@ -61,7 +61,7 @@ static_assert(ColumnTypeConcept<ValidColumnType>, "ValidColumnType should satisf
 
 // is_column concept tests
 static_assert(is_column<column<"id", int>>, "column<id, int> should satisfy is_column");
-static_assert(is_column<nullable_column<"name", std::string>>, "nullable_column<name, std::string> should satisfy is_column");
+static_assert(is_column<column<"name", std::optional<std::string>>>, "column<name, std::optional<std::string>> should satisfy is_column");
 static_assert(!is_column<int>, "int should not satisfy is_column");
 static_assert(!is_column<std::string>, "std::string should not satisfy is_column");
 

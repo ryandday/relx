@@ -15,7 +15,7 @@ TEST(ColumnTest, BasicProperties) {
     EXPECT_EQ(id_col.sql_definition(), "id INTEGER NOT NULL");
     
     // Test nullable column
-    nullable_column<"name", std::string> name_col;
+    column<"name", std::optional<std::string>> name_col;
     EXPECT_EQ(std::string_view(name_col.name), "name");
     EXPECT_EQ(std::string_view(name_col.sql_type), "TEXT");
     EXPECT_TRUE(name_col.nullable);

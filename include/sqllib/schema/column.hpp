@@ -155,9 +155,5 @@ public:
     }
 };
 
-// For backward compatibility only
-template <FixedString Name, typename T>
-using nullable_column = column<Name, std::optional<T>>;
-
 } // namespace schema
 } // namespace sqllib

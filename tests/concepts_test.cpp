@@ -85,14 +85,14 @@ TEST(ConceptsTest, ConceptChecks) {
     
     // Runtime checks for is_column
     EXPECT_TRUE((is_column<column<"id", int>>));
-    EXPECT_TRUE((is_column<nullable_column<"name", std::string>>));
+    EXPECT_TRUE((is_column<column<"name", std::optional<std::string>>>));
     EXPECT_FALSE((is_column<int>));
     EXPECT_FALSE((is_column<std::string>));
     
     // Runtime checks for is_constraint
     EXPECT_TRUE((is_constraint<primary_key<&ValidTable::id>>));
     EXPECT_FALSE((is_constraint<column<"id", int>>));
-    EXPECT_FALSE((is_constraint<nullable_column<"name", std::string>>));
+    EXPECT_FALSE((is_constraint<column<"name", std::optional<std::string>>>));
     
     // Runtime checks for TableConcept
     EXPECT_TRUE((TableConcept<ValidTable>));

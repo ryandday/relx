@@ -27,7 +27,7 @@ struct Posts {
     column<"id", int> id;
     column<"title", std::string> title;
     column<"content", std::string> content;
-    nullable_column<"user_id", int> user_id;
+    column<"user_id", std::optional<int>> user_id;
     
     // Constraints
     primary_key<&Posts::id> pk;
