@@ -1,7 +1,14 @@
+Conventions
+
+Use top level makefile to build / run / test stuff
+
+
+
 # C++ Coding Standards for SQLlib
 
 ## Language Version
-- Use C++20 as the primary standard with C++23 features where available
+- Use C++23 as the primary standard 
+
 - Minimum compiler requirements:
   - GCC 11+
   - Clang 14+

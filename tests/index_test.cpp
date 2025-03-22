@@ -1,0 +1,102 @@
+#include <gtest/gtest.h>
+#include <sqllib/schema.hpp>
+
+using namespace sqllib::schema;
+
+// Test table with various index types
+struct Product {
+    static constexpr auto name = std::string_view("products");
+    
+    column<"id", int> id;
+    column<"name", std::string> name_col;
+    column<"sku", std::string> sku;
+    column<"description", std::string> description;
+    column<"price", double> price;
+    column<"stock", int> stock;
+    
+    // Primary key
+    primary_key<&Product::id> pk;
+    
+    // Various index types
+    sqllib::schema::index<&Product::sku> sku_idx{index_type::unique};
+    sqllib::schema::index<&Product::name_col> name_idx{index_type::normal};
+    sqllib::schema::index<&Product::description> desc_idx{index_type::fulltext};
+    
+    // Composite index (may not be fully implemented yet)
+    composite_index<&Product::price, &Product::stock> price_stock_idx;
+};
+
+TEST(IndexTest, IndexTypes) {
+    // Test conversion of index types to SQL strings
+    EXPECT_EQ(std::string_view(index_type_to_string(index_type::normal)), "");
+    EXPECT_EQ(std::string_view(index_type_to_string(index_type::unique)), "UNIQUE ");
+    EXPECT_EQ(std::string_view(index_type_to_string(index_type::fulltext)), "FULLTEXT ");
+    EXPECT_EQ(std::string_view(index_type_to_string(index_type::spatial)), "SPATIAL ");
+}
+
+TEST(IndexTest, NormalIndex) {
+    Product product;
+    
+    // Test the CREATE INDEX statement for a normal index
+    const std::string expected = "CREATE INDEX products_name_idx ON products (name)";
+    EXPECT_EQ(product.name_idx.create_index_sql(), expected);
+}
+
+TEST(IndexTest, UniqueIndex) {
+    Product product;
+    
+    // Test the CREATE INDEX statement for a unique index
+    const std::string expected = "CREATE UNIQUE INDEX products_sku_idx ON products (sku)";
+    EXPECT_EQ(product.sku_idx.create_index_sql(), expected);
+}
+
+TEST(IndexTest, FulltextIndex) {
+    Product product;
+    
+    // Test the CREATE INDEX statement for a fulltext index
+    const std::string expected = "CREATE FULLTEXT INDEX products_description_idx ON products (description)";
+    EXPECT_EQ(product.desc_idx.create_index_sql(), expected);
+}
+
+TEST(IndexTest, CompositeIndex) {
+    Product product;
+    
+    // Note: This test checks the intended behavior of composite indexes
+    // but the implementation may not support them yet
+    
+    // Expected behavior for composite index 
+    // Actual implementation might differ
+    const std::string expected = "CREATE INDEX products_price_stock_idx ON products (price, stock)";
+    EXPECT_EQ(product.price_stock_idx.create_index_sql(), expected);
+}
+
+TEST(IndexTest, DefaultIndexConstructor) {
+    // Test that the default constructor creates a normal index
+    sqllib::schema::index<&Product::name_col> default_idx;
+    Product product;
+    
+    // The expected CREATE INDEX statement for a normal index
+    const std::string expected = "CREATE INDEX products_name_idx ON products (name)";
+    EXPECT_EQ(default_idx.create_index_sql(), expected);
+}
+
+TEST(IndexTest, ExplicitlyNormalIndex) {
+    // Test creating a normal index explicitly
+    sqllib::schema::index<&Product::name_col> normal_idx{index_type::normal};
+    Product product;
+    
+    // The expected CREATE INDEX statement for a normal index
+    const std::string expected = "CREATE INDEX products_name_idx ON products (name)";
+    EXPECT_EQ(normal_idx.create_index_sql(), expected);
+}
+
+TEST(IndexTest, SpatialIndex) {
+    // Test creating a spatial index
+    // Note: This would typically be used for geometry/geography columns
+    sqllib::schema::index<&Product::name_col> spatial_idx{index_type::spatial};
+    Product product;
+    
+    // The expected CREATE INDEX statement for a spatial index
+    const std::string expected = "CREATE SPATIAL INDEX products_name_idx ON products (name)";
+    EXPECT_EQ(spatial_idx.create_index_sql(), expected);
+} 

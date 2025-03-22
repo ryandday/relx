@@ -26,6 +26,15 @@ clean:
 run: build
 	./$(BUILD_DIR)/schema_example
 
+# Test commands
+.PHONY: test
+test: build
+	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests && ctest -V
+
+.PHONY: static-test
+static-test: configure
+	cd $(BUILD_DIR) && cmake --build . --target static_assert_tests && ./static_assert_tests
+
 # Development helpers
 .PHONY: format
 format:
@@ -39,4 +48,6 @@ help:
 	@echo "  build          - Build the project"
 	@echo "  clean          - Remove build directory"
 	@echo "  run            - Build and run the application"
+	@echo "  test           - Build and run the tests"
+	@echo "  static-test    - Build and run the static assert tests"
 	@echo "  format         - Format code using clang-format"

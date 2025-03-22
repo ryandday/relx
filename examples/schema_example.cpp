@@ -2,7 +2,6 @@
 #include <sqllib/schema.hpp>
 
 using namespace sqllib::schema;
-
 // Example of a table definition that satisfies TableConcept
 struct Users {
     // Static table name required by TableConcept

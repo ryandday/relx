@@ -1,6 +1,7 @@
 [requires]
 fmt/10.0.0
 boost/1.87.0
+gtest/1.16.0
 
 [generators]
 CMakeDeps
