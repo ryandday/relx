@@ -409,8 +409,10 @@ inline auto case_() {
 
 // Specialized as function for CaseExpr
 inline auto as(CaseExpr&& expr, std::string alias) {
-    auto expr_ptr = std::make_shared<CaseExpr>(std::move(expr));
-    return AliasedColumn<CaseExpr>(std::move(expr_ptr), std::move(alias));
+    // Create a shared_ptr directly with an in-place construction
+    // This avoids the need to copy the CaseExpr
+    auto expr_ptr = std::make_unique<CaseExpr>(std::move(expr));
+    return AliasedColumn<CaseExpr>(std::shared_ptr<CaseExpr>(std::move(expr_ptr)), std::move(alias));
 }
 
 } // namespace query

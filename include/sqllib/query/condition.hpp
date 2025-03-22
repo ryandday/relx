@@ -251,5 +251,29 @@ auto is_not_null(Expr expr) {
     return IsNotNullCondition<Expr>(std::move(expr));
 }
 
+/// @brief Negation condition (NOT expr)
+template <SqlExpr Expr>
+class NotCondition : public SqlExpression {
+public:
+    explicit NotCondition(Expr expr) : expr_(std::move(expr)) {}
+
+    std::string to_sql() const override {
+        return "(NOT " + expr_.to_sql() + ")";
+    }
+
+    std::vector<std::string> bind_params() const override {
+        return expr_.bind_params();
+    }
+
+private:
+    Expr expr_;
+};
+
+/// @brief Logical NOT operator
+template <SqlExpr Expr>
+auto operator!(Expr expr) {
+    return NotCondition<Expr>(std::move(expr));
+}
+
 } // namespace query
 } // namespace sqllib 

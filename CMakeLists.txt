@@ -51,22 +51,30 @@ enable_testing()
 # Add tests
 add_executable(sqllib_tests
   tests/main_test.cpp
-  tests/fixed_string_test.cpp
-  tests/column_test.cpp
-  tests/table_test.cpp
-  tests/primary_key_test.cpp
-  tests/foreign_key_test.cpp
-  tests/index_test.cpp
-  tests/complex_schema_test.cpp
-  tests/concepts_test.cpp
-  tests/custom_column_types_test.cpp
-  tests/default_value_test.cpp
-  tests/check_constraint_test.cpp
-  tests/unique_constraint_test.cpp
-  tests/optional_column_test.cpp
-  tests/composite_foreign_key_test.cpp
-  tests/constraint_alias_test.cpp
-  tests/query_test.cpp
+  # Schema tests
+  tests/schema/fixed_string_test.cpp
+  tests/schema/column_test.cpp
+  tests/schema/table_test.cpp
+  tests/schema/primary_key_test.cpp
+  tests/schema/foreign_key_test.cpp
+  tests/schema/index_test.cpp
+  tests/schema/complex_schema_test.cpp
+  tests/schema/concepts_test.cpp
+  tests/schema/custom_column_types_test.cpp
+  tests/schema/default_value_test.cpp
+  tests/schema/check_constraint_test.cpp
+  tests/schema/unique_constraint_test.cpp
+  tests/schema/optional_column_test.cpp
+  tests/schema/composite_foreign_key_test.cpp
+  tests/schema/constraint_alias_test.cpp
+  # Query tests
+  tests/query/query_test.cpp
+  tests/query/basic_select_test.cpp
+  tests/query/join_test.cpp
+  tests/query/condition_test.cpp
+  tests/query/aggregate_test.cpp
+  tests/query/case_expression_test.cpp
+  tests/query/string_function_test.cpp
 #   tests/break_the_library_test.cpp
 )
 
