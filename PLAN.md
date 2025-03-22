@@ -71,6 +71,11 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
 ## Schema Definition Improvements
 
 ### Planned Enhancements
+
+Support enum types
+
+Support date types 
+
 1. ✅ **Nullable Types with std::optional Integration**
    - Replace the current nullable_column implementation with std::optional integration
    - Add specialized column_traits for std::optional types
@@ -143,6 +148,7 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
    // Table-level constraint remains the same
    check<"total_price = sum(price * quantity)"> total_price_check;
    ```
+
 
 ## Usage Examples
 
