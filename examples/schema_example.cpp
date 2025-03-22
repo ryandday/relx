@@ -320,6 +320,8 @@ int main() {
     std::cout << "INDEXES\n";
     std::cout << "=======\n";
     std::cout << sqllib::schema::create_table_sql(users_with_indexes) << "\n";
+    // Secondary indices are typically created after the table is created, which is why
+    // we're calling create_index_sql() here instead of in the table definition.
     std::cout << users_with_indexes.username_idx.create_index_sql() << "\n";
     std::cout << users_with_indexes.email_idx.create_index_sql() << "\n\n";
     
