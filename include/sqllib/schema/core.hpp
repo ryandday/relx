@@ -105,6 +105,48 @@ struct column_traits<bool> {
     }
 };
 
+template <>
+struct column_traits<float> {
+    static constexpr auto sql_type_name = "REAL";
+    static constexpr bool nullable = false;
+    
+    static std::string to_sql_string(const float& value) {
+        return std::to_string(value);
+    }
+    
+    static float from_sql_string(const std::string& value) {
+        return std::stof(value);
+    }
+};
+
+template <>
+struct column_traits<long> {
+    static constexpr auto sql_type_name = "INTEGER";
+    static constexpr bool nullable = false;
+    
+    static std::string to_sql_string(const long& value) {
+        return std::to_string(value);
+    }
+    
+    static long from_sql_string(const std::string& value) {
+        return std::stol(value);
+    }
+};
+
+template <>
+struct column_traits<long long> {
+    static constexpr auto sql_type_name = "INTEGER";
+    static constexpr bool nullable = false;
+    
+    static std::string to_sql_string(const long long& value) {
+        return std::to_string(value);
+    }
+    
+    static long long from_sql_string(const std::string& value) {
+        return std::stoll(value);
+    }
+};
+
 // Add specialization for std::optional types
 template <typename T>
 struct column_traits<std::optional<T>> {

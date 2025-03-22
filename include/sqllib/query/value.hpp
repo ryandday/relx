@@ -144,11 +144,32 @@ inline auto val(int i) {
     return Value<int>(i);
 }
 
+/// @brief Helper to create a value expression from a long
+/// @param l The long integer
+/// @return A Value<long> expression
+inline auto val(long l) {
+    return Value<long>(l);
+}
+
+/// @brief Helper to create a value expression from a long long
+/// @param ll The long long integer
+/// @return A Value<long long> expression
+inline auto val(long long ll) {
+    return Value<long long>(ll);
+}
+
 /// @brief Helper to create a value expression from a double
 /// @param d The double
 /// @return A Value<double> expression
 inline auto val(double d) {
     return Value<double>(d);
+}
+
+/// @brief Helper to create a value expression from a float
+/// @param f The float
+/// @return A Value<float> expression
+inline auto val(float f) {
+    return Value<float>(f);
 }
 
 /// @brief Helper to create a value expression from a bool
