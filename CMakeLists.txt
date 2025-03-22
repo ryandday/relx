@@ -60,6 +60,10 @@ add_executable(sqllib_tests
   tests/complex_schema_test.cpp
   tests/concepts_test.cpp
   tests/custom_column_types_test.cpp
+  tests/default_value_test.cpp
+  tests/check_constraint_test.cpp
+  tests/unique_constraint_test.cpp
+  tests/optional_column_test.cpp
 )
 
 # Link against both gtest and gtest_main libraries

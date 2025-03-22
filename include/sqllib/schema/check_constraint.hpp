@@ -15,8 +15,6 @@ namespace schema {
 template <auto ColumnPtr, FixedString Condition>
 class check_constraint {
 public:
-    /// @brief Default constructor
-    check_constraint() = default;
     
     /// @brief Get SQL definition for the CHECK constraint
     /// @return SQL string defining the constraint

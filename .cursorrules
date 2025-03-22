@@ -5,6 +5,8 @@ Don't delete anything from it or overwrite the makefile.
 
 Still use cmake for the build system.
 
+NEVER put in a default constructor NEVER.
+
 # C++ Coding Standards for SQLlib
 
 ## Language Version

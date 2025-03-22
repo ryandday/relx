@@ -71,7 +71,7 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
 ## Schema Definition Improvements
 
 ### Planned Enhancements
-1. **Nullable Types with std::optional Integration**
+1. ✅ **Nullable Types with std::optional Integration**
    - Replace the current nullable_column implementation with std::optional integration
    - Add specialized column_traits for std::optional types
    - Ensure proper NULL handling in SQL generation
@@ -80,7 +80,7 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
    column<"email", std::optional<std::string>> email; // Automatically NULL-able
    ```
 
-2. **Check Constraints**
+2. ✅ **Check Constraints**
    - Add support for SQL CHECK constraints on columns or tables
    - Provide a compile-time friendly way to define constraints
    - Support both simple and complex conditions
@@ -90,7 +90,7 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
    check_constraint<"age >= 18 AND country = 'USA'"> adult_us_check;
    ```
 
-3. **Default Values**
+3. ✅ **Default Values**
    - Add support for DEFAULT value constraints on columns
    - Include common defaults (CURRENT_TIMESTAMP, etc.)
    - Support both literal and expression defaults
@@ -100,7 +100,7 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
    column<"status", std::string, default_value<"'active'">> status;
    ```
 
-4. **Unique Constraints**
+4. ✅ **Unique Constraints**
    - Add dedicated unique constraint support separate from unique indexes
    - Support both single column and multi-column unique constraints
    - Example:
@@ -116,24 +116,28 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
 namespace sqllib {
 
 // Define a schema
-struct user : table<"users"> {
+struct User {
+    static constexpr auto name = std::string_view("users");
+    
     column<"id", int> id;
     column<"name", std::string> name;
     column<"email", std::string> email;
     column<"created_at", std::chrono::system_clock::time_point> created_at;
     
-    primary_key<&user::id> pk;
-    index<&user::email> email_idx;
+    primary_key<&User::id> pk;
+    sqllib::schema::index<&User::email> email_idx;
 };
 
-struct post : table<"posts"> {
+struct Post {
+    static constexpr auto name = std::string_view("posts");
+    
     column<"id", int> id;
     column<"user_id", int> user_id;
     column<"title", std::string> title;
     column<"content", std::string> content;
     
-    primary_key<&post::id> pk;
-    foreign_key<&post::user_id, &user::id> user_fk;
+    primary_key<&Post::id> pk;
+    foreign_key<&Post::user_id, &User::id> user_fk;
 };
 
 } // namespace sqllib
@@ -144,8 +148,8 @@ struct post : table<"posts"> {
 namespace sqllib {
 
 // Creating and executing a query
-user u;
-post p;
+User u;
+Post p;
 
 auto query = select(u.name, u.email, p.title)
     .from(u)
@@ -175,9 +179,9 @@ namespace sqllib {
 
 // 1. Member pointer access for compile-time type safety
 for (const auto& row : results) {
-    std::string name = row.get<&user::name>();     // Access by member pointer
-    std::string email = row.get<&user::email>();   // Type and column checked at compile time
-    std::string title = row.get<&post::title>();   // Error if column wasn't in the SELECT
+    std::string name = row.get<&User::name>();     // Access by member pointer
+    std::string email = row.get<&User::email>();   // Type and column checked at compile time
+    std::string title = row.get<&Post::title>();   // Error if column wasn't in the SELECT
     
     // Process row...
 }
@@ -189,17 +193,17 @@ for (const auto& [name, email, title] : results.as<std::string, std::string, std
 }
 
 // 3. Row object conversion with static reflection
-struct user_post {
+struct UserPost {
     std::string name;
     std::string email;
     std::string title;
 };
 
 // Map fields using member pointers at compile time
-auto user_posts = results.transform<user_post>({
-    {&user_post::name, &user::name},
-    {&user_post::email, &user::email},
-    {&user_post::title, &post::title}
+auto user_posts = results.transform<UserPost>({
+    {&UserPost::name, &User::name},
+    {&UserPost::email, &User::email},
+    {&UserPost::title, &Post::title}
 });
 
 for (const auto& user_post : user_posts) {
@@ -210,14 +214,14 @@ for (const auto& user_post : user_posts) {
 // 4. Direct transformation with lambdas
 auto processed_results = results.transform([](const auto& row) {
     return std::make_tuple(
-        row.get<&user::name>(),
-        row.get<&user::email>(),
-        row.get<&post::title>()
+        row.get<&User::name>(),
+        row.get<&User::email>(),
+        row.get<&Post::title>()
     );
 });
 
 // 5. Optional handling for possibly NULL values
-auto maybe_email = row.get_optional<&user::email>();  // Returns std::optional<std::string>
+auto maybe_email = row.get_optional<&User::email>();  // Returns std::optional<std::string>
 if (maybe_email) {
     send_email(*maybe_email);
 }
@@ -225,45 +229,49 @@ if (maybe_email) {
 } // namespace sqllib
 ```
 
-### Enhanced Schema Definition (With Planned Features)
+### Enhanced Schema Definition (With Implemented Features)
 ```cpp
 namespace sqllib {
 
 // Enhanced schema definition with new features
-struct product {
+struct Product {
+    static constexpr auto name = std::string_view("products");
+    
     column<"id", int> id;
     column<"name", std::string> name;
     column<"price", double> price;
     column<"category", std::string> category;
     column<"description", std::optional<std::string>> description; // Nullable with std::optional
-    column<"stock", int, default_value<"0">> stock;               // Default value
+    column<"stock", int, default_value<0>> stock;                 // Default value with integer literal
     column<"created_at", timestamp, default_value<"CURRENT_TIMESTAMP">> created_at;
     column<"status", std::string, default_value<"'active'">> status;
     
-    primary_key<&product::id> pk;
-    unique_constraint<&product::name> unique_name;               // Unique constraint
-    check_constraint<&product::price, "price >= 0"> valid_price; // Check constraint
+    primary_key<&Product::id> pk;
+    unique_constraint<&Product::name> unique_name;               // Unique constraint
+    check_constraint<&Product::price, "price >= 0"> valid_price; // Check constraint
     
     // Complex check constraint for the entire table
-    check_constraint<"stock >= 0 AND (status = 'active' OR status = 'discontinued')"> valid_product;
+    check_constraint<nullptr, "stock >= 0 AND (status = 'active' OR status = 'discontinued')"> valid_product;
     
     // Composite unique constraint
-    unique_constraint<&product::category, &product::name> unique_category_name;
+    composite_unique_constraint<&Product::category, &Product::name> unique_category_name;
     
     // Create an index on category for faster lookups
-    index<&product::category> category_idx;
+    sqllib::schema::index<&Product::category> category_idx;
 };
 
-struct order : table<"orders"> {
+struct Order {
+    static constexpr auto name = std::string_view("orders");
+    
     column<"id", int> id;
     column<"product_id", int> product_id;
-    column<"quantity", int, default_value<"1">> quantity;
-    column<"user_id", std::optional<int>> user_id;   // Optional user association
+    column<"quantity", int, default_value<1>> quantity;         // Integer literal for default value
+    column<"user_id", std::optional<int>> user_id;              // Optional user association
     column<"order_date", timestamp, default_value<"CURRENT_TIMESTAMP">> order_date;
     
-    primary_key<&order::id> pk;
-    foreign_key<&order::product_id, &product::id> product_fk;
-    check_constraint<&order::quantity, "quantity > 0"> valid_quantity;
+    primary_key<&Order::id> pk;
+    foreign_key<&Order::product_id, &Product::id> product_fk;
+    check_constraint<&Order::quantity, "quantity > 0"> valid_quantity;
 };
 
 } // namespace sqllib
@@ -274,8 +282,8 @@ struct order : table<"orders"> {
 namespace sqllib {
 
 // Creating and executing a query
-user u;
-post p;
+User u;
+Post p;
 
 auto query = select(u.name, u.email, p.title)
     .from(u)
