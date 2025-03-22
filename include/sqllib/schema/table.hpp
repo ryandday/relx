@@ -17,16 +17,19 @@ namespace schema {
 /// @brief Helper to detect column members in a table
 template <typename T>
 concept is_column = requires {
-    T::name;
+    { T::name } -> std::convertible_to<std::string_view>;
     T::sql_type;
     std::declval<T>().sql_definition();
 };
 
 /// @brief Concept for a database table type
-/// @details Requires the type to have a static get_name() method that returns a string_view
+/// @details Requires the type to have a static constexpr name member that is
+/// convertible to std::string_view.
+/// Example: static constexpr auto name = "users";
 template <typename T>
 concept TableConcept = requires {
-    { T::get_name() } -> std::convertible_to<std::string_view>;
+    { T::name } -> std::convertible_to<std::string_view>;
+    requires std::is_const_v<std::remove_reference_t<decltype(T::name)>>; // Ensure it's const/constexpr
 };
 
 /// @brief Helper to detect constraint members in a table
@@ -47,7 +50,7 @@ std::string collect_column_definitions(const Table& table_instance) {
     boost::pfr::for_each_field(table_instance, [&](const auto& field) {
         if constexpr (is_column<std::remove_cvref_t<decltype(field)>>) {
             // Use column name as key to avoid duplicates
-            std::string col_name = std::string(std::remove_cvref_t<decltype(field)>::get_name());
+            std::string col_name = std::string(std::remove_cvref_t<decltype(field)>::name);
             if (added_columns.find(col_name) == added_columns.end()) {
                 column_defs.push_back(field.sql_definition());
                 added_columns.insert(col_name);
@@ -100,6 +103,7 @@ std::string collect_constraint_definitions(const Table& table_instance) {
     return result;
 }
 
+
 /// @brief Generate CREATE TABLE SQL statement for a table struct
 /// @tparam Table The table struct type
 /// @param table_instance An instance of the table
@@ -107,7 +111,7 @@ std::string collect_constraint_definitions(const Table& table_instance) {
 template <TableConcept Table>
 std::string create_table_sql(const Table& table_instance) {
     std::string sql = "CREATE TABLE IF NOT EXISTS " + 
-                     std::string(Table::get_name()) + 
+                     std::string(Table::name) + 
                      " (\n";
     
     // Add column definitions

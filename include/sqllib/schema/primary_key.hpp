@@ -22,7 +22,7 @@ public:
         using table_type = typename member_pointer_class<decltype(ColumnPtr)>::type;
         using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
         
-        return "PRIMARY KEY (" + std::string(column_type::get_name()) + ")";
+        return "PRIMARY KEY (" + std::string(column_type::name) + ")";
     }
     
 private:

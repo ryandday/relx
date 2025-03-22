@@ -5,12 +5,12 @@ using namespace sqllib::schema;
 
 // Example of a table definition that satisfies TableConcept
 struct Users {
-    // Static name accessor required by TableConcept
-    static constexpr auto get_name() { return std::string_view("users"); }
+    // Static table name required by TableConcept
+    static constexpr auto name = std::string_view("users");
     
     // Column definitions
     column<"id", int> id;
-    column<"name", std::string> name;
+    column<"name", std::string> username;
     column<"email", std::string> email;
     column<"age", int> age;
     
@@ -21,8 +21,8 @@ struct Users {
 
 // Example of a table with nullable columns
 struct Posts {
-    // Static name accessor required by TableConcept
-    static constexpr auto get_name() { return std::string_view("posts"); }
+    // Static table name required by TableConcept
+    static constexpr auto name = std::string_view("posts");
     
     // Column definitions
     column<"id", int> id;

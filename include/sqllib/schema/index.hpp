@@ -1,6 +1,7 @@
 #pragma once
 
 #include "column.hpp"
+#include "table.hpp"
 #include <string_view>
 #include <type_traits>
 
@@ -47,9 +48,9 @@ public:
         using table_type = typename member_pointer_class<decltype(ColumnPtr)>::type;
         using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
         
-        // Use the static getter methods
-        std::string table_name = std::string(table_type::get_name());
-        std::string column_name = std::string(column_type::get_name());
+        // Get the table name directly
+        std::string table_name = std::string(table_type::name);
+        std::string column_name = std::string(column_type::name);
         
         std::string index_name = table_name + "_" + column_name + "_idx";
         

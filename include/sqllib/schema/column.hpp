@@ -20,12 +20,6 @@ public:
     /// @brief The column name
     static constexpr auto name = Name;
     
-    /// @brief Static function to get the column name
-    /// @return The column name as a string_view
-    static constexpr std::string_view get_name() {
-        return std::string_view(name);
-    }
-    
     /// @brief The SQL type of the column
     static constexpr auto sql_type = column_traits<T>::sql_type_name;
     

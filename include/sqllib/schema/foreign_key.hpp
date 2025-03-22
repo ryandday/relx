@@ -55,10 +55,18 @@ public:
         using ref_table_type = typename member_pointer_class<decltype(ReferencedColumnPtr)>::type;
         using ref_column_type = typename member_pointer_type<decltype(ReferencedColumnPtr)>::type;
         
-        // Generate the SQL using the static functions instead of direct class member access
-        std::string result = "FOREIGN KEY (" + std::string(local_column_type::get_name()) + ") ";
-        result += "REFERENCES " + std::string(ref_table_type::get_name()) + " (";
-        result += std::string(ref_column_type::get_name()) + ")";
+        // Get the table name using the appropriate method
+        std::string ref_table_name;
+        if constexpr (requires { { ref_table_type::name } -> std::convertible_to<std::string_view>; }) {
+            ref_table_name = std::string(ref_table_type::name);
+        } else {
+            ref_table_name = std::string(ref_table_type::table_name);
+        }
+        
+        // Generate the SQL using the static members
+        std::string result = "FOREIGN KEY (" + std::string(local_column_type::name) + ") ";
+        result += "REFERENCES " + ref_table_name + " (";
+        result += std::string(ref_column_type::name) + ")";
         
         // Add ON DELETE and ON UPDATE clauses
         if (on_delete_ != reference_action::no_action) {
