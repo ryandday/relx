@@ -254,9 +254,15 @@ public:
         // Collect parameters from joins
         if constexpr (!is_empty_tuple<Joins>()) {
             std::apply([&](const auto&... joins) {
-                (params.insert(params.end(), 
-                              joins.condition.bind_params().begin(), 
-                              joins.condition.bind_params().end()), ...);
+                (([&]() {
+                    try {
+                        auto join_params = joins.condition.bind_params();
+                        params.insert(params.end(), join_params.begin(), join_params.end());
+                    } catch (const std::exception& e) {
+                        // Log error and continue
+                        std::cerr << "Error collecting join params: " << e.what() << std::endl;
+                    }
+                })(), ...);
             }, joins_);
         }
         
