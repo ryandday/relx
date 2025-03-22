@@ -65,11 +65,36 @@ public:
 private:
     // Helper to get comma-separated column names
     std::string get_column_names() const {
+        // Using fold expression to concatenate column names
         std::string names;
-        // Fold expression to process all column pointers
-        // This is a placeholder - actual implementation would need reflection
+        (append_column_name<ColumnPtrs>(names, names.empty() ? "" : ", "), ...);
         return names;
     }
+    
+    // Helper to append a single column name
+    template <auto ColumnPtr>
+    void append_column_name(std::string& names, const std::string& separator) const {
+        using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
+        names += separator + std::string(column_type::name);
+    }
+    
+    // Helper to extract the class type from a member pointer
+    template <typename T>
+    struct member_pointer_class;
+    
+    template <typename C, typename T>
+    struct member_pointer_class<T C::*> {
+        using type = C;
+    };
+    
+    // Helper to extract the member type from a member pointer
+    template <typename T>
+    struct member_pointer_type;
+    
+    template <typename C, typename T>
+    struct member_pointer_type<T C::*> {
+        using type = T;
+    };
 };
 
 } // namespace schema

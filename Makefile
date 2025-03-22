@@ -29,7 +29,11 @@ run: build
 # Test commands
 .PHONY: test
 test: build
-	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests && ctest -V
+	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests && ctest --output-on-failure -V
+
+.PHONY: test-verbose
+test-verbose: build
+	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests && ./sqllib_tests --gtest_color=yes
 
 .PHONY: static-test
 static-test: configure
@@ -48,6 +52,7 @@ help:
 	@echo "  build          - Build the project"
 	@echo "  clean          - Remove build directory"
 	@echo "  run            - Build and run the application"
-	@echo "  test           - Build and run the tests"
+	@echo "  test           - Build and run the tests with CTest"
+	@echo "  test-verbose   - Build and run tests directly with more detailed output"
 	@echo "  static-test    - Build and run the static assert tests"
 	@echo "  format         - Format code using clang-format"
