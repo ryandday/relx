@@ -1,0 +1,271 @@
+#include <gtest/gtest.h>
+#include "test_common.hpp"
+#include <string>
+#include <limits>
+
+using namespace test_tables;
+using namespace test_utils;
+
+TEST(EdgeCaseTest, ExtremeLimits) {
+    users u;
+    
+    // Test with very large LIMIT value
+    auto query = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .limit(std::numeric_limits<int>::max());
+    
+    std::string expected_sql = "SELECT id, name FROM users LIMIT ?";
+    EXPECT_EQ(query.to_sql(), expected_sql);
+    
+    auto params = query.bind_params();
+    EXPECT_EQ(params.size(), 1);
+    EXPECT_EQ(params[0], std::to_string(std::numeric_limits<int>::max()));
+}
+
+TEST(EdgeCaseTest, ZeroValues) {
+    users u;
+    
+    // Test with zero LIMIT (should be handled gracefully)
+    auto query = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .limit(0);
+    
+    std::string expected_sql = "SELECT id, name FROM users LIMIT ?";
+    EXPECT_EQ(query.to_sql(), expected_sql);
+    
+    auto params = query.bind_params();
+    EXPECT_EQ(params.size(), 1);
+    EXPECT_EQ(params[0], "0");
+}
+
+TEST(EdgeCaseTest, EmptyStrings) {
+    users u;
+    
+    // Test with empty string parameters
+    auto query = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(sqllib::query::to_expr(u.name) == sqllib::query::val(""));
+    
+    std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
+    EXPECT_EQ(query.to_sql(), expected_sql);
+    
+    auto params = query.bind_params();
+    EXPECT_EQ(params.size(), 1);
+    EXPECT_EQ(params[0], "");
+}
+
+TEST(EdgeCaseTest, SpecialCharactersInStrings) {
+    users u;
+    
+    // Test with strings containing SQL special characters
+    std::string special_chars = "Test'\"\\%;_$#@!";
+    auto query = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(sqllib::query::to_expr(u.name) == sqllib::query::val(special_chars));
+    
+    std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
+    EXPECT_EQ(query.to_sql(), expected_sql);
+    
+    auto params = query.bind_params();
+    EXPECT_EQ(params.size(), 1);
+    EXPECT_EQ(params[0], special_chars); // The string should be passed as-is to parameters
+}
+
+TEST(EdgeCaseTest, UnicodeStrings) {
+    users u;
+    
+    // Test with Unicode strings
+    std::string unicode_string = "测试Unicode字符串😀🔥";
+    auto query = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(sqllib::query::to_expr(u.name) == sqllib::query::val(unicode_string));
+    
+    std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
+    EXPECT_EQ(query.to_sql(), expected_sql);
+    
+    auto params = query.bind_params();
+    EXPECT_EQ(params.size(), 1);
+    EXPECT_EQ(params[0], unicode_string);
+}
+
+TEST(EdgeCaseTest, VeryLongStrings) {
+    users u;
+    
+    // Create a very long string value
+    std::string long_string(10000, 'a');
+    auto query = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(sqllib::query::to_expr(u.bio) == sqllib::query::val(long_string));
+    
+    std::string expected_sql = "SELECT id, name FROM users WHERE (bio = ?)";
+    EXPECT_EQ(query.to_sql(), expected_sql);
+    
+    auto params = query.bind_params();
+    EXPECT_EQ(params.size(), 1);
+    EXPECT_EQ(params[0], long_string);
+}
+
+// Let's create a class for column to test
+class TestFloatColumn {
+public:
+    static constexpr auto column_name = "float_column";
+    using value_type = float;
+};
+
+TEST(EdgeCaseTest, BooleanValues) {
+    users u;
+    
+    // Test with boolean values
+    auto query_true = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(true));
+    
+    auto query_false = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(false));
+    
+    std::string expected_sql = "SELECT id, name FROM users WHERE (is_active = ?)";
+    EXPECT_EQ(query_true.to_sql(), expected_sql);
+    EXPECT_EQ(query_false.to_sql(), expected_sql);
+    
+    auto params_true = query_true.bind_params();
+    auto params_false = query_false.bind_params();
+    
+    EXPECT_EQ(params_true.size(), 1);
+    EXPECT_EQ(params_false.size(), 1);
+    // The exact string representation of true/false may vary by implementation
+    // Common values are "1"/"0" or "true"/"false"
+    EXPECT_TRUE(params_true[0] == "1" || params_true[0] == "true" || params_true[0] == "TRUE");
+    EXPECT_TRUE(params_false[0] == "0" || params_false[0] == "false" || params_false[0] == "FALSE");
+}
+
+TEST(EdgeCaseTest, ExtremeDateValues) {
+    posts p;
+    
+    // Test with extreme date strings
+    std::string min_date = "0001-01-01 00:00:00";
+    std::string max_date = "9999-12-31 23:59:59";
+    
+    auto query_min = sqllib::query::select(p.id, p.title)
+        .from(p)
+        .where(sqllib::query::to_expr(p.created_at) == sqllib::query::val(min_date));
+    
+    auto query_max = sqllib::query::select(p.id, p.title)
+        .from(p)
+        .where(sqllib::query::to_expr(p.created_at) == sqllib::query::val(max_date));
+    
+    std::string expected_sql = "SELECT id, title FROM posts WHERE (created_at = ?)";
+    EXPECT_EQ(query_min.to_sql(), expected_sql);
+    EXPECT_EQ(query_max.to_sql(), expected_sql);
+    
+    auto params_min = query_min.bind_params();
+    auto params_max = query_max.bind_params();
+    
+    EXPECT_EQ(params_min.size(), 1);
+    EXPECT_EQ(params_max.size(), 1);
+    EXPECT_EQ(params_min[0], min_date);
+    EXPECT_EQ(params_max[0], max_date);
+}
+
+TEST(EdgeCaseTest, ComplexExpressionsWithManyOperators) {
+    users u;
+    posts p;
+    
+    // Create a complex WHERE condition with many operators
+    auto query = sqllib::query::select(u.id, u.name, p.title)
+        .from(u)
+        .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)))
+        .where(
+            (sqllib::query::to_expr(u.age) > sqllib::query::val(18)) &&
+            (sqllib::query::to_expr(u.age) <= sqllib::query::val(65)) &&
+            (sqllib::query::to_expr(u.is_active) == sqllib::query::val(true)) &&
+            ((sqllib::query::to_expr(u.name) != sqllib::query::val("")) || 
+             (sqllib::query::to_expr(p.views) > sqllib::query::val(1000)))
+        );
+    
+    // Just test that the query produces a valid SQL string without error
+    std::string sql = query.to_sql();
+    EXPECT_FALSE(sql.empty());
+    
+    auto params = query.bind_params();
+    EXPECT_EQ(params.size(), 5);
+    
+    // The generated SQL should include all operators
+    EXPECT_TRUE(sql.find(">") != std::string::npos);
+    EXPECT_TRUE(sql.find("<=") != std::string::npos);
+    EXPECT_TRUE(sql.find("=") != std::string::npos);
+    EXPECT_TRUE(sql.find("!=") != std::string::npos);
+    EXPECT_TRUE(sql.find("AND") != std::string::npos);
+    EXPECT_TRUE(sql.find("OR") != std::string::npos);
+}
+
+TEST(EdgeCaseTest, NestedLogicalOperators) {
+    users u;
+    
+    // Create deeply nested logical operators
+    auto query = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(
+            sqllib::query::to_expr(u.is_active) == sqllib::query::val(true) &&
+            (
+                (sqllib::query::to_expr(u.age) < sqllib::query::val(30) || 
+                 sqllib::query::to_expr(u.age) > sqllib::query::val(60)) &&
+                (sqllib::query::to_expr(u.login_count) > sqllib::query::val(5) || 
+                 sqllib::query::is_not_null(sqllib::query::to_expr(u.bio)))
+            )
+        );
+    
+    // The SQL should have proper nesting of conditions with parentheses
+    std::string sql = query.to_sql();
+    EXPECT_FALSE(sql.empty());
+    
+    // Count opening and closing parentheses - they should match
+    size_t open_count = 0;
+    size_t close_count = 0;
+    
+    for (char c : sql) {
+        if (c == '(') open_count++;
+        if (c == ')') close_count++;
+    }
+    
+    EXPECT_EQ(open_count, close_count);
+    
+    auto params = query.bind_params();
+    EXPECT_EQ(params.size(), 4);
+}
+
+TEST(EdgeCaseTest, ManyJoinsAndConditions) {
+    users u;
+    posts p;
+    comments c;
+    tags t;
+    post_tags pt;
+    
+    // Create a query with many joins and conditions
+    auto query = sqllib::query::select(u.name, p.title, c.content, t.name)
+        .from(u)
+        .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)))
+        .join(c, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(c.post_id)))
+        .join(pt, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(pt.post_id)))
+        .join(t, sqllib::query::on(sqllib::query::to_expr(pt.tag_id) == sqllib::query::to_expr(t.id)))
+        .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(true))
+        .where(sqllib::query::to_expr(p.is_published) == sqllib::query::val(true))
+        .where(sqllib::query::to_expr(c.is_approved) == sqllib::query::val(true));
+    
+    // Just verify we get a non-empty string with all the expected JOIN keywords
+    std::string sql = query.to_sql();
+    EXPECT_FALSE(sql.empty());
+    
+    // Count the number of JOIN statements
+    size_t join_count = 0;
+    size_t pos = 0;
+    while ((pos = sql.find("JOIN", pos)) != std::string::npos) {
+        join_count++;
+        pos += 4; // Move past "JOIN"
+    }
+    
+    EXPECT_EQ(join_count, 4);
+    
+    auto params = query.bind_params();
+    EXPECT_EQ(params.size(), 3);
+} 

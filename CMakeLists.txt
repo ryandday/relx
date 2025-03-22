@@ -75,6 +75,10 @@ add_executable(sqllib_tests
   tests/query/aggregate_test.cpp
   tests/query/case_expression_test.cpp
   tests/query/string_function_test.cpp
+  # Additional comprehensive tests
+  tests/query/advanced_query_test.cpp
+  tests/query/edge_case_test.cpp
+  tests/query/data_type_test.cpp
 #   tests/break_the_library_test.cpp
 )
 
