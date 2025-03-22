@@ -76,6 +76,8 @@ Support enum types
 
 Support date types 
 
+Sanitizers, warnings, and clang tidy.
+
 1. ✅ **Nullable Types with std::optional Integration**
    - Replace the current nullable_column implementation with std::optional integration
    - Add specialized column_traits for std::optional types
