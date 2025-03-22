@@ -1,14 +1,14 @@
 Conventions
 
-Use top level makefile to build / run / test stuff
+Use the top level makefile that already exists to create convenience functions build / run / test stuff
+Don't delete anything from it or overwrite the makefile.
 
-
+Still use cmake for the build system.
 
 # C++ Coding Standards for SQLlib
 
 ## Language Version
 - Use C++23 as the primary standard 
-
 - Minimum compiler requirements:
   - GCC 11+
   - Clang 14+

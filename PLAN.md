@@ -68,6 +68,47 @@ SQLlib will be a modern C++ library for constructing and executing SQL queries w
 - Bulk operations
 - Connection pooling
 
+## Schema Definition Improvements
+
+### Planned Enhancements
+1. **Nullable Types with std::optional Integration**
+   - Replace the current nullable_column implementation with std::optional integration
+   - Add specialized column_traits for std::optional types
+   - Ensure proper NULL handling in SQL generation
+   - Example:
+   ```cpp
+   column<"email", std::optional<std::string>> email; // Automatically NULL-able
+   ```
+
+2. **Check Constraints**
+   - Add support for SQL CHECK constraints on columns or tables
+   - Provide a compile-time friendly way to define constraints
+   - Support both simple and complex conditions
+   - Example:
+   ```cpp
+   check_constraint<&price, "price > 0"> price_positive;
+   check_constraint<"age >= 18 AND country = 'USA'"> adult_us_check;
+   ```
+
+3. **Default Values**
+   - Add support for DEFAULT value constraints on columns
+   - Include common defaults (CURRENT_TIMESTAMP, etc.)
+   - Support both literal and expression defaults
+   - Example:
+   ```cpp
+   column<"created_at", timestamp, default_value<"CURRENT_TIMESTAMP">> created_at;
+   column<"status", std::string, default_value<"'active'">> status;
+   ```
+
+4. **Unique Constraints**
+   - Add dedicated unique constraint support separate from unique indexes
+   - Support both single column and multi-column unique constraints
+   - Example:
+   ```cpp
+   unique_constraint<&user::email> unique_email;
+   unique_constraint<&user::first_name, &user::last_name> unique_name_pair;
+   ```
+
 ## Usage Examples
 
 ### Schema Definition
@@ -179,6 +220,78 @@ auto processed_results = results.transform([](const auto& row) {
 auto maybe_email = row.get_optional<&user::email>();  // Returns std::optional<std::string>
 if (maybe_email) {
     send_email(*maybe_email);
+}
+
+} // namespace sqllib
+```
+
+### Enhanced Schema Definition (With Planned Features)
+```cpp
+namespace sqllib {
+
+// Enhanced schema definition with new features
+struct product {
+    column<"id", int> id;
+    column<"name", std::string> name;
+    column<"price", double> price;
+    column<"category", std::string> category;
+    column<"description", std::optional<std::string>> description; // Nullable with std::optional
+    column<"stock", int, default_value<"0">> stock;               // Default value
+    column<"created_at", timestamp, default_value<"CURRENT_TIMESTAMP">> created_at;
+    column<"status", std::string, default_value<"'active'">> status;
+    
+    primary_key<&product::id> pk;
+    unique_constraint<&product::name> unique_name;               // Unique constraint
+    check_constraint<&product::price, "price >= 0"> valid_price; // Check constraint
+    
+    // Complex check constraint for the entire table
+    check_constraint<"stock >= 0 AND (status = 'active' OR status = 'discontinued')"> valid_product;
+    
+    // Composite unique constraint
+    unique_constraint<&product::category, &product::name> unique_category_name;
+    
+    // Create an index on category for faster lookups
+    index<&product::category> category_idx;
+};
+
+struct order : table<"orders"> {
+    column<"id", int> id;
+    column<"product_id", int> product_id;
+    column<"quantity", int, default_value<"1">> quantity;
+    column<"user_id", std::optional<int>> user_id;   // Optional user association
+    column<"order_date", timestamp, default_value<"CURRENT_TIMESTAMP">> order_date;
+    
+    primary_key<&order::id> pk;
+    foreign_key<&order::product_id, &product::id> product_fk;
+    check_constraint<&order::quantity, "quantity > 0"> valid_quantity;
+};
+
+} // namespace sqllib
+```
+
+### Query Building
+```cpp
+namespace sqllib {
+
+// Creating and executing a query
+user u;
+post p;
+
+auto query = select(u.name, u.email, p.title)
+    .from(u)
+    .join(p, on(u.id == p.user_id))
+    .where(u.id == 1 && p.title.like("%important%"))
+    .order_by(p.created_at.desc());
+
+auto results = connection.execute(query);
+
+// Processing results
+for (const auto& row : results) {
+    std::string name = row.get<0>();  // Type-safe access
+    std::string email = row.get<1>();
+    std::string title = row.get<2>();
+    
+    // Process row...
 }
 
 } // namespace sqllib

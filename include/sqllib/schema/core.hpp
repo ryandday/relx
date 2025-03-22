@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <tuple>
 #include <utility>
+#include <optional>
 #include "fixed_string.hpp"
 
 namespace sqllib {
@@ -101,6 +102,28 @@ struct column_traits<bool> {
     
     static bool from_sql_string(const std::string& value) {
         return value == "1" || value == "true" || value == "TRUE";
+    }
+};
+
+// Add specialization for std::optional types
+template <typename T>
+struct column_traits<std::optional<T>> {
+    static constexpr auto sql_type_name = column_traits<T>::sql_type_name;
+    static constexpr bool nullable = true;
+    
+    static std::string to_sql_string(const std::optional<T>& value) {
+        if (value) {
+            return column_traits<T>::to_sql_string(*value);
+        } else {
+            return "NULL";
+        }
+    }
+    
+    static std::optional<T> from_sql_string(const std::string& value) {
+        if (value == "NULL") {
+            return std::nullopt;
+        }
+        return column_traits<T>::from_sql_string(value);
     }
 };
 

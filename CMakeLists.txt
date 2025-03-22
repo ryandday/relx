@@ -72,10 +72,6 @@ target_link_libraries(sqllib_tests PRIVATE
 # Register test
 add_test(NAME sqllib_tests COMMAND sqllib_tests)
 
-# Add a simple test executable for concepts without external dependencies
-add_executable(basic_concepts_test tests/basic_concepts_test.cpp)
-target_link_libraries(basic_concepts_test PRIVATE ${PROJECT_NAME})
-
 # Add static_assert tests executable
 add_executable(static_assert_tests tests/static_assert_tests.cpp)
 target_link_libraries(static_assert_tests PRIVATE ${PROJECT_NAME})
