@@ -87,6 +87,8 @@ add_executable(sqllib_tests
   tests/query/string_function_test.cpp
   tests/query/update_query_test.cpp
   tests/query/delete_query_test.cpp
+  # Result processing tests
+  tests/result_test.cpp
   # Additional comprehensive tests
   tests/query/edge_case_test.cpp
   tests/query/data_type_test.cpp
@@ -117,3 +119,7 @@ target_link_libraries(query_example PRIVATE ${PROJECT_NAME})
 # Add the delete query example
 add_executable(delete_example examples/delete_example.cpp)
 target_link_libraries(delete_example PRIVATE ${PROJECT_NAME})
+
+# Add the result processing example
+add_executable(result_example examples/result_example.cpp)
+target_link_libraries(result_example PRIVATE ${PROJECT_NAME})
