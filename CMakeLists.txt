@@ -89,6 +89,7 @@ add_executable(sqllib_tests
   tests/query/delete_query_test.cpp
   # Result processing tests
   tests/result_test.cpp
+  tests/advanced_query_test.cpp
   # Additional comprehensive tests
   tests/query/edge_case_test.cpp
   tests/query/data_type_test.cpp
@@ -123,3 +124,15 @@ target_link_libraries(delete_example PRIVATE ${PROJECT_NAME})
 # Add the result processing example
 add_executable(result_example examples/result_example.cpp)
 target_link_libraries(result_example PRIVATE ${PROJECT_NAME})
+
+# Add the compile failure example
+add_executable(compile_fail_example examples/compile_fail_example.cpp)
+target_link_libraries(compile_fail_example PRIVATE ${PROJECT_NAME})
+
+# Add the compile-time safety example
+add_executable(compile_time_safety_example examples/compile_time_safety_example.cpp)
+target_link_libraries(compile_time_safety_example PRIVATE ${PROJECT_NAME})
+
+# Add the compile-time column tracking example
+add_executable(compile_time_tracking_example examples/compile_time_tracking_example.cpp)
+target_link_libraries(compile_time_tracking_example PRIVATE ${PROJECT_NAME})
