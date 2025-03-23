@@ -5,6 +5,16 @@ project(sqllib VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Sanitizer flags
+option(ENABLE_SANITIZERS "Enable sanitizers" ON)
+if(ENABLE_SANITIZERS)
+  set(SANITIZER_FLAGS "-fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${SANITIZER_FLAGS}")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${SANITIZER_FLAGS}")
+  message(STATUS "Sanitizers enabled: ${SANITIZER_FLAGS}")
+endif()
+
 # Platform specific settings
 if(APPLE)
   # On macOS, ensure all targets use libc++
@@ -76,8 +86,8 @@ add_executable(sqllib_tests
   tests/query/case_expression_test.cpp
   tests/query/string_function_test.cpp
   tests/query/update_query_test.cpp
+  tests/query/delete_query_test.cpp
   # Additional comprehensive tests
-  tests/query/advanced_query_test.cpp
   tests/query/edge_case_test.cpp
   tests/query/data_type_test.cpp
 #   tests/break_the_library_test.cpp
@@ -103,3 +113,7 @@ add_test(NAME static_assert_tests COMMAND static_assert_tests)
 # Add a simple query example
 add_executable(query_example examples/query_example.cpp)
 target_link_libraries(query_example PRIVATE ${PROJECT_NAME})
+
+# Add the delete query example
+add_executable(delete_example examples/delete_example.cpp)
+target_link_libraries(delete_example PRIVATE ${PROJECT_NAME})

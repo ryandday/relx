@@ -5,6 +5,8 @@
 #include "query/condition.hpp"
 #include "query/value.hpp"
 #include "query/select.hpp"
+#include "query/update.hpp"
+#include "query/delete.hpp"
 #include "query/function.hpp"
 #include "query/schema_adapter.hpp"
 #include "query/helpers.hpp"
@@ -69,6 +71,8 @@ namespace query {
 // Convenient imports from the query namespace
 using query::select;
 using query::select_expr;
+using query::update;
+using query::delete_from;
 using query::val;
 using query::on;
 using query::as;
