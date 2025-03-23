@@ -2,7 +2,7 @@
 
 #include "core.hpp"
 #include "select.hpp"
-#include "adapter.hpp"
+#include "schema_adapter.hpp"
 #include <utility>
 
 namespace sqllib {

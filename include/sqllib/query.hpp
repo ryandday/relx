@@ -1,12 +1,12 @@
 #pragma once
 
 #include "query/core.hpp"
-#include "query/column_expr.hpp"
+#include "query/column_expression.hpp"
 #include "query/condition.hpp"
 #include "query/value.hpp"
 #include "query/select.hpp"
 #include "query/function.hpp"
-#include "query/adapter.hpp"
+#include "query/schema_adapter.hpp"
 #include "query/helpers.hpp"
 
 /**

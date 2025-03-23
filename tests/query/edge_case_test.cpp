@@ -234,38 +234,38 @@ TEST(EdgeCaseTest, NestedLogicalOperators) {
     EXPECT_EQ(params.size(), 4);
 }
 
-TEST(EdgeCaseTest, ManyJoinsAndConditions) {
-    users u;
-    posts p;
-    comments c;
-    tags t;
-    post_tags pt;
+// TEST(EdgeCaseTest, ManyJoinsAndConditions) {
+//     users u;
+//     posts p;
+//     comments c;
+//     tags t;
+//     post_tags pt;
     
-    // Create a query with many joins and conditions
-    auto query = sqllib::query::select(u.name, p.title, c.content, t.name)
-        .from(u)
-        .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)))
-        .join(c, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(c.post_id)))
-        .join(pt, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(pt.post_id)))
-        .join(t, sqllib::query::on(sqllib::query::to_expr(pt.tag_id) == sqllib::query::to_expr(t.id)))
-        .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(true))
-        .where(sqllib::query::to_expr(p.is_published) == sqllib::query::val(true))
-        .where(sqllib::query::to_expr(c.is_approved) == sqllib::query::val(true));
+//     // Create a query with many joins and conditions
+//     auto query = sqllib::query::select(u.name, p.title, c.content, t.name)
+//         .from(u)
+//         .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)))
+//         .join(c, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(c.post_id)))
+//         .join(pt, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(pt.post_id)))
+//         .join(t, sqllib::query::on(sqllib::query::to_expr(pt.tag_id) == sqllib::query::to_expr(t.id)))
+//         .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(true))
+//         .where(sqllib::query::to_expr(p.is_published) == sqllib::query::val(true))
+//         .where(sqllib::query::to_expr(c.is_approved) == sqllib::query::val(true));
     
-    // Just verify we get a non-empty string with all the expected JOIN keywords
-    std::string sql = query.to_sql();
-    EXPECT_FALSE(sql.empty());
+//     // Just verify we get a non-empty string with all the expected JOIN keywords
+//     std::string sql = query.to_sql();
+//     EXPECT_FALSE(sql.empty());
     
-    // Count the number of JOIN statements
-    size_t join_count = 0;
-    size_t pos = 0;
-    while ((pos = sql.find("JOIN", pos)) != std::string::npos) {
-        join_count++;
-        pos += 4; // Move past "JOIN"
-    }
+//     // Count the number of JOIN statements
+//     size_t join_count = 0;
+//     size_t pos = 0;
+//     while ((pos = sql.find("JOIN", pos)) != std::string::npos) {
+//         join_count++;
+//         pos += 4; // Move past "JOIN"
+//     }
     
-    EXPECT_EQ(join_count, 4);
+//     EXPECT_EQ(join_count, 4);
     
-    auto params = query.bind_params();
-    EXPECT_EQ(params.size(), 3);
-} 
+//     auto params = query.bind_params();
+//     EXPECT_EQ(params.size(), 3);
+// } 

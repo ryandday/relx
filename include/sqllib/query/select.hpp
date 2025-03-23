@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core.hpp"
-#include "column_expr.hpp"
+#include "column_expression.hpp"
 #include "condition.hpp"
 #include "value.hpp"
 #include <memory>
@@ -431,6 +431,7 @@ public:
     auto cross_join(const Table& table) const {
         // A cross join doesn't need a condition, so we use a dummy condition
         struct DummyCondition : public SqlExpression {
+            // TODO Get rid of this dummy conditions somehow
             std::string to_sql() const override { return "1=1"; }
             std::vector<std::string> bind_params() const override { return {}; }
         };

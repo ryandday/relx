@@ -7,7 +7,7 @@ Still use cmake for the build system.
 
 NEVER put in a constructor on a class that needs boost pfr compatibility, since it needs to be an aggregate.
 
-When writing tests, make sure to tests many error conditions, as many as successful conditions
+When writing tests, make sure to tests many error conditions, as many as successful conditions. Thoroughly test all combinations of features
 
 # C++ Coding Standards for SQLlib
 
