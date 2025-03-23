@@ -4,6 +4,7 @@
 #include "column_expression.hpp"
 #include "condition.hpp"
 #include "value.hpp"
+#include "function.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -147,18 +148,18 @@ public:
     /// @param val The value to set
     /// @return New UpdateQuery with the SET clause added
     template <ColumnType Col, SqlExpr Val>
-    auto set(const Col& column, const Val& val) const {
-        using SetItemType = SetItem<Col, Val>;
+    auto set(const Col& column, Val&& val) const {
+        using SetItemType = SetItem<Col, std::remove_cvref_t<Val>>;
         
         // Create a new SetItem
-        auto column_ref = ColumnRef<Col>(column);
-        auto set_item = SetItemType(column_ref, val);
+        auto col_ref = ColumnRef<Col>(column);
+        auto set_item = SetItemType(col_ref, std::forward<Val>(val));
         
         // Create a tuple with the new SetItem
-        auto new_item_tuple = std::make_tuple(set_item);
+        auto new_item_tuple = std::make_tuple(std::move(set_item));
         
         // Concatenate with existing sets
-        auto new_sets = std::tuple_cat(sets_, new_item_tuple);
+        auto new_sets = std::tuple_cat(sets_, std::move(new_item_tuple));
         
         // Return a new query with the updated sets
         return UpdateQuery<Table, decltype(new_sets), Where>(
@@ -181,6 +182,20 @@ public:
             sets_,
             std::optional<Condition>(cond)
         );
+    }
+
+    /// @brief Set a condition for filtering the rows to update using IN with values
+    /// @tparam Col The column type
+    /// @tparam Range The range type for IN values
+    /// @param column The column to check
+    /// @param values The values to check against
+    /// @return New UpdateQuery with the IN condition added
+    template <ColumnType Col, std::ranges::range Range>
+    requires std::convertible_to<std::ranges::range_value_t<Range>, std::string>
+    auto where_in(const Col& column, const Range& values) const {
+        auto col_expr = column_ref(column);
+        auto in_condition = in(col_expr, values);
+        return where(in_condition);
     }
 
 private:

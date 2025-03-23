@@ -1,7 +1,7 @@
 Conventions
 
 Use the top level makefile that already exists to create convenience functions build / run / test stuff
-Don't delete anything from it or overwrite the makefile. Use `make test` to test.
+Don't delete anything from it or overwrite the makefile. Use `make test` to run the tests test.
 
 Still use cmake for the build system.
 
