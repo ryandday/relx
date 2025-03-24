@@ -265,7 +265,7 @@ TEST_F(ResultTest, StructuredBinding) {
     
     const auto& results = *result;
     
-    // Use structured binding via the 'as' helper
+    // Use structured binding via the 'as' helper with default column order
     std::vector<std::tuple<int, std::string, int>> user_data;
     
     for (const auto& [id, name, age] : results.as<int, std::string, int>()) {
@@ -283,4 +283,58 @@ TEST_F(ResultTest, StructuredBinding) {
     EXPECT_EQ(2, std::get<0>(user_data[1]));
     EXPECT_EQ("Jane Smith", std::get<1>(user_data[1]));
     EXPECT_EQ(28, std::get<2>(user_data[1]));
+}
+
+// Test structured binding with custom column indices
+TEST_F(ResultTest, StructuredBindingWithCustomIndices) {
+    auto result = sqllib::result::parse(query_, raw_results_);
+    ASSERT_TRUE(result) << result.error().message;
+    
+    const auto& results = *result;
+    
+    // Use structured binding with explicit column indices - using id(0), name(1), and is_active(4)
+    std::vector<std::tuple<int, std::string, bool>> user_active_data;
+    
+    for (const auto& [id, name, active] : results.as<int, std::string, bool>(std::array<size_t, 3>{0, 1, 4})) {
+        user_active_data.emplace_back(id, name, active);
+    }
+    
+    ASSERT_EQ(3, user_active_data.size());
+    
+    // Check values to ensure we got the right columns
+    EXPECT_EQ(1, std::get<0>(user_active_data[0]));
+    EXPECT_EQ("John Doe", std::get<1>(user_active_data[0]));
+    EXPECT_EQ(true, std::get<2>(user_active_data[0]));
+    
+    // Third user has is_active = false
+    EXPECT_EQ(3, std::get<0>(user_active_data[2]));
+    EXPECT_EQ("Bob Johnson", std::get<1>(user_active_data[2]));
+    EXPECT_EQ(false, std::get<2>(user_active_data[2]));
+}
+
+// Test structured binding with column names
+TEST_F(ResultTest, StructuredBindingWithColumnNames) {
+    auto result = sqllib::result::parse(query_, raw_results_);
+    ASSERT_TRUE(result) << result.error().message;
+    
+    const auto& results = *result;
+    
+    // Use structured binding with explicit column names - age, score, email (different order)
+    std::vector<std::tuple<int, double, std::string>> user_detail_data;
+    
+    for (const auto& [age, score, email] : results.as<int, double, std::string>(
+        std::array<std::string, 3>{"age", "score", "email"})) {
+        user_detail_data.emplace_back(age, score, email);
+    }
+    
+    ASSERT_EQ(3, user_detail_data.size());
+    
+    // Check values to ensure we got the right columns in the right order
+    EXPECT_EQ(30, std::get<0>(user_detail_data[0]));
+    EXPECT_EQ(95.5, std::get<1>(user_detail_data[0]));
+    EXPECT_EQ("john@example.com", std::get<2>(user_detail_data[0]));
+    
+    EXPECT_EQ(35, std::get<0>(user_detail_data[2]));
+    EXPECT_EQ(85.7, std::get<1>(user_detail_data[2]));
+    EXPECT_EQ("bob@example.com", std::get<2>(user_detail_data[2]));
 } 

@@ -15,10 +15,11 @@
 #include <map>
 #include <expected>
 #include <concepts>
+#include <array>
 
-#include "schema/core.hpp"
-#include "schema/column.hpp"
-#include "query/core.hpp"
+#include "../schema/core.hpp"
+#include "../schema/column.hpp"
+#include "../query/core.hpp"
 
 namespace sqllib {
 namespace result {
@@ -469,6 +470,7 @@ template <typename ResultSet, typename... Types>
 struct RowIterator {
     const ResultSet& results;
     size_t index;
+    std::array<size_t, sizeof...(Types)> column_indices;
     
     bool operator!=(const RowIterator& other) const {
         return index != other.index;
@@ -488,15 +490,11 @@ private:
     RowAdapter<Types...> get_row_values(std::index_sequence<Indices...>) const {
         const auto& row = results.at(index);
         
-        // For structured binding, we need to get values that match the expected order:
-        // We expect (id, name, age) - which corresponds to columns 0, 1, 3
-        // So we need to map Indices to the right column indices
         return RowAdapter<Types...>{
             std::tuple<Types...>{
-                ((Indices == 0) ? row.template get<Types>(0).value_or(Types{}) :
-                 (Indices == 1) ? row.template get<Types>(1).value_or(Types{}) :
-                 (Indices == 2) ? row.template get<Types>(3).value_or(Types{}) :
-                 row.template get<Types>(Indices).value_or(Types{}))...
+                row.template get<std::tuple_element_t<Indices, std::tuple<Types...>>>(
+                    column_indices[Indices]
+                ).value_or(std::tuple_element_t<Indices, std::tuple<Types...>>{})...
             }
         };
     }
@@ -506,9 +504,15 @@ private:
 template <typename ResultSet, typename... Types>
 struct RowsView {
     const ResultSet& results;
+    std::array<size_t, sizeof...(Types)> column_indices;
     
-    RowIterator<ResultSet, Types...> begin() const { return {results, 0}; }
-    RowIterator<ResultSet, Types...> end() const { return {results, results.size()}; }
+    RowIterator<ResultSet, Types...> begin() const { 
+        return {results, 0, column_indices}; 
+    }
+    
+    RowIterator<ResultSet, Types...> end() const { 
+        return {results, results.size(), column_indices}; 
+    }
 };
 
 /// @brief Represents the result set from a database query
@@ -538,6 +542,29 @@ public:
     /// @return The row at the specified index
     const Row& at(size_t index) const {
         return rows_.at(index);
+    }
+    
+    /// @brief Access a row by index using the subscript operator
+    /// @param index The zero-based index of the row
+    /// @return The row at the specified index
+    const Row& operator[](size_t index) const {
+        return rows_.at(index);
+    }
+    
+    /// @brief Get the number of columns in the result set
+    /// @return The number of columns
+    size_t column_count() const {
+        return column_names_.size();
+    }
+    
+    /// @brief Get the name of a column by index
+    /// @param index The zero-based index of the column
+    /// @return The name of the column
+    std::string column_name(size_t index) const {
+        if (index >= column_names_.size()) {
+            throw std::out_of_range("Column index out of range");
+        }
+        return column_names_.at(index);
     }
     
     /// @brief Get the column names
@@ -582,7 +609,47 @@ public:
     /// @return A helper object that supports structured binding
     template <typename... Types>
     auto as() const {
-        return RowsView<ResultSet, Types...>{*this};
+        // Default to first N columns where N is the number of Types
+        std::array<size_t, sizeof...(Types)> indices;
+        for (size_t i = 0; i < sizeof...(Types); ++i) {
+            indices[i] = i;
+        }
+        return as<Types...>(indices);
+    }
+    
+    /// @brief Helper for structured binding with explicit types and column indices
+    /// @tparam Types The C++ types for each column
+    /// @param indices Array of column indices to use for structured binding
+    /// @return A helper object that supports structured binding
+    template <typename... Types>
+    auto as(const std::array<size_t, sizeof...(Types)>& indices) const {
+        return RowsView<ResultSet, Types...>{*this, indices};
+    }
+    
+    /// @brief Helper for structured binding with explicit types and column names
+    /// @tparam Types The C++ types for each column
+    /// @param column_names Array of column names to use for structured binding
+    /// @return A helper object that supports structured binding
+    template <typename... Types>
+    auto as(const std::array<std::string, sizeof...(Types)>& column_names) const {
+        std::array<size_t, sizeof...(Types)> indices;
+        
+        for (size_t i = 0; i < sizeof...(Types); ++i) {
+            bool found = false;
+            for (size_t col_idx = 0; col_idx < column_names_.size(); ++col_idx) {
+                if (column_names_[col_idx] == column_names[i]) {
+                    indices[i] = col_idx;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                // If column name not found, default to index or 0
+                indices[i] = (i < column_names_.size()) ? i : 0;
+            }
+        }
+        
+        return as<Types...>(indices);
     }
 
 private:

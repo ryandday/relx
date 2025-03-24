@@ -26,18 +26,9 @@ clean:
 run: build
 	./$(BUILD_DIR)/schema_example
 
-# Test commands
 .PHONY: test
-test: build
-	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests --parallel 4 && ctest --output-on-failure -V
-
-.PHONY: test-verbose
-test-verbose: build
+test: 
 	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests --parallel 4 && ./sqllib_tests --gtest_color=yes
-
-.PHONY: static-test
-static-test: configure
-	cd $(BUILD_DIR) && cmake --build . --target static_assert_tests && ./static_assert_tests
 
 # Development helpers
 .PHONY: format
@@ -53,6 +44,4 @@ help:
 	@echo "  clean          - Remove build directory"
 	@echo "  run            - Build and run the application"
 	@echo "  test           - Build and run the tests with CTest"
-	@echo "  test-verbose   - Build and run tests directly with more detailed output"
-	@echo "  static-test    - Build and run the static assert tests"
 	@echo "  format         - Format code using clang-format"

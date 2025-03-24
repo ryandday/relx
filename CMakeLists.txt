@@ -26,6 +26,7 @@ endif()
 # Find dependencies (Conan-provided)
 find_package(fmt REQUIRED)
 find_package(Boost REQUIRED)
+find_package(SQLite3 REQUIRED)
 
 # Set up Google Test with FetchContent
 include(FetchContent)
@@ -39,21 +40,15 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-# Add library (header-only)
-add_library(${PROJECT_NAME} INTERFACE)
-target_include_directories(${PROJECT_NAME} INTERFACE include)
-target_link_libraries(${PROJECT_NAME} INTERFACE Boost::boost)
+# Add library
+add_library(${PROJECT_NAME} 
+  src/connection/sqlite_connection.cpp
+)
+target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE include/sqllib)
+target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost SQLite::SQLite3)
 
 # compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Add executable for the main app
-add_executable(sqllib_main src/main.cpp)
-target_link_libraries(sqllib_main PRIVATE ${PROJECT_NAME} fmt::fmt)
-
-# Add examples
-add_executable(schema_example examples/schema_example.cpp)
-target_link_libraries(schema_example PRIVATE ${PROJECT_NAME})
 
 # Enable testing
 enable_testing()
@@ -91,6 +86,8 @@ add_executable(sqllib_tests
   # Result processing tests
   tests/result_test.cpp
   tests/advanced_query_test.cpp
+  # Connection tests
+  tests/connection/sqlite_connection_test.cpp
   # Additional comprehensive tests
   tests/query/edge_case_test.cpp
   tests/query/data_type_test.cpp
@@ -110,18 +107,3 @@ add_test(NAME sqllib_tests COMMAND sqllib_tests)
 # Add static_assert tests executable
 add_executable(static_assert_tests tests/static_assert_tests.cpp)
 target_link_libraries(static_assert_tests PRIVATE ${PROJECT_NAME})
-
-# Register static_assert test
-add_test(NAME static_assert_tests COMMAND static_assert_tests)
-
-# Add a simple query example
-add_executable(query_example examples/query_example.cpp)
-target_link_libraries(query_example PRIVATE ${PROJECT_NAME})
-
-# Add the delete query example
-add_executable(delete_example examples/delete_example.cpp)
-target_link_libraries(delete_example PRIVATE ${PROJECT_NAME})
-
-# Add the result processing example
-add_executable(result_example examples/result_example.cpp)
-target_link_libraries(result_example PRIVATE ${PROJECT_NAME})
