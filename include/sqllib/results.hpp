@@ -1,6 +1,6 @@
 #pragma once
 
-#include "result.hpp"
+#include "results/result.hpp"
 
 /**
  * @brief SQLlib result processing
