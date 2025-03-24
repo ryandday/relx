@@ -79,6 +79,22 @@ auto to_expr(const C& col, std::string_view table_name = "") {
     return SchemaColumnAdapter<C>(col, table_name);
 }
 
+/// @brief Helper to create a column expression from a member pointer
+/// @tparam MemberPtr Pointer to a column member in a table class
+/// @return A column expression for the specified column
+template <auto MemberPtr>
+auto to_expr() {
+    using table_type = class_of_t_t<decltype(MemberPtr)>;
+    using column_type = std::remove_reference_t<decltype(std::declval<table_type>().*MemberPtr)>;
+    
+    // Create a temporary instance, but don't specify the table name to match existing behavior
+    table_type table;
+    const auto& col = table.*MemberPtr;
+    
+    // Don't include table name for backward compatibility
+    return SchemaColumnAdapter<column_type>(col, "");
+}
+
 /// @brief Helper to wrap a schema table in a table adapter
 /// @tparam T The table type
 /// @param table The table to wrap

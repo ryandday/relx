@@ -38,7 +38,7 @@ template <auto LocalColumnPtr, auto ReferencedColumnPtr>
 class foreign_key {
 public:
     /// @brief Default constructor
-    explicit foreign_key() : on_delete_(reference_action::no_action), on_update_(reference_action::no_action) {}
+    foreign_key() : on_delete_(reference_action::no_action), on_update_(reference_action::no_action) {}
     
     /// @brief Constructor with custom actions
     /// @param on_delete Action on delete

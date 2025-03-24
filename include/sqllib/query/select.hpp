@@ -16,6 +16,27 @@
 namespace sqllib {
 namespace query {
 
+/// @brief SQLlib Query Module
+///
+/// This module provides two different APIs for creating SQL queries:
+///
+/// 1. Member pointer-based API (recommended):
+///    auto query = select<&users::id, &users::name>().from(users{});
+///    
+///    This approach allows for more type-safety and doesn't require
+///    creating instances of table objects just to define queries.
+///    Use to_expr<&Table::column>() for expressions in conditions.
+///
+/// 2. Instance-based API (legacy):
+///    users u;
+///    auto query = select(u.id, u.name).from(u);
+///    
+///    This approach requires creating instances of table classes
+///    before defining queries. Use to_expr(u.column) for expressions.
+///
+/// Both APIs support the same query-building methods and produce
+/// identical SQL output and bind parameters.
+
 /// @brief Join specification for a SELECT query
 template <TableType Table, ConditionExpr Condition>
 struct JoinSpec {
@@ -581,7 +602,91 @@ private:
     OffsetVal offset_;
 };
 
-/// @brief Create a SELECT query with the specified columns or expressions
+/// @brief Helper to extract class type from a member pointer
+template <typename T>
+struct class_of_t;
+
+template <typename Class, typename T>
+struct class_of_t<T Class::*> { 
+    using type = Class; 
+};
+
+template <typename T>
+using class_of_t_t = typename class_of_t<T>::type;
+
+/// @brief Helper to extract column type from member pointer
+template <auto MemberPtr>
+struct column_type_of {
+    using table_type = class_of_t_t<decltype(MemberPtr)>;
+    using column_type = std::remove_reference_t<decltype(std::declval<table_type>().*MemberPtr)>;
+};
+
+/// @brief Helper to get column name from member pointer
+template <auto MemberPtr>
+constexpr auto column_name_of() {
+    using column_t = typename column_type_of<MemberPtr>::column_type;
+    return column_t::name;
+}
+
+/// @brief Create a column reference from a member pointer without requiring a table instance
+/// @tparam MemberPtr Pointer to a column member in a table class
+/// @return A ColumnRef expression for the specified column
+template <auto MemberPtr>
+class MemberColumnRef : public ColumnExpression {
+public:
+    using table_type = typename column_type_of<MemberPtr>::table_type;
+    using column_type = typename column_type_of<MemberPtr>::column_type;
+    using value_type = typename column_type::value_type;
+    
+    static constexpr auto column_name_sv = column_name_of<MemberPtr>();
+    
+    MemberColumnRef() = default;
+    
+    std::string to_sql() const override {
+        // For backward compatibility, don't include table prefix
+        return column_name();
+    }
+    
+    std::vector<std::string> bind_params() const override {
+        return {};
+    }
+    
+    std::string column_name() const override {
+        return std::string(column_name_sv);
+    }
+    
+    std::string table_name() const override {
+        return std::string(table_type::table_name);
+    }
+};
+
+/// @brief Create a SELECT query with the specified column member pointers
+/// @tparam MemberPtrs Pointers to column members in table classes
+/// @return A SelectQuery object with the specified columns
+template <auto... MemberPtrs>
+auto select() {
+    return SelectQuery<std::tuple<MemberColumnRef<MemberPtrs>...>>(
+        std::tuple<MemberColumnRef<MemberPtrs>...>()
+    );
+}
+
+/// @brief Create a SELECT query with a FROM clause in a single call
+/// @tparam MemberPtrs Pointers to column members in table classes
+/// @return A SelectQuery object with the specified columns and FROM clause
+template <auto... MemberPtrs>
+auto select_from() {
+    using first_table_type = typename column_type_of<std::get<0>(std::make_tuple(MemberPtrs...))>::table_type;
+    
+    return SelectQuery<
+        std::tuple<MemberColumnRef<MemberPtrs>...>,
+        std::tuple<first_table_type>
+    >(
+        std::tuple<MemberColumnRef<MemberPtrs>...>(),
+        std::tuple<first_table_type>()
+    );
+}
+
+/// @brief Create a SELECT query with the specified columns or expressions (legacy API)
 /// @tparam Args The column or expression types
 /// @param args The columns or expressions to select
 /// @return A SelectQuery object
