@@ -19,6 +19,7 @@
 
 #include "../schema/core.hpp"
 #include "../schema/column.hpp"
+#include "../schema/table.hpp"
 #include "../query/core.hpp"
 
 namespace sqllib {
@@ -51,6 +52,31 @@ static constexpr auto class_of(T C::*) {
     return (C*)nullptr;
 }
 
+/// @brief Gets the column name from a column member pointer
+template <auto MemberPtr>
+constexpr std::string_view get_column_name() {
+    using Class = class_of_t_t<decltype(MemberPtr)>;
+    using ColumnType = std::remove_reference_t<decltype(std::declval<Class>().*MemberPtr)>;
+    return ColumnType::column_name;
+}
+
+/// @brief Helper to get the value type from a column member pointer
+template <typename Table, typename ColumnMemberPtr>
+struct column_member_value {
+    using column_type = std::remove_reference_t<decltype(std::declval<Table>().*std::declval<ColumnMemberPtr>())>;
+    using type = typename column_type::value_type;
+};
+
+template <typename Table, typename ColumnMemberPtr>
+using column_member_value_t = typename column_member_value<Table, ColumnMemberPtr>::type;
+
+/// @brief Get column name from a member pointer
+template <typename Table, typename ColumnMemberPtr>
+std::string get_column_name_from_ptr(ColumnMemberPtr ptr) {
+    using ColumnType = std::remove_reference_t<decltype(std::declval<Table>().*ptr)>;
+    return std::string(ColumnType::name);
+}
+
 /// @brief Represents a single cell value from a database result
 class Cell {
 public:
@@ -72,6 +98,15 @@ public:
     /// @return The parsed value
     template <typename T>
     ResultProcessingResult<T> as() const {
+        return as<T>(false);
+    }
+    
+    /// @brief Parse the cell's value as the specified type with an option to allow numeric boolean conversion
+    /// @tparam T The target C++ type
+    /// @param allow_numeric_bools Whether to allow integers (0/1) to be converted to booleans
+    /// @return The parsed value
+    template <typename T>
+    ResultProcessingResult<T> as(bool allow_numeric_bools) const {
         if (is_null()) {
             if constexpr (is_optional_v<T>) {
                 return T{std::nullopt};
@@ -82,21 +117,25 @@ public:
         
         // More strict type checking
         if constexpr (std::is_same_v<T, bool>) {
-            // For boolean, strictly enforce only boolean types
-            // Integer values like "1" or "0" should not convert to bool
-            // Only allow "true"/"false" strings for boolean conversion
             const auto lower = to_lower(value_);
             
-            // Only accept explicit boolean strings
+            // Always accept explicit boolean strings
             if (lower == "true") {
                 return true;
             } else if (lower == "false") {
                 return false;
-            } else {
-                return std::unexpected(ResultError{
-                    std::string("Cannot convert '") + value_ + "' to boolean: not a boolean value"
-                });
+            } else if (allow_numeric_bools) {
+                // Only allow numeric conversion if explicitly allowed
+                if (lower == "1") {
+                    return true;
+                } else if (lower == "0") {
+                    return false;
+                }
             }
+            
+            return std::unexpected(ResultError{
+                std::string("Cannot convert '") + value_ + "' to boolean: not a boolean value"
+            });
         } else if constexpr (std::is_same_v<T, int> || 
                              std::is_same_v<T, long> || 
                              std::is_same_v<T, long long>) {
@@ -134,7 +173,7 @@ public:
             }
         } else {
             // Use appropriate parsing based on the target type
-            return parse_value<T>();
+            return parse_value<T>(allow_numeric_bools);
         }
     }
 
@@ -163,7 +202,7 @@ private:
     
     // Type-specific parsing implementations
     template <typename T>
-    ResultProcessingResult<T> parse_value() const {
+    ResultProcessingResult<T> parse_value(bool allow_numeric_bools) const {
         try {
             if constexpr (std::is_same_v<T, int>) {
                 // Validate the string contains only digits and optional sign
@@ -210,7 +249,7 @@ private:
                 return value_;
             } else if constexpr (is_optional_v<T>) {
                 using ValueType = typename T::value_type;
-                auto result = as<ValueType>();
+                auto result = as<ValueType>(allow_numeric_bools);
                 if (result) {
                     return T{*result};
                 } else {
@@ -286,12 +325,12 @@ private:
     
     // Specialization for optional types
     template <typename T>
-    ResultProcessingResult<std::optional<T>> parse_value() const requires requires { parse_value<T>(); } {
+    ResultProcessingResult<std::optional<T>> parse_value(bool allow_numeric_bools) const requires requires { parse_value<T>(allow_numeric_bools); } {
         if (is_null()) {
             return std::optional<T>{std::nullopt};
         }
         
-        auto result = parse_value<T>();
+        auto result = parse_value<T>(allow_numeric_bools);
         if (!result) {
             return std::unexpected(result.error());
         }
@@ -347,11 +386,21 @@ public:
     /// @return The parsed value
     template <typename T>
     ResultProcessingResult<T> get(size_t index) const {
-        auto cell_result = get_cell(index);
-        if (!cell_result) {
-            return std::unexpected(cell_result.error());
+        return get<T>(index, false);
+    }
+    
+    /// @brief Get a typed value by index with allow_numeric_bools
+    /// @tparam T The target C++ type
+    /// @param index The zero-based index of the cell
+    /// @param allow_numeric_bools Whether to allow integers (0/1) to be converted to booleans
+    /// @return The parsed value
+    template <typename T>
+    ResultProcessingResult<T> get(size_t index, bool allow_numeric_bools) const {
+        auto cell = get_cell(index);
+        if (!cell) {
+            return std::unexpected(cell.error());
         }
-        return (*cell_result)->template as<T>();
+        return (*cell)->template as<T>(allow_numeric_bools);
     }
     
     /// @brief Get a typed value by column name
@@ -360,11 +409,21 @@ public:
     /// @return The parsed value
     template <typename T>
     ResultProcessingResult<T> get(const std::string& name) const {
-        auto cell_result = get_cell(name);
-        if (!cell_result) {
-            return std::unexpected(cell_result.error());
+        return get<T>(name, false);
+    }
+    
+    /// @brief Get a typed value by column name with allow_numeric_bools
+    /// @tparam T The target C++ type
+    /// @param name The name of the column
+    /// @param allow_numeric_bools Whether to allow integers (0/1) to be converted to booleans
+    /// @return The parsed value
+    template <typename T>
+    ResultProcessingResult<T> get(const std::string& name, bool allow_numeric_bools) const {
+        auto cell = get_cell(name);
+        if (!cell) {
+            return std::unexpected(cell.error());
         }
-        return (*cell_result)->template as<T>();
+        return (*cell)->template as<T>(allow_numeric_bools);
     }
     
     /// @brief Get a typed value using a schema column object
@@ -374,32 +433,42 @@ public:
     /// @return The parsed value
     template <typename T, typename ColType>
     ResultProcessingResult<T> get(const ColType& column) const {
-        // Check for schema::column with template parameter FixedString
-        if constexpr (requires { ColType::value_type; } && requires { ColType::name; }) {
-            // This is likely a schema::column - use its name directly
-            return get<T>(std::string(ColType::name));
-        } else if constexpr (requires { ColType::name; }) {
-            // Column type has a static 'name' member
-            return get<T>(std::string(ColType::name));
-        } else if constexpr (requires { ColType::column_name; }) {
-            // Column type has a 'column_name' static member (alternative naming)
-            return get<T>(std::string(ColType::column_name));
-        } else if constexpr (requires { std::remove_const_t<ColType>::name; }) {
-            // Handle case where name is not directly accessible due to const
-            return get<T>(std::string(std::remove_const_t<ColType>::name));
-        } else if constexpr (std::is_same_v<ColType, int> || std::is_same_v<ColType, size_t>) {
-            // Integer index - get value by index
-            return get<T>(static_cast<size_t>(column));
-        } else if constexpr (std::is_convertible_v<ColType, std::string> || 
-                            std::is_convertible_v<ColType, std::string_view>) {
-            // String column name
-            return get<T>(std::string(column));
-        } else if constexpr (requires { column.name(); }) {
-            // Object with name() method
-            return get<T>(std::string(column.name()));
+        return get<T>(column, false);
+    }
+    
+    /// @brief Get a typed value using a schema column object with allow_numeric_bools
+    /// @tparam T The target C++ type
+    /// @tparam ColType The column type
+    /// @param column The column object
+    /// @param allow_numeric_bools Whether to allow integers (0/1) to be converted to booleans
+    /// @return The parsed value
+    template <typename T, typename ColType>
+    ResultProcessingResult<T> get(const ColType& column, bool allow_numeric_bools) const {
+        if constexpr (requires { { column.column_name } -> std::convertible_to<std::string_view>; }) {
+            // If we have a column object with a column_name, use that
+            return get<T>(std::string(column.column_name), allow_numeric_bools);
+        } else if constexpr (requires { { column.name } -> std::convertible_to<std::string_view>; }) {
+            // Some column-like objects might use 'name' instead
+            return get<T>(std::string(column.name), allow_numeric_bools);
+        } else if constexpr (std::is_same_v<ColType, std::string> || std::is_same_v<ColType, std::string_view> ||
+                          std::is_convertible_v<ColType, std::string_view>) {
+            // If we have a string, string_view, or convertible to string_view (like char array), use that directly
+            return get<T>(std::string(column), allow_numeric_bools);
+        } else if constexpr (std::is_convertible_v<ColType, size_t>) {
+            // If we can convert to size_t, use as an index
+            return get<T>(static_cast<size_t>(column), allow_numeric_bools);
         } else {
-            // Fall back to string representation if possible
-            return get<T>(std::string(column));
+            // For other custom column types
+            static_assert(
+                requires { { column } -> std::convertible_to<std::string_view>; } ||
+                requires { { column } -> std::convertible_to<size_t>; } ||
+                requires { { column.name } -> std::convertible_to<std::string_view>; } ||
+                requires { { column.column_name } -> std::convertible_to<std::string_view>; },
+                "Column must be convertible to a string, size_t, or have a name/column_name member"
+            );
+            
+            // This should never be reached due to the static_assert above
+            return std::unexpected(ResultError{"Invalid column type"});
         }
     }
     
@@ -492,9 +561,18 @@ private:
         
         return RowAdapter<Types...>{
             std::tuple<Types...>{
-                row.template get<std::tuple_element_t<Indices, std::tuple<Types...>>>(
-                    column_indices[Indices]
-                ).value_or(std::tuple_element_t<Indices, std::tuple<Types...>>{})...
+                [&row, this]() -> std::tuple_element_t<Indices, std::tuple<Types...>> {
+                    using ResultType = std::tuple_element_t<Indices, std::tuple<Types...>>;
+                    // Allow numeric boolean conversion for structured binding
+                    bool allow_numeric_bools = std::is_same_v<ResultType, bool>;
+                    auto result = row.template get<ResultType>(column_indices[Indices], allow_numeric_bools);
+                    if (result) {
+                        return *result;
+                    } else {
+                        // Return default value for the type if conversion fails
+                        return ResultType{};
+                    }
+                }()...
             }
         };
     }
@@ -650,6 +728,68 @@ public:
         }
         
         return as<Types...>(indices);
+    }
+
+    /**
+     * @brief Creates a structured binding view using table schema information
+     * 
+     * This method enables structured binding with the table's schema, eliminating
+     * the need to manually specify column names or indices.
+     * 
+     * @tparam Table The table schema type (must satisfy TableType concept)
+     * @tparam P1, P2, ... Member pointer types to column members
+     * @param mp1, mp2, ... Column member pointers to bind to
+     * @return A view that supports structured binding iteration
+     * 
+     * Example:
+     * ```cpp
+     * Users users;
+     * for (const auto& [id, name, email] : results.with_schema<Users>(&Users::id, &Users::name, &Users::email)) {
+     *    // Use the values with proper types
+     * }
+     * ```
+     */
+    template <typename Table, typename P1, typename... Ps>
+    requires schema::TableConcept<Table>
+    auto with_schema(P1 mp1, Ps... mps) const {
+        constexpr size_t num_cols = 1 + sizeof...(Ps);
+        std::array<std::string, num_cols> column_names;
+        
+        // Fill the column names array using our helper
+        column_names[0] = get_column_name_from_ptr<Table>(mp1);
+        if constexpr (sizeof...(Ps) > 0) {
+            size_t i = 1;
+            ((column_names[i++] = get_column_name_from_ptr<Table>(mps)), ...);
+        }
+        
+        // Call the as<> method with the right types
+        return as<column_member_value_t<Table, P1>, column_member_value_t<Table, Ps>...>(column_names);
+    }
+
+    /**
+     * @brief Creates a structured binding view using table schema information
+     * 
+     * This overload enables structured binding with a complete table schema, 
+     * making it easier to use with a pre-existing table instance.
+     * 
+     * @tparam Table The table schema type
+     * @tparam P1, P2, ... Member pointer types to column members
+     * @param table The table instance to extract schema from
+     * @param mp1, mp2, ... Column member pointers to bind to
+     * @return A view that supports structured binding iteration
+     * 
+     * Example:
+     * ```cpp
+     * Users users;
+     * for (const auto& [id, name, email] : results.with_schema(users, &Users::id, &Users::name, &Users::email)) {
+     *    // Use the values with proper types
+     * }
+     * ```
+     */
+    template <typename Table, typename P1, typename... Ps>
+    requires schema::TableConcept<std::remove_reference_t<Table>>
+    auto with_schema(const Table& table, P1 mp1, Ps... mps) const {
+        return with_schema<std::remove_reference_t<Table>>(mp1, mps...);
     }
 
 private:

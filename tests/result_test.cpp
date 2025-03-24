@@ -265,10 +265,11 @@ TEST_F(ResultTest, StructuredBinding) {
     
     const auto& results = *result;
     
-    // Use structured binding via the 'as' helper with default column order
+    // Use structured binding via the 'as' helper with explicit column names
     std::vector<std::tuple<int, std::string, int>> user_data;
     
-    for (const auto& [id, name, age] : results.as<int, std::string, int>()) {
+    for (const auto& [id, name, age] : results.as<int, std::string, int>(
+        std::array<std::string, 3>{"id", "name", "age"})) {
         user_data.emplace_back(id, name, age);
     }
     
@@ -337,4 +338,43 @@ TEST_F(ResultTest, StructuredBindingWithColumnNames) {
     EXPECT_EQ(35, std::get<0>(user_detail_data[2]));
     EXPECT_EQ(85.7, std::get<1>(user_detail_data[2]));
     EXPECT_EQ("bob@example.com", std::get<2>(user_detail_data[2]));
+}
+
+// Test structured binding with schema
+TEST_F(ResultTest, StructuredBindingWithSchema) {
+    auto result = sqllib::result::parse(query_, raw_results_);
+    ASSERT_TRUE(result) << result.error().message;
+    
+    const auto& results = *result;
+    
+    // Use structured binding via the 'with_schema' helper with schema information
+    std::vector<std::tuple<int, std::string, int>> user_data;
+    
+    // Option 1: Use with table type parameter and member pointers
+    for (const auto& [id, name, age] : results.with_schema<Users>(&Users::id, &Users::name, &Users::age)) {
+        user_data.emplace_back(id, name, age);
+    }
+    
+    ASSERT_EQ(3, user_data.size());
+    
+    // Check first row values
+    EXPECT_EQ(1, std::get<0>(user_data[0]));
+    EXPECT_EQ("John Doe", std::get<1>(user_data[0]));
+    EXPECT_EQ(30, std::get<2>(user_data[0]));
+    
+    // Check second row values
+    EXPECT_EQ(2, std::get<0>(user_data[1]));
+    EXPECT_EQ("Jane Smith", std::get<1>(user_data[1]));
+    EXPECT_EQ(28, std::get<2>(user_data[1]));
+    
+    // Clear and test option 2: with table instance and member pointers
+    user_data.clear();
+    for (const auto& [id, name, age] : results.with_schema(users, &Users::id, &Users::name, &Users::age)) {
+        user_data.emplace_back(id, name, age);
+    }
+    
+    ASSERT_EQ(3, user_data.size());
+    EXPECT_EQ(1, std::get<0>(user_data[0]));
+    EXPECT_EQ("John Doe", std::get<1>(user_data[0]));
+    EXPECT_EQ(30, std::get<2>(user_data[0]));
 } 
