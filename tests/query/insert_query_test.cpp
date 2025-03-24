@@ -1,0 +1,168 @@
+#include <gtest/gtest.h>
+#include "sqllib/query/insert.hpp"
+#include "sqllib/query/select.hpp"
+#include "sqllib/query/value.hpp"
+#include "sqllib/query/function.hpp"
+#include <string>
+#include <string_view>
+#include <vector>
+
+using namespace sqllib;
+
+// Define a simple User table for testing
+struct User {
+    static constexpr auto table_name = "users";
+    
+    schema::column<"id", int> id;
+    schema::column<"name", std::string> name;
+    schema::column<"email", std::string> email;
+    schema::column<"active", bool> active;
+    schema::column<"login_count", int> login_count;
+    schema::column<"last_login", std::string> last_login;
+    schema::column<"status", std::string> status;
+    schema::column<"age", int> age;
+};
+
+// Define a Posts table for INSERT ... SELECT tests
+struct Post {
+    static constexpr auto table_name = "posts";
+    schema::column<"id", int> id;
+    schema::column<"user_id", int> user_id;
+    schema::column<"title", std::string> title;
+    schema::column<"content", std::string> content;
+    schema::column<"created_at", std::string> created_at;
+};
+
+// Test basic INSERT with explicit columns and values
+TEST(InsertQueryTest, BasicInsert) {
+    User users;
+    
+    auto query = query::insert_into(users)
+        .columns(users.name, users.email, users.active)
+        .values(query::val("John Doe"), query::val("john@example.com"), query::val(true));
+    
+    EXPECT_EQ(query.to_sql(), "INSERT INTO users (name, email, active) VALUES (?, ?, ?)");
+    
+    auto params = query.bind_params();
+    ASSERT_EQ(params.size(), 3);
+    EXPECT_EQ(params[0], "John Doe");
+    EXPECT_EQ(params[1], "john@example.com");
+    EXPECT_EQ(params[2], "1"); // true is represented as "1"
+}
+
+// Test INSERT with multiple rows
+TEST(InsertQueryTest, InsertMultipleRows) {
+    User users;
+    
+    auto query = query::insert_into(users)
+        .columns(users.name, users.email)
+        .values(query::val("John Doe"), query::val("john@example.com"))
+        .values(query::val("Jane Smith"), query::val("jane@example.com"));
+    
+    EXPECT_EQ(query.to_sql(), "INSERT INTO users (name, email) VALUES (?, ?), (?, ?)");
+    
+    auto params = query.bind_params();
+    ASSERT_EQ(params.size(), 4);
+    EXPECT_EQ(params[0], "John Doe");
+    EXPECT_EQ(params[1], "john@example.com");
+    EXPECT_EQ(params[2], "Jane Smith");
+    EXPECT_EQ(params[3], "jane@example.com");
+}
+
+// Test INSERT using expression instead of literal values
+TEST(InsertQueryTest, InsertWithExpressions) {
+    User users;
+    
+    // Use a function expression
+    auto current_timestamp = query::NullaryFunctionExpr("CURRENT_TIMESTAMP");
+    
+    auto query = query::insert_into(users)
+        .columns(users.name, users.email, users.last_login)
+        .values(
+            query::val("John Doe"), 
+            query::val("john@example.com"),
+            current_timestamp
+        );
+    
+    EXPECT_EQ(query.to_sql(), "INSERT INTO users (name, email, last_login) VALUES (?, ?, CURRENT_TIMESTAMP())");
+    
+    auto params = query.bind_params();
+    ASSERT_EQ(params.size(), 2);
+    EXPECT_EQ(params[0], "John Doe");
+    EXPECT_EQ(params[1], "john@example.com");
+}
+
+// Test INSERT ... SELECT
+TEST(InsertQueryTest, InsertWithSelect) {
+    User users;
+    Post posts;
+    
+    auto select_query = query::select(users.id, users.name, query::val("default@example.com"))
+        .from(users)
+        .where(query::column_ref(users.active) == query::val(true));
+    
+    auto query = query::insert_into(posts)
+        .columns(posts.user_id, posts.title, posts.content)
+        .select(select_query);
+    
+    EXPECT_EQ(query.to_sql(), 
+        "INSERT INTO posts (user_id, title, content) SELECT id, name, ? FROM users WHERE (active = ?)");
+    
+    auto params = query.bind_params();
+    ASSERT_EQ(params.size(), 2);
+    EXPECT_EQ(params[0], "default@example.com");
+    EXPECT_EQ(params[1], "1"); // true is represented as "1"
+}
+
+// Test INSERT with multiple rows of mixed literal and expression values
+TEST(InsertQueryTest, InsertMultipleRowsWithMixedValues) {
+    User users;
+    
+    // Use a function expression
+    auto current_timestamp = query::NullaryFunctionExpr("CURRENT_TIMESTAMP");
+    
+    auto query = query::insert_into(users)
+        .columns(users.name, users.email, users.last_login, users.active)
+        .values(
+            query::val("John Doe"), 
+            query::val("john@example.com"),
+            current_timestamp,
+            query::val(true)
+        )
+        .values(
+            query::val("Jane Smith"), 
+            query::val("jane@example.com"),
+            current_timestamp,
+            query::val(false)
+        );
+    
+    EXPECT_EQ(query.to_sql(), 
+        "INSERT INTO users (name, email, last_login, active) VALUES (?, ?, CURRENT_TIMESTAMP(), ?), (?, ?, CURRENT_TIMESTAMP(), ?)");
+    
+    auto params = query.bind_params();
+    ASSERT_EQ(params.size(), 6);
+    EXPECT_EQ(params[0], "John Doe");
+    EXPECT_EQ(params[1], "john@example.com");
+    EXPECT_EQ(params[2], "1"); // true
+    EXPECT_EQ(params[3], "Jane Smith");
+    EXPECT_EQ(params[4], "jane@example.com");
+    EXPECT_EQ(params[5], "0"); // false
+}
+
+// Test error handling: INSERT without specifying columns
+TEST(InsertQueryTest, InsertWithoutColumns) {
+    User users;
+    
+    // This is valid SQL but might not be what the user intends
+    // The library should support it but we might want to warn about it in documentation
+    auto query = query::insert_into(users)
+        .values(query::val(1), query::val("John Doe"), query::val("john@example.com"));
+    
+    EXPECT_EQ(query.to_sql(), "INSERT INTO users VALUES (?, ?, ?)");
+    
+    auto params = query.bind_params();
+    ASSERT_EQ(params.size(), 3);
+    EXPECT_EQ(params[0], "1");
+    EXPECT_EQ(params[1], "John Doe");
+    EXPECT_EQ(params[2], "john@example.com");
+} 

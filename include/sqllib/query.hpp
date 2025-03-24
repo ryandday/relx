@@ -7,6 +7,7 @@
 #include "query/select.hpp"
 #include "query/update.hpp"
 #include "query/delete.hpp"
+#include "query/insert.hpp"
 #include "query/function.hpp"
 #include "query/schema_adapter.hpp"
 #include "query/helpers.hpp"
@@ -66,13 +67,13 @@
  */
 
 namespace sqllib {
-namespace query {
 
 // Convenient imports from the query namespace
 using query::select;
 using query::select_expr;
 using query::update;
 using query::delete_from;
+using query::insert_into;
 using query::val;
 using query::on;
 using query::as;
@@ -93,5 +94,4 @@ using query::in;
 using query::to_expr;
 using query::to_table;
 
-} // namespace query
-} // namespace sqllib 
+} // namespace sqllib
