@@ -51,6 +51,7 @@ auto on(Condition cond) {
 /// @tparam HavingCond Optional having condition
 /// @tparam LimitVal Optional limit value
 /// @tparam OffsetVal Optional offset value
+/// @tparam IsDistinct Whether to use DISTINCT in the query
 template <
     typename Columns,
     typename Tables = std::tuple<>,
@@ -60,7 +61,8 @@ template <
     typename OrderBys = std::tuple<>,
     typename HavingCond = std::nullopt_t,
     typename LimitVal = std::nullopt_t,
-    typename OffsetVal = std::nullopt_t
+    typename OffsetVal = std::nullopt_t,
+    bool IsDistinct = false
 >
 class SelectQuery {
 private:
@@ -155,6 +157,11 @@ public:
     std::string to_sql() const {
         std::stringstream ss;
         ss << "SELECT ";
+        
+        // Add DISTINCT if enabled
+        if constexpr (IsDistinct) {
+            ss << "DISTINCT ";
+        }
         
         // Add columns
         ss << tuple_to_sql(columns_, ", ");
@@ -334,7 +341,7 @@ public:
     auto from(const T& table) const {
         using new_tables_type = decltype(std::tuple_cat(tables_, std::tuple<T>()));
         return SelectQuery<
-            Columns, new_tables_type, Joins, Where, GroupBys, OrderBys, HavingCond, LimitVal, OffsetVal
+            Columns, new_tables_type, Joins, Where, GroupBys, OrderBys, HavingCond, LimitVal, OffsetVal, IsDistinct
         >(
             columns_,
             std::tuple_cat(tables_, std::tuple<T>(table)),
@@ -356,7 +363,7 @@ public:
     auto from(const Args&... tables) const {
         using new_tables_type = decltype(std::tuple_cat(tables_, std::tuple<Args...>()));
         return SelectQuery<
-            Columns, new_tables_type, Joins, Where, GroupBys, OrderBys, HavingCond, LimitVal, OffsetVal
+            Columns, new_tables_type, Joins, Where, GroupBys, OrderBys, HavingCond, LimitVal, OffsetVal, IsDistinct
         >(
             columns_,
             std::tuple_cat(tables_, std::tuple<Args...>(tables...)),
@@ -383,7 +390,7 @@ public:
         using new_joins_type = decltype(std::tuple_cat(joins_, std::tuple<JoinSpec>{JoinSpec{table, cond, type}}));
         
         return SelectQuery<
-            Columns, Tables, new_joins_type, Where, GroupBys, OrderBys, HavingCond, LimitVal, OffsetVal
+            Columns, Tables, new_joins_type, Where, GroupBys, OrderBys, HavingCond, LimitVal, OffsetVal, IsDistinct
         >(
             columns_,
             tables_,
@@ -453,7 +460,7 @@ public:
     template <ConditionExpr Condition>
     auto where(const Condition& cond) const {
         return SelectQuery<
-            Columns, Tables, Joins, std::optional<Condition>, GroupBys, OrderBys, HavingCond, LimitVal, OffsetVal
+            Columns, Tables, Joins, std::optional<Condition>, GroupBys, OrderBys, HavingCond, LimitVal, OffsetVal, IsDistinct
         >(
             columns_,
             tables_,
@@ -476,7 +483,7 @@ public:
         using new_group_bys_type = decltype(std::tuple_cat(group_bys_, std::tuple<Args...>{args...}));
         
         return SelectQuery<
-            Columns, Tables, Joins, Where, new_group_bys_type, OrderBys, HavingCond, LimitVal, OffsetVal
+            Columns, Tables, Joins, Where, new_group_bys_type, OrderBys, HavingCond, LimitVal, OffsetVal, IsDistinct
         >(
             columns_,
             tables_,
@@ -497,7 +504,7 @@ public:
     template <ConditionExpr Condition>
     auto having(const Condition& cond) const {
         return SelectQuery<
-            Columns, Tables, Joins, Where, GroupBys, OrderBys, std::optional<Condition>, LimitVal, OffsetVal
+            Columns, Tables, Joins, Where, GroupBys, OrderBys, std::optional<Condition>, LimitVal, OffsetVal, IsDistinct
         >(
             columns_,
             tables_,
@@ -520,7 +527,7 @@ public:
         using new_order_bys_type = decltype(std::tuple_cat(order_bys_, std::tuple<Args...>{args...}));
         
         return SelectQuery<
-            Columns, Tables, Joins, Where, GroupBys, new_order_bys_type, HavingCond, LimitVal, OffsetVal
+            Columns, Tables, Joins, Where, GroupBys, new_order_bys_type, HavingCond, LimitVal, OffsetVal, IsDistinct
         >(
             columns_,
             tables_,
@@ -541,7 +548,7 @@ public:
         auto limit_expr = Value<int>(limit);
         
         return SelectQuery<
-            Columns, Tables, Joins, Where, GroupBys, OrderBys, HavingCond, decltype(limit_expr), OffsetVal
+            Columns, Tables, Joins, Where, GroupBys, OrderBys, HavingCond, decltype(limit_expr), OffsetVal, IsDistinct
         >(
             columns_,
             tables_,
@@ -562,7 +569,7 @@ public:
         auto offset_expr = Value<int>(offset);
         
         return SelectQuery<
-            Columns, Tables, Joins, Where, GroupBys, OrderBys, HavingCond, LimitVal, decltype(offset_expr)
+            Columns, Tables, Joins, Where, GroupBys, OrderBys, HavingCond, LimitVal, decltype(offset_expr), IsDistinct
         >(
             columns_,
             tables_,
@@ -801,6 +808,98 @@ auto select_all() {
     // Create a table instance to work with
     Table table{};
     return select_all(table);
+}
+
+// Add new helper functions for DISTINCT queries
+
+/// @brief Create a SELECT DISTINCT query with the specified column member pointers
+/// @tparam MemberPtrs Pointers to column members in table classes
+/// @return A SelectQuery object with the specified columns and DISTINCT enabled
+template <auto... MemberPtrs>
+auto select_distinct() {
+    return SelectQuery<std::tuple<MemberColumnRef<MemberPtrs>...>, std::tuple<>, std::tuple<>, std::nullopt_t, 
+                       std::tuple<>, std::tuple<>, std::nullopt_t, std::nullopt_t, std::nullopt_t, true>(
+        std::tuple<MemberColumnRef<MemberPtrs>...>()
+    );
+}
+
+/// @brief Create a SELECT DISTINCT query with the specified columns or expressions
+/// @tparam Args The column or expression types
+/// @param args The columns or expressions to select
+/// @return A SelectQuery object with DISTINCT enabled
+template <typename... Args>
+auto select_distinct(const Args&... args) {
+    if constexpr ((ColumnType<Args> && ...)) {
+        // All arguments are columns
+        return SelectQuery<std::tuple<ColumnRef<Args>...>, std::tuple<>, std::tuple<>, std::nullopt_t, 
+                          std::tuple<>, std::tuple<>, std::nullopt_t, std::nullopt_t, std::nullopt_t, true>(
+            std::tuple<ColumnRef<Args>...>(ColumnRef<Args>(args)...)
+        );
+    } else if constexpr ((SqlExpr<Args> && ...)) {
+        // All arguments are expressions
+        return SelectQuery<std::tuple<Args...>, std::tuple<>, std::tuple<>, std::nullopt_t, 
+                          std::tuple<>, std::tuple<>, std::nullopt_t, std::nullopt_t, std::nullopt_t, true>(
+            std::tuple<Args...>(args...)
+        );
+    } else {
+        // Mixed columns and expressions
+        auto transform_arg = []<typename T>(const T& arg) {
+            if constexpr (ColumnType<T>) {
+                return ColumnRef<T>(arg);
+            } else {
+                return arg;
+            }
+        };
+        
+        return SelectQuery<std::tuple<decltype(transform_arg(std::declval<Args>()))...>, std::tuple<>, std::tuple<>, std::nullopt_t, 
+                          std::tuple<>, std::tuple<>, std::nullopt_t, std::nullopt_t, std::nullopt_t, true>(
+            std::make_tuple(transform_arg(args)...)
+        );
+    }
+}
+
+/// @brief Create a SELECT DISTINCT query with the specified column expressions
+/// @tparam Args The column expression types
+/// @param args The column expressions to select
+/// @return A SelectQuery object with DISTINCT enabled
+template <SqlExpr... Args>
+auto select_distinct_expr(const Args&... args) {
+    return select_distinct(args...);
+}
+
+/// @brief Create a SELECT * query that uses DISTINCT
+/// @tparam Table The table type to select all columns from
+/// @param table The table to select from
+/// @return A SelectQuery object with all columns from the table and DISTINCT enabled
+template <TableType Table>
+auto select_distinct_all(const Table& table) {
+    // Create a SelectQuery that selects DISTINCT *
+    class StarExpression : public SqlExpression {
+    public:
+        std::string to_sql() const override {
+            return "*";
+        }
+        
+        std::vector<std::string> bind_params() const override {
+            return {};
+        }
+    };
+    
+    // Use a star expression with DISTINCT
+    return SelectQuery<std::tuple<StarExpression>, std::tuple<>, std::tuple<>, std::nullopt_t, 
+                      std::tuple<>, std::tuple<>, std::nullopt_t, std::nullopt_t, std::nullopt_t, true>(
+        std::tuple<StarExpression>()
+    ).from(table);
+}
+
+/// @brief Create a SELECT DISTINCT * query without requiring a table instance
+/// @tparam Table The table type to select distinct all columns from
+/// @return A SelectQuery object with all columns from the table and DISTINCT enabled
+template <TableType Table>
+auto select_distinct_all() {
+    // Create a table instance to work with
+    Table table{};
+    return select_distinct_all(table);
 }
 
 } // namespace query
