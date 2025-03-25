@@ -12,31 +12,19 @@
 #include <utility>
 #include <optional>
 #include <iostream>
+#include <boost/pfr.hpp>
 
 namespace sqllib {
 namespace query {
 
 /// @brief SQLlib Query Module
 ///
-/// This module provides two different APIs for creating SQL queries:
+/// This module provides an API for creating SQL queries:
 ///
-/// 1. Member pointer-based API (recommended):
-///    auto query = select<&users::id, &users::name>().from(users{});
-///    
-///    This approach allows for more type-safety and doesn't require
-///    creating instances of table objects just to define queries.
-///    Use to_expr<&Table::column>() for expressions in conditions.
+/// Member pointer-based API (recommended):
+/// auto query = select<&users::id, &users::name>().from(users{});
+/// Use to_expr<&Table::column>() for expressions in conditions.
 ///
-/// 2. Instance-based API (legacy):
-///    users u;
-///    auto query = select(u.id, u.name).from(u);
-///    
-///    This approach requires creating instances of table classes
-///    before defining queries. Use to_expr(u.column) for expressions.
-///
-/// Both APIs support the same query-building methods and produce
-/// identical SQL output and bind parameters.
-
 /// @brief Join specification for a SELECT query
 template <TableType Table, ConditionExpr Condition>
 struct JoinSpec {
@@ -107,7 +95,6 @@ private:
     std::vector<std::string> tuple_bind_params(const Tuple& tuple) const {
         std::vector<std::string> params;
         
-        // Use a loop instead of std::apply to have more control
         std::apply([&](const auto&... items) {
             auto process_item = [&params](const auto& item) {
                 auto item_params = item.bind_params();
@@ -786,6 +773,61 @@ private:
 template <SqlExpr Expr>
 auto asc(Expr expr) {
     return AscendingExpr<Expr>(std::move(expr));
+}
+
+/// @brief Create a SELECT * query for a specific table
+/// @tparam Table The table type to select all columns from
+/// @param table An instance of the table
+/// @return A SelectQuery object with all columns from the table
+template <TableType Table>
+auto select_all(const Table& table) {
+    // Use a vector to collect column references
+    std::vector<std::unique_ptr<ColumnExpression>> column_refs;
+    
+    // Use a helper lambda to process each field in the table
+    boost::pfr::for_each_field(table, [&](const auto& field) {
+        using FieldType = std::remove_cvref_t<decltype(field)>;
+        
+        // Only process fields that are columns (not constraints)
+        if constexpr (ColumnType<FieldType>) {
+            // Create a column reference for this field
+            column_refs.push_back(std::make_unique<ColumnRef<FieldType>>(field));
+        }
+    });
+    
+    // Create a SelectQuery with column expressions using variadic expansion via a helper
+    return select_from_all_cols(table, column_refs);
+}
+
+// Helper to create a SelectQuery from a list of column expressions
+template <TableType Table>
+auto select_from_all_cols(const Table& table, const std::vector<std::unique_ptr<ColumnExpression>>& columns) {
+    // Create a SelectQuery that selects just *
+    class StarExpression : public SqlExpression {
+    public:
+        std::string to_sql() const override {
+            return "*";
+        }
+        
+        std::vector<std::string> bind_params() const override {
+            return {};
+        }
+    };
+    
+    // Use a star expression for simplicity
+    return SelectQuery<std::tuple<StarExpression>>(
+        std::tuple<StarExpression>()
+    ).from(table);
+}
+
+/// @brief Create a SELECT * query without requiring a table instance
+/// @tparam Table The table type to select all columns from
+/// @return A SelectQuery object with all columns from the table
+template <TableType Table>
+auto select_all() {
+    // Create a table instance to work with
+    Table table{};
+    return select_all(table);
 }
 
 } // namespace query

@@ -83,6 +83,7 @@ add_executable(sqllib_tests
   tests/query/update_query_test.cpp
   tests/query/delete_query_test.cpp
   tests/query/insert_query_test.cpp
+  tests/query/select_all_test.cpp
   # Result processing tests
   tests/result_test.cpp
   tests/advanced_query_test.cpp
