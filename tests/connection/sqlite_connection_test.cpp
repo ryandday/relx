@@ -282,4 +282,182 @@ TEST_F(SQLiteConnectionTest, TestQueryObjectExecution) {
     conn.disconnect();
 }
 
+TEST_F(SQLiteConnectionTest, TestTransactionBasics) {
+    sqllib::SQLiteConnection conn(db_path);
+    ASSERT_TRUE(conn.connect());
+    
+    // Create test table
+    create_test_table(conn);
+    
+    // Check initial state
+    EXPECT_FALSE(conn.in_transaction());
+    
+    // Begin transaction
+    auto begin_result = conn.begin_transaction();
+    ASSERT_TRUE(begin_result) << "Failed to begin transaction: " << begin_result.error().message;
+    EXPECT_TRUE(conn.in_transaction());
+    
+    // Trying to begin a second transaction should fail
+    auto begin_result2 = conn.begin_transaction();
+    EXPECT_FALSE(begin_result2);
+    EXPECT_EQ("Transaction already in progress", begin_result2.error().message);
+    
+    // Insert test data
+    Users u;
+    auto insert_result = conn.execute(sqllib::query::insert_into(u)
+        .columns(u.name, u.email, u.age)
+        .values(sqllib::query::val("Transaction Test"), sqllib::query::val("test@example.com"), sqllib::query::val(40)));
+    ASSERT_TRUE(insert_result) << "Failed to insert data: " << insert_result.error().message;
+    
+    // Commit transaction
+    auto commit_result = conn.commit_transaction();
+    ASSERT_TRUE(commit_result) << "Failed to commit transaction: " << commit_result.error().message;
+    EXPECT_FALSE(conn.in_transaction());
+    
+    // Verify data was committed
+    auto select_result = conn.execute_raw("SELECT * FROM users WHERE name = 'Transaction Test'");
+    ASSERT_TRUE(select_result) << "Failed to select data: " << select_result.error().message;
+    EXPECT_EQ(1, select_result->size());
+    
+    // Clean up
+    conn.disconnect();
+}
+
+TEST_F(SQLiteConnectionTest, TestTransactionRollback) {
+    sqllib::SQLiteConnection conn(db_path);
+    ASSERT_TRUE(conn.connect());
+    
+    // Create test table
+    create_test_table(conn);
+    
+    // Begin transaction
+    auto begin_result = conn.begin_transaction();
+    ASSERT_TRUE(begin_result) << "Failed to begin transaction: " << begin_result.error().message;
+    
+    // Insert test data
+    Users u;
+    auto insert_result = conn.execute(sqllib::query::insert_into(u)
+        .columns(u.name, u.email, u.age)
+        .values(sqllib::query::val("Rollback Test"), sqllib::query::val("rollback@example.com"), sqllib::query::val(50)));
+    ASSERT_TRUE(insert_result) << "Failed to insert data: " << insert_result.error().message;
+    
+    // Verify data exists within the transaction
+    auto select_result = conn.execute_raw("SELECT * FROM users WHERE name = 'Rollback Test'");
+    ASSERT_TRUE(select_result) << "Failed to select data: " << select_result.error().message;
+    EXPECT_EQ(1, select_result->size());
+    
+    // Rollback transaction
+    auto rollback_result = conn.rollback_transaction();
+    ASSERT_TRUE(rollback_result) << "Failed to rollback transaction: " << rollback_result.error().message;
+    EXPECT_FALSE(conn.in_transaction());
+    
+    // Verify data was rolled back
+    auto select_result2 = conn.execute_raw("SELECT * FROM users WHERE name = 'Rollback Test'");
+    ASSERT_TRUE(select_result2) << "Failed to select data: " << select_result2.error().message;
+    EXPECT_EQ(0, select_result2->size()); // No data should be found
+    
+    // Clean up
+    conn.disconnect();
+}
+
+TEST_F(SQLiteConnectionTest, TestTransactionIsolationLevels) {
+    sqllib::SQLiteConnection conn(db_path);
+    ASSERT_TRUE(conn.connect());
+    
+    // Create test table
+    create_test_table(conn);
+    
+    // Test all isolation levels
+    const auto levels = {
+        sqllib::IsolationLevel::ReadUncommitted, 
+        sqllib::IsolationLevel::ReadCommitted,
+        sqllib::IsolationLevel::RepeatableRead,
+        sqllib::IsolationLevel::Serializable
+    };
+    
+    for (const auto level : levels) {
+        // Begin transaction with specific isolation level
+        auto begin_result = conn.begin_transaction(level);
+        ASSERT_TRUE(begin_result) << "Failed to begin transaction with isolation level: " 
+                                << static_cast<int>(level);
+        EXPECT_TRUE(conn.in_transaction());
+        
+        // Execute a simple query within the transaction
+        auto query_result = conn.execute_raw("SELECT 1");
+        ASSERT_TRUE(query_result) << "Failed to execute query in transaction: " << query_result.error().message;
+        
+        // Rollback transaction
+        auto rollback_result = conn.rollback_transaction();
+        ASSERT_TRUE(rollback_result) << "Failed to rollback transaction: " << rollback_result.error().message;
+        EXPECT_FALSE(conn.in_transaction());
+    }
+    
+    // Clean up
+    conn.disconnect();
+}
+
+TEST_F(SQLiteConnectionTest, TestTransactionErrorHandling) {
+    sqllib::SQLiteConnection conn(db_path);
+    ASSERT_TRUE(conn.connect());
+    
+    // Test committing without active transaction
+    auto commit_result = conn.commit_transaction();
+    EXPECT_FALSE(commit_result);
+    EXPECT_EQ("No transaction in progress", commit_result.error().message);
+    
+    // Test rolling back without active transaction
+    auto rollback_result = conn.rollback_transaction();
+    EXPECT_FALSE(rollback_result);
+    EXPECT_EQ("No transaction in progress", rollback_result.error().message);
+    
+    // Begin valid transaction
+    ASSERT_TRUE(conn.begin_transaction());
+    
+    // Test executing an invalid query within transaction
+    auto invalid_query_result = conn.execute_raw("SELECT * FORM users"); // Deliberate typo
+    EXPECT_FALSE(invalid_query_result);
+    EXPECT_NE("", invalid_query_result.error().message);
+    
+    // Transaction should still be active after query error
+    EXPECT_TRUE(conn.in_transaction());
+    
+    // Rollback and clean up
+    ASSERT_TRUE(conn.rollback_transaction());
+    conn.disconnect();
+}
+
+TEST_F(SQLiteConnectionTest, TestDisconnectWithActiveTransaction) {
+    sqllib::SQLiteConnection conn(db_path);
+    ASSERT_TRUE(conn.connect());
+    
+    // Create test table
+    create_test_table(conn);
+    
+    // Begin transaction
+    auto begin_result = conn.begin_transaction();
+    ASSERT_TRUE(begin_result) << "Failed to begin transaction: " << begin_result.error().message;
+    
+    // Insert test data
+    Users u;
+    auto insert_result = conn.execute(sqllib::query::insert_into(u)
+        .columns(u.name, u.email, u.age)
+        .values(sqllib::query::val("Disconnect Test"), sqllib::query::val("disconnect@example.com"), sqllib::query::val(60)));
+    ASSERT_TRUE(insert_result) << "Failed to insert data: " << insert_result.error().message;
+    
+    // Disconnect with active transaction (should implicitly roll back)
+    auto disconnect_result = conn.disconnect();
+    ASSERT_TRUE(disconnect_result) << "Failed to disconnect: " << disconnect_result.error().message;
+    EXPECT_FALSE(conn.in_transaction());
+    EXPECT_FALSE(conn.is_connected());
+    
+    // Reconnect and verify data was rolled back
+    ASSERT_TRUE(conn.connect());
+    auto select_result = conn.execute_raw("SELECT * FROM users WHERE name = 'Disconnect Test'");
+    ASSERT_TRUE(select_result) << "Failed to select data: " << select_result.error().message;
+    EXPECT_EQ(0, select_result->size()); // No data should be found
+    
+    // Clean up
+    conn.disconnect();
+}
+
 } // namespace 

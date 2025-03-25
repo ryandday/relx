@@ -16,9 +16,11 @@ SQLiteConnection::~SQLiteConnection() {
 SQLiteConnection::SQLiteConnection(SQLiteConnection&& other) noexcept
     : db_path_(std::move(other.db_path_)),
       db_handle_(other.db_handle_),
-      is_connected_(other.is_connected_) {
+      is_connected_(other.is_connected_),
+      in_transaction_(other.in_transaction_) {
     other.db_handle_ = nullptr;
     other.is_connected_ = false;
+    other.in_transaction_ = false;
 }
 
 SQLiteConnection& SQLiteConnection::operator=(SQLiteConnection&& other) noexcept {
@@ -27,8 +29,10 @@ SQLiteConnection& SQLiteConnection::operator=(SQLiteConnection&& other) noexcept
         db_path_ = std::move(other.db_path_);
         db_handle_ = other.db_handle_;
         is_connected_ = other.is_connected_;
+        in_transaction_ = other.in_transaction_;
         other.db_handle_ = nullptr;
         other.is_connected_ = false;
+        other.in_transaction_ = false;
     }
     return *this;
 }
@@ -56,8 +60,18 @@ ConnectionResult<void> SQLiteConnection::connect() {
 ConnectionResult<void> SQLiteConnection::disconnect() {
     if (!is_connected_ || !db_handle_) {
         is_connected_ = false;
+        in_transaction_ = false;
         db_handle_ = nullptr;
         return {};  // Already disconnected
+    }
+
+    // If there's an active transaction, roll it back before disconnecting
+    if (in_transaction_) {
+        auto rollback_result = rollback_transaction();
+        if (!rollback_result) {
+            // Just log the error and continue with disconnect
+            // We don't return here because we still want to try to close the connection
+        }
     }
 
     int result = sqlite3_close(db_handle_);
@@ -69,6 +83,7 @@ ConnectionResult<void> SQLiteConnection::disconnect() {
     }
 
     is_connected_ = false;
+    in_transaction_ = false;
     db_handle_ = nullptr;
     return {};
 }
@@ -154,6 +169,126 @@ ConnectionResult<result::ResultSet> SQLiteConnection::execute_raw(
 
 bool SQLiteConnection::is_connected() const {
     return is_connected_ && db_handle_ != nullptr;
+}
+
+ConnectionResult<void> SQLiteConnection::begin_transaction(IsolationLevel isolation_level) {
+    if (!is_connected_ || !db_handle_) {
+        return std::unexpected(ConnectionError{
+            .message = "Not connected to database",
+            .error_code = -1
+        });
+    }
+
+    if (in_transaction_) {
+        return std::unexpected(ConnectionError{
+            .message = "Transaction already in progress",
+            .error_code = -1
+        });
+    }
+
+    // Map isolation level to SQLite transaction type
+    std::string transaction_type;
+    switch (isolation_level) {
+        case IsolationLevel::ReadUncommitted:
+            transaction_type = "BEGIN";
+            break;
+        case IsolationLevel::ReadCommitted:
+            transaction_type = "BEGIN";
+            break;
+        case IsolationLevel::RepeatableRead:
+            transaction_type = "BEGIN IMMEDIATE";
+            break;
+        case IsolationLevel::Serializable:
+            transaction_type = "BEGIN EXCLUSIVE";
+            break;
+        default:
+            transaction_type = "BEGIN";
+            break;
+    }
+
+    // Execute the transaction begin statement
+    char* error_msg = nullptr;
+    int result = sqlite3_exec(db_handle_, transaction_type.c_str(), nullptr, nullptr, &error_msg);
+    
+    if (result != SQLITE_OK) {
+        std::string msg = error_msg ? error_msg : "Unknown error";
+        sqlite3_free(error_msg);
+        return std::unexpected(ConnectionError{
+            .message = "Failed to begin transaction: " + msg,
+            .error_code = result
+        });
+    }
+
+    in_transaction_ = true;
+    return {};
+}
+
+ConnectionResult<void> SQLiteConnection::commit_transaction() {
+    if (!is_connected_ || !db_handle_) {
+        return std::unexpected(ConnectionError{
+            .message = "Not connected to database",
+            .error_code = -1
+        });
+    }
+
+    if (!in_transaction_) {
+        return std::unexpected(ConnectionError{
+            .message = "No transaction in progress",
+            .error_code = -1
+        });
+    }
+
+    // Execute the commit statement
+    char* error_msg = nullptr;
+    int result = sqlite3_exec(db_handle_, "COMMIT", nullptr, nullptr, &error_msg);
+    
+    if (result != SQLITE_OK) {
+        std::string msg = error_msg ? error_msg : "Unknown error";
+        sqlite3_free(error_msg);
+        return std::unexpected(ConnectionError{
+            .message = "Failed to commit transaction: " + msg,
+            .error_code = result
+        });
+    }
+
+    in_transaction_ = false;
+    return {};
+}
+
+ConnectionResult<void> SQLiteConnection::rollback_transaction() {
+    if (!is_connected_ || !db_handle_) {
+        return std::unexpected(ConnectionError{
+            .message = "Not connected to database",
+            .error_code = -1
+        });
+    }
+
+    if (!in_transaction_) {
+        return std::unexpected(ConnectionError{
+            .message = "No transaction in progress",
+            .error_code = -1
+        });
+    }
+
+    // Execute the rollback statement
+    char* error_msg = nullptr;
+    int result = sqlite3_exec(db_handle_, "ROLLBACK", nullptr, nullptr, &error_msg);
+    
+    if (result != SQLITE_OK) {
+        std::string msg = error_msg ? error_msg : "Unknown error";
+        sqlite3_free(error_msg);
+        return std::unexpected(ConnectionError{
+            .message = "Failed to rollback transaction: " + msg,
+            .error_code = result
+        });
+    }
+
+    in_transaction_ = false;
+    return {};
+}
+
+bool SQLiteConnection::in_transaction() const {
+    return in_transaction_;
 }
 
 } // namespace connection

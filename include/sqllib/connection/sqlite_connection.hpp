@@ -50,11 +50,30 @@ public:
     /// @brief Check if the connection is open
     /// @return True if connected, false otherwise
     bool is_connected() const override;
+    
+    /// @brief Begin a new transaction with specified isolation level
+    /// @param isolation_level The isolation level for the transaction
+    /// @return Result indicating success or failure
+    ConnectionResult<void> begin_transaction(
+        IsolationLevel isolation_level = IsolationLevel::ReadCommitted) override;
+    
+    /// @brief Commit the current transaction
+    /// @return Result indicating success or failure
+    ConnectionResult<void> commit_transaction() override;
+    
+    /// @brief Rollback the current transaction
+    /// @return Result indicating success or failure
+    ConnectionResult<void> rollback_transaction() override;
+    
+    /// @brief Check if a transaction is currently active
+    /// @return True if a transaction is active, false otherwise
+    bool in_transaction() const override;
 
 private:
     std::string db_path_;
     sqlite3* db_handle_ = nullptr;
     bool is_connected_ = false;
+    bool in_transaction_ = false;
 };
 
 } // namespace connection

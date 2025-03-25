@@ -22,6 +22,14 @@ struct ConnectionError {
 template <typename T>
 using ConnectionResult = std::expected<T, ConnectionError>;
 
+/// @brief Transaction isolation levels
+enum class IsolationLevel {
+    ReadUncommitted,  ///< Allows dirty reads
+    ReadCommitted,    ///< Prevents dirty reads
+    RepeatableRead,   ///< Prevents non-repeatable reads
+    Serializable      ///< Highest isolation level, prevents phantom reads
+};
+
 /// @brief Abstract base class for database connections
 class Connection {
 public:
@@ -57,6 +65,24 @@ public:
     /// @brief Check if the connection is open
     /// @return True if connected, false otherwise
     virtual bool is_connected() const = 0;
+    
+    /// @brief Begin a new transaction
+    /// @param isolation_level The isolation level for the transaction
+    /// @return Result indicating success or failure
+    virtual ConnectionResult<void> begin_transaction(
+        IsolationLevel isolation_level = IsolationLevel::ReadCommitted) = 0;
+    
+    /// @brief Commit the current transaction
+    /// @return Result indicating success or failure
+    virtual ConnectionResult<void> commit_transaction() = 0;
+    
+    /// @brief Rollback the current transaction
+    /// @return Result indicating success or failure
+    virtual ConnectionResult<void> rollback_transaction() = 0;
+    
+    /// @brief Check if a transaction is currently active
+    /// @return True if a transaction is active, false otherwise
+    virtual bool in_transaction() const = 0;
 };
 
 } // namespace connection
@@ -65,5 +91,6 @@ public:
 using connection::Connection;
 using connection::ConnectionError;
 using connection::ConnectionResult;
+using connection::IsolationLevel;
 
 } // namespace sqllib
