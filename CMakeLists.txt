@@ -90,6 +90,7 @@ add_executable(sqllib_tests
   tests/advanced_query_test.cpp
   # Connection tests
   tests/connection/sqlite_connection_test.cpp
+  tests/connection/transaction_guard_test.cpp
   # Additional comprehensive tests
   tests/query/edge_case_test.cpp
   tests/query/data_type_test.cpp

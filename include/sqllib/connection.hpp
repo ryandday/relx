@@ -2,6 +2,7 @@
 
 #include "connection/connection.hpp"
 #include "connection/sqlite_connection.hpp"
+#include "connection/transaction_guard.hpp"
 
 /**
  * @brief SQLlib database connection
