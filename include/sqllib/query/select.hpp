@@ -12,7 +12,6 @@
 #include <utility>
 #include <optional>
 #include <iostream>
-#include <boost/pfr.hpp>
 
 namespace sqllib {
 namespace query {
@@ -775,33 +774,9 @@ auto asc(Expr expr) {
     return AscendingExpr<Expr>(std::move(expr));
 }
 
-/// @brief Create a SELECT * query for a specific table
-/// @tparam Table The table type to select all columns from
-/// @param table An instance of the table
-/// @return A SelectQuery object with all columns from the table
-template <TableType Table>
-auto select_all(const Table& table) {
-    // Use a vector to collect column references
-    std::vector<std::unique_ptr<ColumnExpression>> column_refs;
-    
-    // Use a helper lambda to process each field in the table
-    boost::pfr::for_each_field(table, [&](const auto& field) {
-        using FieldType = std::remove_cvref_t<decltype(field)>;
-        
-        // Only process fields that are columns (not constraints)
-        if constexpr (ColumnType<FieldType>) {
-            // Create a column reference for this field
-            column_refs.push_back(std::make_unique<ColumnRef<FieldType>>(field));
-        }
-    });
-    
-    // Create a SelectQuery with column expressions using variadic expansion via a helper
-    return select_from_all_cols(table, column_refs);
-}
-
 // Helper to create a SelectQuery from a list of column expressions
 template <TableType Table>
-auto select_from_all_cols(const Table& table, const std::vector<std::unique_ptr<ColumnExpression>>& columns) {
+auto select_all(const Table& table) {
     // Create a SelectQuery that selects just *
     class StarExpression : public SqlExpression {
     public:
@@ -815,9 +790,7 @@ auto select_from_all_cols(const Table& table, const std::vector<std::unique_ptr<
     };
     
     // Use a star expression for simplicity
-    return SelectQuery<std::tuple<StarExpression>>(
-        std::tuple<StarExpression>()
-    ).from(table);
+    return SelectQuery( std::tuple<StarExpression>()).from(table);
 }
 
 /// @brief Create a SELECT * query without requiring a table instance
