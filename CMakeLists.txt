@@ -27,6 +27,7 @@ endif()
 find_package(fmt REQUIRED)
 find_package(Boost REQUIRED)
 find_package(SQLite3 REQUIRED)
+find_package(PostgreSQL REQUIRED)
 
 # Set up Google Test with FetchContent
 include(FetchContent)
@@ -43,9 +44,10 @@ FetchContent_MakeAvailable(googletest)
 # Add library
 add_library(${PROJECT_NAME} 
   src/connection/sqlite_connection.cpp
+  src/connection/postgresql_connection.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE include/sqllib)
-target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost SQLite::SQLite3)
+target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost SQLite::SQLite3 PostgreSQL::PostgreSQL)
 
 # compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -90,6 +92,7 @@ add_executable(sqllib_tests
   tests/advanced_query_test.cpp
   # Connection tests
   tests/connection/sqlite_connection_test.cpp
+  tests/connection/postgresql_connection_test.cpp
   tests/connection/transaction_guard_test.cpp
   # Additional comprehensive tests
   tests/query/edge_case_test.cpp

@@ -103,6 +103,98 @@ SQLlib provides a rich set of schema definition features:
 - **Connection Pooling**: Efficient database connection management
 - **Result Set Processing**: Strongly typed result access
 
+## Supported Databases
+
+### SQLite
+
+SQLlib provides native support for SQLite databases through the `sqllib::SQLiteConnection` class.
+
+Example:
+
+```cpp
+#include <sqllib/sqlite.hpp>
+
+// Create a connection to an SQLite database
+sqllib::SQLiteConnection conn("my_database.db");
+conn.connect();
+
+// Execute a query
+auto result = conn.execute_raw("SELECT * FROM users");
+if (result) {
+    // Process results
+    for (const auto& row : *result) {
+        auto name = row.get<std::string>("name");
+        if (name) {
+            std::cout << "Name: " << *name << std::endl;
+        }
+    }
+}
+
+// Disconnect when done
+conn.disconnect();
+```
+
+### PostgreSQL
+
+SQLlib also provides support for PostgreSQL databases through the `sqllib::PostgreSQLConnection` class.
+
+Example:
+
+```cpp
+#include <sqllib/postgresql.hpp>
+
+// Create a connection to a PostgreSQL database
+sqllib::PostgreSQLConnection conn("host=localhost port=5432 dbname=my_database user=postgres password=postgres");
+conn.connect();
+
+// Execute a query
+auto result = conn.execute_raw("SELECT * FROM users");
+if (result) {
+    // Process results
+    for (const auto& row : *result) {
+        auto name = row.get<std::string>("name");
+        if (name) {
+            std::cout << "Name: " << *name << std::endl;
+        }
+    }
+}
+
+// Disconnect when done
+conn.disconnect();
+```
+
+## Docker Development Environment
+
+SQLlib provides Docker Compose configuration for development and testing.
+
+### PostgreSQL
+
+To start a PostgreSQL container for testing:
+
+```bash
+make postgres-up
+```
+
+To stop the PostgreSQL container:
+
+```bash
+make postgres-down
+```
+
+To view PostgreSQL logs:
+
+```bash
+make postgres-logs
+```
+
+To remove the PostgreSQL container and volumes:
+
+```bash
+make postgres-clean
+```
+
+The tests automatically start the necessary database containers.
+
 ## Documentation
 
 For more detailed documentation, check the following:
