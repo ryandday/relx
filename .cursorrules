@@ -9,6 +9,8 @@ NEVER put in a constructor on a class that needs boost pfr compatibility, since 
 
 When writing tests, make sure to tests many error conditions, as many as successful conditions. Thoroughly test all combinations of features
 
+When I make a feature that replaces another feature, do not keep backwards compatibility with the old feature
+
 # C++ Coding Standards for SQLlib
 
 ## Language Version
