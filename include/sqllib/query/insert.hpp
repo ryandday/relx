@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core.hpp"
+#include "meta.hpp"
 #include "column_expression.hpp"
 #include "value.hpp"
 #include "select.hpp"
@@ -54,22 +55,10 @@ template <
 >
 class InsertQuery {
 private:
-    // Helper to check if a tuple is empty
-    template <typename Tuple>
-    static constexpr bool is_empty_tuple() {
-        return std::tuple_size_v<Tuple> == 0;
-    }
-    
-    // Helper to convert a tuple of expressions to SQL
-    template <typename Tuple>
-    std::string tuple_to_sql(const Tuple& tuple, const char* separator) const {
-        std::stringstream ss;
-        int i = 0;
-        std::apply([&](const auto&... items) {
-            ((ss << (i++ > 0 ? separator : "") << items), ...);
-        }, tuple);
-        return ss.str();
-    }
+    Table table_;
+    Columns columns_;
+    Values values_;
+    SelectStmt select_;
     
     // Helper to convert a tuple of column references to column names for INSERT
     std::string columns_to_sql() const {
@@ -274,12 +263,6 @@ public:
             std::optional<Select>(select)
         );
     }
-
-private:
-    Table table_;
-    Columns columns_;
-    Values values_;
-    SelectStmt select_;
 };
 
 /// @brief Create an INSERT query for the specified table

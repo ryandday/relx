@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core.hpp"
+#include "meta.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
 #include "value.hpp"
@@ -46,40 +47,9 @@ template <
 >
 class UpdateQuery {
 private:
-    // Helper to check if a tuple is empty
-    template <typename Tuple>
-    static constexpr bool is_empty_tuple() {
-        return std::tuple_size_v<Tuple> == 0;
-    }
-    
-    // Helper to convert a tuple of SET items to SQL
-    template <typename Tuple>
-    std::string tuple_to_sql(const Tuple& tuple, const char* separator) const {
-        std::stringstream ss;
-        int i = 0;
-        std::apply([&](const auto&... items) {
-            ((ss << (i++ > 0 ? separator : "") << items.to_sql()), ...);
-        }, tuple);
-        return ss.str();
-    }
-    
-    // Helper to collect bind parameters from a tuple of expressions
-    template <typename Tuple>
-    std::vector<std::string> tuple_bind_params(const Tuple& tuple) const {
-        std::vector<std::string> params;
-        
-        std::apply([&](const auto&... items) {
-            auto process_item = [&params](const auto& item) {
-                auto item_params = item.bind_params();
-                params.insert(params.end(), item_params.begin(), item_params.end());
-            };
-            
-            (process_item(items), ...);
-        }, tuple);
-        
-        return params;
-    }
-
+    Table table_;
+    Sets sets_;
+    Where where_;
 public:
     using table_type = Table;
     using sets_type = Sets;
@@ -198,10 +168,6 @@ public:
         return where(in_condition);
     }
 
-private:
-    Table table_;
-    Sets sets_;
-    Where where_;
 };
 
 /// @brief Create an UPDATE query for the specified table

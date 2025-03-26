@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core.hpp"
+#include "meta.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
 #include "value.hpp"
@@ -66,51 +67,6 @@ template <
 >
 class SelectQuery {
 private:
-    // Helper to check if a tuple is empty
-    template <typename Tuple>
-    static constexpr bool is_empty_tuple() {
-        return std::tuple_size_v<Tuple> == 0;
-    }
-    
-    // Helper to apply a function to each element of a tuple
-    template <typename Func, typename Tuple>
-    static void apply_tuple(Func&& func, const Tuple& tuple) {
-        std::apply([&func](const auto&... args) {
-            (func(args), ...);
-        }, tuple);
-    }
-    
-    // Helper to convert a tuple of expressions to SQL
-    template <typename Tuple>
-    std::string tuple_to_sql(const Tuple& tuple, const char* separator) const {
-        std::stringstream ss;
-        int i = 0;
-        std::apply([&](const auto&... items) {
-            ((ss << (i++ > 0 ? separator : "") << items.to_sql()), ...);
-        }, tuple);
-        return ss.str();
-    }
-    
-    // Helper to collect bind parameters from a tuple of expressions
-    template <typename Tuple>
-    std::vector<std::string> tuple_bind_params(const Tuple& tuple) const {
-        std::vector<std::string> params;
-        
-        std::apply([&](const auto&... items) {
-            auto process_item = [&params](const auto& item) {
-                auto item_params = item.bind_params();
-                if (!item_params.empty()) {
-                    params.insert(params.end(), item_params.begin(), item_params.end());
-                }
-            };
-            
-            // Process each item
-            (process_item(items), ...);
-        }, tuple);
-        
-        return params;
-    }
-
 public:
     using columns_type = Columns;
     using tables_type = Tables;
@@ -595,31 +551,6 @@ private:
     OffsetVal offset_;
 };
 
-/// @brief Helper to extract class type from a member pointer
-template <typename T>
-struct class_of_t;
-
-template <typename Class, typename T>
-struct class_of_t<T Class::*> { 
-    using type = Class; 
-};
-
-template <typename T>
-using class_of_t_t = typename class_of_t<T>::type;
-
-/// @brief Helper to extract column type from member pointer
-template <auto MemberPtr>
-struct column_type_of {
-    using table_type = class_of_t_t<decltype(MemberPtr)>;
-    using column_type = std::remove_reference_t<decltype(std::declval<table_type>().*MemberPtr)>;
-};
-
-/// @brief Helper to get column name from member pointer
-template <auto MemberPtr>
-constexpr auto column_name_of() {
-    using column_t = typename column_type_of<MemberPtr>::column_type;
-    return column_t::name;
-}
 
 /// @brief Create a column reference from a member pointer without requiring a table instance
 /// @tparam MemberPtr Pointer to a column member in a table class
@@ -658,9 +589,7 @@ public:
 /// @return A SelectQuery object with the specified columns
 template <auto... MemberPtrs>
 auto select() {
-    return SelectQuery<std::tuple<MemberColumnRef<MemberPtrs>...>>(
-        std::tuple<MemberColumnRef<MemberPtrs>...>()
-    );
+    return SelectQuery(std::tuple<MemberColumnRef<MemberPtrs>...>());
 }
 
 /// @brief Create a SELECT query with a FROM clause in a single call
@@ -670,10 +599,7 @@ template <auto... MemberPtrs>
 auto select_from() {
     using first_table_type = typename column_type_of<std::get<0>(std::make_tuple(MemberPtrs...))>::table_type;
     
-    return SelectQuery<
-        std::tuple<MemberColumnRef<MemberPtrs>...>,
-        std::tuple<first_table_type>
-    >(
+    return SelectQuery(
         std::tuple<MemberColumnRef<MemberPtrs>...>(),
         std::tuple<first_table_type>()
     );
@@ -687,16 +613,12 @@ template <typename... Args>
 auto select(const Args&... args) {
     if constexpr ((ColumnType<Args> && ...)) {
         // All arguments are columns
-        return SelectQuery<std::tuple<ColumnRef<Args>...>>(
-            std::tuple<ColumnRef<Args>...>(ColumnRef<Args>(args)...)
-        );
+        return SelectQuery(std::tuple<ColumnRef<Args>...>(ColumnRef<Args>(args)...));
     } else if constexpr ((SqlExpr<Args> && ...)) {
         // All arguments are expressions
-        return SelectQuery<std::tuple<Args...>>(
-            std::tuple<Args...>(args...)
-        );
+        return SelectQuery(std::tuple<Args...>(args...));
     } else {
-        // Mixed columns and expressions - requires C++20 fold expressions
+        // Mixed columns and expressions
         // Use a helper function to convert columns to ColumnRef and leave expressions as is
         auto transform_arg = []<typename T>(const T& arg) {
             if constexpr (ColumnType<T>) {
@@ -705,10 +627,8 @@ auto select(const Args&... args) {
                 return arg;
             }
         };
-        
-        return SelectQuery<std::tuple<decltype(transform_arg(std::declval<Args>()))...>>(
-            std::make_tuple(transform_arg(args)...)
-        );
+
+        return SelectQuery(std::make_tuple(transform_arg(args)...));
     }
 }
 
