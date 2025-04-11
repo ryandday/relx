@@ -47,7 +47,7 @@ private:
     const C& col_;
     std::string_view table_name_;
     
-    std::string qualified_name() const {
+    std::string qualified_name() const override {
         if (table_name_.empty()) {
             return std::string(C::name);
         } else {
