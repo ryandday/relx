@@ -321,5 +321,37 @@ auto between(const schema::column<Name, T, DefaultValueType>& col,
     return between(col_expr, std::move(lower), std::move(upper));
 }
 
+// Column support for case expressions
+
+// When with a column condition
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename ResultT>
+auto when(const schema::column<Name, T, DefaultValueType>& condition, 
+          const query::Value<ResultT>& result) {
+    auto col_expr = to_expr(condition);
+    return when(col_expr, result);
+}
+
+// When with a column result
+template <typename CondT, schema::FixedString Name, typename T, typename DefaultValueType>
+auto when(const CondT& condition, 
+          const schema::column<Name, T, DefaultValueType>& result) {
+    auto result_expr = to_expr(result);
+    return when(condition, result_expr);
+}
+
+// Else with a column result
+template <schema::FixedString Name, typename T, typename DefaultValueType>
+auto else_(const schema::column<Name, T, DefaultValueType>& result) {
+    auto result_expr = to_expr(result);
+    return else_(result_expr);
+}
+
+// Column support for select expressions
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename... Args>
+auto select_expr(const schema::column<Name, T, DefaultValueType>& col, Args&&... args) {
+    auto col_expr = to_expr(col);
+    return select_expr(col_expr, std::forward<Args>(args)...);
+}
+
 } // namespace query
 } // namespace sqllib
