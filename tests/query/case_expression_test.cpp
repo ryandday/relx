@@ -8,13 +8,13 @@ TEST(CaseExpressionTest, SimpleCase) {
     users u;
     
     auto case_expr = sqllib::query::case_()
-        .when(u.age < sqllib::query::val(18), sqllib::query::val("Minor"))
-        .when(u.age < sqllib::query::val(65), sqllib::query::val("Adult"))
-        .else_(sqllib::query::val("Senior"))
+        .when(u.age < 18, "Minor")
+        .when(u.age < 65, "Adult")
+        .else_("Senior")
         .build();
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.name), 
+        u.name, 
         sqllib::query::as(std::move(case_expr), "age_group")
     )
     .from(u);
@@ -35,12 +35,12 @@ TEST(CaseExpressionTest, CaseWithoutElse) {
     users u;
     
     auto case_expr = sqllib::query::case_()
-        .when(u.is_active == sqllib::query::val(true), sqllib::query::val("Active"))
-        .when(u.is_active == sqllib::query::val(false), sqllib::query::val("Inactive"))
+        .when(u.is_active == true, "Active")
+        .when(u.is_active == false, "Inactive")
         .build();
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.name), 
+        u.name, 
         sqllib::query::as(std::move(case_expr), "status")
     )
     .from(u);
@@ -61,25 +61,25 @@ TEST(CaseExpressionTest, CaseWithComplexConditions) {
     
     auto case_expr = sqllib::query::case_()
         .when(
-            (u.age < sqllib::query::val(18)) && 
-            (u.login_count > sqllib::query::val(0)),
-            sqllib::query::val("Young Active User")
+            (u.age < 18) && 
+            (u.login_count > 0),
+            "Young Active User"
         )
         .when(
-            (u.age >= sqllib::query::val(18)) && 
-            (u.login_count > sqllib::query::val(10)),
-            sqllib::query::val("Power User")
+            (u.age >= 18) && 
+            (u.login_count > 10),
+            "Power User"
         )
-        .else_(sqllib::query::val("Regular User"))
+        .else_("Regular User")
         .build();
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.name), 
-        sqllib::query::as(std::move(case_expr), "user_type")
+        u.name, 
+        sqllib::query::as(std::move(case_expr), "complex_status")
     )
     .from(u);
     
-    std::string expected_sql = "SELECT name, CASE WHEN ((age < ?) AND (login_count > ?)) THEN ? WHEN ((age >= ?) AND (login_count > ?)) THEN ? ELSE ? END AS user_type FROM users";
+    std::string expected_sql = "SELECT name, CASE WHEN ((age < ?) AND (login_count > ?)) THEN ? WHEN ((age >= ?) AND (login_count > ?)) THEN ? ELSE ? END AS complex_status FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -97,12 +97,12 @@ TEST(CaseExpressionTest, CaseWithColumnResults) {
     users u;
     
     auto case_expr = sqllib::query::case_()
-        .when(sqllib::query::is_null(u.bio), sqllib::query::val("No bio provided"))
-        .else_(sqllib::query::val("Has bio")) // Fixed this to use a literal value instead of a column
+        .when(sqllib::query::is_null(u.bio), "No bio provided")
+        .else_("Has bio")
         .build();
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.name), 
+        u.name, 
         sqllib::query::as(std::move(case_expr), "bio_display")
     )
     .from(u);
@@ -120,14 +120,14 @@ TEST(CaseExpressionTest, CaseWithNumericResults) {
     users u;
     
     auto case_expr = sqllib::query::case_()
-        .when(u.login_count == sqllib::query::val(0), sqllib::query::val(0))
-        .when(u.login_count <= sqllib::query::val(5), sqllib::query::val(1))
-        .when(u.login_count <= sqllib::query::val(20), sqllib::query::val(2))
-        .else_(sqllib::query::val(3))
+        .when(u.login_count == 0, 0)
+        .when(u.login_count <= 5, 1)
+        .when(u.login_count <= 20, 2)
+        .else_(3)
         .build();
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.name), 
+        u.name, 
         sqllib::query::as(std::move(case_expr), "activity_level")
     )
     .from(u);
@@ -151,22 +151,19 @@ TEST(CaseExpressionTest, NestedCaseExpression) {
     
     // Inner CASE for active status
     auto active_case = sqllib::query::case_()
-        .when(u.is_active == sqllib::query::val(true), sqllib::query::val("Active"))
-        .else_(sqllib::query::val("Inactive"))
+        .when(u.is_active == true, "Active")
+        .else_("Inactive")
         .build();
     
     // Outer CASE for age group and activity - use operator+ for string concatenation
     auto nested_case = sqllib::query::case_()
-        .when(u.age < sqllib::query::val(18), 
-            sqllib::query::val("Young, Active")) // Use a full string instead of concatenation
-        .when(u.age < sqllib::query::val(65), 
-            sqllib::query::val("Adult, Active")) // Use a full string instead of concatenation
-        .else_(
-            sqllib::query::val("Senior, Active")) // Use a full string instead of concatenation
+        .when(u.age < 18, "Young, Active")
+        .when(u.age < 65, "Adult, Active")
+        .else_("Senior, Active")
         .build();
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.name), 
+        u.name, 
         sqllib::query::as(std::move(nested_case), "status")
     )
     .from(u);
@@ -187,8 +184,8 @@ TEST(CaseExpressionTest, CaseInWhere) {
     
     // Define a CASE expression
     auto case_expr = sqllib::query::case_()
-        .when(u.age < sqllib::query::val(18), sqllib::query::val("minor"))
-        .else_(sqllib::query::val("adult"))
+        .when(u.age < 18, "minor")
+        .else_("adult")
         .build();
     
     // Create an aliased version of the case expression
@@ -196,7 +193,7 @@ TEST(CaseExpressionTest, CaseInWhere) {
     
     // Use it in a WHERE clause directly
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id), 
+        sqllib::query::to_expr(u.id),
         sqllib::query::to_expr(u.name),
         age_category
     )
@@ -218,8 +215,8 @@ TEST(CaseExpressionTest, CaseInOrderBy) {
     
     // Define a CASE expression for sorting
     auto case_expr = sqllib::query::case_()
-        .when(u.is_active == sqllib::query::val(true), sqllib::query::val(1))
-        .else_(sqllib::query::val(0))
+        .when(u.is_active == true, 1)
+        .else_(0)
         .build();
     
     // Create an aliased version of the case expression
@@ -227,7 +224,7 @@ TEST(CaseExpressionTest, CaseInOrderBy) {
     
     // Use it in SELECT and ORDER BY directly
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id), 
+        sqllib::query::to_expr(u.id),
         sqllib::query::to_expr(u.name),
         active_sort
     )

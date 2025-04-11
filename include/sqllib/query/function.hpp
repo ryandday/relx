@@ -2,6 +2,7 @@
 
 #include "core.hpp"
 #include "column_expression.hpp"
+#include "value.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -385,6 +386,43 @@ public:
         return *this;
     }
     
+    // Overloads for common literal types to avoid requiring val() calls
+    
+    // For string literals
+    CaseBuilder& when(const ConditionExpr auto& when, const char* then) {
+        return this->when(when, query::val(then));
+    }
+    
+    // For string
+    CaseBuilder& when(const ConditionExpr auto& when, const std::string& then) {
+        return this->when(when, query::val(then));
+    }
+    
+    // For integers
+    CaseBuilder& when(const ConditionExpr auto& when, int then) {
+        return this->when(when, query::val(then));
+    }
+    
+    // For long
+    CaseBuilder& when(const ConditionExpr auto& when, long then) {
+        return this->when(when, query::val(then));
+    }
+    
+    // For double
+    CaseBuilder& when(const ConditionExpr auto& when, double then) {
+        return this->when(when, query::val(then));
+    }
+    
+    // For float
+    CaseBuilder& when(const ConditionExpr auto& when, float then) {
+        return this->when(when, query::val(then));
+    }
+    
+    // For boolean
+    CaseBuilder& when(const ConditionExpr auto& when, bool then) {
+        return this->when(when, query::val(then));
+    }
+    
     auto build() {
         return CaseExpr(std::move(when_thens_), std::move(else_expr_));
     }
@@ -393,6 +431,43 @@ public:
     CaseBuilder& else_(const Else& else_expr) {
         else_expr_ = std::make_unique<Else>(else_expr);
         return *this;
+    }
+    
+    // Overloads for common literal types to avoid requiring val() calls
+    
+    // For string literals
+    CaseBuilder& else_(const char* else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    // For string
+    CaseBuilder& else_(const std::string& else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    // For integers
+    CaseBuilder& else_(int else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    // For long
+    CaseBuilder& else_(long else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    // For double
+    CaseBuilder& else_(double else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    // For float
+    CaseBuilder& else_(float else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    // For boolean
+    CaseBuilder& else_(bool else_value) {
+        return this->else_(query::val(else_value));
     }
 
 private:

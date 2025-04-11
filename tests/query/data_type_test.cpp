@@ -85,16 +85,16 @@ TEST(DataTypeTest, StringTypes) {
     
     auto query_std_string = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.name == sqllib::query::val(std_string));
+        .where(u.name == std_string);
     
     auto query_c_string = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.name == sqllib::query::val(c_string));
+        .where(u.name == c_string);
     
     // Test with string literal
     auto query_string_literal = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.name == sqllib::query::val("String literal"));
+        .where(u.name == "String literal");
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
     EXPECT_EQ(query_std_string.to_sql(), expected_sql);
@@ -268,7 +268,7 @@ TEST(DataTypeTest, DirectLiteralComparisons) {
     auto sc = score_column{};
     auto query_float_literal = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(sc) > 3.14159);
+        .where(sqllib::query::to_expr(sc) > sqllib::query::val(3.14159));
     
     auto query_combined_literal = sqllib::query::select(u.id, u.name)
         .from(u)
