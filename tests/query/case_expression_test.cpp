@@ -193,8 +193,8 @@ TEST(CaseExpressionTest, CaseInWhere) {
     
     // Use it in a WHERE clause directly
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id),
-        sqllib::query::to_expr(u.name),
+        u.id,
+        u.name,
         age_category
     )
     .from(u)
@@ -224,8 +224,8 @@ TEST(CaseExpressionTest, CaseInOrderBy) {
     
     // Use it in SELECT and ORDER BY directly
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id),
-        sqllib::query::to_expr(u.name),
+        u.id,
+        u.name,
         active_sort
     )
     .from(u)

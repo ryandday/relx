@@ -636,7 +636,7 @@ auto select(const Args&... args) {
 /// @tparam Args The column expression types
 /// @param args The column expressions to select
 /// @return A SelectQuery object
-template <SqlExpr... Args>
+template <typename... Args>
 auto select_expr(const Args&... args) {
     return select(args...);
 }
