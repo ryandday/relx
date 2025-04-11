@@ -253,5 +253,45 @@ auto operator<=(const Value<ValueT>& value, const schema::column<Name, T, Defaul
     return col >= value;
 }
 
+// Additional column operation overloads to avoid to_expr wrappers
+
+// LIKE operator for columns
+template <schema::FixedString Name, typename T, typename DefaultValueType>
+auto like(const schema::column<Name, T, DefaultValueType>& col, std::string pattern) {
+    auto col_expr = to_expr(col);
+    return like(col_expr, std::move(pattern));
+}
+
+// IN operator for columns
+template <schema::FixedString Name, typename T, typename DefaultValueType, 
+          std::ranges::range Range>
+requires std::convertible_to<std::ranges::range_value_t<Range>, std::string>
+auto in(const schema::column<Name, T, DefaultValueType>& col, Range values) {
+    auto col_expr = to_expr(col);
+    return in(col_expr, std::move(values));
+}
+
+// IS NULL operator for columns
+template <schema::FixedString Name, typename T, typename DefaultValueType>
+auto is_null(const schema::column<Name, T, DefaultValueType>& col) {
+    auto col_expr = to_expr(col);
+    return is_null(col_expr);
+}
+
+// IS NOT NULL operator for columns
+template <schema::FixedString Name, typename T, typename DefaultValueType>
+auto is_not_null(const schema::column<Name, T, DefaultValueType>& col) {
+    auto col_expr = to_expr(col);
+    return is_not_null(col_expr);
+}
+
+// BETWEEN operator for columns
+template <schema::FixedString Name, typename T, typename DefaultValueType>
+auto between(const schema::column<Name, T, DefaultValueType>& col, 
+             std::string lower, std::string upper) {
+    auto col_expr = to_expr(col);
+    return between(col_expr, std::move(lower), std::move(upper));
+}
+
 } // namespace query
 } // namespace sqllib

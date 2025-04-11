@@ -16,11 +16,11 @@ TEST(DataTypeTest, IntegerTypes) {
     // Test with different integer types
     auto query_int = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.id) == sqllib::query::val(42));
+        .where(u.id == sqllib::query::val(42));
     
     auto query_long = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.id) == sqllib::query::val(9223372036854775807L)); // max int64_t
+        .where(u.id == sqllib::query::val(9223372036854775807L)); // max int64_t
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (id = ?)";
     EXPECT_EQ(query_int.to_sql(), expected_sql);
@@ -85,16 +85,16 @@ TEST(DataTypeTest, StringTypes) {
     
     auto query_std_string = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.name) == sqllib::query::val(std_string));
+        .where(u.name == sqllib::query::val(std_string));
     
     auto query_c_string = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.name) == sqllib::query::val(c_string));
+        .where(u.name == sqllib::query::val(c_string));
     
     // Test with string literal
     auto query_string_literal = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.name) == sqllib::query::val("String literal"));
+        .where(u.name == sqllib::query::val("String literal"));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
     EXPECT_EQ(query_std_string.to_sql(), expected_sql);
@@ -125,11 +125,11 @@ TEST(DataTypeTest, OptionalTypes) {
     // Create separate queries for present and absent values
     auto query_with_value = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.bio) == sqllib::query::val("Optional string"));
+        .where(u.bio == sqllib::query::val("Optional string"));
         
     auto query_with_null = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_null(sqllib::query::to_expr(u.bio)));
+        .where(sqllib::query::is_null(u.bio));
     
     std::string expected_present_sql = "SELECT id, name FROM users WHERE (bio = ?)";
     std::string expected_absent_sql = "SELECT id, name FROM users WHERE bio IS NULL";
@@ -155,11 +155,11 @@ TEST(DataTypeTest, ContainerTypes) {
     
     auto query_vector = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::in(sqllib::query::to_expr(u.name), str_vector));
+        .where(sqllib::query::in(u.name, str_vector));
     
     auto query_array = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::in(sqllib::query::to_expr(u.name), string_array));
+        .where(sqllib::query::in(u.name, string_array));
     
     std::string expected_vector_sql = "SELECT id, name FROM users WHERE name IN (?, ?, ?, ?, ?)";
     std::string expected_array_sql = "SELECT id, name FROM users WHERE name IN (?, ?, ?)";
@@ -189,16 +189,16 @@ TEST(DataTypeTest, BooleanTypes) {
     // Test with boolean values in different contexts
     auto query_bool_equals = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(true));
+        .where(u.is_active == sqllib::query::val(true));
     
     auto query_bool_not = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(!sqllib::query::to_expr(u.is_active));
+        .where(!u.is_active);
     
     auto query_bool_and = sqllib::query::select(u.id, u.name)
         .from(u)
         .where(sqllib::query::to_expr(u.is_active) && 
-               (sqllib::query::to_expr(u.age) > sqllib::query::val(18)));
+               (u.age > sqllib::query::val(18)));
     
     std::string expected_equals_sql = "SELECT id, name FROM users WHERE (is_active = ?)";
     EXPECT_EQ(query_bool_equals.to_sql(), expected_equals_sql);
@@ -231,16 +231,16 @@ TEST(DataTypeTest, NullHandling) {
     // Test IS NULL and IS NOT NULL
     auto query_is_null = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_null(sqllib::query::to_expr(u.bio)));
+        .where(sqllib::query::is_null(u.bio));
     
     auto query_is_not_null = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_not_null(sqllib::query::to_expr(u.bio)));
+        .where(sqllib::query::is_not_null(u.bio));
     
     // Test nullable column with IS NULL
     auto query_equals_null = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_null(sqllib::query::to_expr(u.bio)));
+        .where(sqllib::query::is_null(u.bio));
     
     std::string expected_is_null_sql = "SELECT id, name FROM users WHERE bio IS NULL";
     std::string expected_is_not_null_sql = "SELECT id, name FROM users WHERE bio IS NOT NULL";

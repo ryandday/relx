@@ -115,7 +115,7 @@ TEST(ConditionTest, StringLike) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::like(sqllib::query::to_expr(u.email), "%@example.com"));
+        .where(sqllib::query::like(u.email, "%@example.com"));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE email LIKE ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -131,7 +131,7 @@ TEST(ConditionTest, StringNotLike) {
     // Use operator! directly to negate the condition
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(!(sqllib::query::like(sqllib::query::to_expr(u.email), "%@example.com")));
+        .where(!(sqllib::query::like(u.email, "%@example.com")));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (NOT email LIKE ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -147,7 +147,7 @@ TEST(ConditionTest, InList) {
     std::vector<std::string> names = {"Alice", "Bob", "Charlie"};
     auto query = sqllib::query::select(u.id, u.email)
         .from(u)
-        .where(sqllib::query::in(sqllib::query::to_expr(u.name), names));
+        .where(sqllib::query::in(u.name, names));
     
     std::string expected_sql = "SELECT id, email FROM users WHERE name IN (?, ?, ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -168,7 +168,7 @@ TEST(ConditionTest, NotInList) {
     // Use operator! directly to negate the condition
     auto query = sqllib::query::select(u.id, u.email)
         .from(u)
-        .where(!(sqllib::query::in(sqllib::query::to_expr(u.age), age_strings)));
+        .where(!(sqllib::query::in(u.age, age_strings)));
     
     std::string expected_sql = "SELECT id, email FROM users WHERE (NOT age IN (?, ?, ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -185,7 +185,7 @@ TEST(ConditionTest, IsNull) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_null(sqllib::query::to_expr(u.bio)));
+        .where(sqllib::query::is_null(u.bio));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE bio IS NULL";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -198,7 +198,7 @@ TEST(ConditionTest, IsNotNull) {
     // Use is_not_null directly
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_not_null(sqllib::query::to_expr(u.bio)));
+        .where(sqllib::query::is_not_null(u.bio));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE bio IS NOT NULL";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -211,7 +211,7 @@ TEST(ConditionTest, Between) {
     // Use string values for between
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::between(sqllib::query::to_expr(u.age), "18", "65"));
+        .where(sqllib::query::between(u.age, "18", "65"));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE age BETWEEN ? AND ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -228,7 +228,7 @@ TEST(ConditionTest, NotBetween) {
     // Use operator! directly to negate the condition
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(!(sqllib::query::between(sqllib::query::to_expr(u.age), "18", "65")));
+        .where(!(sqllib::query::between(u.age, "18", "65")));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (NOT age BETWEEN ? AND ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
