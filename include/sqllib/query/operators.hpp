@@ -659,5 +659,127 @@ auto operator!=(const char* str, const SchemaColumnAdapter<Column>& col) {
 
 // Additional column operation overloads to avoid to_expr wrappers
 
+// Operators for AliasedColumn to work with literals
+
+// For AliasedColumn == literals
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator==(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, "=", val_expr);
+}
+
+// For literals == AliasedColumn
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator==(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+    return col == std::forward<LiteralT>(literal);
+}
+
+// Special case for string literals with AliasedColumn
+template <SqlExpr Expr>
+auto operator==(const AliasedColumn<Expr>& col, const char* str) {
+    auto str_val = val(str);
+    return BinaryCondition<AliasedColumn<Expr>, decltype(str_val)>(col, "=", str_val);
+}
+
+template <SqlExpr Expr>
+auto operator==(const char* str, const AliasedColumn<Expr>& col) {
+    return col == str;
+}
+
+// For AliasedColumn != literals
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator!=(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, "!=", val_expr);
+}
+
+// For literals != AliasedColumn
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator!=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+    return col != std::forward<LiteralT>(literal);
+}
+
+// Special case for string literals with AliasedColumn
+template <SqlExpr Expr>
+auto operator!=(const AliasedColumn<Expr>& col, const char* str) {
+    auto str_val = val(str);
+    return BinaryCondition<AliasedColumn<Expr>, decltype(str_val)>(col, "!=", str_val);
+}
+
+template <SqlExpr Expr>
+auto operator!=(const char* str, const AliasedColumn<Expr>& col) {
+    return col != str;
+}
+
+// For other comparison operators (>, <, >=, <=)
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, ">", val_expr);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, "<", val_expr);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>=(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, ">=", val_expr);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<=(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, "<=", val_expr);
+}
+
+// Reversed comparison operators with literals
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+    return col < std::forward<LiteralT>(literal);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+    return col > std::forward<LiteralT>(literal);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+    return col <= std::forward<LiteralT>(literal);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+    return col >= std::forward<LiteralT>(literal);
+}
+
 } // namespace query
 } // namespace sqllib

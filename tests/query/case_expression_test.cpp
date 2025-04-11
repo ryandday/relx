@@ -198,7 +198,7 @@ TEST(CaseExpressionTest, CaseInWhere) {
         age_category
     )
     .from(u)
-    .where(age_category == sqllib::query::val("adult"));
+    .where(age_category == "adult");
     
     // Expected SQL should include the CASE expression in both the SELECT list and WHERE
     std::string sql = query.to_sql();
