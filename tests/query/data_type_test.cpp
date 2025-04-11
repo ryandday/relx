@@ -253,4 +253,75 @@ TEST(DataTypeTest, NullHandling) {
     EXPECT_TRUE(query_is_null.bind_params().empty());
     EXPECT_TRUE(query_is_not_null.bind_params().empty());
     EXPECT_TRUE(query_equals_null.bind_params().empty());
+}
+
+// Test for direct literal comparisons without using query::val()
+TEST(DataTypeTest, DirectLiteralComparisons) {
+    users u;
+    
+    // Test numeric literals in different contexts
+    auto query_int_literal = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(u.id == 42);
+    
+    // We need to create a proper expression for score_column
+    auto sc = score_column{};
+    auto query_float_literal = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(sqllib::query::to_expr(sc) > 3.14159);
+    
+    auto query_combined_literal = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(u.is_active && (u.age > 18));
+    
+    // Test string literals
+    auto query_string_literal = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(u.name == "Direct string literal");
+    
+    // Verify the generated SQL is correct
+    std::string expected_int_sql = "SELECT id, name FROM users WHERE (id = ?)";
+    std::string expected_float_sql = "SELECT id, name FROM users WHERE (score > ?)";
+    std::string expected_combined_sql = "SELECT id, name FROM users WHERE (is_active AND (age > ?))";
+    std::string expected_string_sql = "SELECT id, name FROM users WHERE (name = ?)";
+    
+    EXPECT_EQ(query_int_literal.to_sql(), expected_int_sql);
+    EXPECT_EQ(query_float_literal.to_sql(), expected_float_sql);
+    EXPECT_EQ(query_combined_literal.to_sql(), expected_combined_sql);
+    EXPECT_EQ(query_string_literal.to_sql(), expected_string_sql);
+    
+    // Verify bind parameters are correct
+    auto params_int = query_int_literal.bind_params();
+    auto params_float = query_float_literal.bind_params();
+    auto params_combined = query_combined_literal.bind_params();
+    auto params_string = query_string_literal.bind_params();
+    
+    EXPECT_EQ(params_int.size(), 1);
+    EXPECT_EQ(params_float.size(), 1);
+    EXPECT_EQ(params_combined.size(), 1);
+    EXPECT_EQ(params_string.size(), 1);
+    
+    EXPECT_EQ(params_int[0], "42");
+    EXPECT_TRUE(params_float[0].find("3.14159") != std::string::npos || 
+                params_float[0].find("3.1415") != std::string::npos);
+    EXPECT_EQ(params_combined[0], "18");
+    EXPECT_EQ(params_string[0], "Direct string literal");
+    
+    // Test reversed comparison operators
+    auto query_reversed_int = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where(42 == u.id);
+    
+    auto query_reversed_string = sqllib::query::select(u.id, u.name)
+        .from(u)
+        .where("Direct string literal" == u.name);
+    
+    EXPECT_EQ(query_reversed_int.to_sql(), expected_int_sql);
+    EXPECT_EQ(query_reversed_string.to_sql(), expected_string_sql);
+    
+    auto params_rev_int = query_reversed_int.bind_params();
+    auto params_rev_string = query_reversed_string.bind_params();
+    
+    EXPECT_EQ(params_rev_int[0], "42");
+    EXPECT_EQ(params_rev_string[0], "Direct string literal");
 } 

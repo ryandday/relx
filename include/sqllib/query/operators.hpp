@@ -195,11 +195,77 @@ auto operator<=(const ValueType& value, const column<Name, T, DefaultValueType>&
     return col >= value;
 }
 
+// Boolean operators for columns with conditions
+
+// Logical AND between column and any condition
+template <FixedString Name, typename DefaultValueType, typename Cond>
+requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
+auto operator&&(const column<Name, bool, DefaultValueType>& col, const Cond& cond) {
+    auto col_expr = query::to_expr(col);
+    if constexpr (query::SqlExpr<Cond>) {
+        return col_expr && cond;
+    } else {
+        auto val_expr = query::val(cond);
+        return col_expr && val_expr;
+    }
+}
+
+// Logical OR between column and any condition
+template <FixedString Name, typename DefaultValueType, typename Cond>
+requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
+auto operator||(const column<Name, bool, DefaultValueType>& col, const Cond& cond) {
+    auto col_expr = query::to_expr(col);
+    if constexpr (query::SqlExpr<Cond>) {
+        return col_expr || cond;
+    } else {
+        auto val_expr = query::val(cond);
+        return col_expr || val_expr;
+    }
+}
+
+// Logical AND between condition and column (reversed)
+template <typename Cond, FixedString Name, typename DefaultValueType>
+requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
+auto operator&&(const Cond& cond, const column<Name, bool, DefaultValueType>& col) {
+    auto col_expr = query::to_expr(col);
+    if constexpr (query::SqlExpr<Cond>) {
+        return cond && col_expr;
+    } else {
+        auto val_expr = query::val(cond);
+        return val_expr && col_expr;
+    }
+}
+
+// Logical OR between condition and column (reversed)
+template <typename Cond, FixedString Name, typename DefaultValueType>
+requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
+auto operator||(const Cond& cond, const column<Name, bool, DefaultValueType>& col) {
+    auto col_expr = query::to_expr(col);
+    if constexpr (query::SqlExpr<Cond>) {
+        return cond || col_expr;
+    } else {
+        auto val_expr = query::val(cond);
+        return val_expr || col_expr;
+    }
+}
+
 } // namespace schema
 
 namespace query {
 
 // Column to SQL Value comparisons (for _sql literals)
+
+// Define a helper meta trait for checking specializations
+namespace meta {
+    template <typename T, template <typename...> class Template>
+    struct is_specialization : std::false_type {};
+    
+    template <template <typename...> class Template, typename... Args>
+    struct is_specialization<Template<Args...>, Template> : std::true_type {};
+    
+    template <typename T, template <typename...> class Template>
+    constexpr bool is_specialization_v = is_specialization<T, Template>::value;
+}
 
 // Equality comparison with Value
 template <schema::FixedString Name, typename T, typename DefaultValueType, typename ValueT>
@@ -243,42 +309,159 @@ auto operator<=(const schema::column<Name, T, DefaultValueType>& col, const Valu
     return col_expr <= value;
 }
 
-// Symmetrical operators for Value (Value on left, column on right)
+// Column comparison with direct numeric literals
+// These overloads allow for expressions like col > 42 without needing query::val(42)
 
-// Equality comparison with Value (reversed)
-template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
-auto operator==(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
-    return col == value;
+// Equality comparison with numeric literal
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator==(const schema::column<Name, T, DefaultValueType>& col, LiteralT&& literal) {
+    auto col_expr = to_expr(col);
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return col_expr == val_expr;
 }
 
-// Inequality comparison with Value (reversed)
-template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
-auto operator!=(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
-    return col != value;
+// Inequality comparison with numeric literal
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator!=(const schema::column<Name, T, DefaultValueType>& col, LiteralT&& literal) {
+    auto col_expr = to_expr(col);
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return col_expr != val_expr;
 }
 
-// Greater than comparison with Value (reversed)
-template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
-auto operator>(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
-    return col < value;
+// Greater than comparison with numeric literal
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator>(const schema::column<Name, T, DefaultValueType>& col, LiteralT&& literal) {
+    auto col_expr = to_expr(col);
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return col_expr > val_expr;
 }
 
-// Less than comparison with Value (reversed)
-template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
-auto operator<(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
-    return col > value;
+// Less than comparison with numeric literal
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator<(const schema::column<Name, T, DefaultValueType>& col, LiteralT&& literal) {
+    auto col_expr = to_expr(col);
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return col_expr < val_expr;
 }
 
-// Greater than or equal comparison with Value (reversed)
-template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
-auto operator>=(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
-    return col <= value;
+// Greater than or equal comparison with numeric literal
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator>=(const schema::column<Name, T, DefaultValueType>& col, LiteralT&& literal) {
+    auto col_expr = to_expr(col);
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return col_expr >= val_expr;
 }
 
-// Less than or equal comparison with Value (reversed)
-template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
-auto operator<=(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
-    return col >= value;
+// Less than or equal comparison with numeric literal
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator<=(const schema::column<Name, T, DefaultValueType>& col, LiteralT&& literal) {
+    auto col_expr = to_expr(col);
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return col_expr <= val_expr;
+}
+
+// Symmetrical operators for numeric literals (literal on left, column on right)
+
+// Equality comparison with numeric literal (reversed)
+template <typename LiteralT, schema::FixedString Name, typename T, typename DefaultValueType>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator==(LiteralT&& literal, const schema::column<Name, T, DefaultValueType>& col) {
+    return col == std::forward<LiteralT>(literal);
+}
+
+// Inequality comparison with numeric literal (reversed)
+template <typename LiteralT, schema::FixedString Name, typename T, typename DefaultValueType>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator!=(LiteralT&& literal, const schema::column<Name, T, DefaultValueType>& col) {
+    return col != std::forward<LiteralT>(literal);
+}
+
+// Greater than comparison with numeric literal (reversed)
+template <typename LiteralT, schema::FixedString Name, typename T, typename DefaultValueType>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator>(LiteralT&& literal, const schema::column<Name, T, DefaultValueType>& col) {
+    return col < std::forward<LiteralT>(literal);
+}
+
+// Less than comparison with numeric literal (reversed)
+template <typename LiteralT, schema::FixedString Name, typename T, typename DefaultValueType>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator<(LiteralT&& literal, const schema::column<Name, T, DefaultValueType>& col) {
+    return col > std::forward<LiteralT>(literal);
+}
+
+// Greater than or equal comparison with numeric literal (reversed)
+template <typename LiteralT, schema::FixedString Name, typename T, typename DefaultValueType>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator>=(LiteralT&& literal, const schema::column<Name, T, DefaultValueType>& col) {
+    return col <= std::forward<LiteralT>(literal);
+}
+
+// Less than or equal comparison with numeric literal (reversed)
+template <typename LiteralT, schema::FixedString Name, typename T, typename DefaultValueType>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator<=(LiteralT&& literal, const schema::column<Name, T, DefaultValueType>& col) {
+    return col >= std::forward<LiteralT>(literal);
+}
+
+// String literal comparison
+// These allow for using string literals directly without query::val
+
+// Equality comparison with string literal
+template <schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator==(const schema::column<Name, T, DefaultValueType>& col, const char* str) {
+    auto col_expr = to_expr(col);
+    auto val_expr = val(str);
+    return col_expr == val_expr;
+}
+
+// Inequality comparison with string literal
+template <schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator!=(const schema::column<Name, T, DefaultValueType>& col, const char* str) {
+    auto col_expr = to_expr(col);
+    auto val_expr = val(str);
+    return col_expr != val_expr;
+}
+
+// String literal comparison (reversed)
+template <schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator==(const char* str, const schema::column<Name, T, DefaultValueType>& col) {
+    return col == str;
+}
+
+template <schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator!=(const char* str, const schema::column<Name, T, DefaultValueType>& col) {
+    return col != str;
 }
 
 // Additional column operation overloads to avoid to_expr wrappers
@@ -352,6 +535,129 @@ auto select_expr(const schema::column<Name, T, DefaultValueType>& col, Args&&...
     auto col_expr = to_expr(col);
     return select_expr(col_expr, std::forward<Args>(args)...);
 }
+
+// Adapter to literal comparison operators
+
+// SchemaColumnAdapter comparison with direct literals
+template <typename Column, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator==(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+    return col == val(std::forward<LiteralT>(literal));
+}
+
+template <typename Column, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator!=(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+    return col != val(std::forward<LiteralT>(literal));
+}
+
+template <typename Column, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator>(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+    return col > val(std::forward<LiteralT>(literal));
+}
+
+template <typename Column, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator<(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+    return col < val(std::forward<LiteralT>(literal));
+}
+
+template <typename Column, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator>=(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+    return col >= val(std::forward<LiteralT>(literal));
+}
+
+template <typename Column, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator<=(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+    return col <= val(std::forward<LiteralT>(literal));
+}
+
+// Reversed operators
+template <typename LiteralT, typename Column>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator==(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+    return col == std::forward<LiteralT>(literal);
+}
+
+template <typename LiteralT, typename Column>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator!=(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+    return col != std::forward<LiteralT>(literal);
+}
+
+template <typename LiteralT, typename Column>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator>(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+    return col < std::forward<LiteralT>(literal);
+}
+
+template <typename LiteralT, typename Column>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator<(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+    return col > std::forward<LiteralT>(literal);
+}
+
+template <typename LiteralT, typename Column>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator>=(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+    return col <= std::forward<LiteralT>(literal);
+}
+
+template <typename LiteralT, typename Column>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> && 
+         (!std::is_same_v<LiteralT, bool>) && 
+         (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
+auto operator<=(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+    return col >= std::forward<LiteralT>(literal);
+}
+
+// String literal comparisons for SchemaColumnAdapter
+template <typename Column>
+auto operator==(const SchemaColumnAdapter<Column>& col, const char* str) {
+    return col == val(str);
+}
+
+template <typename Column>
+auto operator!=(const SchemaColumnAdapter<Column>& col, const char* str) {
+    return col != val(str);
+}
+
+template <typename Column>
+auto operator==(const char* str, const SchemaColumnAdapter<Column>& col) {
+    return col == str;
+}
+
+template <typename Column>
+auto operator!=(const char* str, const SchemaColumnAdapter<Column>& col) {
+    return col != str;
+}
+
+// Additional column operation overloads to avoid to_expr wrappers
 
 } // namespace query
 } // namespace sqllib
