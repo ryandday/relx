@@ -21,7 +21,7 @@ TEST(AggregateTest, CountColumn) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::count(sqllib::query::to_expr(u.id)), "user_count")
+        sqllib::query::as(sqllib::query::count(u.id), "user_count")
     )
     .from(u);
     
@@ -34,7 +34,7 @@ TEST(AggregateTest, CountDistinct) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::count_distinct(sqllib::query::to_expr(u.age)), "unique_ages")
+        sqllib::query::as(sqllib::query::count_distinct(u.age), "unique_ages")
     )
     .from(u);
     
@@ -47,7 +47,7 @@ TEST(AggregateTest, Sum) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::sum(sqllib::query::to_expr(u.login_count)), "total_logins")
+        sqllib::query::as(sqllib::query::sum(u.login_count), "total_logins")
     )
     .from(u);
     
@@ -60,7 +60,7 @@ TEST(AggregateTest, Average) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::avg(sqllib::query::to_expr(u.age)), "average_age")
+        sqllib::query::as(sqllib::query::avg(u.age), "average_age")
     )
     .from(u);
     
@@ -73,8 +73,8 @@ TEST(AggregateTest, MinMax) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::min(sqllib::query::to_expr(u.age)), "youngest"),
-        sqllib::query::as(sqllib::query::max(sqllib::query::to_expr(u.age)), "oldest")
+        sqllib::query::as(sqllib::query::min(u.age), "youngest"),
+        sqllib::query::as(sqllib::query::max(u.age), "oldest")
     )
     .from(u);
     
@@ -88,8 +88,8 @@ TEST(AggregateTest, MultipleAggregates) {
     
     auto query = sqllib::query::select_expr(
         sqllib::query::as(sqllib::query::count_all(), "total_users"),
-        sqllib::query::as(sqllib::query::avg(sqllib::query::to_expr(u.age)), "average_age"),
-        sqllib::query::as(sqllib::query::sum(sqllib::query::to_expr(u.login_count)), "total_logins")
+        sqllib::query::as(sqllib::query::avg(u.age), "average_age"),
+        sqllib::query::as(sqllib::query::sum(u.login_count), "total_logins")
     )
     .from(u);
     
@@ -103,10 +103,10 @@ TEST(AggregateTest, AggregatesWithWhere) {
     
     auto query = sqllib::query::select_expr(
         sqllib::query::as(sqllib::query::count_all(), "active_users"),
-        sqllib::query::as(sqllib::query::avg(sqllib::query::to_expr(u.age)), "average_age")
+        sqllib::query::as(sqllib::query::avg(u.age), "average_age")
     )
     .from(u)
-    .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(true));
+    .where(u.is_active == true);
     
     std::string expected_sql = "SELECT COUNT(*) AS active_users, AVG(age) AS average_age FROM users WHERE (is_active = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -120,11 +120,11 @@ TEST(AggregateTest, SimpleGroupBy) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.age),
+        u.age,
         sqllib::query::as(sqllib::query::count_all(), "user_count")
     )
     .from(u)
-    .group_by(sqllib::query::to_expr(u.age));
+    .group_by(u.age);
     
     std::string expected_sql = "SELECT age, COUNT(*) AS user_count FROM users GROUP BY age";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -135,15 +135,12 @@ TEST(AggregateTest, GroupByMultipleColumns) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.age),
-        sqllib::query::to_expr(u.is_active),
+        u.age,
+        u.is_active,
         sqllib::query::as(sqllib::query::count_all(), "user_count")
     )
     .from(u)
-    .group_by(
-        sqllib::query::to_expr(u.age),
-        sqllib::query::to_expr(u.is_active)
-    );
+    .group_by(u.age, u.is_active);
     
     std::string expected_sql = "SELECT age, is_active, COUNT(*) AS user_count FROM users GROUP BY age, is_active";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -154,12 +151,12 @@ TEST(AggregateTest, GroupByWithHaving) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.age),
+        u.age,
         sqllib::query::as(sqllib::query::count_all(), "user_count")
     )
     .from(u)
-    .group_by(sqllib::query::to_expr(u.age))
-    .having(sqllib::query::count_all() > sqllib::query::val(5));
+    .group_by(u.age)
+    .having(sqllib::query::count_all() > 5);
     
     std::string expected_sql = "SELECT age, COUNT(*) AS user_count FROM users GROUP BY age HAVING (COUNT(*) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -173,14 +170,14 @@ TEST(AggregateTest, GroupByWithHavingAndWhere) {
     posts p;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(p.user_id),
+        p.user_id,
         sqllib::query::as(sqllib::query::count_all(), "post_count"),
-        sqllib::query::as(sqllib::query::sum(sqllib::query::to_expr(p.views)), "total_views")
+        sqllib::query::as(sqllib::query::sum(p.views), "total_views")
     )
     .from(p)
-    .where(sqllib::query::to_expr(p.is_published) == sqllib::query::val(true))
-    .group_by(sqllib::query::to_expr(p.user_id))
-    .having(sqllib::query::sum(sqllib::query::to_expr(p.views)) > sqllib::query::val(1000));
+    .where(p.is_published == true)
+    .group_by(p.user_id)
+    .having(sqllib::query::sum(p.views) > 1000);
     
     std::string expected_sql = "SELECT user_id, COUNT(*) AS post_count, SUM(views) AS total_views FROM posts WHERE (is_published = ?) GROUP BY user_id HAVING (SUM(views) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -195,11 +192,11 @@ TEST(AggregateTest, GroupByWithOrderBy) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.age),
+        u.age,
         sqllib::query::as(sqllib::query::count_all(), "user_count")
     )
     .from(u)
-    .group_by(sqllib::query::to_expr(u.age))
+    .group_by(u.age)
     .order_by(sqllib::query::desc(sqllib::query::count_all()));
     
     std::string expected_sql = "SELECT age, COUNT(*) AS user_count FROM users GROUP BY age ORDER BY COUNT(*) DESC";
@@ -212,17 +209,14 @@ TEST(AggregateTest, JoinWithGroupBy) {
     posts p;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id),
-        sqllib::query::to_expr(u.name),
-        sqllib::query::as(sqllib::query::count(sqllib::query::to_expr(p.id)), "post_count")
+        u.id,
+        u.name,
+        sqllib::query::as(sqllib::query::count(p.id), "post_count")
     )
     .from(u)
-    .left_join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)))
-    .group_by(
-        sqllib::query::to_expr(u.id),
-        sqllib::query::to_expr(u.name)
-    )
-    .order_by(sqllib::query::desc(sqllib::query::count(sqllib::query::to_expr(p.id))));
+    .left_join(p, sqllib::query::on(u.id == p.user_id))
+    .group_by(u.id, u.name)
+    .order_by(sqllib::query::desc(sqllib::query::count(p.id)));
     
     std::string expected_sql = "SELECT id, name, COUNT(id) AS post_count FROM users LEFT JOIN posts ON (id = user_id) GROUP BY id, name ORDER BY COUNT(id) DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);

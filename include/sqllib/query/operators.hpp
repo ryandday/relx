@@ -20,49 +20,37 @@ namespace schema {
 // Equality comparison with direct values
 template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
 auto operator==(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
-    auto col_expr = query::to_expr(col);
-    auto val_expr = query::val(value);
-    return col_expr == val_expr;
+    return col == query::val(value);
 }
 
 // Inequality comparison with direct values
 template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
 auto operator!=(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
-    auto col_expr = query::to_expr(col);
-    auto val_expr = query::val(value);
-    return col_expr != val_expr;
+    return col != query::val(value);
 }
 
 // Greater than comparison with direct values
 template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
 auto operator>(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
-    auto col_expr = query::to_expr(col);
-    auto val_expr = query::val(value);
-    return col_expr > val_expr;
+    return col > query::val(value);
 }
 
 // Less than comparison with direct values
 template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
 auto operator<(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
-    auto col_expr = query::to_expr(col);
-    auto val_expr = query::val(value);
-    return col_expr < val_expr;
+    return col < query::val(value);
 }
 
 // Greater than or equal comparison with direct values
 template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
 auto operator>=(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
-    auto col_expr = query::to_expr(col);
-    auto val_expr = query::val(value);
-    return col_expr >= val_expr;
+    return col >= query::val(value);
 }
 
 // Less than or equal comparison with direct values
 template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
 auto operator<=(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
-    auto col_expr = query::to_expr(col);
-    auto val_expr = query::val(value);
-    return col_expr <= val_expr;
+    return col <= query::val(value);
 }
 
 // Column to column equality comparison
@@ -967,6 +955,101 @@ auto operator!=(const CoalesceExpr<First, Second, Rest...>& coalesce, const char
 template <SqlExpr First, SqlExpr Second, SqlExpr... Rest>
 auto operator!=(const char* str, const CoalesceExpr<First, Second, Rest...>& coalesce) {
     return coalesce != str;
+}
+
+// Operators for CountAllExpr to work with literals
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator==(const CountAllExpr& expr, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, "=", val_expr);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator==(LiteralT&& literal, const CountAllExpr& expr) {
+    return expr == std::forward<LiteralT>(literal);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator!=(const CountAllExpr& expr, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, "!=", val_expr);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator!=(LiteralT&& literal, const CountAllExpr& expr) {
+    return expr != std::forward<LiteralT>(literal);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>(const CountAllExpr& expr, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, ">", val_expr);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>(LiteralT&& literal, const CountAllExpr& expr) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<decltype(val_expr), CountAllExpr>(val_expr, ">", expr);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<(const CountAllExpr& expr, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, "<", val_expr);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<(LiteralT&& literal, const CountAllExpr& expr) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<decltype(val_expr), CountAllExpr>(val_expr, "<", expr);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>=(const CountAllExpr& expr, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, ">=", val_expr);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>=(LiteralT&& literal, const CountAllExpr& expr) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<decltype(val_expr), CountAllExpr>(val_expr, ">=", expr);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<=(const CountAllExpr& expr, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, "<=", val_expr);
+}
+
+template <typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<=(LiteralT&& literal, const CountAllExpr& expr) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<decltype(val_expr), CountAllExpr>(val_expr, "<=", expr);
 }
 
 } // namespace query

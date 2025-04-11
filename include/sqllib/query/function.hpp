@@ -66,6 +66,32 @@ private:
     std::string func_name_;
 };
 
+/// @brief Expression representing COUNT(*) in SQL
+class CountAllExpr : public ColumnExpression {
+public:
+    std::string to_sql() const override {
+        return "COUNT(*)";
+    }
+
+    std::vector<std::string> bind_params() const override {
+        return {};
+    }
+
+    std::string column_name() const override {
+        return "COUNT(*)";
+    }
+
+    std::string table_name() const override {
+        return "";
+    }
+};
+
+/// @brief COUNT(*) aggregate function
+/// @return A NullaryFunctionExpr representing COUNT(*)
+inline auto count_all() {
+    return CountAllExpr{};
+}
+
 /// @brief COUNT aggregate function
 /// @tparam Expr The expression type
 /// @param expr The expression to count
@@ -75,28 +101,27 @@ auto count(Expr expr) {
     return FunctionExpr<Expr>("COUNT", std::move(expr));
 }
 
-/// @brief COUNT(*) aggregate function
-/// @return A NullaryFunctionExpr representing COUNT(*)
-inline auto count_all() {
-    struct CountAllExpr : public ColumnExpression {
-        std::string to_sql() const override {
-            return "COUNT(*)";
-        }
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto count(const T& column) {
+    return count(to_expr(column));
+}
 
-        std::vector<std::string> bind_params() const override {
-            return {};
-        }
+/// @brief COUNT(DISTINCT expr) aggregate function
+/// @tparam Expr The expression type
+/// @param expr The expression to count distinct values of
+/// @return A FunctionExpr representing COUNT(DISTINCT expr)
+template <SqlExpr Expr>
+auto count_distinct(Expr expr) {
+    return count(distinct(std::move(expr)));
+}
 
-        std::string column_name() const override {
-            return "COUNT(*)";
-        }
-
-        std::string table_name() const override {
-            return "";
-        }
-    };
-    
-    return CountAllExpr{};
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto count_distinct(const T& column) {
+    return count_distinct(to_expr(column));
 }
 
 /// @brief SUM aggregate function
@@ -108,6 +133,13 @@ auto sum(Expr expr) {
     return FunctionExpr<Expr>("SUM", std::move(expr));
 }
 
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto sum(const T& column) {
+    return sum(to_expr(column));
+}
+
 /// @brief AVG aggregate function
 /// @tparam Expr The expression type
 /// @param expr The expression to average
@@ -115,6 +147,13 @@ auto sum(Expr expr) {
 template <SqlExpr Expr>
 auto avg(Expr expr) {
     return FunctionExpr<Expr>("AVG", std::move(expr));
+}
+
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto avg(const T& column) {
+    return avg(to_expr(column));
 }
 
 /// @brief MIN aggregate function
@@ -126,6 +165,13 @@ auto min(Expr expr) {
     return FunctionExpr<Expr>("MIN", std::move(expr));
 }
 
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto min(const T& column) {
+    return min(to_expr(column));
+}
+
 /// @brief MAX aggregate function
 /// @tparam Expr The expression type
 /// @param expr The expression to find maximum of
@@ -133,6 +179,13 @@ auto min(Expr expr) {
 template <SqlExpr Expr>
 auto max(Expr expr) {
     return FunctionExpr<Expr>("MAX", std::move(expr));
+}
+
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto max(const T& column) {
+    return max(to_expr(column));
 }
 
 /// @brief DISTINCT qualifier for an expression
@@ -179,15 +232,6 @@ private:
 template <SqlExpr Expr>
 auto distinct(Expr expr) {
     return DistinctExpr<Expr>(std::move(expr));
-}
-
-/// @brief COUNT(DISTINCT expr) aggregate function
-/// @tparam Expr The expression type
-/// @param expr The expression to count distinct values of
-/// @return A FunctionExpr representing COUNT(DISTINCT expr)
-template <SqlExpr Expr>
-auto count_distinct(Expr expr) {
-    return count(distinct(std::move(expr)));
 }
 
 /// @brief LOWER string function

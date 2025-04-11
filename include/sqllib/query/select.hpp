@@ -434,9 +434,17 @@ public:
     /// @tparam Args The group by expression types
     /// @param args The GROUP BY expressions
     /// @return New SelectQuery with the GROUP BY clause added
-    template <SqlExpr... Args>
+    template <typename... Args>
     auto group_by(const Args&... args) const {
-        using new_group_bys_type = decltype(std::tuple_cat(group_bys_, std::tuple<Args...>{args...}));
+        auto transform_arg = []<typename T>(const T& arg) {
+            if constexpr (ColumnType<T>) {
+                return to_expr(arg);
+            } else {
+                return arg;
+            }
+        };
+
+        using new_group_bys_type = decltype(std::tuple_cat(group_bys_, std::make_tuple(transform_arg(std::declval<Args>())...)));
         
         return SelectQuery<
             Columns, Tables, Joins, Where, new_group_bys_type, OrderBys, HavingCond, LimitVal, OffsetVal, IsDistinct
@@ -445,7 +453,7 @@ public:
             tables_,
             joins_,
             where_,
-            std::tuple_cat(group_bys_, std::tuple<Args...>{args...}),
+            std::tuple_cat(group_bys_, std::make_tuple(transform_arg(args)...)),
             order_bys_,
             having_,
             limit_,

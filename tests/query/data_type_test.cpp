@@ -16,11 +16,11 @@ TEST(DataTypeTest, IntegerTypes) {
     // Test with different integer types
     auto query_int = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.id == sqllib::query::val(42));
+        .where(u.id == 42);
     
     auto query_long = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.id == sqllib::query::val(9223372036854775807L)); // max int64_t
+        .where(u.id == 9223372036854775807L); // max int64_t
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (id = ?)";
     EXPECT_EQ(query_int.to_sql(), expected_sql);
@@ -39,6 +39,43 @@ TEST(DataTypeTest, IntegerTypes) {
 struct score_column {
     static constexpr auto name = "score";
     using value_type = float;
+    
+    // Add operator overloads for direct comparisons
+    template <typename T>
+    requires std::is_arithmetic_v<T>
+    auto operator>(const T& value) const {
+        return sqllib::query::to_expr(*this) > sqllib::query::val(value);
+    }
+    
+    template <typename T>
+    requires std::is_arithmetic_v<T>
+    auto operator<(const T& value) const {
+        return sqllib::query::to_expr(*this) < sqllib::query::val(value);
+    }
+    
+    template <typename T>
+    requires std::is_arithmetic_v<T>
+    auto operator>=(const T& value) const {
+        return sqllib::query::to_expr(*this) >= sqllib::query::val(value);
+    }
+    
+    template <typename T>
+    requires std::is_arithmetic_v<T>
+    auto operator<=(const T& value) const {
+        return sqllib::query::to_expr(*this) <= sqllib::query::val(value);
+    }
+    
+    template <typename T>
+    requires std::is_arithmetic_v<T>
+    auto operator==(const T& value) const {
+        return sqllib::query::to_expr(*this) == sqllib::query::val(value);
+    }
+    
+    template <typename T>
+    requires std::is_arithmetic_v<T>
+    auto operator!=(const T& value) const {
+        return sqllib::query::to_expr(*this) != sqllib::query::val(value);
+    }
 };
 
 // Test for floating point types
@@ -51,11 +88,11 @@ TEST(DataTypeTest, FloatingPointTypes) {
     // Test with different floating point values
     auto query_float = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(sc) > sqllib::query::val(3.14159f));
+        .where(sc > 3.14159f);
     
     auto query_double = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(sc) > sqllib::query::val(2.7182818284590452));
+        .where(sc > 2.7182818284590452);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (score > ?)";
     EXPECT_EQ(query_float.to_sql(), expected_sql);
@@ -125,7 +162,7 @@ TEST(DataTypeTest, OptionalTypes) {
     // Create separate queries for present and absent values
     auto query_with_value = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.bio == sqllib::query::val("Optional string"));
+        .where(u.bio == "Optional string");
         
     auto query_with_null = sqllib::query::select(u.id, u.name)
         .from(u)
@@ -189,7 +226,7 @@ TEST(DataTypeTest, BooleanTypes) {
     // Test with boolean values in different contexts
     auto query_bool_equals = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.is_active == sqllib::query::val(true));
+        .where(u.is_active == true);
     
     auto query_bool_not = sqllib::query::select(u.id, u.name)
         .from(u)
@@ -198,7 +235,7 @@ TEST(DataTypeTest, BooleanTypes) {
     // Now we can use the logical operator directly without namespace qualification
     auto query_bool_and = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.is_active && (u.age > sqllib::query::val(18)));
+        .where(u.is_active && (u.age > 18));
     
     std::string expected_equals_sql = "SELECT id, name FROM users WHERE (is_active = ?)";
     EXPECT_EQ(query_bool_equals.to_sql(), expected_equals_sql);
@@ -268,7 +305,7 @@ TEST(DataTypeTest, DirectLiteralComparisons) {
     auto sc = score_column{};
     auto query_float_literal = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(sc) > sqllib::query::val(3.14159));
+        .where(sc > 3.14159);
     
     auto query_combined_literal = sqllib::query::select(u.id, u.name)
         .from(u)
