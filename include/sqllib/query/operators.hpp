@@ -129,6 +129,34 @@ auto operator!(const column<Name, bool, DefaultValueType>& col) {
     return !col_expr;
 }
 
+// Logical AND operator between a column and a query::SqlExpr
+template <FixedString Name, typename DefaultValueType, query::SqlExpr Expr>
+auto operator&&(const column<Name, bool, DefaultValueType>& col, const Expr& expr) {
+    auto col_expr = query::to_expr(col);
+    return col_expr && expr;
+}
+
+// Logical AND operator between a query::SqlExpr and a column (reverse)
+template <query::SqlExpr Expr, FixedString Name, typename DefaultValueType>
+auto operator&&(const Expr& expr, const column<Name, bool, DefaultValueType>& col) {
+    auto col_expr = query::to_expr(col);
+    return expr && col_expr;
+}
+
+// Logical OR operator between a column and a query::SqlExpr
+template <FixedString Name, typename DefaultValueType, query::SqlExpr Expr>
+auto operator||(const column<Name, bool, DefaultValueType>& col, const Expr& expr) {
+    auto col_expr = query::to_expr(col);
+    return col_expr || expr;
+}
+
+// Logical OR operator between a query::SqlExpr and a column (reverse)
+template <query::SqlExpr Expr, FixedString Name, typename DefaultValueType>
+auto operator||(const Expr& expr, const column<Name, bool, DefaultValueType>& col) {
+    auto col_expr = query::to_expr(col);
+    return expr || col_expr;
+}
+
 // Symmetrical operators (value on left, column on right)
 
 // Equality comparison with direct values (reversed)

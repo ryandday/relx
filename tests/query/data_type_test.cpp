@@ -195,10 +195,10 @@ TEST(DataTypeTest, BooleanTypes) {
         .from(u)
         .where(!u.is_active);
     
+    // Now we can use the logical operator directly without namespace qualification
     auto query_bool_and = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.is_active) && 
-               (u.age > sqllib::query::val(18)));
+        .where(u.is_active && (u.age > sqllib::query::val(18)));
     
     std::string expected_equals_sql = "SELECT id, name FROM users WHERE (is_active = ?)";
     EXPECT_EQ(query_bool_equals.to_sql(), expected_equals_sql);
