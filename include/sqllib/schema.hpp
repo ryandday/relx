@@ -10,7 +10,7 @@
 #include "schema/default_value.hpp"
 #include "schema/check_constraint.hpp"
 #include "schema/unique_constraint.hpp"
-
+#include "query/operators.hpp"
 /**
  * @brief SQLlib - A type-safe SQL library
  * 
@@ -122,5 +122,12 @@ namespace sqllib {
  * sqllib::schema::unique_constraint<&user::email> unique_email;
  * sqllib::schema::composite_unique_constraint<&user::first_name, &user::last_name> unique_name;
  */
+
+// Re-export all schema types in the sqllib namespace
+using schema::FixedString;
+using schema::column;
+using schema::column_traits;
+using schema::DefaultValue;
+using schema::null_default;
 
 } // namespace sqllib

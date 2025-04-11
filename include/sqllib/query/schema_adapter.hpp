@@ -2,6 +2,7 @@
 
 #include "core.hpp"
 #include "column_expression.hpp"
+#include "meta.hpp"
 #include "../schema/table.hpp"
 #include "../schema/column.hpp"
 #include <string>
@@ -45,6 +46,14 @@ public:
 private:
     const C& col_;
     std::string_view table_name_;
+    
+    std::string qualified_name() const {
+        if (table_name_.empty()) {
+            return std::string(C::name);
+        } else {
+            return std::string(table_name_) + "." + std::string(C::name);
+        }
+    }
 };
 
 /// @brief Adapter to convert schema::table to work with query builder

@@ -1,382 +1,257 @@
 #pragma once
 
-#include "core.hpp"
-#include "column_expression.hpp"
-#include "condition.hpp"
-#include "schema_adapter.hpp"
-#include "value.hpp"
-#include <string>
-#include <utility>
-#include <concepts>
-#include <type_traits>
+#include "../schema/column.hpp"
+#include "../query/schema_adapter.hpp"
+#include "../query/value.hpp"
+#include "../query/condition.hpp"
+#include "../query/meta.hpp"
 
 namespace sqllib {
+namespace schema {
+
+// Binary comparison operators for columns
+
+// Equality comparison with direct values
+template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
+auto operator==(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
+    auto col_expr = query::to_expr(col);
+    auto val_expr = query::val(value);
+    return col_expr == val_expr;
+}
+
+// Inequality comparison with direct values
+template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
+auto operator!=(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
+    auto col_expr = query::to_expr(col);
+    auto val_expr = query::val(value);
+    return col_expr != val_expr;
+}
+
+// Greater than comparison with direct values
+template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
+auto operator>(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
+    auto col_expr = query::to_expr(col);
+    auto val_expr = query::val(value);
+    return col_expr > val_expr;
+}
+
+// Less than comparison with direct values
+template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
+auto operator<(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
+    auto col_expr = query::to_expr(col);
+    auto val_expr = query::val(value);
+    return col_expr < val_expr;
+}
+
+// Greater than or equal comparison with direct values
+template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
+auto operator>=(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
+    auto col_expr = query::to_expr(col);
+    auto val_expr = query::val(value);
+    return col_expr >= val_expr;
+}
+
+// Less than or equal comparison with direct values
+template <FixedString Name, typename T, typename DefaultValueType, typename ValueType>
+auto operator<=(const column<Name, T, DefaultValueType>& col, const ValueType& value) {
+    auto col_expr = query::to_expr(col);
+    auto val_expr = query::val(value);
+    return col_expr <= val_expr;
+}
+
+// Column to column equality comparison
+template <FixedString Name1, typename T1, typename DefaultValueType1,
+          FixedString Name2, typename T2, typename DefaultValueType2>
+auto operator==(const column<Name1, T1, DefaultValueType1>& col1, 
+                const column<Name2, T2, DefaultValueType2>& col2) {
+    auto col1_expr = query::to_expr(col1);
+    auto col2_expr = query::to_expr(col2);
+    return col1_expr == col2_expr;
+}
+
+// Column to column inequality comparison
+template <FixedString Name1, typename T1, typename DefaultValueType1,
+          FixedString Name2, typename T2, typename DefaultValueType2>
+auto operator!=(const column<Name1, T1, DefaultValueType1>& col1, 
+                const column<Name2, T2, DefaultValueType2>& col2) {
+    auto col1_expr = query::to_expr(col1);
+    auto col2_expr = query::to_expr(col2);
+    return col1_expr != col2_expr;
+}
+
+// Column to column greater than comparison
+template <FixedString Name1, typename T1, typename DefaultValueType1,
+          FixedString Name2, typename T2, typename DefaultValueType2>
+auto operator>(const column<Name1, T1, DefaultValueType1>& col1, 
+               const column<Name2, T2, DefaultValueType2>& col2) {
+    auto col1_expr = query::to_expr(col1);
+    auto col2_expr = query::to_expr(col2);
+    return col1_expr > col2_expr;
+}
+
+// Column to column less than comparison
+template <FixedString Name1, typename T1, typename DefaultValueType1,
+          FixedString Name2, typename T2, typename DefaultValueType2>
+auto operator<(const column<Name1, T1, DefaultValueType1>& col1, 
+               const column<Name2, T2, DefaultValueType2>& col2) {
+    auto col1_expr = query::to_expr(col1);
+    auto col2_expr = query::to_expr(col2);
+    return col1_expr < col2_expr;
+}
+
+// Column to column greater than or equal comparison
+template <FixedString Name1, typename T1, typename DefaultValueType1,
+          FixedString Name2, typename T2, typename DefaultValueType2>
+auto operator>=(const column<Name1, T1, DefaultValueType1>& col1, 
+                const column<Name2, T2, DefaultValueType2>& col2) {
+    auto col1_expr = query::to_expr(col1);
+    auto col2_expr = query::to_expr(col2);
+    return col1_expr >= col2_expr;
+}
+
+// Column to column less than or equal comparison
+template <FixedString Name1, typename T1, typename DefaultValueType1,
+          FixedString Name2, typename T2, typename DefaultValueType2>
+auto operator<=(const column<Name1, T1, DefaultValueType1>& col1, 
+                const column<Name2, T2, DefaultValueType2>& col2) {
+    auto col1_expr = query::to_expr(col1);
+    auto col2_expr = query::to_expr(col2);
+    return col1_expr <= col2_expr;
+}
+
+// Specialized operators for common types
+
+// Boolean negation operator
+template <FixedString Name, typename DefaultValueType>
+auto operator!(const column<Name, bool, DefaultValueType>& col) {
+    auto col_expr = query::to_expr(col);
+    // Using the logical NOT operator
+    return !col_expr;
+}
+
+// Symmetrical operators (value on left, column on right)
+
+// Equality comparison with direct values (reversed)
+template <typename ValueType, FixedString Name, typename T, typename DefaultValueType>
+auto operator==(const ValueType& value, const column<Name, T, DefaultValueType>& col) {
+    return col == value;
+}
+
+// Inequality comparison with direct values (reversed)
+template <typename ValueType, FixedString Name, typename T, typename DefaultValueType>
+auto operator!=(const ValueType& value, const column<Name, T, DefaultValueType>& col) {
+    return col != value;
+}
+
+// Greater than comparison with direct values (reversed)
+template <typename ValueType, FixedString Name, typename T, typename DefaultValueType>
+auto operator>(const ValueType& value, const column<Name, T, DefaultValueType>& col) {
+    return col < value;
+}
+
+// Less than comparison with direct values (reversed)
+template <typename ValueType, FixedString Name, typename T, typename DefaultValueType>
+auto operator<(const ValueType& value, const column<Name, T, DefaultValueType>& col) {
+    return col > value;
+}
+
+// Greater than or equal comparison with direct values (reversed)
+template <typename ValueType, FixedString Name, typename T, typename DefaultValueType>
+auto operator>=(const ValueType& value, const column<Name, T, DefaultValueType>& col) {
+    return col <= value;
+}
+
+// Less than or equal comparison with direct values (reversed)
+template <typename ValueType, FixedString Name, typename T, typename DefaultValueType>
+auto operator<=(const ValueType& value, const column<Name, T, DefaultValueType>& col) {
+    return col >= value;
+}
+
+} // namespace schema
+
 namespace query {
 
-// Concepts to constrain template parameters
-template <typename T>
-concept SimpleValue = std::is_arithmetic_v<T> || 
-                      std::convertible_to<T, std::string> ||
-                      std::convertible_to<T, std::string_view>;
+// Column to SQL Value comparisons (for _sql literals)
 
-template <typename T>
-concept SqlValue = std::same_as<T, Value<typename T::value_type>>;
-
-// Specializations for various operand combinations
-
-//
-// EQUALITY OPERATORS (==)
-//
-
-/// @brief Overload for equality comparison between column and a simple value type
-/// @tparam Col The column type
-/// @tparam T The simple value type (numbers, strings)
-/// @param col The column
-/// @param value The value
-/// @return A condition expression
-template <ColumnType Col, SimpleValue T>
-auto operator==(const Col& col, const T& value) {
-    return to_expr(col) == val(value);
+// Equality comparison with Value
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename ValueT>
+auto operator==(const schema::column<Name, T, DefaultValueType>& col, const Value<ValueT>& value) {
+    auto col_expr = to_expr(col);
+    return col_expr == value;
 }
 
-/// @brief Overload for equality comparison between column and a Value object
-/// @tparam Col The column type
-/// @tparam V The value type
-/// @param col The column
-/// @param value The value wrapper
-/// @return A condition expression
-template <ColumnType Col, typename V>
-auto operator==(const Col& col, const Value<V>& value) {
-    return to_expr(col) == value; // No need to wrap value again
+// Inequality comparison with Value
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename ValueT>
+auto operator!=(const schema::column<Name, T, DefaultValueType>& col, const Value<ValueT>& value) {
+    auto col_expr = to_expr(col);
+    return col_expr != value;
 }
 
-/// @brief Overload for equality comparison between value and column
-/// @tparam T The simple value type
-/// @tparam Col The column type
-/// @param value The value
-/// @param col The column
-/// @return A condition expression
-template <SimpleValue T, ColumnType Col>
-auto operator==(const T& value, const Col& col) {
-    return val(value) == to_expr(col);
+// Greater than comparison with Value
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename ValueT>
+auto operator>(const schema::column<Name, T, DefaultValueType>& col, const Value<ValueT>& value) {
+    auto col_expr = to_expr(col);
+    return col_expr > value;
 }
 
-/// @brief Overload for equality comparison between a Value object and column
-/// @tparam V The value type
-/// @tparam Col The column type
-/// @param value The value wrapper
-/// @param col The column
-/// @return A condition expression
-template <typename V, ColumnType Col>
-auto operator==(const Value<V>& value, const Col& col) {
-    return value == to_expr(col); // No need to wrap value again
+// Less than comparison with Value
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename ValueT>
+auto operator<(const schema::column<Name, T, DefaultValueType>& col, const Value<ValueT>& value) {
+    auto col_expr = to_expr(col);
+    return col_expr < value;
 }
 
-/// @brief Overload for equality comparison between two columns
-/// @tparam Col1 The first column type
-/// @tparam Col2 The second column type
-/// @param col1 The first column
-/// @param col2 The second column
-/// @return A condition expression
-template <ColumnType Col1, ColumnType Col2>
-auto operator==(const Col1& col1, const Col2& col2) {
-    return to_expr(col1) == to_expr(col2);
+// Greater than or equal comparison with Value
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename ValueT>
+auto operator>=(const schema::column<Name, T, DefaultValueType>& col, const Value<ValueT>& value) {
+    auto col_expr = to_expr(col);
+    return col_expr >= value;
 }
 
-//
-// INEQUALITY OPERATORS (!=)
-//
-
-/// @brief Overload for inequality comparison between column and a simple value type
-/// @tparam Col The column type
-/// @tparam T The simple value type (numbers, strings)
-/// @param col The column
-/// @param value The value
-/// @return A condition expression
-template <ColumnType Col, SimpleValue T>
-auto operator!=(const Col& col, const T& value) {
-    return to_expr(col) != val(value);
+// Less than or equal comparison with Value
+template <schema::FixedString Name, typename T, typename DefaultValueType, typename ValueT>
+auto operator<=(const schema::column<Name, T, DefaultValueType>& col, const Value<ValueT>& value) {
+    auto col_expr = to_expr(col);
+    return col_expr <= value;
 }
 
-/// @brief Overload for inequality comparison between column and a Value object
-/// @tparam Col The column type
-/// @tparam V The value type
-/// @param col The column
-/// @param value The value wrapper
-/// @return A condition expression
-template <ColumnType Col, typename V>
-auto operator!=(const Col& col, const Value<V>& value) {
-    return to_expr(col) != value; // No need to wrap value again
+// Symmetrical operators for Value (Value on left, column on right)
+
+// Equality comparison with Value (reversed)
+template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator==(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
+    return col == value;
 }
 
-/// @brief Overload for inequality comparison between value and column
-/// @tparam T The simple value type
-/// @tparam Col The column type
-/// @param value The value
-/// @param col The column
-/// @return A condition expression
-template <SimpleValue T, ColumnType Col>
-auto operator!=(const T& value, const Col& col) {
-    return val(value) != to_expr(col);
+// Inequality comparison with Value (reversed)
+template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator!=(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
+    return col != value;
 }
 
-/// @brief Overload for inequality comparison between a Value object and column
-/// @tparam V The value type
-/// @tparam Col The column type
-/// @param value The value wrapper
-/// @param col The column
-/// @return A condition expression
-template <typename V, ColumnType Col>
-auto operator!=(const Value<V>& value, const Col& col) {
-    return value != to_expr(col); // No need to wrap value again
+// Greater than comparison with Value (reversed)
+template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator>(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
+    return col < value;
 }
 
-/// @brief Overload for inequality comparison between two columns
-/// @tparam Col1 The first column type
-/// @tparam Col2 The second column type
-/// @param col1 The first column
-/// @param col2 The second column
-/// @return A condition expression
-template <ColumnType Col1, ColumnType Col2>
-auto operator!=(const Col1& col1, const Col2& col2) {
-    return to_expr(col1) != to_expr(col2);
+// Less than comparison with Value (reversed)
+template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator<(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
+    return col > value;
 }
 
-//
-// GREATER THAN OPERATORS (>)
-//
-
-/// @brief Overload for greater than comparison between column and a simple value type
-/// @tparam Col The column type
-/// @tparam T The simple value type (numbers, strings)
-/// @param col The column
-/// @param value The value
-/// @return A condition expression
-template <ColumnType Col, SimpleValue T>
-auto operator>(const Col& col, const T& value) {
-    return to_expr(col) > val(value);
+// Greater than or equal comparison with Value (reversed)
+template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator>=(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
+    return col <= value;
 }
 
-/// @brief Overload for greater than comparison between column and a Value object
-/// @tparam Col The column type
-/// @tparam V The value type
-/// @param col The column
-/// @param value The value wrapper
-/// @return A condition expression
-template <ColumnType Col, typename V>
-auto operator>(const Col& col, const Value<V>& value) {
-    return to_expr(col) > value; // No need to wrap value again
-}
-
-/// @brief Overload for greater than comparison between value and column
-/// @tparam T The simple value type
-/// @tparam Col The column type
-/// @param value The value
-/// @param col The column
-/// @return A condition expression
-template <SimpleValue T, ColumnType Col>
-auto operator>(const T& value, const Col& col) {
-    return val(value) > to_expr(col);
-}
-
-/// @brief Overload for greater than comparison between a Value object and column
-/// @tparam V The value type
-/// @tparam Col The column type
-/// @param value The value wrapper
-/// @param col The column
-/// @return A condition expression
-template <typename V, ColumnType Col>
-auto operator>(const Value<V>& value, const Col& col) {
-    return value > to_expr(col); // No need to wrap value again
-}
-
-/// @brief Overload for greater than comparison between two columns
-/// @tparam Col1 The first column type
-/// @tparam Col2 The second column type
-/// @param col1 The first column
-/// @param col2 The second column
-/// @return A condition expression
-template <ColumnType Col1, ColumnType Col2>
-auto operator>(const Col1& col1, const Col2& col2) {
-    return to_expr(col1) > to_expr(col2);
-}
-
-//
-// LESS THAN OPERATORS (<)
-//
-
-/// @brief Overload for less than comparison between column and a simple value type
-/// @tparam Col The column type
-/// @tparam T The simple value type (numbers, strings)
-/// @param col The column
-/// @param value The value
-/// @return A condition expression
-template <ColumnType Col, SimpleValue T>
-auto operator<(const Col& col, const T& value) {
-    return to_expr(col) < val(value);
-}
-
-/// @brief Overload for less than comparison between column and a Value object
-/// @tparam Col The column type
-/// @tparam V The value type
-/// @param col The column
-/// @param value The value wrapper
-/// @return A condition expression
-template <ColumnType Col, typename V>
-auto operator<(const Col& col, const Value<V>& value) {
-    return to_expr(col) < value; // No need to wrap value again
-}
-
-/// @brief Overload for less than comparison between value and column
-/// @tparam T The simple value type
-/// @tparam Col The column type
-/// @param value The value
-/// @param col The column
-/// @return A condition expression
-template <SimpleValue T, ColumnType Col>
-auto operator<(const T& value, const Col& col) {
-    return val(value) < to_expr(col);
-}
-
-/// @brief Overload for less than comparison between a Value object and column
-/// @tparam V The value type
-/// @tparam Col The column type
-/// @param value The value wrapper
-/// @param col The column
-/// @return A condition expression
-template <typename V, ColumnType Col>
-auto operator<(const Value<V>& value, const Col& col) {
-    return value < to_expr(col); // No need to wrap value again
-}
-
-/// @brief Overload for less than comparison between two columns
-/// @tparam Col1 The first column type
-/// @tparam Col2 The second column type
-/// @param col1 The first column
-/// @param col2 The second column
-/// @return A condition expression
-template <ColumnType Col1, ColumnType Col2>
-auto operator<(const Col1& col1, const Col2& col2) {
-    return to_expr(col1) < to_expr(col2);
-}
-
-//
-// GREATER THAN OR EQUAL OPERATORS (>=)
-//
-
-/// @brief Overload for greater than or equal comparison between column and a simple value type
-/// @tparam Col The column type
-/// @tparam T The simple value type (numbers, strings)
-/// @param col The column
-/// @param value The value
-/// @return A condition expression
-template <ColumnType Col, SimpleValue T>
-auto operator>=(const Col& col, const T& value) {
-    return to_expr(col) >= val(value);
-}
-
-/// @brief Overload for greater than or equal comparison between column and a Value object
-/// @tparam Col The column type
-/// @tparam V The value type
-/// @param col The column
-/// @param value The value wrapper
-/// @return A condition expression
-template <ColumnType Col, typename V>
-auto operator>=(const Col& col, const Value<V>& value) {
-    return to_expr(col) >= value; // No need to wrap value again
-}
-
-/// @brief Overload for greater than or equal comparison between value and column
-/// @tparam T The simple value type
-/// @tparam Col The column type
-/// @param value The value
-/// @param col The column
-/// @return A condition expression
-template <SimpleValue T, ColumnType Col>
-auto operator>=(const T& value, const Col& col) {
-    return val(value) >= to_expr(col);
-}
-
-/// @brief Overload for greater than or equal comparison between a Value object and column
-/// @tparam V The value type
-/// @tparam Col The column type
-/// @param value The value wrapper
-/// @param col The column
-/// @return A condition expression
-template <typename V, ColumnType Col>
-auto operator>=(const Value<V>& value, const Col& col) {
-    return value >= to_expr(col); // No need to wrap value again
-}
-
-/// @brief Overload for greater than or equal comparison between two columns
-/// @tparam Col1 The first column type
-/// @tparam Col2 The second column type
-/// @param col1 The first column
-/// @param col2 The second column
-/// @return A condition expression
-template <ColumnType Col1, ColumnType Col2>
-auto operator>=(const Col1& col1, const Col2& col2) {
-    return to_expr(col1) >= to_expr(col2);
-}
-
-//
-// LESS THAN OR EQUAL OPERATORS (<=)
-//
-
-/// @brief Overload for less than or equal comparison between column and a simple value type
-/// @tparam Col The column type
-/// @tparam T The simple value type (numbers, strings)
-/// @param col The column
-/// @param value The value
-/// @return A condition expression
-template <ColumnType Col, SimpleValue T>
-auto operator<=(const Col& col, const T& value) {
-    return to_expr(col) <= val(value);
-}
-
-/// @brief Overload for less than or equal comparison between column and a Value object
-/// @tparam Col The column type
-/// @tparam V The value type
-/// @param col The column
-/// @param value The value wrapper
-/// @return A condition expression
-template <ColumnType Col, typename V>
-auto operator<=(const Col& col, const Value<V>& value) {
-    return to_expr(col) <= value; // No need to wrap value again
-}
-
-/// @brief Overload for less than or equal comparison between value and column
-/// @tparam T The simple value type
-/// @tparam Col The column type
-/// @param value The value
-/// @param col The column
-/// @return A condition expression
-template <SimpleValue T, ColumnType Col>
-auto operator<=(const T& value, const Col& col) {
-    return val(value) <= to_expr(col);
-}
-
-/// @brief Overload for less than or equal comparison between a Value object and column
-/// @tparam V The value type
-/// @tparam Col The column type
-/// @param value The value wrapper
-/// @param col The column
-/// @return A condition expression
-template <typename V, ColumnType Col>
-auto operator<=(const Value<V>& value, const Col& col) {
-    return value <= to_expr(col); // No need to wrap value again
-}
-
-/// @brief Overload for less than or equal comparison between two columns
-/// @tparam Col1 The first column type
-/// @tparam Col2 The second column type
-/// @param col1 The first column
-/// @param col2 The second column
-/// @return A condition expression
-template <ColumnType Col1, ColumnType Col2>
-auto operator<=(const Col1& col1, const Col2& col2) {
-    return to_expr(col1) <= to_expr(col2);
+// Less than or equal comparison with Value (reversed)
+template <typename ValueT, schema::FixedString Name, typename T, typename DefaultValueType>
+auto operator<=(const Value<ValueT>& value, const schema::column<Name, T, DefaultValueType>& col) {
+    return col >= value;
 }
 
 } // namespace query
-} // namespace sqllib 
+} // namespace sqllib
