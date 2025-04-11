@@ -5,6 +5,12 @@
 #include "../query/value.hpp"
 #include "../query/condition.hpp"
 #include "../query/meta.hpp"
+#include "../query/function.hpp"
+
+#include <iostream>
+#include <string>
+#include <type_traits>
+#include <vector>
 
 namespace sqllib {
 namespace schema {
@@ -779,6 +785,188 @@ requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
          std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
 auto operator<=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
     return col >= std::forward<LiteralT>(literal);
+}
+
+// Operators for FunctionExpr to work with literals
+
+// For FunctionExpr == literals
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator==(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, "=", val_expr);
+}
+
+// For literals == FunctionExpr
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator==(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+    return func == std::forward<LiteralT>(literal);
+}
+
+// Special case for string literals with FunctionExpr
+template <SqlExpr Expr>
+auto operator==(const FunctionExpr<Expr>& func, const char* str) {
+    auto str_val = val(str);
+    return BinaryCondition<FunctionExpr<Expr>, decltype(str_val)>(func, "=", str_val);
+}
+
+template <SqlExpr Expr>
+auto operator==(const char* str, const FunctionExpr<Expr>& func) {
+    return func == str;
+}
+
+// For FunctionExpr != literals
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator!=(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, "!=", val_expr);
+}
+
+// For literals != FunctionExpr
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator!=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+    return func != std::forward<LiteralT>(literal);
+}
+
+// Special case for string literals with FunctionExpr
+template <SqlExpr Expr>
+auto operator!=(const FunctionExpr<Expr>& func, const char* str) {
+    auto str_val = val(str);
+    return BinaryCondition<FunctionExpr<Expr>, decltype(str_val)>(func, "!=", str_val);
+}
+
+template <SqlExpr Expr>
+auto operator!=(const char* str, const FunctionExpr<Expr>& func) {
+    return func != str;
+}
+
+// For other comparison operators (>, <, >=, <=)
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, ">", val_expr);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, "<", val_expr);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>=(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, ">=", val_expr);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<=(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, "<=", val_expr);
+}
+
+// Reversed comparison operators with literals
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+    return func < std::forward<LiteralT>(literal);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+    return func > std::forward<LiteralT>(literal);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator>=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+    return func <= std::forward<LiteralT>(literal);
+}
+
+template <SqlExpr Expr, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator<=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+    return func >= std::forward<LiteralT>(literal);
+}
+
+// Operators for CoalesceExpr to work with literals
+
+// For CoalesceExpr == literals
+template <SqlExpr First, SqlExpr Second, SqlExpr... Rest, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator==(const CoalesceExpr<First, Second, Rest...>& coalesce, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(val_expr)>(coalesce, "=", val_expr);
+}
+
+// For literals == CoalesceExpr
+template <SqlExpr First, SqlExpr Second, SqlExpr... Rest, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator==(LiteralT&& literal, const CoalesceExpr<First, Second, Rest...>& coalesce) {
+    return coalesce == std::forward<LiteralT>(literal);
+}
+
+// Special case for string literals with CoalesceExpr
+template <SqlExpr First, SqlExpr Second, SqlExpr... Rest>
+auto operator==(const CoalesceExpr<First, Second, Rest...>& coalesce, const char* str) {
+    auto str_val = val(str);
+    return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(str_val)>(coalesce, "=", str_val);
+}
+
+template <SqlExpr First, SqlExpr Second, SqlExpr... Rest>
+auto operator==(const char* str, const CoalesceExpr<First, Second, Rest...>& coalesce) {
+    return coalesce == str;
+}
+
+// For CoalesceExpr != literals
+template <SqlExpr First, SqlExpr Second, SqlExpr... Rest, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator!=(const CoalesceExpr<First, Second, Rest...>& coalesce, LiteralT&& literal) {
+    auto val_expr = val(std::forward<LiteralT>(literal));
+    return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(val_expr)>(coalesce, "!=", val_expr);
+}
+
+// For literals != CoalesceExpr
+template <SqlExpr First, SqlExpr Second, SqlExpr... Rest, typename LiteralT>
+requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
+         std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
+auto operator!=(LiteralT&& literal, const CoalesceExpr<First, Second, Rest...>& coalesce) {
+    return coalesce != std::forward<LiteralT>(literal);
+}
+
+// Special case for string literals with CoalesceExpr
+template <SqlExpr First, SqlExpr Second, SqlExpr... Rest>
+auto operator!=(const CoalesceExpr<First, Second, Rest...>& coalesce, const char* str) {
+    auto str_val = val(str);
+    return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(str_val)>(coalesce, "!=", str_val);
+}
+
+template <SqlExpr First, SqlExpr Second, SqlExpr... Rest>
+auto operator!=(const char* str, const CoalesceExpr<First, Second, Rest...>& coalesce) {
+    return coalesce != str;
 }
 
 } // namespace query

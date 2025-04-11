@@ -199,6 +199,13 @@ auto lower(Expr expr) {
     return FunctionExpr<Expr>("LOWER", std::move(expr));
 }
 
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto lower(const T& column) {
+    return lower(to_expr(column));
+}
+
 /// @brief UPPER string function
 /// @tparam Expr The expression type
 /// @param expr The string expression to convert to uppercase
@@ -206,6 +213,13 @@ auto lower(Expr expr) {
 template <SqlExpr Expr>
 auto upper(Expr expr) {
     return FunctionExpr<Expr>("UPPER", std::move(expr));
+}
+
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto upper(const T& column) {
+    return upper(to_expr(column));
 }
 
 /// @brief LENGTH string function
@@ -217,6 +231,13 @@ auto length(Expr expr) {
     return FunctionExpr<Expr>("LENGTH", std::move(expr));
 }
 
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto length(const T& column) {
+    return length(to_expr(column));
+}
+
 /// @brief TRIM string function
 /// @tparam Expr The expression type
 /// @param expr The string expression to trim
@@ -224,6 +245,13 @@ auto length(Expr expr) {
 template <SqlExpr Expr>
 auto trim(Expr expr) {
     return FunctionExpr<Expr>("TRIM", std::move(expr));
+}
+
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto trim(const T& column) {
+    return trim(to_expr(column));
 }
 
 /// @brief COALESCE function
@@ -297,6 +325,41 @@ auto coalesce(First first, Second second, Rest... rest) {
     return CoalesceExpr<First, Second, Rest...>(
         std::move(first), std::move(second), std::move(rest)...
     );
+}
+
+// Overload for first argument as column type
+template <typename T, SqlExpr Second, SqlExpr... Rest>
+requires ColumnType<T>
+auto coalesce(const T& column, Second second, Rest... rest) {
+    return coalesce(to_expr(column), std::move(second), std::move(rest)...);
+}
+
+// Overload for first and second arguments as column types
+template <typename T1, typename T2, SqlExpr... Rest>
+requires ColumnType<T1> && ColumnType<T2>
+auto coalesce(const T1& column1, const T2& column2, Rest... rest) {
+    return coalesce(to_expr(column1), to_expr(column2), std::move(rest)...);
+}
+
+// Overload for column and string literal
+template <typename T>
+requires ColumnType<T>
+auto coalesce(const T& column, const char* str) {
+    return coalesce(to_expr(column), val(str));
+}
+
+// Overload for column and std::string
+template <typename T>
+requires ColumnType<T>
+auto coalesce(const T& column, const std::string& str) {
+    return coalesce(to_expr(column), val(str));
+}
+
+// Overload for column, column, and string literal
+template <typename T1, typename T2>
+requires ColumnType<T1> && ColumnType<T2>
+auto coalesce(const T1& column1, const T2& column2, const char* str) {
+    return coalesce(to_expr(column1), to_expr(column2), val(str));
 }
 
 // First define CaseExpr class fully

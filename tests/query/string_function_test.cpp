@@ -8,8 +8,8 @@ TEST(StringFunctionTest, Lower) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id),
-        sqllib::query::as(sqllib::query::lower(sqllib::query::to_expr(u.name)), "lowercase_name")
+        u.id,
+        sqllib::query::as(sqllib::query::lower(u.name), "lowercase_name")
     )
     .from(u);
     
@@ -22,8 +22,8 @@ TEST(StringFunctionTest, Upper) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id),
-        sqllib::query::as(sqllib::query::upper(sqllib::query::to_expr(u.name)), "uppercase_name")
+        u.id,
+        sqllib::query::as(sqllib::query::upper(u.name), "uppercase_name")
     )
     .from(u);
     
@@ -36,8 +36,8 @@ TEST(StringFunctionTest, Length) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.name),
-        sqllib::query::as(sqllib::query::length(sqllib::query::to_expr(u.name)), "name_length")
+        u.name,
+        sqllib::query::as(sqllib::query::length(u.name), "name_length")
     )
     .from(u);
     
@@ -50,8 +50,8 @@ TEST(StringFunctionTest, Trim) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id),
-        sqllib::query::as(sqllib::query::trim(sqllib::query::to_expr(u.name)), "trimmed_name")
+        u.id,
+        sqllib::query::as(sqllib::query::trim(u.name), "trimmed_name")
     )
     .from(u);
     
@@ -65,7 +65,7 @@ TEST(StringFunctionTest, StringFunctionInWhere) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::upper(sqllib::query::to_expr(u.email)) == sqllib::query::val("EMAIL@EXAMPLE.COM"));
+        .where(sqllib::query::upper(u.email) == "EMAIL@EXAMPLE.COM");
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (UPPER(email) = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -80,7 +80,7 @@ TEST(StringFunctionTest, LengthInCondition) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::length(sqllib::query::to_expr(u.name)) > sqllib::query::val(5));
+        .where(sqllib::query::length(u.name) > 5);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (LENGTH(name) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -97,8 +97,8 @@ TEST(StringFunctionTest, CombinedStringFunctions) {
         .from(u)
         .where(
             sqllib::query::length(
-                sqllib::query::trim(sqllib::query::lower(sqllib::query::to_expr(u.email)))
-            ) > sqllib::query::val(10)
+                sqllib::query::trim(sqllib::query::lower(u.email))
+            ) > 10
         );
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (LENGTH(TRIM(LOWER(email))) > ?)";
@@ -114,7 +114,7 @@ TEST(StringFunctionTest, StringFunctionInOrderBy) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .order_by(sqllib::query::length(sqllib::query::to_expr(u.name)));
+        .order_by(sqllib::query::length(u.name));
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY LENGTH(name)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -125,11 +125,11 @@ TEST(StringFunctionTest, StringFunctionInGroupBy) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::upper(sqllib::query::to_expr(u.name)),
+        sqllib::query::upper(u.name),
         sqllib::query::as(sqllib::query::count_all(), "count")
     )
     .from(u)
-    .group_by(sqllib::query::upper(sqllib::query::to_expr(u.name)));
+    .group_by(sqllib::query::upper(u.name));
     
     std::string expected_sql = "SELECT UPPER(name), COUNT(*) AS count FROM users GROUP BY UPPER(name)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -140,11 +140,11 @@ TEST(StringFunctionTest, Coalesce) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id),
+        u.id,
         sqllib::query::as(
             sqllib::query::coalesce(
-                sqllib::query::to_expr(u.bio),
-                sqllib::query::val("No biography")
+                u.bio,
+                "No biography"
             ),
             "biography"
         )
@@ -163,12 +163,12 @@ TEST(StringFunctionTest, CoalesceMultipleValues) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id),
+        u.id,
         sqllib::query::as(
             sqllib::query::coalesce(
-                sqllib::query::to_expr(u.bio),
-                sqllib::query::to_expr(u.name),
-                sqllib::query::val("Unknown")
+                u.bio,
+                u.name,
+                "Unknown"
             ),
             "display_text"
         )
@@ -192,9 +192,9 @@ TEST(StringFunctionTest, CoalesceInWhere) {
         .from(u)
         .where(
             sqllib::query::coalesce(
-                sqllib::query::to_expr(u.bio),
-                sqllib::query::val("")
-            ) != sqllib::query::val("")
+                u.bio,
+                ""
+            ) != ""
         );
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (COALESCE(bio, ?) != ?)";
