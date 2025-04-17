@@ -89,7 +89,7 @@ TEST_F(AdvancedQueryTest, JoinTest) {
         users.id, users.name, posts.id, posts.title
     ).from(users)
      .join(posts, sqllib::query::on(
-         sqllib::query::to_expr(users.id) == sqllib::query::to_expr(posts.user_id)
+         users.id == posts.user_id
      ));
     
     // Check the SQL generated
@@ -171,8 +171,7 @@ TEST_F(AdvancedQueryTest, WhereClauseTest) {
         users.id, users.name, users.age
     ).from(users)
      .where(
-         sqllib::query::to_expr(users.age) > sqllib::query::val(30) &&
-         sqllib::query::to_expr(users.is_active) == sqllib::query::val(true)
+         users.age > 30 && users.is_active == true
      );
     
     // Check the SQL generated
@@ -218,15 +217,15 @@ TEST_F(AdvancedQueryTest, WhereClauseTest) {
 TEST_F(AdvancedQueryTest, GroupByTest) {
     // Create a query that counts posts per user
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(users.id),
-        sqllib::query::to_expr(users.name),
-        sqllib::query::as(sqllib::query::count(sqllib::query::to_expr(posts.id)), "post_count")
+        users.id,
+        users.name,
+        sqllib::query::as(sqllib::query::count(posts.id), "post_count")
     ).from(users)
      .join(posts, sqllib::query::on(
-         sqllib::query::to_expr(users.id) == sqllib::query::to_expr(posts.user_id)
+         users.id == posts.user_id
      ))
-     .group_by(sqllib::query::to_expr(users.id), sqllib::query::to_expr(users.name))
-     .having(sqllib::query::count(sqllib::query::to_expr(posts.id)) > sqllib::query::val(1));
+     .group_by(users.id, users.name)
+     .having(sqllib::query::count(posts.id) > 1);
     
     // Check the SQL generated
     std::string expected_sql = "SELECT id, name, COUNT(id) AS post_count FROM users JOIN posts ON (id = user_id) GROUP BY id, name HAVING (COUNT(id) > ?)";
@@ -284,26 +283,25 @@ TEST_F(AdvancedQueryTest, ComplexQueryTest) {
     // - Group by department and count users and posts
     // - Order by user count
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(departments.name),
-        sqllib::query::as(sqllib::query::count_distinct(sqllib::query::to_expr(users.id)), "user_count"),
-        sqllib::query::as(sqllib::query::count(sqllib::query::to_expr(posts.id)), "post_count"),
-        sqllib::query::as(sqllib::query::sum(sqllib::query::to_expr(posts.views)), "total_views")
+        departments.name,
+        sqllib::query::as(sqllib::query::count_distinct(users.id), "user_count"),
+        sqllib::query::as(sqllib::query::count(posts.id), "post_count"),
+        sqllib::query::as(sqllib::query::sum(posts.views), "total_views")
     ).from(departments)
      .join(users, sqllib::query::on(
-         sqllib::query::to_expr(departments.id) == sqllib::query::to_expr(users.department_id)
+         departments.id == users.department_id
      ))
      .join(posts, sqllib::query::on(
-         sqllib::query::to_expr(users.id) == sqllib::query::to_expr(posts.user_id)
+         users.id == posts.user_id
      ))
      .join(comments, sqllib::query::on(
-         sqllib::query::to_expr(posts.id) == sqllib::query::to_expr(comments.post_id)
+         posts.id == comments.post_id
      ))
      .where(
-         sqllib::query::to_expr(departments.budget) > sqllib::query::val(10000.0) &&
-         sqllib::query::to_expr(posts.views) >= sqllib::query::val(100)
+         departments.budget > 10000.0 && posts.views >= 100
      )
-     .group_by(sqllib::query::to_expr(departments.name))
-     .order_by(sqllib::query::desc(sqllib::query::count_distinct(sqllib::query::to_expr(users.id))))
+     .group_by(departments.name)
+     .order_by(sqllib::query::desc(sqllib::query::count_distinct(users.id)))
      .limit(5);
     
     // Check the SQL generated (expect a complex query)
@@ -380,7 +378,7 @@ TEST_F(AdvancedQueryTest, PartialColumnSelectionTest) {
     auto query = sqllib::query::select(
         users.id, users.name
     ).from(users)
-     .where(sqllib::query::to_expr(users.age) > sqllib::query::val(25));
+     .where(users.age > 25);
     
     // Check the SQL generated - only id and name should be selected
     std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
@@ -425,7 +423,7 @@ TEST_F(AdvancedQueryTest, LeftJoinWithNullValues) {
         users.id, users.name, posts.id, posts.title
     ).from(users)
      .left_join(posts, sqllib::query::on(
-         sqllib::query::to_expr(users.id) == sqllib::query::to_expr(posts.user_id)
+         users.id == posts.user_id
      ));
     
     // Check the SQL generated
