@@ -5,17 +5,6 @@ using namespace test_tables;
 using namespace test_utils;
 
 TEST(BasicSelectTest, SimpleSelect) {
-    // Using the new API with member pointers
-    auto query = sqllib::query::select<&users::id, &users::name, &users::email>()
-        .from(users{});
-    
-    std::string expected_sql = "SELECT id, name, email FROM users";
-    EXPECT_EQ(query.to_sql(), expected_sql);
-    EXPECT_TRUE(query.bind_params().empty());
-}
-
-TEST(BasicSelectTest, SimpleSelectLegacy) {
-    // Using the legacy API for comparison
     users u;
     
     auto query = sqllib::query::select(u.id, u.name, u.email)

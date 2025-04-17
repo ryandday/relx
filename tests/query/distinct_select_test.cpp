@@ -6,18 +6,8 @@ using namespace test_utils;
 
 /// Test cases for the SELECT DISTINCT functionality
 
-TEST(DistinctSelectTest, SimpleSelectDistinct) {
-    // Using the new API with member pointers
-    auto query = sqllib::query::select_distinct<&users::id, &users::name, &users::email>()
-        .from(users{});
-    
-    std::string expected_sql = "SELECT DISTINCT id, name, email FROM users";
-    EXPECT_EQ(query.to_sql(), expected_sql);
-    EXPECT_TRUE(query.bind_params().empty());
-}
 
 TEST(DistinctSelectTest, SimpleSelectDistinctLegacy) {
-    // Using the legacy API for comparison
     users u;
     
     auto query = sqllib::query::select_distinct(u.id, u.name, u.email)
@@ -44,10 +34,12 @@ TEST(DistinctSelectTest, SelectDistinctWithCondition) {
 
 TEST(DistinctSelectTest, SelectDistinctWithJoin) {
     // Test DISTINCT with JOIN
-    auto query = sqllib::query::select_distinct<&users::id, &posts::title>()
-        .from(users{})
-        .join(posts{}, sqllib::query::on(
-            sqllib::query::to_expr<&users::id>() == sqllib::query::to_expr<&posts::user_id>()
+    users u;
+    posts p;
+    auto query = sqllib::query::select_distinct(u.id, p.title)
+        .from(u)
+        .join(p, sqllib::query::on(
+            u.id == p.user_id
         ));
     
     std::string expected_sql = "SELECT DISTINCT id, title FROM users JOIN posts ON (id = user_id)";

@@ -123,10 +123,9 @@ TEST(ConciseApiTest, ShorthandOrderBy) {
     EXPECT_TRUE(query.bind_params().empty());
 }
 
-TEST(ConciseApiTest, MixConciseAndLegacyAPI) {
+TEST(ConciseApiTest, MixConciseAndFullApi) {
     users u;
     
-    // Test mixing concise API with legacy API
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
         .where((u.age > 18) && 
