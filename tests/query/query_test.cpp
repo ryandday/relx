@@ -47,7 +47,7 @@ TEST(QueryTest, SelectWithCondition) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.age) > sqllib::query::val(18));
+        .where(u.age > 18);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -63,7 +63,7 @@ TEST(QueryTest, SelectWithJoin) {
     
     auto query = sqllib::query::select(u.name, p.title)
         .from(u)
-        .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)));
+        .join(p, sqllib::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -75,8 +75,8 @@ TEST(QueryTest, SelectWithMultipleConditions) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.age) >= sqllib::query::val(18) && 
-               sqllib::query::to_expr(u.name) != sqllib::query::val(""));
+        .where(u.age >= 18 && 
+               u.name != "");
     
     std::string expected_sql = "SELECT id, name FROM users WHERE ((age >= ?) AND (name != ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -92,7 +92,7 @@ TEST(QueryTest, SelectWithOrderByAndLimit) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .order_by(sqllib::query::desc(sqllib::query::to_expr(u.name)))
+        .order_by(sqllib::query::desc(u.name))
         .limit(10);
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY name DESC LIMIT ?";
@@ -108,7 +108,7 @@ TEST(QueryTest, SelectWithAggregateFunction) {
     
     auto query = sqllib::query::select_expr(
         sqllib::query::as(sqllib::query::count_all(), "user_count"),
-        sqllib::query::as(sqllib::query::avg(sqllib::query::to_expr(u.age)), "average_age")
+        sqllib::query::as(sqllib::query::avg(u.age), "average_age")
     ).from(u);
     
     std::string expected_sql = "SELECT COUNT(*) AS user_count, AVG(age) AS average_age FROM users";
@@ -121,12 +121,12 @@ TEST(QueryTest, SelectWithGroupByAndHaving) {
     posts p;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id), 
-        sqllib::query::as(sqllib::query::count(sqllib::query::to_expr(p.id)), "post_count"))
+        u.id, 
+        sqllib::query::as(sqllib::query::count(p.id), "post_count"))
         .from(u)
-        .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)))
-        .group_by(sqllib::query::to_expr(u.id))
-        .having(sqllib::query::count(sqllib::query::to_expr(p.id)) > sqllib::query::val(5));
+        .join(p, sqllib::query::on(u.id == p.user_id))
+        .group_by(u.id)
+        .having(sqllib::query::count(p.id) > 5);
     
     std::string expected_sql = "SELECT id, COUNT(id) AS post_count FROM users JOIN posts ON (id = user_id) GROUP BY id HAVING (COUNT(id) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -142,7 +142,7 @@ TEST(QueryTest, SelectWithInCondition) {
     std::vector<std::string> names = {"Alice", "Bob", "Charlie"};
     auto query = sqllib::query::select(u.id, u.email)
         .from(u)
-        .where(sqllib::query::in(sqllib::query::to_expr(u.name), names));
+        .where(sqllib::query::in(u.name, names));
     
     std::string expected_sql = "SELECT id, email FROM users WHERE name IN (?, ?, ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -159,7 +159,7 @@ TEST(QueryTest, SelectWithLikeCondition) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::like(sqllib::query::to_expr(u.email), "%@example.com"));
+        .where(sqllib::query::like(u.email, "%@example.com"));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE email LIKE ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -173,9 +173,9 @@ TEST(QueryTest, SelectWithCaseExpression) {
     users u;
     
     auto case_expr = sqllib::query::case_()
-        .when(sqllib::query::to_expr(u.age) < sqllib::query::val(18), sqllib::query::val("Minor"))
-        .when(sqllib::query::to_expr(u.age) < sqllib::query::val(65), sqllib::query::val("Adult"))
-        .else_(sqllib::query::val("Senior"))
+        .when(u.age < 18, "Minor")
+        .when(u.age < 65, "Adult")
+        .else_("Senior")
         .build();
     
     // First check the case expression directly
@@ -199,7 +199,7 @@ TEST(QueryTest, SelectWithCaseExpression) {
     
     // Finally the full query
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.name), 
+        u.name, 
         std::move(aliased_case))
         .from(u);
     
