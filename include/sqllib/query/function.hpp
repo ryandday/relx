@@ -234,6 +234,13 @@ auto distinct(Expr expr) {
     return DistinctExpr<Expr>(std::move(expr));
 }
 
+// Overload for column types
+template <typename T>
+requires ColumnType<T>
+auto distinct(const T& column) {
+    return distinct(to_expr(column));
+}
+
 /// @brief LOWER string function
 /// @tparam Expr The expression type
 /// @param expr The string expression to convert to lowercase

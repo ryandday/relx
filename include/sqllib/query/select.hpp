@@ -4,6 +4,7 @@
 #include "meta.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
+#include "sqllib/schema/fixed_string.hpp"
 #include "value.hpp"
 #include <memory>
 #include <string>
@@ -505,6 +506,16 @@ public:
         );
     }
 
+    /// @brief Add an ORDER BY clause to the query
+    /// @tparam T The column type
+    /// @param column The column to order by
+    /// @return New SelectQuery with the ORDER BY clause added
+    template <typename T>
+    requires ColumnType<T>
+    auto order_by(const T& column) const {
+        return order_by(asc(to_expr(column)));
+    }
+
     /// @brief Add a LIMIT clause to the query
     /// @param limit The LIMIT value
     /// @return New SelectQuery with the LIMIT clause added
@@ -679,6 +690,12 @@ auto desc(Expr expr) {
     return DescendingExpr<Expr>(std::move(expr));
 }
 
+template <typename T>
+requires ColumnType<T>
+auto desc(const T& column) {
+    return desc(to_expr(column));
+}
+
 /// @brief Helper for creating an ascending order by expression
 /// @tparam Expr The expression type
 /// @param expr The expression to order by
@@ -707,6 +724,16 @@ private:
 template <SqlExpr Expr>
 auto asc(Expr expr) {
     return AscendingExpr<Expr>(std::move(expr));
+}
+
+/// @brief Create an ascending order by expression for a column
+/// @tparam T The column type
+/// @param column The column to order by
+/// @return An AscendingExpr object
+template <typename T>
+requires ColumnType<T>
+auto asc(const T& column) {
+    return asc(to_expr(column));
 }
 
 // Helper to create a SelectQuery from a list of column expressions

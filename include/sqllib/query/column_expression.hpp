@@ -123,5 +123,15 @@ auto as(const Expr& expr, std::string alias) {
     return AliasedColumn<Expr>(expr, std::move(alias));
 }
 
+/// @brief Create an aliased column expression from a column reference
+/// @tparam Column The column type
+/// @param column The column reference
+/// @param alias The alias name
+/// @return An AliasedColumn expression
+template<ColumnType Column>
+auto as(const Column& column, std::string alias) {
+    return AliasedColumn<ColumnRef<Column>>(column_ref(column), std::move(alias));
+}
+
 } // namespace query
 } // namespace sqllib 
