@@ -227,7 +227,7 @@ TEST(BasicSelectTest, SelectWithConditionNew) {
     // Using the new API with member pointers and WHERE conditions
     auto query = sqllib::query::select<&users::id, &users::name>()
         .from(users{})
-        .where(sqllib::query::to_expr<&users::age>() > (18));
+        .where(sqllib::query::to_expr<&users::age>() > 18);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -241,8 +241,8 @@ TEST(BasicSelectTest, SelectWithMultipleConditionsNew) {
     // Using the new API with member pointers and multiple WHERE conditions
     auto query = sqllib::query::select<&users::id, &users::name>()
         .from(users{})
-        .where(sqllib::query::to_expr<&users::age>() >= sqllib::query::val(18) && 
-               sqllib::query::to_expr<&users::name>() != sqllib::query::val(""));
+        .where(sqllib::query::to_expr<&users::age>() >= 18 && 
+               sqllib::query::to_expr<&users::name>() != "");
     
     std::string expected_sql = "SELECT id, name FROM users WHERE ((age >= ?) AND (name != ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
