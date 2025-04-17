@@ -10,7 +10,7 @@ TEST(JoinTest, InnerJoin) {
     
     auto query = sqllib::query::select(u.name, p.title)
         .from(u)
-        .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)));
+        .join(p, sqllib::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -23,7 +23,7 @@ TEST(JoinTest, LeftJoin) {
     
     auto query = sqllib::query::select(u.name, p.title)
         .from(u)
-        .left_join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)));
+        .left_join(p, sqllib::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users LEFT JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -36,7 +36,7 @@ TEST(JoinTest, RightJoin) {
     
     auto query = sqllib::query::select(u.name, p.title)
         .from(u)
-        .right_join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)));
+        .right_join(p, sqllib::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users RIGHT JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -49,7 +49,7 @@ TEST(JoinTest, FullJoin) {
     
     auto query = sqllib::query::select(u.name, p.title)
         .from(u)
-        .full_join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)));
+        .full_join(p, sqllib::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users FULL JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -76,8 +76,8 @@ TEST(JoinTest, MultipleJoins) {
     
     auto query = sqllib::query::select(u.name, p.title, c.content)
         .from(u)
-        .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)))
-        .join(c, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(c.post_id)));
+        .join(p, sqllib::query::on(u.id == p.user_id))
+        .join(c, sqllib::query::on(p.id == c.post_id));
     
     std::string expected_sql = "SELECT name, title, content FROM users JOIN posts ON (id = user_id) JOIN comments ON (id = post_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -91,8 +91,8 @@ TEST(JoinTest, JoinWithComplexCondition) {
     auto query = sqllib::query::select(u.name, p.title)
         .from(u)
         .join(p, sqllib::query::on(
-            (sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)) &&
-            (sqllib::query::to_expr(p.is_published) == sqllib::query::val(true))
+            (u.id == p.user_id) &&
+            (p.is_published == true)
         ));
     
     std::string expected_sql = "SELECT name, title FROM users JOIN posts ON ((id = user_id) AND (is_published = ?))";
@@ -111,8 +111,8 @@ TEST(JoinTest, ManyToManyJoin) {
     
     auto query = sqllib::query::select(p.title, t.name)
         .from(p)
-        .join(pt, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(pt.post_id)))
-        .join(t, sqllib::query::on(sqllib::query::to_expr(pt.tag_id) == sqllib::query::to_expr(t.id)));
+        .join(pt, sqllib::query::on(p.id == pt.post_id))
+        .join(t, sqllib::query::on(pt.tag_id == t.id));
     
     std::string expected_sql = "SELECT title, name FROM posts JOIN post_tags ON (id = post_id) JOIN tags ON (tag_id = id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -125,7 +125,7 @@ TEST(JoinTest, OneToOneJoin) {
     
     auto query = sqllib::query::select(u.name, up.profile_image, up.location)
         .from(u)
-        .left_join(up, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(up.user_id)));
+        .left_join(up, sqllib::query::on(u.id == up.user_id));
     
     std::string expected_sql = "SELECT name, profile_image, location FROM users LEFT JOIN user_profiles ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -139,8 +139,8 @@ TEST(JoinTest, JoinWithParamInCondition) {
     auto query = sqllib::query::select(u.name, p.title)
         .from(u)
         .join(p, sqllib::query::on(
-            (sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)) &&
-            (sqllib::query::to_expr(p.user_id) > sqllib::query::val(10))
+            (u.id == p.user_id) &&
+            (p.user_id > 10)
         ));
     
     std::string expected_sql = "SELECT name, title FROM users JOIN posts ON ((id = user_id) AND (user_id > ?))";
@@ -158,11 +158,11 @@ TEST(JoinTest, SelfJoin) {
     users u2;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::to_expr(u1.name), "user"),
-        sqllib::query::as(sqllib::query::to_expr(u2.name), "friend")
+        sqllib::query::as(u1.name, "user"),
+        sqllib::query::as(u2.name, "friend")
     )
     .from(u1)
-    .join(u2, sqllib::query::on(sqllib::query::to_expr(u1.id) != sqllib::query::to_expr(u2.id)));
+    .join(u2, sqllib::query::on(u1.id != u2.id));
     
     std::string expected_sql = "SELECT name AS user, name AS friend FROM users JOIN users ON (id != id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
