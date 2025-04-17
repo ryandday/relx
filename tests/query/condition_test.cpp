@@ -9,7 +9,7 @@ TEST(ConditionTest, SimpleEquality) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.id == sqllib::query::val(1));
+        .where(u.id == 1);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (id = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -24,7 +24,7 @@ TEST(ConditionTest, SimpleInequality) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.age > sqllib::query::val(21));
+        .where(u.age > 21);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -40,8 +40,8 @@ TEST(ConditionTest, LogicalAnd) {
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
         .where(
-            (u.age >= sqllib::query::val(18)) && 
-            (u.is_active == sqllib::query::val(true))
+            (u.age >= 18) && 
+            (u.is_active == true)
         );
     
     std::string expected_sql = "SELECT id, name FROM users WHERE ((age >= ?) AND (is_active = ?))";
@@ -59,8 +59,8 @@ TEST(ConditionTest, LogicalOr) {
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
         .where(
-            (u.age < sqllib::query::val(18)) || 
-            (u.age >= sqllib::query::val(65))
+            (u.age < 18) || 
+            (u.age >= 65)
         );
     
     std::string expected_sql = "SELECT id, name FROM users WHERE ((age < ?) OR (age >= ?))";
@@ -78,7 +78,7 @@ TEST(ConditionTest, LogicalNotValue) {
     // Instead of negating the column directly, compare with false
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(u.is_active == sqllib::query::val(false));
+        .where(u.is_active == false);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (is_active = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -94,9 +94,9 @@ TEST(ConditionTest, ComplexLogicalExpression) {
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
         .where(
-            (u.age >= sqllib::query::val(18)) && 
-            (u.is_active == sqllib::query::val(true) || 
-             u.login_count > sqllib::query::val(10))
+            (u.age >= 18) && 
+            (u.is_active == true || 
+             u.login_count > 10)
         );
     
     // Note: testing exact parentheses nesting is implementation-dependent
