@@ -43,9 +43,9 @@ TEST(BasicSelectTest, SelectWithColumnAliases) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::to_expr(u.id), "user_id"),
-        sqllib::query::as(sqllib::query::to_expr(u.name), "user_name"),
-        sqllib::query::as(sqllib::query::to_expr(u.email), "user_email")
+        sqllib::query::as(u.id, "user_id"),
+        sqllib::query::as(u.name, "user_name"),
+        sqllib::query::as(u.email, "user_email")
     )
     .from(u);
     
@@ -58,7 +58,7 @@ TEST(BasicSelectTest, SelectWithLiteral) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::to_expr(u.id),
+        u.id,
         sqllib::query::val(42),
         sqllib::query::val("constant string")
     )
@@ -77,7 +77,7 @@ TEST(BasicSelectTest, SelectWithDistinct) {
     users u;
     
     auto query = sqllib::query::select_expr(
-        sqllib::query::distinct(sqllib::query::to_expr(u.age))
+        sqllib::query::distinct(u.age)
     )
     .from(u);
     
@@ -255,10 +255,12 @@ TEST(BasicSelectTest, SelectWithMultipleConditionsNew) {
 
 TEST(BasicSelectTest, SelectWithJoinNew) {
     // Using the new API with member pointers and join
+    users u;
+    posts p;
     auto query = sqllib::query::select<&users::name, &posts::title>()
-        .from(users{})
-        .join(posts{}, sqllib::query::on(
-            sqllib::query::to_expr<&users::id>() == sqllib::query::to_expr<&posts::user_id>()
+        .from(u)
+        .join(p, sqllib::query::on(
+            u.id == p.user_id
         ));
     
     std::string expected_sql = "SELECT name, title FROM users JOIN posts ON (id = user_id)";
@@ -274,8 +276,9 @@ TEST(BasicSelectTest, SelectFromHelper) {
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
     
+    users u;
     // Add a WHERE condition to make sure it works with other methods
-    auto query_with_where = query.where(sqllib::query::to_expr<&users::age>() > sqllib::query::val(18));
+    auto query_with_where = query.where(u.age > 18);
     std::string expected_where_sql = "SELECT id, name, email FROM users WHERE (age > ?)";
     EXPECT_EQ(query_with_where.to_sql(), expected_where_sql);
     
