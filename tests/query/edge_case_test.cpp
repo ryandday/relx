@@ -44,7 +44,7 @@ TEST(EdgeCaseTest, EmptyStrings) {
     // Test with empty string parameters
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.name) == sqllib::query::val(""));
+        .where(u.name == "");
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -61,7 +61,7 @@ TEST(EdgeCaseTest, SpecialCharactersInStrings) {
     std::string special_chars = "Test'\"\\%;_$#@!";
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.name) == sqllib::query::val(special_chars));
+        .where(u.name == special_chars);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -78,7 +78,7 @@ TEST(EdgeCaseTest, UnicodeStrings) {
     std::string unicode_string = "测试Unicode字符串😀🔥";
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.name) == sqllib::query::val(unicode_string));
+        .where(u.name == unicode_string);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -95,7 +95,7 @@ TEST(EdgeCaseTest, VeryLongStrings) {
     std::string long_string(10000, 'a');
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.bio) == sqllib::query::val(long_string));
+        .where(u.bio == long_string);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (bio = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -118,11 +118,11 @@ TEST(EdgeCaseTest, BooleanValues) {
     // Test with boolean values
     auto query_true = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(true));
+        .where(u.is_active == true);
     
     auto query_false = sqllib::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(false));
+        .where(u.is_active == false);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (is_active = ?)";
     EXPECT_EQ(query_true.to_sql(), expected_sql);
@@ -148,11 +148,11 @@ TEST(EdgeCaseTest, ExtremeDateValues) {
     
     auto query_min = sqllib::query::select(p.id, p.title)
         .from(p)
-        .where(sqllib::query::to_expr(p.created_at) == sqllib::query::val(min_date));
+        .where(p.created_at == min_date);
     
     auto query_max = sqllib::query::select(p.id, p.title)
         .from(p)
-        .where(sqllib::query::to_expr(p.created_at) == sqllib::query::val(max_date));
+        .where(p.created_at == max_date);
     
     std::string expected_sql = "SELECT id, title FROM posts WHERE (created_at = ?)";
     EXPECT_EQ(query_min.to_sql(), expected_sql);
@@ -174,13 +174,13 @@ TEST(EdgeCaseTest, ComplexExpressionsWithManyOperators) {
     // Create a complex WHERE condition with many operators
     auto query = sqllib::query::select(u.id, u.name, p.title)
         .from(u)
-        .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)))
+        .join(p, sqllib::query::on(u.id == p.user_id))
         .where(
-            (sqllib::query::to_expr(u.age) > sqllib::query::val(18)) &&
-            (sqllib::query::to_expr(u.age) <= sqllib::query::val(65)) &&
-            (sqllib::query::to_expr(u.is_active) == sqllib::query::val(true)) &&
-            ((sqllib::query::to_expr(u.name) != sqllib::query::val("")) || 
-             (sqllib::query::to_expr(p.views) > sqllib::query::val(1000)))
+            (u.age > 18) &&
+            (u.age <= 65) &&
+            (u.is_active == true) &&
+            ((u.name != "") || 
+             (p.views > 1000))
         );
     
     // Just test that the query produces a valid SQL string without error
@@ -206,12 +206,12 @@ TEST(EdgeCaseTest, NestedLogicalOperators) {
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
         .where(
-            sqllib::query::to_expr(u.is_active) == sqllib::query::val(true) &&
+            u.is_active == true &&
             (
-                (sqllib::query::to_expr(u.age) < sqllib::query::val(30) || 
-                 sqllib::query::to_expr(u.age) > sqllib::query::val(60)) &&
-                (sqllib::query::to_expr(u.login_count) > sqllib::query::val(5) || 
-                 sqllib::query::is_not_null(sqllib::query::to_expr(u.bio)))
+                (u.age < 30 || 
+                 u.age > 60) &&
+                (u.login_count > 5 || 
+                 sqllib::query::is_not_null(u.bio))
             )
         );
     

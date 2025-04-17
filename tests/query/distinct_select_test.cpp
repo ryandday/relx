@@ -22,7 +22,7 @@ TEST(DistinctSelectTest, SelectDistinctWithCondition) {
     // Test DISTINCT with WHERE condition
     auto query = sqllib::query::select_distinct<&users::id, &users::name>()
         .from(users{})
-        .where(sqllib::query::to_expr<&users::age>() > sqllib::query::val(18));
+        .where(sqllib::query::to_expr<&users::age>() > 18);
     
     std::string expected_sql = "SELECT DISTINCT id, name FROM users WHERE (age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -109,8 +109,8 @@ TEST(DistinctSelectTest, SelectDistinctExpressions) {
     users u;
     
     auto query = sqllib::query::select_distinct_expr(
-        sqllib::query::as(sqllib::query::to_expr(u.id), "user_id"),
-        sqllib::query::as(sqllib::query::to_expr(u.name), "user_name")
+        sqllib::query::as(u.id, "user_id"),
+        sqllib::query::as(u.name, "user_name")
     )
     .from(u);
     
@@ -126,7 +126,7 @@ TEST(DistinctSelectTest, SelectDistinctWithMixedExpressions) {
     auto query = sqllib::query::select_distinct(
         u.id,
         sqllib::query::val(42),
-        sqllib::query::as(sqllib::query::to_expr(u.name), "user_name")
+        sqllib::query::as(u.name, "user_name")
     )
     .from(u);
     
@@ -148,7 +148,7 @@ TEST(DistinctSelectTest, ComparisonWithDistinctExpr) {
     
     // Old way using distinct() expression
     auto query2 = sqllib::query::select_expr(
-        sqllib::query::distinct(sqllib::query::to_expr(u.age))
+        sqllib::query::distinct(u.age)
     )
     .from(u);
     
