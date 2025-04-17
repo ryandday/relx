@@ -59,7 +59,7 @@ TEST(SelectAllTest, SelectAllWithoutInstance) {
 TEST(SelectAllTest, SelectAllWithWhere) {
     // Use select_all with just the table type and add a WHERE clause
     auto query = sqllib::query::select_all<users>()
-        .where(sqllib::query::to_expr<&users::age>() > sqllib::query::val(18));
+        .where(sqllib::query::to_expr<&users::age>() > 18);
     
     // The expected SQL should include all columns with the WHERE clause
     std::string expected_sql = "SELECT * FROM users WHERE (age > ?)";
@@ -85,9 +85,9 @@ TEST(SelectAllTest, SelectAllWithAllClauses) {
     // Use select_all with multiple clauses
     auto query = sqllib::query::select_all<users>()
         .join(posts{}, sqllib::query::on(sqllib::query::to_expr<&users::id>() == sqllib::query::to_expr<&posts::user_id>()))
-        .where(sqllib::query::to_expr<&users::age>() > sqllib::query::val(18))
+        .where(sqllib::query::to_expr<&users::age>() > 18)
         .group_by(sqllib::query::to_expr<&users::id>())
-        .having(sqllib::query::count(sqllib::query::to_expr<&posts::id>()) > sqllib::query::val(5))
+        .having(sqllib::query::count(sqllib::query::to_expr<&posts::id>()) > 5)
         .order_by(sqllib::query::desc(sqllib::query::to_expr<&users::age>()))
         .limit(10)
         .offset(20);
