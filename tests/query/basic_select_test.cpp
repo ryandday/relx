@@ -123,7 +123,7 @@ TEST(BasicSelectTest, SelectWithOrderByAsc) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .order_by(sqllib::query::asc(sqllib::query::to_expr(u.name)));
+        .order_by(sqllib::query::asc(u.name));
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY name ASC";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -135,7 +135,7 @@ TEST(BasicSelectTest, SelectWithOrderByDesc) {
     
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
-        .order_by(sqllib::query::desc(sqllib::query::to_expr(u.age)));
+        .order_by(sqllib::query::desc(u.age));
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -148,8 +148,8 @@ TEST(BasicSelectTest, SelectWithMultipleOrderBy) {
     auto query = sqllib::query::select(u.id, u.name)
         .from(u)
         .order_by(
-            sqllib::query::desc(sqllib::query::to_expr(u.age)),
-            sqllib::query::asc(sqllib::query::to_expr(u.name))
+            sqllib::query::desc(u.age),
+            sqllib::query::asc(u.name)
         );
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC, name ASC";
@@ -227,7 +227,7 @@ TEST(BasicSelectTest, SelectWithConditionNew) {
     // Using the new API with member pointers and WHERE conditions
     auto query = sqllib::query::select<&users::id, &users::name>()
         .from(users{})
-        .where(sqllib::query::to_expr<&users::age>() > sqllib::query::val(18));
+        .where(sqllib::query::to_expr<&users::age>() > (18));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
