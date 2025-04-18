@@ -451,7 +451,7 @@ TEST_F(PostgreSQLConnectionTest, TestDisconnectWithActiveTransaction) {
     Users u;
     auto insert_result = conn.execute(sqllib::query::insert_into(u)
         .columns(u.name, u.email, u.age)
-        .values(sqllib::query::val("DisconnectTest"), sqllib::query::val("disconnect@example.com"), sqllib::query::val(60)));
+        .values("DisconnectTest", "disconnect@example.com", 60));
     ASSERT_TRUE(insert_result);
     
     // Disconnect with active transaction (should implicitly roll back)

@@ -33,6 +33,15 @@ struct Post {
     schema::column<"created_at", std::string> created_at;
 };
 
+// Test table struct
+struct InsertTestTable {
+    static constexpr auto table_name = "insert_test";
+    sqllib::schema::column<"id", int> id;
+    sqllib::schema::column<"name", std::string> name;
+    sqllib::schema::column<"age", int> age;
+    sqllib::schema::column<"active", bool> active;
+};
+
 // Test basic INSERT with explicit columns and values
 TEST(InsertQueryTest, BasicInsert) {
     User users;
@@ -165,4 +174,40 @@ TEST(InsertQueryTest, InsertWithoutColumns) {
     EXPECT_EQ(params[0], "1");
     EXPECT_EQ(params[1], "John Doe");
     EXPECT_EQ(params[2], "john@example.com");
+}
+
+TEST(InsertQueryTest, InsertWithRawValues) {
+    InsertTestTable table;
+    
+    // Test inserting with raw values (not wrapped in val())
+    auto query = sqllib::query::insert_into(table)
+        .columns(table.name, table.age, table.active)
+        .values("John Doe", 30, true);
+    
+    std::string expected_sql = "INSERT INTO insert_test (name, age, active) VALUES (?, ?, ?)";
+    EXPECT_EQ(expected_sql, query.to_sql());
+    
+    auto params = query.bind_params();
+    ASSERT_EQ(3, params.size());
+    EXPECT_EQ("John Doe", params[0]);
+    EXPECT_EQ("30", params[1]);
+    EXPECT_EQ("1", params[2]);
+    
+    // Test with multiple rows of raw values
+    auto multi_query = sqllib::query::insert_into(table)
+        .columns(table.name, table.age, table.active)
+        .values("John Doe", 30, true)
+        .values("Jane Smith", 25, false);
+    
+    std::string expected_multi_sql = "INSERT INTO insert_test (name, age, active) VALUES (?, ?, ?), (?, ?, ?)";
+    EXPECT_EQ(expected_multi_sql, multi_query.to_sql());
+    
+    auto multi_params = multi_query.bind_params();
+    ASSERT_EQ(6, multi_params.size());
+    EXPECT_EQ("John Doe", multi_params[0]);
+    EXPECT_EQ("30", multi_params[1]);
+    EXPECT_EQ("1", multi_params[2]);
+    EXPECT_EQ("Jane Smith", multi_params[3]);
+    EXPECT_EQ("25", multi_params[4]);
+    EXPECT_EQ("0", multi_params[5]);
 } 

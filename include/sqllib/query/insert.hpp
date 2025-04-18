@@ -216,13 +216,22 @@ public:
     }
 
     /// @brief Add a row of values to insert
-    /// @tparam Args The value expression types
-    /// @param args The values to insert
+    /// @tparam Args The value expression types or raw value types
+    /// @param args The values to insert (automatically wrapped with val() if not already SqlExpr)
     /// @return New InsertQuery with the values added
-    template <SqlExpr... Args>
-    auto values(Args... args) const {
-        using ValueTuple = std::tuple<Args...>;
-        auto value_tuple = std::make_tuple(args...);
+    template <typename... Args>
+    auto values(Args&&... args) const {
+        // Helper to convert arguments to SqlExpr if they're not already
+        auto to_expr = [](auto&& arg) {
+            if constexpr (SqlExpr<std::decay_t<decltype(arg)>>) {
+                return std::forward<decltype(arg)>(arg);
+            } else {
+                return val(std::forward<decltype(arg)>(arg));
+            }
+        };
+        
+        using ValueTuple = std::tuple<decltype(to_expr(std::declval<Args>()))...>;
+        auto value_tuple = std::make_tuple(to_expr(std::forward<Args>(args))...);
         
         // If we already have value tuples, add this one to them
         if constexpr (!is_empty_tuple<Values>()) {
