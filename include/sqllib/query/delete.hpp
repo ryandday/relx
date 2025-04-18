@@ -3,6 +3,7 @@
 #include "core.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
+#include "operators.hpp"
 #include "value.hpp"
 #include <memory>
 #include <string>

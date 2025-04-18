@@ -69,6 +69,32 @@ TEST(DeleteQueryTest, DeleteWithComplexWhere) {
     EXPECT_EQ(params[1], "1"); // true converts to "1"
 }
 
+// Test direct column comparison with value
+TEST(DeleteQueryTest, DeleteWithDirectColumnComparison) {
+    User users;
+    
+    // Use direct column comparison with value
+    auto query = query::delete_from(users)
+        .where(users.id == 1);
+    
+    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE (id = ?)");
+    
+    auto params = query.bind_params();
+    ASSERT_EQ(params.size(), 1);
+    EXPECT_EQ(params[0], "1");
+    
+    // Test more complex condition with direct column comparisons
+    auto complex_query = query::delete_from(users)
+        .where(users.id > 10 && users.active == true);
+    
+    EXPECT_EQ(complex_query.to_sql(), "DELETE FROM users WHERE ((id > ?) AND (active = ?))");
+    
+    auto complex_params = complex_query.bind_params();
+    ASSERT_EQ(complex_params.size(), 2);
+    EXPECT_EQ(complex_params[0], "10");
+    EXPECT_EQ(complex_params[1], "1"); // true converts to "1"
+}
+
 // Test DELETE with IN condition in WHERE clause
 TEST(DeleteQueryTest, DeleteWithInCondition) {
     User users;
