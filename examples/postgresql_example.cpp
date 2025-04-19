@@ -315,10 +315,10 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
     // 1. JOIN query - Get posts with their author information
     std::cout << "1. JOIN: Posts with author information:" << std::endl;
     
-    auto join_query = sqllib::query::select(p.id, p.title, p.views, u.name.as("author_name"), u.email.as("author_email"))
+    auto join_query = sqllib::query::select(p.id, p.title, p.views, sqllib::query::as(u.name, "author_name"), sqllib::query::as(u.email, "author_email"))
         .from(p)
         .join(u, sqllib::query::on(p.user_id == u.id))
-        .order_by(p.views.desc());
+        .order_by(sqllib::query::desc(p.views));
     
     auto join_result = conn.execute(join_query);
     if (check_result(join_result, "post-author join")) {
@@ -365,7 +365,7 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
     auto complex_query = sqllib::query::select_expr(
         p.id,
         p.title,
-        u.name.as("author"),
+        sqllib::query::as(u.name, "author"),
         p.views,
         sqllib::query::as(sqllib::query::count(c.id), "comment_count")
     )
@@ -377,7 +377,7 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
         (p.views > 50) &&
         (sqllib::query::count(c.id) > 0)
     )
-    .order_by(p.views.desc());
+    .order_by(sqllib::query::desc(p.views));
     
     auto complex_result = conn.execute(complex_query);
     if (check_result(complex_result, "complex join query")) {
@@ -419,7 +419,7 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
     .from(u)
     .left_join(p, sqllib::query::on(u.id == p.user_id))
     .group_by(u.id, u.name)
-    .order_by(sqllib::query::count(p.id).desc());
+    .order_by(sqllib::query::desc(sqllib::query::count(p.id)));
     
     auto case_result = conn.execute(case_query);
     if (check_result(case_result, "case expression query")) {

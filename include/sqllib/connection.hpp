@@ -1,7 +1,7 @@
 #pragma once
 
 #include "connection/connection.hpp"
-#include "connection/sqlite_connection.hpp"
+#include "connection/postgresql_connection.hpp"
 #include "connection/transaction_guard.hpp"
 
 /**
@@ -71,6 +71,6 @@ namespace sqllib {
 using connection::Connection;
 using connection::ConnectionError;
 using connection::ConnectionResult;
-using connection::SQLiteConnection;
+using connection::PostgresConnection;
 
 } // namespace sqllib 
