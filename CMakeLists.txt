@@ -112,7 +112,7 @@ add_executable(static_assert_tests tests/static_assert_tests.cpp)
 target_link_libraries(static_assert_tests PRIVATE ${PROJECT_NAME})
 
 # Add examples
-option(BUILD_EXAMPLES "Build example programs" OFF)
+option(BUILD_EXAMPLES "Build example programs" ON)
 if(BUILD_EXAMPLES)
   add_subdirectory(examples)
   message(STATUS "Building examples")

@@ -2,6 +2,7 @@
 
 #include <libpq-fe.h>
 #include <stdexcept>
+#include <regex>
 
 namespace sqllib {
 namespace connection {
@@ -121,6 +122,9 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         // Execute without parameters
         pg_result = PQexec(pg_conn_, sql.c_str());
     } else {
+        // Convert ? placeholders to $1, $2, etc.
+        std::string pg_sql = convert_placeholders(sql);
+        
         // Prepare parameter values array
         std::vector<const char*> param_values;
         param_values.reserve(params.size());
@@ -132,7 +136,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         // Execute with parameters
         pg_result = PQexecParams(
             pg_conn_,
-            sql.c_str(),
+            pg_sql.c_str(),
             static_cast<int>(params.size()),
             nullptr,  // Use default parameter types
             param_values.data(),
@@ -289,6 +293,23 @@ ConnectionResult<void> PostgreSQLConnection::rollback_transaction() {
 
 bool PostgreSQLConnection::in_transaction() const {
     return in_transaction_;
+}
+
+std::string PostgreSQLConnection::convert_placeholders(const std::string& sql) {
+    std::regex placeholder_regex("\\?");
+    std::string result;
+    std::string::const_iterator search_start(sql.cbegin());
+    std::smatch match;
+    int placeholder_count = 1;
+
+    while (std::regex_search(search_start, sql.cend(), match, placeholder_regex)) {
+        result.append(search_start, match[0].first);
+        result.append("$" + std::to_string(placeholder_count++));
+        search_start = match[0].second;
+    }
+
+    result.append(search_start, sql.cend());
+    return result;
 }
 
 } // namespace connection

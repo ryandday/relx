@@ -2,6 +2,10 @@
 BUILD_DIR := build
 BUILD_TYPE ?= Debug
 
+.PHONY: build
+build: configure
+	cd $(BUILD_DIR) && make -j
+
 # Conan commands
 .PHONY: conan-install
 conan-install:
@@ -12,10 +16,6 @@ conan-install:
 .PHONY: configure
 configure: conan-install
 	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
-
-.PHONY: build
-build: configure
-	cd $(BUILD_DIR) && cmake --build .
 
 .PHONY: clean
 clean:
@@ -57,9 +57,9 @@ postgres-clean:
 .PHONY: help
 help:
 	@echo "Available targets:"
+	@echo "  build            - Build the project"
 	@echo "  conan-install    - Install dependencies using Conan"
 	@echo "  configure        - Configure project with CMake"
-	@echo "  build            - Build the project"
 	@echo "  clean            - Remove build directory"
 	@echo "  run              - Build and run the application"
 	@echo "  test             - Build and run the tests with CTest (starts PostgreSQL)"

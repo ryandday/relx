@@ -14,6 +14,7 @@ struct Users {
     sqllib::schema::column<"name", std::string> name;
     sqllib::schema::column<"email", std::string> email;
     sqllib::schema::column<"age", int> age;
+    sqllib::schema::column<"active", bool> active;
     
     sqllib::schema::primary_key<&Users::id> pk;
 };
@@ -52,7 +53,8 @@ protected:
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 email TEXT NOT NULL,
-                age INTEGER NOT NULL
+                age INTEGER NOT NULL,
+                active BOOLEAN NOT NULL
             )
         )";
         auto result = conn.execute_raw(create_table_sql);
@@ -63,22 +65,22 @@ protected:
     void insert_test_data(sqllib::Connection& conn) {
         // Use PostgreSQL specific SQL instead of the query builder
         auto result1 = conn.execute_raw(
-            "INSERT INTO users (name, email, age) VALUES ($1, $2, $3)",
-            {"Alice", "alice@example.com", "30"}
+            "INSERT INTO users (name, email, age, active) VALUES ($1, $2, $3, $4)",
+            {"Alice", "alice@example.com", "30", "true"}
         );
         ASSERT_TRUE(result1) << "Failed to insert test data: " << result1.error().message;
         
         // Insert test user 2
         auto result2 = conn.execute_raw(
-            "INSERT INTO users (name, email, age) VALUES ($1, $2, $3)",
-            {"Bob", "bob@example.com", "25"}
+            "INSERT INTO users (name, email, age, active) VALUES ($1, $2, $3, $4)",
+            {"Bob", "bob@example.com", "25", "false"}
         );
         ASSERT_TRUE(result2) << "Failed to insert test data 2: " << result2.error().message;
         
         // Insert test user 3
         auto result3 = conn.execute_raw(
-            "INSERT INTO users (name, email, age) VALUES ($1, $2, $3)",
-            {"Charlie", "charlie@example.com", "35"}
+            "INSERT INTO users (name, email, age, active) VALUES ($1, $2, $3, $4)",
+            {"Charlie", "charlie@example.com", "35", "true"}
         );
         ASSERT_TRUE(result3) << "Failed to insert test data 3: " << result3.error().message;
     }
@@ -125,13 +127,14 @@ TEST_F(PostgreSQLConnectionTest, TestExecuteRawQuery) {
     
     // Check result structure
     ASSERT_EQ(3, result->size());
-    ASSERT_EQ(4, result->column_count());
+    ASSERT_EQ(5, result->column_count());
     
     // Check column names
     ASSERT_EQ("id", result->column_name(0));
     ASSERT_EQ("name", result->column_name(1));
     ASSERT_EQ("email", result->column_name(2));
     ASSERT_EQ("age", result->column_name(3));
+    ASSERT_EQ("active", result->column_name(4));
     
     // Check first row
     const auto& row1 = (*result)[0];
@@ -313,8 +316,8 @@ TEST_F(PostgreSQLConnectionTest, TestTransactionBasics) {
     
     // Insert data using direct SQL
     auto insert_result = conn.execute_raw(
-        "INSERT INTO users (name, email, age) VALUES ($1, $2, $3)",
-        {"TransactionTest", "transaction@example.com", "40"}
+        "INSERT INTO users (name, email, age, active) VALUES ($1, $2, $3, $4)",
+        {"TransactionTest", "transaction@example.com", "40", "true"}
     );
     ASSERT_TRUE(insert_result) << "Failed to insert in transaction: " << insert_result.error().message;
     
@@ -345,8 +348,8 @@ TEST_F(PostgreSQLConnectionTest, TestTransactionRollback) {
     
     // Insert data using direct SQL
     auto insert_result = conn.execute_raw(
-        "INSERT INTO users (name, email, age) VALUES ($1, $2, $3)",
-        {"RollbackTest", "rollback@example.com", "50"}
+        "INSERT INTO users (name, email, age, active) VALUES ($1, $2, $3, $4)",
+        {"RollbackTest", "rollback@example.com", "50", "true"}
     );
     ASSERT_TRUE(insert_result);
     
@@ -450,8 +453,8 @@ TEST_F(PostgreSQLConnectionTest, TestDisconnectWithActiveTransaction) {
     // Insert some data
     Users u;
     auto insert_result = conn.execute(sqllib::query::insert_into(u)
-        .columns(u.name, u.email, u.age)
-        .values("DisconnectTest", "disconnect@example.com", 60));
+        .columns(u.name, u.email, u.age, u.active)
+        .values("DisconnectTest", "disconnect@example.com", 60, true));
     ASSERT_TRUE(insert_result);
     
     // Disconnect with active transaction (should implicitly roll back)
@@ -468,6 +471,90 @@ TEST_F(PostgreSQLConnectionTest, TestDisconnectWithActiveTransaction) {
     auto count = (*verify_result)[0].get<int>(0);
     ASSERT_TRUE(count);
     EXPECT_EQ(0, *count);
+    
+    // Clean up
+    conn.disconnect();
+}
+
+TEST_F(PostgreSQLConnectionTest, TestBooleanColumn) {
+    sqllib::PostgreSQLConnection conn(conn_string);
+    ASSERT_TRUE(conn.connect());
+    
+    // Create test table
+    create_test_table(conn);
+    
+    // Test with different boolean formats
+    std::vector<std::pair<std::string, std::string>> test_cases = {
+        {"TrueAsT", "t"},                   // PostgreSQL native format
+        {"TrueAsTrue", "true"},             // String "true"
+        {"TrueAs1", "1"},                   // Numeric 1
+        {"FalseAsF", "f"},                  // PostgreSQL native format
+        {"FalseAsFalse", "false"},          // String "false"
+        {"FalseAs0", "0"}                   // Numeric 0
+    };
+    
+    // Insert test data with various boolean formats
+    for (const auto& [name, bool_value] : test_cases) {
+        auto insert_result = conn.execute_raw(
+            "INSERT INTO users (name, email, age, active) VALUES ($1, $2, $3, $4)",
+            {name, name + "@example.com", "30", bool_value}
+        );
+        ASSERT_TRUE(insert_result) << "Failed to insert test data with bool value '" << bool_value 
+                                   << "': " << insert_result.error().message;
+    }
+    
+    // Query and check boolean values as strings
+    auto all_result = conn.execute_raw("SELECT name, active FROM users ORDER BY name");
+    ASSERT_TRUE(all_result) << "Failed to query all records: " << all_result.error().message;
+    
+    // Print values for debugging
+    std::cout << "Boolean values as stored in PostgreSQL:" << std::endl;
+    for (const auto& row : *all_result) {
+        auto name = row.get<std::string>("name");
+        auto active_value = row.get<std::string>("active");
+        ASSERT_TRUE(name.has_value());
+        ASSERT_TRUE(active_value.has_value());
+        std::cout << "  " << *name << ": '" << *active_value << "'" << std::endl;
+    }
+    
+    // Test querying by boolean value
+    std::cout << "\nTesting queries with boolean conditions:" << std::endl;
+    
+    // Test true conditions
+    auto true_result = conn.execute_raw("SELECT COUNT(*) FROM users WHERE active = true");
+    ASSERT_TRUE(true_result) << "Failed to query with boolean condition: " << true_result.error().message;
+    auto true_count = (*true_result)[0].get<int>(0);
+    ASSERT_TRUE(true_count.has_value());
+    std::cout << "  Records with active=true: " << *true_count << std::endl;
+    EXPECT_EQ(3, *true_count);
+    
+    // Test false conditions
+    auto false_result = conn.execute_raw("SELECT COUNT(*) FROM users WHERE active = false");
+    ASSERT_TRUE(false_result) << "Failed to query with boolean condition: " << false_result.error().message;
+    auto false_count = (*false_result)[0].get<int>(0);
+    ASSERT_TRUE(false_count.has_value());
+    std::cout << "  Records with active=false: " << *false_count << std::endl;
+    EXPECT_EQ(3, *false_count);
+    
+    // Test updating boolean values
+    auto update_result = conn.execute_raw(
+        "UPDATE users SET active = NOT active WHERE name = $1 RETURNING active",
+        {"TrueAsT"}
+    );
+    ASSERT_TRUE(update_result) << "Failed to update boolean value: " << update_result.error().message;
+    auto updated_active_str = (*update_result)[0].get<std::string>(0);
+    ASSERT_TRUE(updated_active_str.has_value());
+    std::cout << "\nUpdated TrueAsT to: '" << *updated_active_str << "'" << std::endl;
+    EXPECT_EQ("f", *updated_active_str);
+    
+    // Verify the NOT operator for booleans works correctly
+    auto not_result = conn.execute_raw("SELECT active, NOT active as inverted FROM users LIMIT 1");
+    ASSERT_TRUE(not_result) << "Failed to query with NOT operator: " << not_result.error().message;
+    auto original = (*not_result)[0].get<std::string>("active");
+    auto inverted = (*not_result)[0].get<std::string>("inverted");
+    ASSERT_TRUE(original.has_value());
+    ASSERT_TRUE(inverted.has_value());
+    std::cout << "NOT operator test: '" << *original << "' -> '" << *inverted << "'" << std::endl;
     
     // Clean up
     conn.disconnect();

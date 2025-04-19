@@ -124,6 +124,10 @@ public:
                 return true;
             } else if (lower == "false") {
                 return false;
+            } else if (lower == "t") {  // PostgreSQL format
+                return true;
+            } else if (lower == "f") {  // PostgreSQL format
+                return false;
             } else if (allow_numeric_bools) {
                 // Only allow numeric conversion if explicitly allowed
                 if (lower == "1") {

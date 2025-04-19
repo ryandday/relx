@@ -82,6 +82,11 @@ private:
     /// @param expected_status Expected status code (or -1 to ignore)
     /// @return ConnectionResult with error or success
     ConnectionResult<PGresult*> handle_pg_result(PGresult* result, int expected_status = -1);
+    
+    /// @brief Convert SQL with ? placeholders to PostgreSQL's $n format
+    /// @param sql SQL query with ? placeholders
+    /// @return Converted SQL with $1, $2, etc. placeholders
+    std::string convert_placeholders(const std::string& sql);
 };
 
 } // namespace connection
