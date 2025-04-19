@@ -43,13 +43,10 @@ TEST(UpdateQueryTest, BasicUpdate) {
 TEST(UpdateQueryTest, UpdateWithWhere) {
     User users;
     
-    // Create column references for use in conditions
-    auto id_ref = query::column_ref(users.id);
-    
     auto query = query::update(users)
         .set(users.name, "John Doe")
         .set(users.email, "john@example.com")
-        .where(id_ref == query::val(1));
+        .where(users.id == 1);
     
     EXPECT_EQ(query.to_sql(), "UPDATE users SET name = ?, email = ? WHERE (id = ?)");
     
@@ -64,13 +61,9 @@ TEST(UpdateQueryTest, UpdateWithWhere) {
 TEST(UpdateQueryTest, UpdateWithComplexWhere) {
     User users;
     
-    // Create column references for use in conditions
-    auto id_ref = query::column_ref(users.id);
-    auto active_ref = query::column_ref(users.active);
-    
     auto query = query::update(users)
-        .set(users.name, query::val("John Doe"))
-        .where(id_ref > query::val(10) && active_ref == query::val(true));
+        .set(users.name, "John Doe")
+        .where(users.id > 10 && users.active == true);
     
     EXPECT_EQ(query.to_sql(), "UPDATE users SET name = ? WHERE ((id > ?) AND (active = ?))");
     
@@ -86,9 +79,9 @@ TEST(UpdateQueryTest, UpdateWithMultipleSets) {
     User users;
     
     auto query = query::update(users)
-        .set(users.name, query::val("Jane Doe"))
-        .set(users.email, query::val("jane@example.com"))
-        .set(users.active, query::val(false));
+        .set(users.name, "Jane Doe")
+        .set(users.email, "jane@example.com")
+        .set(users.active, false);
     
     EXPECT_EQ(query.to_sql(), "UPDATE users SET name = ?, email = ?, active = ?");
     
@@ -108,7 +101,7 @@ TEST(UpdateQueryTest, UpdateWithFunctionInSet) {
     
     auto query = query::update(users)
         .set(users.last_login, current_timestamp)
-        .where(query::column_ref(users.id) == query::val(1));
+        .where(users.id == 1);
     
     EXPECT_EQ(query.to_sql(), "UPDATE users SET last_login = CURRENT_TIMESTAMP() WHERE (id = ?)");
     
@@ -151,8 +144,8 @@ TEST(UpdateQueryTest, UpdateWithInCondition) {
     std::vector<std::string> ids = {"1", "3", "5", "7"};
     
     auto query = query::update(users)
-        .set(users.active, query::val(true))
-        .where(query::in(query::column_ref(users.id), ids));
+        .set(users.active, true)
+        .where(query::in(users.id, ids));
     
     EXPECT_EQ(query.to_sql(), "UPDATE users SET active = ? WHERE id IN (?, ?, ?, ?)");
     
