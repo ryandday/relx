@@ -81,7 +81,7 @@ TEST(OptionalColumnTest, TableWithOptionalColumns) {
     Customer c;
     
     // Generate CREATE TABLE SQL with optional columns
-    std::string create_sql = create_table_sql(c);
+    std::string create_sql = create_table(c);
     
     // Validate SQL contains optional and non-optional columns
     EXPECT_TRUE(create_sql.find("id INTEGER NOT NULL") != std::string::npos);

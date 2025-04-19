@@ -109,7 +109,7 @@ std::string collect_constraint_definitions(const Table& table_instance) {
 /// @param table_instance An instance of the table
 /// @return SQL string to create the table
 template <TableConcept Table>
-std::string create_table_sql(const Table& table_instance) {
+std::string create_table(const Table& table_instance) {
     std::string sql = "CREATE TABLE IF NOT EXISTS " + 
                      std::string(Table::table_name) + 
                      " (\n";
@@ -124,6 +124,23 @@ std::string create_table_sql(const Table& table_instance) {
     }
     
     sql += "\n);";
+    return sql;
+}
+
+/// @brief Generate DROP TABLE SQL statement for a table struct
+/// @tparam Table The table struct type
+/// @param table_instance An instance of the table
+/// @param if_exists Whether to include the IF EXISTS clause
+/// @return SQL string to drop the table
+template <TableConcept Table>
+std::string drop_table(const Table& table_instance, bool if_exists = true) {
+    std::string sql = "DROP TABLE ";
+    
+    if (if_exists) {
+        sql += "IF EXISTS ";
+    }
+    
+    sql += std::string(Table::table_name) + ";";
     return sql;
 }
 

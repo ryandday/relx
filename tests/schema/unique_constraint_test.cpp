@@ -55,7 +55,7 @@ TEST(UniqueConstraintTest, TableWithUniqueConstraints) {
     Employee e;
     
     // Generate CREATE TABLE SQL with unique constraints
-    std::string create_sql = create_table_sql(e);
+    std::string create_sql = create_table(e);
     
     // Validate SQL contains unique constraints
     EXPECT_TRUE(create_sql.find("UNIQUE (email)") != std::string::npos);

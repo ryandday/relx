@@ -71,7 +71,7 @@ TEST(CheckConstraintTest, TableWithCheckConstraints) {
     Item i;
     
     // Generate CREATE TABLE SQL with check constraints
-    std::string create_sql = create_table_sql(i);
+    std::string create_sql = create_table(i);
     
     // Validate SQL contains check constraints
     EXPECT_TRUE(create_sql.find("CHECK (price > 0)") != std::string::npos);

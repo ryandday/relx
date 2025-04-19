@@ -110,7 +110,7 @@ TEST(TableTest, ForeignKeyConstraints) {
 
 TEST(TableTest, CreateTableSQL) {
     SimpleTable simple;
-    std::string sql = create_table_sql(simple);
+    std::string sql = create_table(simple);
     
     EXPECT_TRUE(sql.find("CREATE TABLE IF NOT EXISTS simple_table") != std::string::npos);
     EXPECT_TRUE(sql.find("id INTEGER NOT NULL") != std::string::npos);
@@ -119,7 +119,7 @@ TEST(TableTest, CreateTableSQL) {
     
     // Test table with nullable columns
     TableWithNullables nullables;
-    sql = create_table_sql(nullables);
+    sql = create_table(nullables);
     
     EXPECT_TRUE(sql.find("CREATE TABLE IF NOT EXISTS nullable_table") != std::string::npos);
     EXPECT_TRUE(sql.find("name TEXT") != std::string::npos);
@@ -127,14 +127,14 @@ TEST(TableTest, CreateTableSQL) {
     
     // Test table with constraints
     UsersTable users;
-    sql = create_table_sql(users);
+    sql = create_table(users);
     
     EXPECT_TRUE(sql.find("CREATE TABLE IF NOT EXISTS users") != std::string::npos);
     EXPECT_TRUE(sql.find("PRIMARY KEY (id)") != std::string::npos);
     
     // Test table with foreign key
     PostsTable posts;
-    sql = create_table_sql(posts);
+    sql = create_table(posts);
     
     EXPECT_TRUE(sql.find("CREATE TABLE IF NOT EXISTS posts") != std::string::npos);
     EXPECT_TRUE(sql.find("FOREIGN KEY (user_id) REFERENCES users (id)") != std::string::npos);

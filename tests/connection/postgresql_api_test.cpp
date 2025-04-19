@@ -43,8 +43,10 @@ protected:
         sqllib::PostgreSQLConnection conn(conn_string);
         auto connect_result = conn.connect();
         if (connect_result) {
-            // Use raw SQL for drop as the library doesn't have a drop_table function
-            auto drop_result = conn.execute_raw("DROP TABLE IF EXISTS " + std::string(Products::table_name));
+            // Use the schema's drop_table function
+            Products p;
+            std::string drop_sql = sqllib::schema::drop_table(p);
+            auto drop_result = conn.execute_raw(drop_sql);
             conn.disconnect();
         }
     }
@@ -53,7 +55,7 @@ protected:
     void create_test_table(sqllib::Connection& conn) {
         Products p;
         // Generate CREATE TABLE SQL from the schema
-        std::string create_sql = sqllib::schema::create_table_sql(p);
+        std::string create_sql = sqllib::schema::create_table(p);
         
         // For PostgreSQL, we need SERIAL for auto-incrementing primary keys
         // Since our schema doesn't generate this automatically, we need to modify the SQL

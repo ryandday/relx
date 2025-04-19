@@ -204,12 +204,12 @@ TEST(ComplexSchemaTest, EnhancedECommerceSchema) {
     std::cout << "Check pattern: " << valid_email_condition << std::endl;
     
     // Generate CREATE TABLE statements for all tables
-    std::string users_sql = create_table_sql(users);
-    std::string categories_sql = create_table_sql(categories);
-    std::string products_sql = create_table_sql(products);
-    std::string orders_sql = create_table_sql(orders);
-    std::string order_items_sql = create_table_sql(orderItems);
-    std::string reviews_sql = create_table_sql(reviews);
+    std::string users_sql = create_table(users);
+    std::string categories_sql = create_table(categories);
+    std::string products_sql = create_table(products);
+    std::string orders_sql = create_table(orders);
+    std::string order_items_sql = create_table(orderItems);
+    std::string reviews_sql = create_table(reviews);
     
     // Print the actual SQL for debugging
     std::cout << "USERS SQL:\n" << users_sql << std::endl;

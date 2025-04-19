@@ -192,7 +192,7 @@ TEST(CustomColumnTypesTest, TableWithCustomTypes) {
     CustomTypesTable table;
     
     // Generate CREATE TABLE SQL
-    std::string sql = create_table_sql(table);
+    std::string sql = create_table(table);
     
     // Check that the custom column types are included
     EXPECT_TRUE(sql.find("id INTEGER NOT NULL") != std::string::npos);
