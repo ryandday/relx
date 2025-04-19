@@ -5,6 +5,8 @@ Don't delete anything from it or overwrite the makefile. Use `make test` to run 
 
 Still use cmake for the build system.
 
+ALWAYS build and test for every change. If you haven't built it successfully, you aren't done. 
+
 NEVER put in a constructor on a class that needs boost pfr compatibility, since it needs to be an aggregate.
 
 When writing tests, make sure to tests many error conditions, as many as successful conditions. Thoroughly test all combinations of features
