@@ -114,6 +114,30 @@ private:
     std::string_view value_;
 };
 
+/// @brief Specialization for C-style string literals (const char*)
+template <>
+class Value<const char*> : public SqlExpression {
+public:
+    using value_type = const char*;
+
+    explicit Value(const char* value) : value_(value) {}
+
+    std::string to_sql() const override {
+        return "?";
+    }
+
+    std::vector<std::string> bind_params() const override {
+        return {std::string(value_)};
+    }
+
+    const char* value() const {
+        return value_;
+    }
+
+private:
+    const char* value_;
+};
+
 /// @brief Create a value expression
 /// @tparam T The value type
 /// @param val The value

@@ -6,6 +6,7 @@
 #include "condition.hpp"
 #include "value.hpp"
 #include "function.hpp"
+#include "operators.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -137,6 +138,20 @@ public:
             std::move(new_sets),
             where_
         );
+    }
+
+    /// @brief Add or replace a SET clause assignment with a raw value
+    /// @tparam Col The column type
+    /// @tparam T The raw value type
+    /// @param column The column to set
+    /// @param val The raw value to set
+    /// @return New UpdateQuery with the SET clause added
+    template <ColumnType Col, typename T>
+    requires (!SqlExpr<T>)
+    auto set(const Col& column, T&& val) const {
+        // Wrap the raw value in a Value expression
+        auto value_expr = value(std::forward<T>(val));
+        return set(column, std::move(value_expr));
     }
 
     /// @brief Add a WHERE clause to the query

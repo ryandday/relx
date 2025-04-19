@@ -28,8 +28,8 @@ TEST(UpdateQueryTest, BasicUpdate) {
     User users;
     
     auto query = query::update(users)
-        .set(users.name, query::val("John Doe"))
-        .set(users.email, query::val("john@example.com"));
+        .set(users.name, "John Doe")
+        .set(users.email, "john@example.com");
     
     EXPECT_EQ(query.to_sql(), "UPDATE users SET name = ?, email = ?");
     
@@ -47,8 +47,8 @@ TEST(UpdateQueryTest, UpdateWithWhere) {
     auto id_ref = query::column_ref(users.id);
     
     auto query = query::update(users)
-        .set(users.name, query::val("John Doe"))
-        .set(users.email, query::val("john@example.com"))
+        .set(users.name, "John Doe")
+        .set(users.email, "john@example.com")
         .where(id_ref == query::val(1));
     
     EXPECT_EQ(query.to_sql(), "UPDATE users SET name = ?, email = ? WHERE (id = ?)");
