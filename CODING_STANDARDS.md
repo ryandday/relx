@@ -1,4 +1,4 @@
-# C++ Coding Standards for SQLlib
+# C++ Coding Standards for relx
 
 ## Language Version
 - Use C++20 as the primary standard with C++23 features where available
@@ -164,10 +164,10 @@ std::optional<int> get_value();
 - Separate include groups with blank lines
 
 ### Namespaces
-- Place code in the `sqllib` namespace
+- Place code in the `relx` namespace
 - Use nested namespaces for major subsystems:
   ```cpp
-  namespace sqllib::detail {
+  namespace relx::detail {
       // Implementation details
   }
   ```

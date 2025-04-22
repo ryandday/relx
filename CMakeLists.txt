@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(sqllib VERSION 0.1.0 LANGUAGES CXX)
+project(relx VERSION 0.1.0 LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 23)
@@ -23,8 +23,7 @@ if(APPLE)
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
 endif()
 
-# Find dependencies (Conan-provided)
-find_package(fmt REQUIRED)
+# Find dependencies (Conan or system provided)
 find_package(Boost REQUIRED)
 find_package(PostgreSQL REQUIRED)
 
@@ -44,7 +43,7 @@ FetchContent_MakeAvailable(googletest)
 add_library(${PROJECT_NAME} 
   src/connection/postgresql_connection.cpp
 )
-target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE include/sqllib)
+target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE include/relx)
 target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost PostgreSQL::PostgreSQL)
 
 # compile_commands.json
@@ -54,7 +53,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 enable_testing()
 
 # Add tests
-add_executable(sqllib_tests
+add_executable(relx_tests
   tests/main_test.cpp
   # Schema tests
   tests/schema/fixed_string_test.cpp
@@ -99,14 +98,14 @@ add_executable(sqllib_tests
 )
 
 # Link against both gtest and gtest_main libraries
-target_link_libraries(sqllib_tests PRIVATE 
+target_link_libraries(relx_tests PRIVATE 
   ${PROJECT_NAME} 
   gtest
   gtest_main
 )
 
 # Register test
-add_test(NAME sqllib_tests COMMAND sqllib_tests)
+add_test(NAME relx_tests COMMAND relx_tests)
 
 # Add static_assert tests executable
 add_executable(static_assert_tests tests/static_assert_tests.cpp)

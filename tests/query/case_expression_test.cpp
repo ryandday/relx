@@ -7,15 +7,15 @@ using namespace test_utils;
 TEST(CaseExpressionTest, SimpleCase) {
     users u;
     
-    auto case_expr = sqllib::query::case_()
+    auto case_expr = relx::query::case_()
         .when(u.age < 18, "Minor")
         .when(u.age < 65, "Adult")
         .else_("Senior")
         .build();
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.name, 
-        sqllib::query::as(std::move(case_expr), "age_group")
+        relx::query::as(std::move(case_expr), "age_group")
     )
     .from(u);
     
@@ -34,14 +34,14 @@ TEST(CaseExpressionTest, SimpleCase) {
 TEST(CaseExpressionTest, CaseWithoutElse) {
     users u;
     
-    auto case_expr = sqllib::query::case_()
+    auto case_expr = relx::query::case_()
         .when(u.is_active == true, "Active")
         .when(u.is_active == false, "Inactive")
         .build();
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.name, 
-        sqllib::query::as(std::move(case_expr), "status")
+        relx::query::as(std::move(case_expr), "status")
     )
     .from(u);
     
@@ -59,7 +59,7 @@ TEST(CaseExpressionTest, CaseWithoutElse) {
 TEST(CaseExpressionTest, CaseWithComplexConditions) {
     users u;
     
-    auto case_expr = sqllib::query::case_()
+    auto case_expr = relx::query::case_()
         .when(
             (u.age < 18) && 
             (u.login_count > 0),
@@ -73,9 +73,9 @@ TEST(CaseExpressionTest, CaseWithComplexConditions) {
         .else_("Regular User")
         .build();
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.name, 
-        sqllib::query::as(std::move(case_expr), "complex_status")
+        relx::query::as(std::move(case_expr), "complex_status")
     )
     .from(u);
     
@@ -96,14 +96,14 @@ TEST(CaseExpressionTest, CaseWithComplexConditions) {
 TEST(CaseExpressionTest, CaseWithColumnResults) {
     users u;
     
-    auto case_expr = sqllib::query::case_()
-        .when(sqllib::query::is_null(u.bio), "No bio provided")
+    auto case_expr = relx::query::case_()
+        .when(relx::query::is_null(u.bio), "No bio provided")
         .else_("Has bio")
         .build();
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.name, 
-        sqllib::query::as(std::move(case_expr), "bio_display")
+        relx::query::as(std::move(case_expr), "bio_display")
     )
     .from(u);
     
@@ -119,16 +119,16 @@ TEST(CaseExpressionTest, CaseWithColumnResults) {
 TEST(CaseExpressionTest, CaseWithNumericResults) {
     users u;
     
-    auto case_expr = sqllib::query::case_()
+    auto case_expr = relx::query::case_()
         .when(u.login_count == 0, 0)
         .when(u.login_count <= 5, 1)
         .when(u.login_count <= 20, 2)
         .else_(3)
         .build();
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.name, 
-        sqllib::query::as(std::move(case_expr), "activity_level")
+        relx::query::as(std::move(case_expr), "activity_level")
     )
     .from(u);
     
@@ -150,21 +150,21 @@ TEST(CaseExpressionTest, NestedCaseExpression) {
     users u;
     
     // Inner CASE for active status
-    auto active_case = sqllib::query::case_()
+    auto active_case = relx::query::case_()
         .when(u.is_active == true, "Active")
         .else_("Inactive")
         .build();
     
     // Outer CASE for age group and activity - use operator+ for string concatenation
-    auto nested_case = sqllib::query::case_()
+    auto nested_case = relx::query::case_()
         .when(u.age < 18, "Young, Active")
         .when(u.age < 65, "Adult, Active")
         .else_("Senior, Active")
         .build();
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.name, 
-        sqllib::query::as(std::move(nested_case), "status")
+        relx::query::as(std::move(nested_case), "status")
     )
     .from(u);
     
@@ -183,16 +183,16 @@ TEST(CaseExpressionTest, CaseInWhere) {
     users u;
     
     // Define a CASE expression
-    auto case_expr = sqllib::query::case_()
+    auto case_expr = relx::query::case_()
         .when(u.age < 18, "minor")
         .else_("adult")
         .build();
     
     // Create an aliased version of the case expression
-    auto age_category = sqllib::query::as(std::move(case_expr), "age_category");
+    auto age_category = relx::query::as(std::move(case_expr), "age_category");
     
     // Use it in a WHERE clause directly
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id,
         u.name,
         age_category
@@ -214,22 +214,22 @@ TEST(CaseExpressionTest, CaseInOrderBy) {
     users u;
     
     // Define a CASE expression for sorting
-    auto case_expr = sqllib::query::case_()
+    auto case_expr = relx::query::case_()
         .when(u.is_active == true, 1)
         .else_(0)
         .build();
     
     // Create an aliased version of the case expression
-    auto active_sort = sqllib::query::as(std::move(case_expr), "active_sort");
+    auto active_sort = relx::query::as(std::move(case_expr), "active_sort");
     
     // Use it in SELECT and ORDER BY directly
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id,
         u.name,
         active_sort
     )
     .from(u)
-    .order_by(sqllib::query::desc(active_sort));
+    .order_by(relx::query::desc(active_sort));
     
     // Expected SQL should include the case expression in both the SELECT list and ORDER BY
     std::string sql = query.to_sql();

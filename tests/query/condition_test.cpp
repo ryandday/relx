@@ -7,7 +7,7 @@ using namespace test_utils;
 TEST(ConditionTest, SimpleEquality) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.id == 1);
     
@@ -22,7 +22,7 @@ TEST(ConditionTest, SimpleEquality) {
 TEST(ConditionTest, SimpleInequality) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.age > 21);
     
@@ -37,7 +37,7 @@ TEST(ConditionTest, SimpleInequality) {
 TEST(ConditionTest, LogicalAnd) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(
             (u.age >= 18) && 
@@ -56,7 +56,7 @@ TEST(ConditionTest, LogicalAnd) {
 TEST(ConditionTest, LogicalOr) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(
             (u.age < 18) || 
@@ -76,7 +76,7 @@ TEST(ConditionTest, LogicalNotValue) {
     users u;
     
     // Instead of negating the column directly, compare with false
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.is_active == false);
     
@@ -91,7 +91,7 @@ TEST(ConditionTest, LogicalNotValue) {
 TEST(ConditionTest, ComplexLogicalExpression) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(
             (u.age >= 18) && 
@@ -113,9 +113,9 @@ TEST(ConditionTest, ComplexLogicalExpression) {
 TEST(ConditionTest, StringLike) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::like(u.email, "%@example.com"));
+        .where(relx::query::like(u.email, "%@example.com"));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE email LIKE ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -129,9 +129,9 @@ TEST(ConditionTest, StringNotLike) {
     users u;
     
     // Use operator! directly to negate the condition
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .where(!(sqllib::query::like(u.email, "%@example.com")));
+        .where(!(relx::query::like(u.email, "%@example.com")));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (NOT email LIKE ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -145,9 +145,9 @@ TEST(ConditionTest, InList) {
     users u;
     
     std::vector<std::string> names = {"Alice", "Bob", "Charlie"};
-    auto query = sqllib::query::select(u.id, u.email)
+    auto query = relx::query::select(u.id, u.email)
         .from(u)
-        .where(sqllib::query::in(u.name, names));
+        .where(relx::query::in(u.name, names));
     
     std::string expected_sql = "SELECT id, email FROM users WHERE name IN (?, ?, ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -166,9 +166,9 @@ TEST(ConditionTest, NotInList) {
     std::vector<std::string> age_strings = {"18", "21", "25"};
     
     // Use operator! directly to negate the condition
-    auto query = sqllib::query::select(u.id, u.email)
+    auto query = relx::query::select(u.id, u.email)
         .from(u)
-        .where(!(sqllib::query::in(u.age, age_strings)));
+        .where(!(relx::query::in(u.age, age_strings)));
     
     std::string expected_sql = "SELECT id, email FROM users WHERE (NOT age IN (?, ?, ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -183,9 +183,9 @@ TEST(ConditionTest, NotInList) {
 TEST(ConditionTest, IsNull) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_null(u.bio));
+        .where(relx::query::is_null(u.bio));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE bio IS NULL";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -196,9 +196,9 @@ TEST(ConditionTest, IsNotNull) {
     users u;
     
     // Use is_not_null directly
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_not_null(u.bio));
+        .where(relx::query::is_not_null(u.bio));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE bio IS NOT NULL";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -209,9 +209,9 @@ TEST(ConditionTest, Between) {
     users u;
     
     // Use string values for between
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::between(u.age, "18", "65"));
+        .where(relx::query::between(u.age, "18", "65"));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE age BETWEEN ? AND ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -226,9 +226,9 @@ TEST(ConditionTest, NotBetween) {
     users u;
     
     // Use operator! directly to negate the condition
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .where(!(sqllib::query::between(u.age, "18", "65")));
+        .where(!(relx::query::between(u.age, "18", "65")));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (NOT age BETWEEN ? AND ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);

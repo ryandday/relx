@@ -1,8 +1,8 @@
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 #include <type_traits>
 #include <string>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Define various test types to check against concepts
 
@@ -48,7 +48,7 @@ struct UsersTable {
     column<"email", std::string> email;
     
     primary_key<&UsersTable::id> pk;
-    sqllib::schema::index<&UsersTable::email> email_idx{index_type::unique};
+    relx::schema::index<&UsersTable::email> email_idx{index_type::unique};
 };
 
 // Static assertions for concept tests

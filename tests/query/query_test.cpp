@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
-#include <sqllib/query.hpp>
+#include <relx/schema.hpp>
+#include <relx/query.hpp>
 #include <string>
 #include <vector>
 #include <optional>
@@ -9,32 +9,32 @@
 // Define test tables
 struct users {
     static constexpr auto table_name = "users";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"email", std::string> email;
-    sqllib::schema::column<"age", int> age;
-    sqllib::schema::column<"bio", std::optional<std::string>> bio;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"email", std::string> email;
+    relx::schema::column<"age", int> age;
+    relx::schema::column<"bio", std::optional<std::string>> bio;
     
-    sqllib::schema::primary_key<&users::id> pk;
-    sqllib::schema::unique_constraint<&users::email> unique_email;
+    relx::schema::primary_key<&users::id> pk;
+    relx::schema::unique_constraint<&users::email> unique_email;
 };
 
 struct posts {
     static constexpr auto table_name = "posts";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"user_id", int> user_id;
-    sqllib::schema::column<"title", std::string> title;
-    sqllib::schema::column<"content", std::string> content;
-    sqllib::schema::column<"created_at", std::string> created_at;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"user_id", int> user_id;
+    relx::schema::column<"title", std::string> title;
+    relx::schema::column<"content", std::string> content;
+    relx::schema::column<"created_at", std::string> created_at;
     
-    sqllib::schema::primary_key<&posts::id> pk;
-    sqllib::schema::foreign_key<&posts::user_id, &users::id> user_fk;
+    relx::schema::primary_key<&posts::id> pk;
+    relx::schema::foreign_key<&posts::user_id, &users::id> user_fk;
 };
 
 TEST(QueryTest, SimpleSelect) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name, u.email)
+    auto query = relx::query::select(u.id, u.name, u.email)
         .from(u);
     
     std::string expected_sql = "SELECT id, name, email FROM users";
@@ -45,7 +45,7 @@ TEST(QueryTest, SimpleSelect) {
 TEST(QueryTest, SelectWithCondition) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.age > 18);
     
@@ -61,9 +61,9 @@ TEST(QueryTest, SelectWithJoin) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select(u.name, p.title)
+    auto query = relx::query::select(u.name, p.title)
         .from(u)
-        .join(p, sqllib::query::on(u.id == p.user_id));
+        .join(p, relx::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -73,7 +73,7 @@ TEST(QueryTest, SelectWithJoin) {
 TEST(QueryTest, SelectWithMultipleConditions) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.age >= 18 && 
                u.name != "");
@@ -90,9 +90,9 @@ TEST(QueryTest, SelectWithMultipleConditions) {
 TEST(QueryTest, SelectWithOrderByAndLimit) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .order_by(sqllib::query::desc(u.name))
+        .order_by(relx::query::desc(u.name))
         .limit(10);
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY name DESC LIMIT ?";
@@ -106,9 +106,9 @@ TEST(QueryTest, SelectWithOrderByAndLimit) {
 TEST(QueryTest, SelectWithAggregateFunction) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::count_all(), "user_count"),
-        sqllib::query::as(sqllib::query::avg(u.age), "average_age")
+    auto query = relx::query::select_expr(
+        relx::query::as(relx::query::count_all(), "user_count"),
+        relx::query::as(relx::query::avg(u.age), "average_age")
     ).from(u);
     
     std::string expected_sql = "SELECT COUNT(*) AS user_count, AVG(age) AS average_age FROM users";
@@ -120,13 +120,13 @@ TEST(QueryTest, SelectWithGroupByAndHaving) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id, 
-        sqllib::query::as(sqllib::query::count(p.id), "post_count"))
+        relx::query::as(relx::query::count(p.id), "post_count"))
         .from(u)
-        .join(p, sqllib::query::on(u.id == p.user_id))
+        .join(p, relx::query::on(u.id == p.user_id))
         .group_by(u.id)
-        .having(sqllib::query::count(p.id) > 5);
+        .having(relx::query::count(p.id) > 5);
     
     std::string expected_sql = "SELECT id, COUNT(id) AS post_count FROM users JOIN posts ON (id = user_id) GROUP BY id HAVING (COUNT(id) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -140,9 +140,9 @@ TEST(QueryTest, SelectWithInCondition) {
     users u;
     
     std::vector<std::string> names = {"Alice", "Bob", "Charlie"};
-    auto query = sqllib::query::select(u.id, u.email)
+    auto query = relx::query::select(u.id, u.email)
         .from(u)
-        .where(sqllib::query::in(u.name, names));
+        .where(relx::query::in(u.name, names));
     
     std::string expected_sql = "SELECT id, email FROM users WHERE name IN (?, ?, ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -157,9 +157,9 @@ TEST(QueryTest, SelectWithInCondition) {
 TEST(QueryTest, SelectWithLikeCondition) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::like(u.email, "%@example.com"));
+        .where(relx::query::like(u.email, "%@example.com"));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE email LIKE ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -172,7 +172,7 @@ TEST(QueryTest, SelectWithLikeCondition) {
 TEST(QueryTest, SelectWithCaseExpression) {
     users u;
     
-    auto case_expr = sqllib::query::case_()
+    auto case_expr = relx::query::case_()
         .when(u.age < 18, "Minor")
         .when(u.age < 65, "Adult")
         .else_("Senior")
@@ -188,7 +188,7 @@ TEST(QueryTest, SelectWithCaseExpression) {
     std::cout << std::endl;
     
     // Then check with the alias
-    auto aliased_case = sqllib::query::as(std::move(case_expr), "age_group");
+    auto aliased_case = relx::query::as(std::move(case_expr), "age_group");
     std::cout << "Aliased SQL: " << aliased_case.to_sql() << std::endl;
     auto alias_params = aliased_case.bind_params();
     std::cout << "Alias params (" << alias_params.size() << "): ";
@@ -198,7 +198,7 @@ TEST(QueryTest, SelectWithCaseExpression) {
     std::cout << std::endl;
     
     // Finally the full query
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.name, 
         std::move(aliased_case))
         .from(u);
@@ -228,8 +228,8 @@ TEST(QueryTest, SimpleCaseWithoutDuplicateParams) {
     users u;
     
     // Create a simple value-only condition first
-    auto value_query = sqllib::query::select_expr(
-        sqllib::query::val(42)
+    auto value_query = relx::query::select_expr(
+        relx::query::val(42)
     );
     
     std::cout << "Value SQL: " << value_query.to_sql() << std::endl;
@@ -246,7 +246,7 @@ TEST(QueryTest, SimpleCaseWithoutDuplicateParams) {
 
 TEST(QueryTest, DebugSelectExprDuplicateParams) {
     // Test a direct value parameter
-    auto single_val = sqllib::query::val(123);
+    auto single_val = relx::query::val(123);
     std::cout << "Single value SQL: " << single_val.to_sql() << std::endl;
     auto single_params = single_val.bind_params();
     std::cout << "Single value params (" << single_params.size() << "): ";
@@ -260,7 +260,7 @@ TEST(QueryTest, DebugSelectExprDuplicateParams) {
     std::cout << "Tuple contents: " << std::get<0>(value_tuple).to_sql() << std::endl;
     
     // Test the SelectQuery with the value directly
-    auto direct_query = sqllib::query::SelectQuery<std::tuple<decltype(single_val)>>(
+    auto direct_query = relx::query::SelectQuery<std::tuple<decltype(single_val)>>(
         std::make_tuple(single_val)
     );
     
@@ -273,7 +273,7 @@ TEST(QueryTest, DebugSelectExprDuplicateParams) {
     std::cout << std::endl;
     
     // Now test through the select_expr helper function
-    auto select_query = sqllib::query::select_expr(single_val);
+    auto select_query = relx::query::select_expr(single_val);
     
     std::cout << "Select query SQL: " << select_query.to_sql() << std::endl;
     auto select_params = select_query.bind_params();

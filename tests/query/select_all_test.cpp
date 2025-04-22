@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
-#include <sqllib/query.hpp>
+#include <relx/schema.hpp>
+#include <relx/query.hpp>
 #include <string>
 #include <vector>
 #include <optional>
@@ -9,36 +9,36 @@
 // Define test tables
 struct users {
     static constexpr auto table_name = "users";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"email", std::string> email;
-    sqllib::schema::column<"age", int> age;
-    sqllib::schema::column<"created_at", std::string> created_at;
-    sqllib::schema::column<"is_active", bool> is_active;
-    sqllib::schema::column<"bio", std::optional<std::string>> bio;
-    sqllib::schema::column<"login_count", int> login_count;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"email", std::string> email;
+    relx::schema::column<"age", int> age;
+    relx::schema::column<"created_at", std::string> created_at;
+    relx::schema::column<"is_active", bool> is_active;
+    relx::schema::column<"bio", std::optional<std::string>> bio;
+    relx::schema::column<"login_count", int> login_count;
     
-    sqllib::schema::primary_key<&users::id> pk;
-    sqllib::schema::unique_constraint<&users::email> unique_email;
+    relx::schema::primary_key<&users::id> pk;
+    relx::schema::unique_constraint<&users::email> unique_email;
 };
 
 // Define a second table
 struct posts {
     static constexpr auto table_name = "posts";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"user_id", int> user_id;
-    sqllib::schema::column<"title", std::string> title;
-    sqllib::schema::column<"content", std::string> content;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"user_id", int> user_id;
+    relx::schema::column<"title", std::string> title;
+    relx::schema::column<"content", std::string> content;
     
-    sqllib::schema::primary_key<&posts::id> pk;
-    sqllib::schema::foreign_key<&posts::user_id, &users::id> user_fk;
+    relx::schema::primary_key<&posts::id> pk;
+    relx::schema::foreign_key<&posts::user_id, &users::id> user_fk;
 };
 
 TEST(SelectAllTest, BasicSelectAll) {
     users u;
     
     // Use select_all with a table instance
-    auto query = sqllib::query::select_all(u);
+    auto query = relx::query::select_all(u);
     
     // The expected SQL should include all columns but not constraints
     std::string expected_sql = "SELECT * FROM users";
@@ -48,7 +48,7 @@ TEST(SelectAllTest, BasicSelectAll) {
 
 TEST(SelectAllTest, SelectAllWithoutInstance) {
     // Use select_all with just the table type
-    auto query = sqllib::query::select_all<users>();
+    auto query = relx::query::select_all<users>();
     
     // The expected SQL should include all columns but not constraints
     std::string expected_sql = "SELECT * FROM users";
@@ -58,8 +58,8 @@ TEST(SelectAllTest, SelectAllWithoutInstance) {
 
 TEST(SelectAllTest, SelectAllWithWhere) {
     // Use select_all with just the table type and add a WHERE clause
-    auto query = sqllib::query::select_all<users>()
-        .where(sqllib::query::to_expr<&users::age>() > 18);
+    auto query = relx::query::select_all<users>()
+        .where(relx::query::to_expr<&users::age>() > 18);
     
     // The expected SQL should include all columns with the WHERE clause
     std::string expected_sql = "SELECT * FROM users WHERE (age > ?)";
@@ -72,8 +72,8 @@ TEST(SelectAllTest, SelectAllWithWhere) {
 
 TEST(SelectAllTest, SelectAllWithJoin) {
     // Use select_all with a join
-    auto query = sqllib::query::select_all<users>()
-        .join(posts{}, sqllib::query::on(sqllib::query::to_expr<&users::id>() == sqllib::query::to_expr<&posts::user_id>()));
+    auto query = relx::query::select_all<users>()
+        .join(posts{}, relx::query::on(relx::query::to_expr<&users::id>() == relx::query::to_expr<&posts::user_id>()));
     
     // The expected SQL should include all columns from users and the JOIN clause
     std::string expected_sql = "SELECT * FROM users JOIN posts ON (id = user_id)";
@@ -83,12 +83,12 @@ TEST(SelectAllTest, SelectAllWithJoin) {
 
 TEST(SelectAllTest, SelectAllWithAllClauses) {
     // Use select_all with multiple clauses
-    auto query = sqllib::query::select_all<users>()
-        .join(posts{}, sqllib::query::on(sqllib::query::to_expr<&users::id>() == sqllib::query::to_expr<&posts::user_id>()))
-        .where(sqllib::query::to_expr<&users::age>() > 18)
-        .group_by(sqllib::query::to_expr<&users::id>())
-        .having(sqllib::query::count(sqllib::query::to_expr<&posts::id>()) > 5)
-        .order_by(sqllib::query::desc(sqllib::query::to_expr<&users::age>()))
+    auto query = relx::query::select_all<users>()
+        .join(posts{}, relx::query::on(relx::query::to_expr<&users::id>() == relx::query::to_expr<&posts::user_id>()))
+        .where(relx::query::to_expr<&users::age>() > 18)
+        .group_by(relx::query::to_expr<&users::id>())
+        .having(relx::query::count(relx::query::to_expr<&posts::id>()) > 5)
+        .order_by(relx::query::desc(relx::query::to_expr<&users::age>()))
         .limit(10)
         .offset(20);
     

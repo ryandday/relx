@@ -1,28 +1,28 @@
 #include <gtest/gtest.h>
 
-#include <sqllib/postgresql.hpp>
-#include <sqllib/schema.hpp>
-#include <sqllib/query.hpp>
-#include <sqllib/results.hpp>
+#include <relx/postgresql.hpp>
+#include <relx/schema.hpp>
+#include <relx/query.hpp>
+#include <relx/results.hpp>
 
 namespace {
 
 // Test table definition
 struct Users {
     static constexpr auto table_name = "users";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"email", std::string> email;
-    sqllib::schema::column<"age", int> age;
-    sqllib::schema::column<"active", bool> active;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"email", std::string> email;
+    relx::schema::column<"age", int> age;
+    relx::schema::column<"active", bool> active;
     
-    sqllib::schema::primary_key<&Users::id> pk;
+    relx::schema::primary_key<&Users::id> pk;
 };
 
 class PostgreSQLConnectionTest : public ::testing::Test {
 protected:
     // Connection string for the Docker container
-    std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
     
     void SetUp() override {
         // Clean up any existing test tables
@@ -36,7 +36,7 @@ protected:
     
     // Helper to clean up the test table
     void clean_test_table() {
-        sqllib::PostgreSQLConnection conn(conn_string);
+        relx::PostgreSQLConnection conn(conn_string);
         auto connect_result = conn.connect();
         if (connect_result) {
             // Drop table if it exists
@@ -46,7 +46,7 @@ protected:
     }
     
     // Helper to create the test table
-    void create_test_table(sqllib::Connection& conn) {
+    void create_test_table(relx::Connection& conn) {
         // Use PostgreSQL specific SQL instead of the schema generator
         std::string create_table_sql = R"(
             CREATE TABLE IF NOT EXISTS users (
@@ -62,7 +62,7 @@ protected:
     }
     
     // Helper to insert test data
-    void insert_test_data(sqllib::Connection& conn) {
+    void insert_test_data(relx::Connection& conn) {
         // Use PostgreSQL specific SQL instead of the query builder
         auto result1 = conn.execute_raw(
             "INSERT INTO users (name, email, age, active) VALUES ($1, $2, $3, $4)",
@@ -87,7 +87,7 @@ protected:
 };
 
 TEST_F(PostgreSQLConnectionTest, TestConnection) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     
     // Test initial state
     EXPECT_FALSE(conn.is_connected());
@@ -112,7 +112,7 @@ TEST_F(PostgreSQLConnectionTest, TestConnection) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestExecuteRawQuery) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -158,7 +158,7 @@ TEST_F(PostgreSQLConnectionTest, TestExecuteRawQuery) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestExecuteQueryWithParams) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -203,7 +203,7 @@ TEST_F(PostgreSQLConnectionTest, TestExecuteQueryWithParams) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestErrorHandling) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -214,7 +214,7 @@ TEST_F(PostgreSQLConnectionTest, TestErrorHandling) {
     std::cout << "Note: The PostgreSQL error handling implementation might not detect certain SQL errors correctly.\n";
     
     // 1. Test not connected state, which should always error
-    sqllib::PostgreSQLConnection newConn(conn_string);
+    relx::PostgreSQLConnection newConn(conn_string);
     // Intentionally not connecting
     auto result = newConn.execute_raw("SELECT 1;");
     ASSERT_FALSE(result);
@@ -226,14 +226,14 @@ TEST_F(PostgreSQLConnectionTest, TestErrorHandling) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestMoveOperations) {
-    sqllib::PostgreSQLConnection conn1(conn_string);
+    relx::PostgreSQLConnection conn1(conn_string);
     ASSERT_TRUE(conn1.connect());
     
     // Create test table
     create_test_table(conn1);
     
     // Test move constructor
-    sqllib::PostgreSQLConnection conn2(std::move(conn1));
+    relx::PostgreSQLConnection conn2(std::move(conn1));
     EXPECT_TRUE(conn2.is_connected());
     
     // Original connection should be in a disconnected state
@@ -244,7 +244,7 @@ TEST_F(PostgreSQLConnectionTest, TestMoveOperations) {
     ASSERT_TRUE(result1);
     
     // Test move assignment
-    sqllib::PostgreSQLConnection conn3("host=localhost port=5434 dbname=nonexistent user=postgres password=postgres");
+    relx::PostgreSQLConnection conn3("host=localhost port=5434 dbname=nonexistent user=postgres password=postgres");
     conn3 = std::move(conn2);
     EXPECT_TRUE(conn3.is_connected());
     EXPECT_FALSE(conn2.is_connected());
@@ -261,7 +261,7 @@ TEST_F(PostgreSQLConnectionTest, TestMoveOperations) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestQueryObjectExecution) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -301,7 +301,7 @@ TEST_F(PostgreSQLConnectionTest, TestQueryObjectExecution) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestTransactionBasics) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -337,7 +337,7 @@ TEST_F(PostgreSQLConnectionTest, TestTransactionBasics) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestTransactionRollback) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -377,18 +377,18 @@ TEST_F(PostgreSQLConnectionTest, TestTransactionRollback) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestTransactionIsolationLevels) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
     create_test_table(conn);
     
     // Test each isolation level
-    std::vector<sqllib::IsolationLevel> levels = {
-        sqllib::IsolationLevel::ReadUncommitted,
-        sqllib::IsolationLevel::ReadCommitted,
-        sqllib::IsolationLevel::RepeatableRead,
-        sqllib::IsolationLevel::Serializable
+    std::vector<relx::IsolationLevel> levels = {
+        relx::IsolationLevel::ReadUncommitted,
+        relx::IsolationLevel::ReadCommitted,
+        relx::IsolationLevel::RepeatableRead,
+        relx::IsolationLevel::Serializable
     };
     
     for (auto level : levels) {
@@ -408,7 +408,7 @@ TEST_F(PostgreSQLConnectionTest, TestTransactionIsolationLevels) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestTransactionErrorHandling) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -440,7 +440,7 @@ TEST_F(PostgreSQLConnectionTest, TestTransactionErrorHandling) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestDisconnectWithActiveTransaction) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -452,7 +452,7 @@ TEST_F(PostgreSQLConnectionTest, TestDisconnectWithActiveTransaction) {
     
     // Insert some data
     Users u;
-    auto insert_result = conn.execute(sqllib::query::insert_into(u)
+    auto insert_result = conn.execute(relx::query::insert_into(u)
         .columns(u.name, u.email, u.age, u.active)
         .values("DisconnectTest", "disconnect@example.com", 60, true));
     ASSERT_TRUE(insert_result);
@@ -477,7 +477,7 @@ TEST_F(PostgreSQLConnectionTest, TestDisconnectWithActiveTransaction) {
 }
 
 TEST_F(PostgreSQLConnectionTest, TestBooleanColumn) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table

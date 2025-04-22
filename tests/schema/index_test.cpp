@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Test table with various index types
 struct Product {
@@ -18,9 +18,9 @@ struct Product {
     primary_key<&Product::id> pk;
     
     // Various index types
-    sqllib::schema::index<&Product::sku> sku_idx{index_type::unique};
-    sqllib::schema::index<&Product::name_col> name_idx{index_type::normal};
-    sqllib::schema::index<&Product::description> desc_idx{index_type::fulltext};
+    relx::schema::index<&Product::sku> sku_idx{index_type::unique};
+    relx::schema::index<&Product::name_col> name_idx{index_type::normal};
+    relx::schema::index<&Product::description> desc_idx{index_type::fulltext};
     
     // Composite index (may not be fully implemented yet)
     composite_index<&Product::price, &Product::stock> price_stock_idx;
@@ -72,7 +72,7 @@ TEST(IndexTest, CompositeIndex) {
 
 TEST(IndexTest, DefaultIndexConstructor) {
     // Test that the default constructor creates a normal index
-    sqllib::schema::index<&Product::name_col> default_idx;
+    relx::schema::index<&Product::name_col> default_idx;
     Product product;
     
     // The expected CREATE INDEX statement for a normal index
@@ -82,7 +82,7 @@ TEST(IndexTest, DefaultIndexConstructor) {
 
 TEST(IndexTest, ExplicitlyNormalIndex) {
     // Test creating a normal index explicitly
-    sqllib::schema::index<&Product::name_col> normal_idx{index_type::normal};
+    relx::schema::index<&Product::name_col> normal_idx{index_type::normal};
     Product product;
     
     // The expected CREATE INDEX statement for a normal index
@@ -93,7 +93,7 @@ TEST(IndexTest, ExplicitlyNormalIndex) {
 TEST(IndexTest, SpatialIndex) {
     // Test creating a spatial index
     // Note: This would typically be used for geometry/geography columns
-    sqllib::schema::index<&Product::name_col> spatial_idx{index_type::spatial};
+    relx::schema::index<&Product::name_col> spatial_idx{index_type::spatial};
     Product product;
     
     // The expected CREATE INDEX statement for a spatial index

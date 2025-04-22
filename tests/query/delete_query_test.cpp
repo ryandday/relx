@@ -1,13 +1,13 @@
 #include <gtest/gtest.h>
-#include "sqllib/query/delete.hpp"
-#include "sqllib/query/condition.hpp"
-#include "sqllib/query/value.hpp"
-#include "sqllib/query/function.hpp"
+#include "relx/query/delete.hpp"
+#include "relx/query/condition.hpp"
+#include "relx/query/value.hpp"
+#include "relx/query/function.hpp"
 #include <string>
 #include <string_view>
 #include <vector>
 
-using namespace sqllib;
+using namespace relx;
 
 // Define a simple User table for testing
 struct User {

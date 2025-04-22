@@ -14,11 +14,11 @@ TEST(DataTypeTest, IntegerTypes) {
     users u;
     
     // Test with different integer types
-    auto query_int = sqllib::query::select(u.id, u.name)
+    auto query_int = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.id == 42);
     
-    auto query_long = sqllib::query::select(u.id, u.name)
+    auto query_long = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.id == 9223372036854775807L); // max int64_t
     
@@ -44,37 +44,37 @@ struct score_column {
     template <typename T>
     requires std::is_arithmetic_v<T>
     auto operator>(const T& value) const {
-        return sqllib::query::to_expr(*this) > sqllib::query::val(value);
+        return relx::query::to_expr(*this) > relx::query::val(value);
     }
     
     template <typename T>
     requires std::is_arithmetic_v<T>
     auto operator<(const T& value) const {
-        return sqllib::query::to_expr(*this) < sqllib::query::val(value);
+        return relx::query::to_expr(*this) < relx::query::val(value);
     }
     
     template <typename T>
     requires std::is_arithmetic_v<T>
     auto operator>=(const T& value) const {
-        return sqllib::query::to_expr(*this) >= sqllib::query::val(value);
+        return relx::query::to_expr(*this) >= relx::query::val(value);
     }
     
     template <typename T>
     requires std::is_arithmetic_v<T>
     auto operator<=(const T& value) const {
-        return sqllib::query::to_expr(*this) <= sqllib::query::val(value);
+        return relx::query::to_expr(*this) <= relx::query::val(value);
     }
     
     template <typename T>
     requires std::is_arithmetic_v<T>
     auto operator==(const T& value) const {
-        return sqllib::query::to_expr(*this) == sqllib::query::val(value);
+        return relx::query::to_expr(*this) == relx::query::val(value);
     }
     
     template <typename T>
     requires std::is_arithmetic_v<T>
     auto operator!=(const T& value) const {
-        return sqllib::query::to_expr(*this) != sqllib::query::val(value);
+        return relx::query::to_expr(*this) != relx::query::val(value);
     }
 };
 
@@ -86,11 +86,11 @@ TEST(DataTypeTest, FloatingPointTypes) {
     auto sc = score_column{};
     
     // Test with different floating point values
-    auto query_float = sqllib::query::select(u.id, u.name)
+    auto query_float = relx::query::select(u.id, u.name)
         .from(u)
         .where(sc > 3.14159f);
     
-    auto query_double = sqllib::query::select(u.id, u.name)
+    auto query_double = relx::query::select(u.id, u.name)
         .from(u)
         .where(sc > 2.7182818284590452);
     
@@ -120,16 +120,16 @@ TEST(DataTypeTest, StringTypes) {
     std::string std_string = "Standard string";
     const char* c_string = "C-style string";
     
-    auto query_std_string = sqllib::query::select(u.id, u.name)
+    auto query_std_string = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.name == std_string);
     
-    auto query_c_string = sqllib::query::select(u.id, u.name)
+    auto query_c_string = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.name == c_string);
     
     // Test with string literal
-    auto query_string_literal = sqllib::query::select(u.id, u.name)
+    auto query_string_literal = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.name == "String literal");
     
@@ -160,13 +160,13 @@ TEST(DataTypeTest, OptionalTypes) {
     std::optional<std::string> absent_value = std::nullopt;
     
     // Create separate queries for present and absent values
-    auto query_with_value = sqllib::query::select(u.id, u.name)
+    auto query_with_value = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.bio == "Optional string");
         
-    auto query_with_null = sqllib::query::select(u.id, u.name)
+    auto query_with_null = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_null(u.bio));
+        .where(relx::query::is_null(u.bio));
     
     std::string expected_present_sql = "SELECT id, name FROM users WHERE (bio = ?)";
     std::string expected_absent_sql = "SELECT id, name FROM users WHERE bio IS NULL";
@@ -190,13 +190,13 @@ TEST(DataTypeTest, ContainerTypes) {
     std::vector<std::string> str_vector = {"1", "2", "3", "4", "5"};
     std::array<std::string, 3> string_array = {"apple", "banana", "cherry"};
     
-    auto query_vector = sqllib::query::select(u.id, u.name)
+    auto query_vector = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::in(u.name, str_vector));
+        .where(relx::query::in(u.name, str_vector));
     
-    auto query_array = sqllib::query::select(u.id, u.name)
+    auto query_array = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::in(u.name, string_array));
+        .where(relx::query::in(u.name, string_array));
     
     std::string expected_vector_sql = "SELECT id, name FROM users WHERE name IN (?, ?, ?, ?, ?)";
     std::string expected_array_sql = "SELECT id, name FROM users WHERE name IN (?, ?, ?)";
@@ -224,16 +224,16 @@ TEST(DataTypeTest, BooleanTypes) {
     users u;
     
     // Test with boolean values in different contexts
-    auto query_bool_equals = sqllib::query::select(u.id, u.name)
+    auto query_bool_equals = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.is_active == true);
     
-    auto query_bool_not = sqllib::query::select(u.id, u.name)
+    auto query_bool_not = relx::query::select(u.id, u.name)
         .from(u)
         .where(!u.is_active);
     
     // Now we can use the logical operator directly without namespace qualification
-    auto query_bool_and = sqllib::query::select(u.id, u.name)
+    auto query_bool_and = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.is_active && (u.age > 18));
     
@@ -266,18 +266,18 @@ TEST(DataTypeTest, NullHandling) {
     users u;
     
     // Test IS NULL and IS NOT NULL
-    auto query_is_null = sqllib::query::select(u.id, u.name)
+    auto query_is_null = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_null(u.bio));
+        .where(relx::query::is_null(u.bio));
     
-    auto query_is_not_null = sqllib::query::select(u.id, u.name)
+    auto query_is_not_null = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_not_null(u.bio));
+        .where(relx::query::is_not_null(u.bio));
     
     // Test nullable column with IS NULL
-    auto query_equals_null = sqllib::query::select(u.id, u.name)
+    auto query_equals_null = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::is_null(u.bio));
+        .where(relx::query::is_null(u.bio));
     
     std::string expected_is_null_sql = "SELECT id, name FROM users WHERE bio IS NULL";
     std::string expected_is_not_null_sql = "SELECT id, name FROM users WHERE bio IS NOT NULL";
@@ -297,22 +297,22 @@ TEST(DataTypeTest, DirectLiteralComparisons) {
     users u;
     
     // Test numeric literals in different contexts
-    auto query_int_literal = sqllib::query::select(u.id, u.name)
+    auto query_int_literal = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.id == 42);
     
     // We need to create a proper expression for score_column
     auto sc = score_column{};
-    auto query_float_literal = sqllib::query::select(u.id, u.name)
+    auto query_float_literal = relx::query::select(u.id, u.name)
         .from(u)
         .where(sc > 3.14159);
     
-    auto query_combined_literal = sqllib::query::select(u.id, u.name)
+    auto query_combined_literal = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.is_active && (u.age > 18));
     
     // Test string literals
-    auto query_string_literal = sqllib::query::select(u.id, u.name)
+    auto query_string_literal = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.name == "Direct string literal");
     
@@ -345,11 +345,11 @@ TEST(DataTypeTest, DirectLiteralComparisons) {
     EXPECT_EQ(params_string[0], "Direct string literal");
     
     // Test reversed comparison operators
-    auto query_reversed_int = sqllib::query::select(u.id, u.name)
+    auto query_reversed_int = relx::query::select(u.id, u.name)
         .from(u)
         .where(42 == u.id);
     
-    auto query_reversed_string = sqllib::query::select(u.id, u.name)
+    auto query_reversed_string = relx::query::select(u.id, u.name)
         .from(u)
         .where("Direct string literal" == u.name);
     

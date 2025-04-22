@@ -1,10 +1,10 @@
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 #include <type_traits>
 #include <string>
 #include <concepts>
 #include <iostream>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Define various test types from concept tests
 
@@ -88,7 +88,7 @@ struct UsersTable {
     column<"email", std::string> email;
     
     primary_key<&UsersTable::id> pk;
-    sqllib::schema::index<&UsersTable::email> email_idx{index_type::unique};
+    relx::schema::index<&UsersTable::email> email_idx{index_type::unique};
 };
 
 // Test table with foreign key constraint

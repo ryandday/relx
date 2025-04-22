@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 #include <chrono>
 #include <array>
 #include <optional>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Custom enum type with column traits specialization
 enum class UserRole {
@@ -15,7 +15,7 @@ enum class UserRole {
 
 // Specialization of column_traits for the UserRole enum
 template <>
-struct sqllib::schema::column_traits<UserRole> {
+struct relx::schema::column_traits<UserRole> {
     static constexpr auto sql_type_name = "TEXT";
     static constexpr bool nullable = false;
     
@@ -54,7 +54,7 @@ struct UUID {
 
 // Specialization of column_traits for UUID
 template <>
-struct sqllib::schema::column_traits<UUID> {
+struct relx::schema::column_traits<UUID> {
     static constexpr auto sql_type_name = "BLOB";
     static constexpr bool nullable = false;
     
@@ -83,7 +83,7 @@ using Timestamp = std::chrono::time_point<std::chrono::system_clock>;
 
 // Specialization of column_traits for Timestamp
 template <>
-struct sqllib::schema::column_traits<Timestamp> {
+struct relx::schema::column_traits<Timestamp> {
     static constexpr auto sql_type_name = "TEXT";
     static constexpr bool nullable = false;
     

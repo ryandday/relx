@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Test table column definitions
 struct ProductColumns {

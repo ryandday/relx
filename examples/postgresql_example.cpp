@@ -3,59 +3,59 @@
 #include <string>
 #include <optional>
 
-#include <sqllib/postgresql.hpp>
-#include <sqllib/schema.hpp>
-#include <sqllib/query.hpp>
-#include <sqllib/results.hpp>
+#include <relx/postgresql.hpp>
+#include <relx/schema.hpp>
+#include <relx/query.hpp>
+#include <relx/results.hpp>
 
 // Define the database schema
 // Users table definition
 struct Users {
     static constexpr auto table_name = "users";
     
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"email", std::string> email;
-    sqllib::schema::column<"age", int> age;
-    sqllib::schema::column<"is_active", bool> is_active;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"email", std::string> email;
+    relx::schema::column<"age", int> age;
+    relx::schema::column<"is_active", bool> is_active;
     
-    sqllib::schema::primary_key<&Users::id> pk;
-    sqllib::schema::unique_constraint<&Users::email> unique_email;
+    relx::schema::primary_key<&Users::id> pk;
+    relx::schema::unique_constraint<&Users::email> unique_email;
 };
 
 // Posts table definition with foreign key to Users
 struct Posts {
     static constexpr auto table_name = "posts";
     
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"user_id", int> user_id;
-    sqllib::schema::column<"title", std::string> title;
-    sqllib::schema::column<"content", std::string> content;
-    sqllib::schema::column<"views", int> views;
-    sqllib::schema::column<"created_at", std::string> created_at;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"user_id", int> user_id;
+    relx::schema::column<"title", std::string> title;
+    relx::schema::column<"content", std::string> content;
+    relx::schema::column<"views", int> views;
+    relx::schema::column<"created_at", std::string> created_at;
     
-    sqllib::schema::primary_key<&Posts::id> pk;
-    sqllib::schema::foreign_key<&Posts::user_id, &Users::id> user_fk;
+    relx::schema::primary_key<&Posts::id> pk;
+    relx::schema::foreign_key<&Posts::user_id, &Users::id> user_fk;
 };
 
 // Comments table definition with foreign key to Posts
 struct Comments {
     static constexpr auto table_name = "comments";
     
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"post_id", int> post_id;
-    sqllib::schema::column<"user_id", int> user_id;
-    sqllib::schema::column<"content", std::string> content;
-    sqllib::schema::column<"created_at", std::string> created_at;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"post_id", int> post_id;
+    relx::schema::column<"user_id", int> user_id;
+    relx::schema::column<"content", std::string> content;
+    relx::schema::column<"created_at", std::string> created_at;
     
-    sqllib::schema::primary_key<&Comments::id> pk;
-    sqllib::schema::foreign_key<&Comments::post_id, &Posts::id> post_fk;
-    sqllib::schema::foreign_key<&Comments::user_id, &Users::id> user_fk;
+    relx::schema::primary_key<&Comments::id> pk;
+    relx::schema::foreign_key<&Comments::post_id, &Posts::id> post_fk;
+    relx::schema::foreign_key<&Comments::user_id, &Users::id> user_fk;
 };
 
 // Function to handle errors in connection results
 template<typename T>
-bool check_result(const sqllib::ConnectionResult<T>& result, const std::string& operation) {
+bool check_result(const relx::ConnectionResult<T>& result, const std::string& operation) {
     if (!result) {
         std::cerr << "Error during " << operation << ": " << result.error().message << std::endl;
         return false;
@@ -68,7 +68,7 @@ void print_divider() {
 }
 
 // Function to create tables
-bool create_tables(sqllib::Connection& conn) {
+bool create_tables(relx::Connection& conn) {
     std::cout << "Creating tables..." << std::endl;
     
     // Create Users table
@@ -119,7 +119,7 @@ bool create_tables(sqllib::Connection& conn) {
 }
 
 // Function to insert sample data
-bool insert_sample_data(sqllib::Connection& conn) {
+bool insert_sample_data(relx::Connection& conn) {
     std::cout << "Inserting sample data..." << std::endl;
     
     // Begin a transaction
@@ -217,7 +217,7 @@ bool insert_sample_data(sqllib::Connection& conn) {
 }
 
 // Function to demonstrate basic SQL queries
-void demonstrate_basic_queries(sqllib::Connection& conn) {
+void demonstrate_basic_queries(relx::Connection& conn) {
     print_divider();
     std::cout << "DEMONSTRATING BASIC QUERIES" << std::endl;
     print_divider();
@@ -226,7 +226,7 @@ void demonstrate_basic_queries(sqllib::Connection& conn) {
     std::cout << "1. Selecting all users:" << std::endl;
     
     Users u;
-    auto users_query = sqllib::query::select(u.id, u.name, u.email, u.age, u.is_active)
+    auto users_query = relx::query::select(u.id, u.name, u.email, u.age, u.is_active)
         .from(u)
         .order_by(u.id);
     
@@ -247,7 +247,7 @@ void demonstrate_basic_queries(sqllib::Connection& conn) {
     // 2. SELECT with WHERE condition - get active users over 30
     std::cout << "2. Selecting active users over 30:" << std::endl;
     
-    auto active_users_query = sqllib::query::select(u.id, u.name, u.age)
+    auto active_users_query = relx::query::select(u.id, u.name, u.age)
         .from(u)
         .where((u.age > 30) && (u.is_active == true));
     
@@ -266,7 +266,7 @@ void demonstrate_basic_queries(sqllib::Connection& conn) {
     // 3. UPDATE query - update a user's active status
     std::cout << "3. Updating user's active status:" << std::endl;
     
-    auto update_query = sqllib::query::update(u)
+    auto update_query = relx::query::update(u)
         .set(u.is_active, true)
         .where(u.name == "Charlie Davis");
     
@@ -276,7 +276,7 @@ void demonstrate_basic_queries(sqllib::Connection& conn) {
     }
     
     // Verify the update
-    auto verify_update = sqllib::query::select(u.id, u.name, u.is_active)
+    auto verify_update = relx::query::select(u.id, u.name, u.is_active)
         .from(u)
         .where(u.name == "Charlie Davis");
     
@@ -293,7 +293,7 @@ void demonstrate_basic_queries(sqllib::Connection& conn) {
     // 4. DELETE query - delete a non-existent user (safe example)
     std::cout << "4. Deleting a user (safe example):" << std::endl;
     
-    auto delete_query = sqllib::query::delete_from(u)
+    auto delete_query = relx::query::delete_from(u)
         .where(u.name == "NonExistentUser");
     
     auto delete_result = conn.execute(delete_query);
@@ -303,7 +303,7 @@ void demonstrate_basic_queries(sqllib::Connection& conn) {
 }
 
 // Function to demonstrate complex queries
-void demonstrate_complex_queries(sqllib::Connection& conn) {
+void demonstrate_complex_queries(relx::Connection& conn) {
     print_divider();
     std::cout << "DEMONSTRATING COMPLEX QUERIES" << std::endl;
     print_divider();
@@ -315,10 +315,10 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
     // 1. JOIN query - Get posts with their author information
     std::cout << "1. JOIN: Posts with author information:" << std::endl;
     
-    auto join_query = sqllib::query::select(p.id, p.title, p.views, sqllib::query::as(u.name, "author_name"), sqllib::query::as(u.email, "author_email"))
+    auto join_query = relx::query::select(p.id, p.title, p.views, relx::query::as(u.name, "author_name"), relx::query::as(u.email, "author_email"))
         .from(p)
-        .join(u, sqllib::query::on(p.user_id == u.id))
-        .order_by(sqllib::query::desc(p.views));
+        .join(u, relx::query::on(p.user_id == u.id))
+        .order_by(relx::query::desc(p.views));
     
     auto join_result = conn.execute(join_query);
     if (check_result(join_result, "post-author join")) {
@@ -337,15 +337,15 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
     // 2. Aggregate functions - Count posts per user with total views
     std::cout << "2. Aggregates: Post counts and total views per user:" << std::endl;
     
-    auto agg_query = sqllib::query::select_expr(
+    auto agg_query = relx::query::select_expr(
         u.name,
-        sqllib::query::as(sqllib::query::count(p.id), "post_count"),
-        sqllib::query::as(sqllib::query::sum(p.views), "total_views")
+        relx::query::as(relx::query::count(p.id), "post_count"),
+        relx::query::as(relx::query::sum(p.views), "total_views")
     )
     .from(u)
-    .left_join(p, sqllib::query::on(u.id == p.user_id))
+    .left_join(p, relx::query::on(u.id == p.user_id))
     .group_by(u.id, u.name)
-    .order_by(sqllib::query::desc(sqllib::query::sum(p.views)));
+    .order_by(relx::query::desc(relx::query::sum(p.views)));
     
     auto agg_result = conn.execute(agg_query);
     if (check_result(agg_result, "aggregate query")) {
@@ -362,22 +362,22 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
     // 3. Complex JOIN with subquery and HAVING - Get popular posts with comment counts
     std::cout << "3. Complex JOIN: Popular posts with comment counts:" << std::endl;
     
-    auto complex_query = sqllib::query::select_expr(
+    auto complex_query = relx::query::select_expr(
         p.id,
         p.title,
-        sqllib::query::as(u.name, "author"),
+        relx::query::as(u.name, "author"),
         p.views,
-        sqllib::query::as(sqllib::query::count(c.id), "comment_count")
+        relx::query::as(relx::query::count(c.id), "comment_count")
     )
     .from(p)
-    .join(u, sqllib::query::on(p.user_id == u.id))
-    .left_join(c, sqllib::query::on(p.id == c.post_id))
+    .join(u, relx::query::on(p.user_id == u.id))
+    .left_join(c, relx::query::on(p.id == c.post_id))
     .group_by(p.id, p.title, u.name, p.views)
     .having(
         (p.views > 50) &&
-        (sqllib::query::count(c.id) > 0)
+        (relx::query::count(c.id) > 0)
     )
-    .order_by(sqllib::query::desc(p.views));
+    .order_by(relx::query::desc(p.views));
     
     auto complex_result = conn.execute(complex_query);
     if (check_result(complex_result, "complex join query")) {
@@ -396,16 +396,16 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
     // 4. Advanced query with CASE expression - User activity categories
     std::cout << "4. Advanced CASE expression: User activity categories:" << std::endl;
     
-    auto case_query = sqllib::query::select_expr(
+    auto case_query = relx::query::select_expr(
         u.name,
-        sqllib::query::as(
-            sqllib::query::case_()
+        relx::query::as(
+            relx::query::case_()
                 .when(
-                    sqllib::query::count(p.id) == 0,
+                    relx::query::count(p.id) == 0,
                     "Inactive"
                 )
                 .when(
-                    (sqllib::query::count(p.id) >= 1) && (sqllib::query::count(p.id) < 3),
+                    (relx::query::count(p.id) >= 1) && (relx::query::count(p.id) < 3),
                     "Casual"
                 )
                 .else_(
@@ -414,12 +414,12 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
                 .build(),
             "user_category"
         ),
-        sqllib::query::as(sqllib::query::count(p.id), "post_count")
+        relx::query::as(relx::query::count(p.id), "post_count")
     )
     .from(u)
-    .left_join(p, sqllib::query::on(u.id == p.user_id))
+    .left_join(p, relx::query::on(u.id == p.user_id))
     .group_by(u.id, u.name)
-    .order_by(sqllib::query::desc(sqllib::query::count(p.id)));
+    .order_by(relx::query::desc(relx::query::count(p.id)));
     
     auto case_result = conn.execute(case_query);
     if (check_result(case_result, "case expression query")) {
@@ -433,7 +433,7 @@ void demonstrate_complex_queries(sqllib::Connection& conn) {
 }
 
 // Function to clean up data
-bool clean_up(sqllib::Connection& conn) {
+bool clean_up(relx::Connection& conn) {
     print_divider();
     std::cout << "Cleaning up database..." << std::endl;
     
@@ -461,10 +461,10 @@ bool clean_up(sqllib::Connection& conn) {
 
 int main() {
     // Connection string - Modify with your PostgreSQL connection details
-    std::string conn_string = "host=localhost port=5435 dbname=sqllib_example user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5435 dbname=relx_example user=postgres password=postgres";
     
     // Create a connection
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     
     // Connect to the database
     auto connect_result = conn.connect();

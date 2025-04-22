@@ -13,7 +13,7 @@ When writing tests, make sure to tests many error conditions, as many as success
 
 When I make a feature that replaces another feature, do not keep backwards compatibility with the old feature
 
-# C++ Coding Standards for SQLlib
+# C++ Coding Standards for relx
 
 ## Language Version
 - Use C++23 as the primary standard 
@@ -179,10 +179,10 @@ std::optional<int> get_value();
 - Separate include groups with blank lines
 
 ### Namespaces
-- Place code in the `sqllib` namespace
+- Place code in the `relx` namespace
 - Use nested namespaces for major subsystems:
   ```cpp
-  namespace sqllib::detail {
+  namespace relx::detail {
       // Implementation details
   }
   ```

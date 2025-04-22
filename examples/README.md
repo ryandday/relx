@@ -1,10 +1,10 @@
-# SQLlib Examples
+# relx Examples
 
-This directory contains examples demonstrating how to use the SQLlib library with different database systems.
+This directory contains examples demonstrating how to use the relx library with different database systems.
 
 ## PostgreSQL Example
 
-The `postgresql_example.cpp` file demonstrates using SQLlib with PostgreSQL databases. It showcases:
+The `postgresql_example.cpp` file demonstrates using relx with PostgreSQL databases. It showcases:
 
 1. Connecting to a PostgreSQL database
 2. Creating table schema definitions
@@ -24,7 +24,7 @@ The `postgresql_example.cpp` file demonstrates using SQLlib with PostgreSQL data
 To run the PostgreSQL example, you need:
 
 1. A running PostgreSQL server
-2. A database named `sqllib_example` (or modify the connection string in the example)
+2. A database named `relx_example` (or modify the connection string in the example)
 3. Appropriate user credentials (default: username=postgres, password=postgres)
 
 ### How to Build
@@ -55,4 +55,4 @@ The example will:
 6. Clean up by dropping the tables
 7. Disconnect from the database
 
-Each query will display its results to the console, showing the power of SQLlib's type-safe query building and results processing. 
+Each query will display its results to the console, showing the power of relx's type-safe query building and results processing. 

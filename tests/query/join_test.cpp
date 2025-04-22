@@ -8,9 +8,9 @@ TEST(JoinTest, InnerJoin) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select(u.name, p.title)
+    auto query = relx::query::select(u.name, p.title)
         .from(u)
-        .join(p, sqllib::query::on(u.id == p.user_id));
+        .join(p, relx::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -21,9 +21,9 @@ TEST(JoinTest, LeftJoin) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select(u.name, p.title)
+    auto query = relx::query::select(u.name, p.title)
         .from(u)
-        .left_join(p, sqllib::query::on(u.id == p.user_id));
+        .left_join(p, relx::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users LEFT JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -34,9 +34,9 @@ TEST(JoinTest, RightJoin) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select(u.name, p.title)
+    auto query = relx::query::select(u.name, p.title)
         .from(u)
-        .right_join(p, sqllib::query::on(u.id == p.user_id));
+        .right_join(p, relx::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users RIGHT JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -47,9 +47,9 @@ TEST(JoinTest, FullJoin) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select(u.name, p.title)
+    auto query = relx::query::select(u.name, p.title)
         .from(u)
-        .full_join(p, sqllib::query::on(u.id == p.user_id));
+        .full_join(p, relx::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT name, title FROM users FULL JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -60,7 +60,7 @@ TEST(JoinTest, CrossJoin) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select(u.name, p.title)
+    auto query = relx::query::select(u.name, p.title)
         .from(u)
         .cross_join(p);
     
@@ -74,10 +74,10 @@ TEST(JoinTest, MultipleJoins) {
     posts p;
     comments c;
     
-    auto query = sqllib::query::select(u.name, p.title, c.content)
+    auto query = relx::query::select(u.name, p.title, c.content)
         .from(u)
-        .join(p, sqllib::query::on(u.id == p.user_id))
-        .join(c, sqllib::query::on(p.id == c.post_id));
+        .join(p, relx::query::on(u.id == p.user_id))
+        .join(c, relx::query::on(p.id == c.post_id));
     
     std::string expected_sql = "SELECT name, title, content FROM users JOIN posts ON (id = user_id) JOIN comments ON (id = post_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -88,9 +88,9 @@ TEST(JoinTest, JoinWithComplexCondition) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select(u.name, p.title)
+    auto query = relx::query::select(u.name, p.title)
         .from(u)
-        .join(p, sqllib::query::on(
+        .join(p, relx::query::on(
             (u.id == p.user_id) &&
             (p.is_published == true)
         ));
@@ -109,10 +109,10 @@ TEST(JoinTest, ManyToManyJoin) {
     tags t;
     post_tags pt;
     
-    auto query = sqllib::query::select(p.title, t.name)
+    auto query = relx::query::select(p.title, t.name)
         .from(p)
-        .join(pt, sqllib::query::on(p.id == pt.post_id))
-        .join(t, sqllib::query::on(pt.tag_id == t.id));
+        .join(pt, relx::query::on(p.id == pt.post_id))
+        .join(t, relx::query::on(pt.tag_id == t.id));
     
     std::string expected_sql = "SELECT title, name FROM posts JOIN post_tags ON (id = post_id) JOIN tags ON (tag_id = id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -123,9 +123,9 @@ TEST(JoinTest, OneToOneJoin) {
     users u;
     user_profiles up;
     
-    auto query = sqllib::query::select(u.name, up.profile_image, up.location)
+    auto query = relx::query::select(u.name, up.profile_image, up.location)
         .from(u)
-        .left_join(up, sqllib::query::on(u.id == up.user_id));
+        .left_join(up, relx::query::on(u.id == up.user_id));
     
     std::string expected_sql = "SELECT name, profile_image, location FROM users LEFT JOIN user_profiles ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -136,9 +136,9 @@ TEST(JoinTest, JoinWithParamInCondition) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select(u.name, p.title)
+    auto query = relx::query::select(u.name, p.title)
         .from(u)
-        .join(p, sqllib::query::on(
+        .join(p, relx::query::on(
             (u.id == p.user_id) &&
             (p.user_id > 10)
         ));
@@ -157,12 +157,12 @@ TEST(JoinTest, SelfJoin) {
     // Create a second instance of the same table for a self-join
     users u2;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(u1.name, "user"),
-        sqllib::query::as(u2.name, "friend")
+    auto query = relx::query::select_expr(
+        relx::query::as(u1.name, "user"),
+        relx::query::as(u2.name, "friend")
     )
     .from(u1)
-    .join(u2, sqllib::query::on(u1.id != u2.id));
+    .join(u2, relx::query::on(u1.id != u2.id));
     
     std::string expected_sql = "SELECT name AS user, name AS friend FROM users JOIN users ON (id != id)";
     EXPECT_EQ(query.to_sql(), expected_sql);

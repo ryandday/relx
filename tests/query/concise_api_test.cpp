@@ -3,13 +3,13 @@
 
 using namespace test_tables;
 using namespace test_utils;
-using namespace sqllib::query::literals;
+using namespace relx::query::literals;
 
 TEST(ConciseApiTest, DirectComparisonOperators) {
     users u;
     
     // Test direct comparison without to_expr and val
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.age > 18);
     
@@ -25,7 +25,7 @@ TEST(ConciseApiTest, MultipleConditionsWithDirectComparison) {
     users u;
     
     // Test multiple conditions with direct comparisons
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where((u.age >= 18) && (u.is_active == true));
     
@@ -44,9 +44,9 @@ TEST(ConciseApiTest, DirectColumnComparison) {
     posts p;
     
     // Test direct comparison between columns
-    auto query = sqllib::query::select(u.id, u.name, p.title)
+    auto query = relx::query::select(u.id, u.name, p.title)
         .from(u)
-        .join(p, sqllib::query::on(u.id == p.user_id));
+        .join(p, relx::query::on(u.id == p.user_id));
     
     std::string expected_sql = "SELECT id, name, title FROM users JOIN posts ON (id = user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -57,7 +57,7 @@ TEST(ConciseApiTest, SQLLiterals) {
     users u;
     
     // Test SQL literals with _sql suffix
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where((u.age > 18_sql) && (u.name != "John"_sql));
     
@@ -71,7 +71,7 @@ TEST(ConciseApiTest, SQLLiterals) {
 }
 
 TEST(ConciseApiTest, ShorthandHelpers) {
-    using namespace sqllib::query;
+    using namespace relx::query;
     users u;
     
     // Test shorthand helpers
@@ -88,7 +88,7 @@ TEST(ConciseApiTest, ShorthandHelpers) {
 }
 
 TEST(ConciseApiTest, ShorthandAggregates) {
-    using namespace sqllib::query;
+    using namespace relx::query;
     users u;
     
     // Test shorthand aggregate functions
@@ -110,7 +110,7 @@ TEST(ConciseApiTest, ShorthandAggregates) {
 }
 
 TEST(ConciseApiTest, ShorthandOrderBy) {
-    using namespace sqllib::query;
+    using namespace relx::query;
     users u;
     
     // Test shorthand order by functions
@@ -126,10 +126,10 @@ TEST(ConciseApiTest, ShorthandOrderBy) {
 TEST(ConciseApiTest, MixConciseAndFullApi) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where((u.age > 18) && 
-               (sqllib::query::to_expr(u.email) != sqllib::query::val("")));
+               (relx::query::to_expr(u.email) != relx::query::val("")));
     
     std::string expected_sql = "SELECT id, name FROM users WHERE ((age > ?) AND (email != ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -141,7 +141,7 @@ TEST(ConciseApiTest, MixConciseAndFullApi) {
 }
 
 TEST(ConciseApiTest, ComplexQuery) {
-    using namespace sqllib::query;
+    using namespace relx::query;
     
     users u;
     posts p;

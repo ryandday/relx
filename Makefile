@@ -28,7 +28,7 @@ run: build
 
 .PHONY: test
 test: postgres-up
-	cd $(BUILD_DIR) && cmake --build . --target sqllib_tests --parallel 4 && ./sqllib_tests --gtest_color=yes
+	cd $(BUILD_DIR) && cmake --build . --target relx_tests --parallel 4 && ./relx_tests --gtest_color=yes
 
 # Development helpers
 .PHONY: format

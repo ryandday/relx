@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema/column.hpp>
-#include <sqllib/schema/check_constraint.hpp>
-#include <sqllib/schema/table.hpp>
+#include <relx/schema/column.hpp>
+#include <relx/schema/check_constraint.hpp>
+#include <relx/schema/table.hpp>
 #include <string>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Test table with check constraints
 struct Item {

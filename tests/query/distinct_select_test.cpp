@@ -10,7 +10,7 @@ using namespace test_utils;
 TEST(DistinctSelectTest, SimpleSelectDistinctLegacy) {
     users u;
     
-    auto query = sqllib::query::select_distinct(u.id, u.name, u.email)
+    auto query = relx::query::select_distinct(u.id, u.name, u.email)
         .from(u);
     
     std::string expected_sql = "SELECT DISTINCT id, name, email FROM users";
@@ -20,9 +20,9 @@ TEST(DistinctSelectTest, SimpleSelectDistinctLegacy) {
 
 TEST(DistinctSelectTest, SelectDistinctWithCondition) {
     // Test DISTINCT with WHERE condition
-    auto query = sqllib::query::select_distinct<&users::id, &users::name>()
+    auto query = relx::query::select_distinct<&users::id, &users::name>()
         .from(users{})
-        .where(sqllib::query::to_expr<&users::age>() > 18);
+        .where(relx::query::to_expr<&users::age>() > 18);
     
     std::string expected_sql = "SELECT DISTINCT id, name FROM users WHERE (age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -36,9 +36,9 @@ TEST(DistinctSelectTest, SelectDistinctWithJoin) {
     // Test DISTINCT with JOIN
     users u;
     posts p;
-    auto query = sqllib::query::select_distinct(u.id, p.title)
+    auto query = relx::query::select_distinct(u.id, p.title)
         .from(u)
-        .join(p, sqllib::query::on(
+        .join(p, relx::query::on(
             u.id == p.user_id
         ));
     
@@ -49,9 +49,9 @@ TEST(DistinctSelectTest, SelectDistinctWithJoin) {
 
 TEST(DistinctSelectTest, SelectDistinctWithGroupBy) {
     // Test DISTINCT with GROUP BY
-    auto query = sqllib::query::select_distinct<&users::name, &users::age>()
+    auto query = relx::query::select_distinct<&users::name, &users::age>()
         .from(users{})
-        .group_by(sqllib::query::to_expr<&users::age>());
+        .group_by(relx::query::to_expr<&users::age>());
     
     std::string expected_sql = "SELECT DISTINCT name, age FROM users GROUP BY age";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -60,9 +60,9 @@ TEST(DistinctSelectTest, SelectDistinctWithGroupBy) {
 
 TEST(DistinctSelectTest, SelectDistinctWithOrderBy) {
     // Test DISTINCT with ORDER BY
-    auto query = sqllib::query::select_distinct<&users::name, &users::age>()
+    auto query = relx::query::select_distinct<&users::name, &users::age>()
         .from(users{})
-        .order_by(sqllib::query::desc(sqllib::query::to_expr<&users::age>()));
+        .order_by(relx::query::desc(relx::query::to_expr<&users::age>()));
     
     std::string expected_sql = "SELECT DISTINCT name, age FROM users ORDER BY age DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -71,7 +71,7 @@ TEST(DistinctSelectTest, SelectDistinctWithOrderBy) {
 
 TEST(DistinctSelectTest, SelectDistinctWithLimitOffset) {
     // Test DISTINCT with LIMIT and OFFSET
-    auto query = sqllib::query::select_distinct<&users::name, &users::age>()
+    auto query = relx::query::select_distinct<&users::name, &users::age>()
         .from(users{})
         .limit(10)
         .offset(5);
@@ -88,7 +88,7 @@ TEST(DistinctSelectTest, SelectDistinctWithLimitOffset) {
 TEST(DistinctSelectTest, SelectDistinctAllColumns) {
     // Test SELECT DISTINCT * 
     users u;
-    auto query = sqllib::query::select_distinct_all(u);
+    auto query = relx::query::select_distinct_all(u);
     
     std::string expected_sql = "SELECT DISTINCT * FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -97,7 +97,7 @@ TEST(DistinctSelectTest, SelectDistinctAllColumns) {
 
 TEST(DistinctSelectTest, SelectDistinctAllColumnsWithTemplateArg) {
     // Test SELECT DISTINCT * using template argument
-    auto query = sqllib::query::select_distinct_all<users>();
+    auto query = relx::query::select_distinct_all<users>();
     
     std::string expected_sql = "SELECT DISTINCT * FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -108,9 +108,9 @@ TEST(DistinctSelectTest, SelectDistinctExpressions) {
     // Test SELECT DISTINCT with expressions
     users u;
     
-    auto query = sqllib::query::select_distinct_expr(
-        sqllib::query::as(u.id, "user_id"),
-        sqllib::query::as(u.name, "user_name")
+    auto query = relx::query::select_distinct_expr(
+        relx::query::as(u.id, "user_id"),
+        relx::query::as(u.name, "user_name")
     )
     .from(u);
     
@@ -123,10 +123,10 @@ TEST(DistinctSelectTest, SelectDistinctWithMixedExpressions) {
     // Test SELECT DISTINCT with a mix of column references and expressions
     users u;
     
-    auto query = sqllib::query::select_distinct(
+    auto query = relx::query::select_distinct(
         u.id,
-        sqllib::query::val(42),
-        sqllib::query::as(u.name, "user_name")
+        relx::query::val(42),
+        relx::query::as(u.name, "user_name")
     )
     .from(u);
     
@@ -143,12 +143,12 @@ TEST(DistinctSelectTest, ComparisonWithDistinctExpr) {
     users u;
     
     // New API way
-    auto query1 = sqllib::query::select_distinct(u.age)
+    auto query1 = relx::query::select_distinct(u.age)
         .from(u);
     
     // Old way using distinct() expression
-    auto query2 = sqllib::query::select_expr(
-        sqllib::query::distinct(u.age)
+    auto query2 = relx::query::select_expr(
+        relx::query::distinct(u.age)
     )
     .from(u);
     

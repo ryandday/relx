@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema/fixed_string.hpp>
+#include <relx/schema/fixed_string.hpp>
 #include <sstream>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 // Explicitly bring in the literals namespace for the _fs operator
-using namespace sqllib::literals;
+using namespace relx::literals;
 
 TEST(FixedStringTest, Construction) {
     // Test basic construction from string literal

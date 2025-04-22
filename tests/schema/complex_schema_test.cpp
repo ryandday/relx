@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 #include <vector>
 #include <string>
 #include <optional>
 #include <chrono>
 #include <iostream>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // This test demonstrates a more complex database schema with relationships
 // and various constraints to test the entire system working together

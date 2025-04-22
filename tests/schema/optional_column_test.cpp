@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema/column.hpp>
-#include <sqllib/schema/table.hpp>
+#include <relx/schema/column.hpp>
+#include <relx/schema/table.hpp>
 #include <string>
 #include <optional>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Test table with optional columns
 struct Customer {

@@ -1,13 +1,13 @@
 #include <gtest/gtest.h>
-#include "sqllib/query/insert.hpp"
-#include "sqllib/query/select.hpp"
-#include "sqllib/query/value.hpp"
-#include "sqllib/query/function.hpp"
+#include "relx/query/insert.hpp"
+#include "relx/query/select.hpp"
+#include "relx/query/value.hpp"
+#include "relx/query/function.hpp"
 #include <string>
 #include <string_view>
 #include <vector>
 
-using namespace sqllib;
+using namespace relx;
 
 // Define a simple User table for testing
 struct User {
@@ -36,10 +36,10 @@ struct Post {
 // Test table struct
 struct InsertTestTable {
     static constexpr auto table_name = "insert_test";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"age", int> age;
-    sqllib::schema::column<"active", bool> active;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"age", int> age;
+    relx::schema::column<"active", bool> active;
 };
 
 // Test basic INSERT with explicit columns and values
@@ -180,7 +180,7 @@ TEST(InsertQueryTest, InsertWithRawValues) {
     InsertTestTable table;
     
     // Test inserting with raw values (not wrapped in val())
-    auto query = sqllib::query::insert_into(table)
+    auto query = relx::query::insert_into(table)
         .columns(table.name, table.age, table.active)
         .values("John Doe", 30, true);
     
@@ -194,7 +194,7 @@ TEST(InsertQueryTest, InsertWithRawValues) {
     EXPECT_EQ("1", params[2]);
     
     // Test with multiple rows of raw values
-    auto multi_query = sqllib::query::insert_into(table)
+    auto multi_query = relx::query::insert_into(table)
         .columns(table.name, table.age, table.active)
         .values("John Doe", 30, true)
         .values("Jane Smith", 25, false);

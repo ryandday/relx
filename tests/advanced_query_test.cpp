@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
-#include <sqllib/query.hpp>
-#include <sqllib/results.hpp>
+#include <relx/schema.hpp>
+#include <relx/query.hpp>
+#include <relx/results.hpp>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -11,38 +11,38 @@
 // Define test tables for our advanced query tests
 struct Users {
     static constexpr auto table_name = "users";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"email", std::string> email;
-    sqllib::schema::column<"age", int> age;
-    sqllib::schema::column<"is_active", bool> is_active;
-    sqllib::schema::column<"department_id", int> department_id;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"email", std::string> email;
+    relx::schema::column<"age", int> age;
+    relx::schema::column<"is_active", bool> is_active;
+    relx::schema::column<"department_id", int> department_id;
 };
 
 struct Posts {
     static constexpr auto table_name = "posts";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"user_id", int> user_id;
-    sqllib::schema::column<"title", std::string> title;
-    sqllib::schema::column<"content", std::string> content;
-    sqllib::schema::column<"views", int> views;
-    sqllib::schema::column<"created_at", std::string> created_at;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"user_id", int> user_id;
+    relx::schema::column<"title", std::string> title;
+    relx::schema::column<"content", std::string> content;
+    relx::schema::column<"views", int> views;
+    relx::schema::column<"created_at", std::string> created_at;
 };
 
 struct Comments {
     static constexpr auto table_name = "comments";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"post_id", int> post_id;
-    sqllib::schema::column<"user_id", int> user_id; 
-    sqllib::schema::column<"content", std::string> content;
-    sqllib::schema::column<"created_at", std::string> created_at;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"post_id", int> post_id;
+    relx::schema::column<"user_id", int> user_id; 
+    relx::schema::column<"content", std::string> content;
+    relx::schema::column<"created_at", std::string> created_at;
 };
 
 struct Departments {
     static constexpr auto table_name = "departments";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"budget", double> budget;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"budget", double> budget;
 };
 
 // Utility function to create sample raw results for testing
@@ -85,10 +85,10 @@ protected:
 // Test a join between Users and Posts
 TEST_F(AdvancedQueryTest, JoinTest) {
     // Create a query that joins users and posts
-    auto query = sqllib::query::select(
+    auto query = relx::query::select(
         users.id, users.name, posts.id, posts.title
     ).from(users)
-     .join(posts, sqllib::query::on(
+     .join(posts, relx::query::on(
          users.id == posts.user_id
      ));
     
@@ -106,7 +106,7 @@ TEST_F(AdvancedQueryTest, JoinTest) {
     std::string raw_results = create_raw_results(headers, rows);
     
     // Parse the results
-    auto result = sqllib::result::parse(query, raw_results);
+    auto result = relx::result::parse(query, raw_results);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -144,14 +144,14 @@ TEST_F(AdvancedQueryTest, JoinTest) {
     };
     
     // Transform the results into a vector of UserPost objects
-    auto user_posts = results.transform<UserPost>([](const sqllib::result::Row& row) -> sqllib::result::ResultProcessingResult<UserPost> {
+    auto user_posts = results.transform<UserPost>([](const relx::result::Row& row) -> relx::result::ResultProcessingResult<UserPost> {
         auto user_id = row.get<int>(0);
         auto user_name = row.get<std::string>(1);
         auto post_id = row.get<int>(2);
         auto post_title = row.get<std::string>(3);
         
         if (!user_id || !user_name || !post_id || !post_title) {
-            return std::unexpected(sqllib::result::ResultError{"Failed to extract user post data"});
+            return std::unexpected(relx::result::ResultError{"Failed to extract user post data"});
         }
         
         return UserPost{*user_id, *user_name, *post_id, *post_title};
@@ -167,7 +167,7 @@ TEST_F(AdvancedQueryTest, JoinTest) {
 // Test a query with a WHERE clause
 TEST_F(AdvancedQueryTest, WhereClauseTest) {
     // Create a query that filters users by age and active status
-    auto query = sqllib::query::select(
+    auto query = relx::query::select(
         users.id, users.name, users.age
     ).from(users)
      .where(
@@ -193,7 +193,7 @@ TEST_F(AdvancedQueryTest, WhereClauseTest) {
     std::string raw_results = create_raw_results(headers, rows);
     
     // Parse the results
-    auto result = sqllib::result::parse(query, raw_results);
+    auto result = relx::result::parse(query, raw_results);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -216,16 +216,16 @@ TEST_F(AdvancedQueryTest, WhereClauseTest) {
 // Test a query with a GROUP BY clause and aggregation
 TEST_F(AdvancedQueryTest, GroupByTest) {
     // Create a query that counts posts per user
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         users.id,
         users.name,
-        sqllib::query::as(sqllib::query::count(posts.id), "post_count")
+        relx::query::as(relx::query::count(posts.id), "post_count")
     ).from(users)
-     .join(posts, sqllib::query::on(
+     .join(posts, relx::query::on(
          users.id == posts.user_id
      ))
      .group_by(users.id, users.name)
-     .having(sqllib::query::count(posts.id) > 1);
+     .having(relx::query::count(posts.id) > 1);
     
     // Check the SQL generated
     std::string expected_sql = "SELECT id, name, COUNT(id) AS post_count FROM users JOIN posts ON (id = user_id) GROUP BY id, name HAVING (COUNT(id) > ?)";
@@ -245,7 +245,7 @@ TEST_F(AdvancedQueryTest, GroupByTest) {
     std::string raw_results = create_raw_results(headers, rows);
     
     // Parse the results
-    auto result = sqllib::result::parse(query, raw_results);
+    auto result = relx::result::parse(query, raw_results);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -258,13 +258,13 @@ TEST_F(AdvancedQueryTest, GroupByTest) {
         int post_count;
     };
     
-    auto user_post_counts = results.transform<UserPostCount>([](const sqllib::result::Row& row) -> sqllib::result::ResultProcessingResult<UserPostCount> {
+    auto user_post_counts = results.transform<UserPostCount>([](const relx::result::Row& row) -> relx::result::ResultProcessingResult<UserPostCount> {
         auto user_id = row.get<int>("id");
         auto name = row.get<std::string>("name");
         auto post_count = row.get<int>("post_count");
         
         if (!user_id || !name || !post_count) {
-            return std::unexpected(sqllib::result::ResultError{"Failed to extract user post count data"});
+            return std::unexpected(relx::result::ResultError{"Failed to extract user post count data"});
         }
         
         return UserPostCount{*user_id, *name, *post_count};
@@ -282,26 +282,26 @@ TEST_F(AdvancedQueryTest, ComplexQueryTest) {
     // - Filter by department and post views
     // - Group by department and count users and posts
     // - Order by user count
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         departments.name,
-        sqllib::query::as(sqllib::query::count_distinct(users.id), "user_count"),
-        sqllib::query::as(sqllib::query::count(posts.id), "post_count"),
-        sqllib::query::as(sqllib::query::sum(posts.views), "total_views")
+        relx::query::as(relx::query::count_distinct(users.id), "user_count"),
+        relx::query::as(relx::query::count(posts.id), "post_count"),
+        relx::query::as(relx::query::sum(posts.views), "total_views")
     ).from(departments)
-     .join(users, sqllib::query::on(
+     .join(users, relx::query::on(
          departments.id == users.department_id
      ))
-     .join(posts, sqllib::query::on(
+     .join(posts, relx::query::on(
          users.id == posts.user_id
      ))
-     .join(comments, sqllib::query::on(
+     .join(comments, relx::query::on(
          posts.id == comments.post_id
      ))
      .where(
          departments.budget > 10000.0 && posts.views >= 100
      )
      .group_by(departments.name)
-     .order_by(sqllib::query::desc(sqllib::query::count_distinct(users.id)))
+     .order_by(relx::query::desc(relx::query::count_distinct(users.id)))
      .limit(5);
     
     // Check the SQL generated (expect a complex query)
@@ -326,7 +326,7 @@ TEST_F(AdvancedQueryTest, ComplexQueryTest) {
     std::string raw_results = create_raw_results(headers, rows);
     
     // Parse the results
-    auto result = sqllib::result::parse(query, raw_results);
+    auto result = relx::result::parse(query, raw_results);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -352,14 +352,14 @@ TEST_F(AdvancedQueryTest, ComplexQueryTest) {
     };
     
     // Transform the results - verify all rows
-    auto summaries = results.transform<DepartmentSummary>([](const sqllib::result::Row& row) -> sqllib::result::ResultProcessingResult<DepartmentSummary> {
+    auto summaries = results.transform<DepartmentSummary>([](const relx::result::Row& row) -> relx::result::ResultProcessingResult<DepartmentSummary> {
         auto name = row.get<std::string>("name");
         auto user_count = row.get<int>("user_count");
         auto post_count = row.get<int>("post_count");
         auto total_views = row.get<int>("total_views");
         
         if (!name || !user_count || !post_count || !total_views) {
-            return std::unexpected(sqllib::result::ResultError{"Failed to extract department summary data"});
+            return std::unexpected(relx::result::ResultError{"Failed to extract department summary data"});
         }
         
         return DepartmentSummary{*name, *user_count, *post_count, *total_views};
@@ -375,7 +375,7 @@ TEST_F(AdvancedQueryTest, ComplexQueryTest) {
 // Test a query with partial column selection
 TEST_F(AdvancedQueryTest, PartialColumnSelectionTest) {
     // Create a query that selects only specific columns
-    auto query = sqllib::query::select(
+    auto query = relx::query::select(
         users.id, users.name
     ).from(users)
      .where(users.age > 25);
@@ -394,7 +394,7 @@ TEST_F(AdvancedQueryTest, PartialColumnSelectionTest) {
     std::string raw_results = create_raw_results(headers, rows);
     
     // Parse the results
-    auto result = sqllib::result::parse(query, raw_results);
+    auto result = relx::result::parse(query, raw_results);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -419,10 +419,10 @@ TEST_F(AdvancedQueryTest, PartialColumnSelectionTest) {
 // Test a LEFT JOIN query with potential NULL values
 TEST_F(AdvancedQueryTest, LeftJoinWithNullValues) {
     // Create a query that left joins users and posts
-    auto query = sqllib::query::select(
+    auto query = relx::query::select(
         users.id, users.name, posts.id, posts.title
     ).from(users)
-     .left_join(posts, sqllib::query::on(
+     .left_join(posts, relx::query::on(
          users.id == posts.user_id
      ));
     
@@ -440,7 +440,7 @@ TEST_F(AdvancedQueryTest, LeftJoinWithNullValues) {
     std::string raw_results = create_raw_results(headers, rows);
     
     // Parse the results
-    auto result = sqllib::result::parse(query, raw_results);
+    auto result = relx::result::parse(query, raw_results);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;

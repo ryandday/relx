@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
-#include <sqllib/query.hpp>
-#include <sqllib/results.hpp>
+#include <relx/schema.hpp>
+#include <relx/query.hpp>
+#include <relx/results.hpp>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -11,12 +11,12 @@
 // Define a test table
 struct Users {
     static constexpr auto table_name = "users";
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"email", std::string> email;
-    sqllib::schema::column<"age", int> age;
-    sqllib::schema::column<"is_active", bool> is_active;
-    sqllib::schema::column<"score", double> score;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"email", std::string> email;
+    relx::schema::column<"age", int> age;
+    relx::schema::column<"is_active", bool> is_active;
+    relx::schema::column<"score", double> score;
 };
 
 // Test fixture for result processing tests
@@ -26,7 +26,7 @@ protected:
     std::string raw_results_;
     
     // Define the type of the query
-    using QueryType = decltype(sqllib::query::select(
+    using QueryType = decltype(relx::query::select(
         std::declval<Users>().id,
         std::declval<Users>().name,
         std::declval<Users>().email,
@@ -36,7 +36,7 @@ protected:
     ).from(std::declval<Users>()));
     
     // Initialize the query directly in the constructor
-    QueryType query_ = sqllib::query::select(
+    QueryType query_ = relx::query::select(
         users.id, users.name, users.email, users.age, users.is_active, users.score
     ).from(users);
 
@@ -52,7 +52,7 @@ protected:
 
 // Test parsing basic results
 TEST_F(ResultTest, BasicParsing) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -69,7 +69,7 @@ TEST_F(ResultTest, BasicParsing) {
 
 // Test accessing values by index
 TEST_F(ResultTest, AccessByIndex) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -97,7 +97,7 @@ TEST_F(ResultTest, AccessByIndex) {
 
 // Test accessing values by column name
 TEST_F(ResultTest, AccessByName) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -125,7 +125,7 @@ TEST_F(ResultTest, AccessByName) {
 
 // Test accessing values via column objects
 TEST_F(ResultTest, AccessByColumn) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -156,7 +156,7 @@ TEST_F(ResultTest, AccessByColumn) {
 
 // Test accessing values via member pointers
 TEST_F(ResultTest, AccessByMemberPtr) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -181,7 +181,7 @@ TEST_F(ResultTest, AccessByMemberPtr) {
 
 // Test iteration
 TEST_F(ResultTest, Iteration) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -202,7 +202,7 @@ TEST_F(ResultTest, Iteration) {
 
 // Test transformation
 TEST_F(ResultTest, Transformation) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -215,13 +215,13 @@ TEST_F(ResultTest, Transformation) {
     };
     
     // Transform rows into UserData objects
-    auto users = results.transform<UserData>([](const sqllib::result::Row& row) -> sqllib::result::ResultProcessingResult<UserData> {
+    auto users = results.transform<UserData>([](const relx::result::Row& row) -> relx::result::ResultProcessingResult<UserData> {
         auto id = row.get<int>("id");
         auto name = row.get<std::string>("name");
         auto age = row.get<int>("age");
         
         if (!id || !name || !age) {
-            return std::unexpected(sqllib::result::ResultError{"Failed to extract user data"});
+            return std::unexpected(relx::result::ResultError{"Failed to extract user data"});
         }
         
         return UserData{*id, *name, *age};
@@ -236,7 +236,7 @@ TEST_F(ResultTest, Transformation) {
 // Test malformed data handling
 TEST_F(ResultTest, MalformedData) {
     // Test empty result
-    auto empty_result = sqllib::result::parse(query_, "");
+    auto empty_result = relx::result::parse(query_, "");
     ASSERT_TRUE(empty_result) << empty_result.error().message;
     EXPECT_TRUE(empty_result->empty());
     
@@ -245,7 +245,7 @@ TEST_F(ResultTest, MalformedData) {
         "id|name|email\n"
         "1|John Doe\n";  // Missing email column
         
-    auto malformed_result = sqllib::result::parse(query_, malformed);
+    auto malformed_result = relx::result::parse(query_, malformed);
     ASSERT_TRUE(malformed_result) << malformed_result.error().message;
     ASSERT_EQ(1, malformed_result->size());
     
@@ -260,7 +260,7 @@ TEST_F(ResultTest, MalformedData) {
 
 // Test structured binding support
 TEST_F(ResultTest, StructuredBinding) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -288,7 +288,7 @@ TEST_F(ResultTest, StructuredBinding) {
 
 // Test structured binding with custom column indices
 TEST_F(ResultTest, StructuredBindingWithCustomIndices) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -315,7 +315,7 @@ TEST_F(ResultTest, StructuredBindingWithCustomIndices) {
 
 // Test structured binding with column names
 TEST_F(ResultTest, StructuredBindingWithColumnNames) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;
@@ -342,7 +342,7 @@ TEST_F(ResultTest, StructuredBindingWithColumnNames) {
 
 // Test structured binding with schema
 TEST_F(ResultTest, StructuredBindingWithSchema) {
-    auto result = sqllib::result::parse(query_, raw_results_);
+    auto result = relx::result::parse(query_, raw_results_);
     ASSERT_TRUE(result) << result.error().message;
     
     const auto& results = *result;

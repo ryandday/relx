@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Parent tables with composite keys
 struct Customer {

@@ -7,9 +7,9 @@ using namespace test_utils;
 TEST(StringFunctionTest, Lower) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id,
-        sqllib::query::as(sqllib::query::lower(u.name), "lowercase_name")
+        relx::query::as(relx::query::lower(u.name), "lowercase_name")
     )
     .from(u);
     
@@ -21,9 +21,9 @@ TEST(StringFunctionTest, Lower) {
 TEST(StringFunctionTest, Upper) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id,
-        sqllib::query::as(sqllib::query::upper(u.name), "uppercase_name")
+        relx::query::as(relx::query::upper(u.name), "uppercase_name")
     )
     .from(u);
     
@@ -35,9 +35,9 @@ TEST(StringFunctionTest, Upper) {
 TEST(StringFunctionTest, Length) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.name,
-        sqllib::query::as(sqllib::query::length(u.name), "name_length")
+        relx::query::as(relx::query::length(u.name), "name_length")
     )
     .from(u);
     
@@ -49,9 +49,9 @@ TEST(StringFunctionTest, Length) {
 TEST(StringFunctionTest, Trim) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id,
-        sqllib::query::as(sqllib::query::trim(u.name), "trimmed_name")
+        relx::query::as(relx::query::trim(u.name), "trimmed_name")
     )
     .from(u);
     
@@ -63,9 +63,9 @@ TEST(StringFunctionTest, Trim) {
 TEST(StringFunctionTest, StringFunctionInWhere) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::upper(u.email) == "EMAIL@EXAMPLE.COM");
+        .where(relx::query::upper(u.email) == "EMAIL@EXAMPLE.COM");
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (UPPER(email) = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -78,9 +78,9 @@ TEST(StringFunctionTest, StringFunctionInWhere) {
 TEST(StringFunctionTest, LengthInCondition) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .where(sqllib::query::length(u.name) > 5);
+        .where(relx::query::length(u.name) > 5);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (LENGTH(name) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -93,11 +93,11 @@ TEST(StringFunctionTest, LengthInCondition) {
 TEST(StringFunctionTest, CombinedStringFunctions) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(
-            sqllib::query::length(
-                sqllib::query::trim(sqllib::query::lower(u.email))
+            relx::query::length(
+                relx::query::trim(relx::query::lower(u.email))
             ) > 10
         );
     
@@ -112,9 +112,9 @@ TEST(StringFunctionTest, CombinedStringFunctions) {
 TEST(StringFunctionTest, StringFunctionInOrderBy) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .order_by(sqllib::query::length(u.name));
+        .order_by(relx::query::length(u.name));
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY LENGTH(name)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -124,12 +124,12 @@ TEST(StringFunctionTest, StringFunctionInOrderBy) {
 TEST(StringFunctionTest, StringFunctionInGroupBy) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::upper(u.name),
-        sqllib::query::as(sqllib::query::count_all(), "count")
+    auto query = relx::query::select_expr(
+        relx::query::upper(u.name),
+        relx::query::as(relx::query::count_all(), "count")
     )
     .from(u)
-    .group_by(sqllib::query::upper(u.name));
+    .group_by(relx::query::upper(u.name));
     
     std::string expected_sql = "SELECT UPPER(name), COUNT(*) AS count FROM users GROUP BY UPPER(name)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -139,10 +139,10 @@ TEST(StringFunctionTest, StringFunctionInGroupBy) {
 TEST(StringFunctionTest, Coalesce) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id,
-        sqllib::query::as(
-            sqllib::query::coalesce(
+        relx::query::as(
+            relx::query::coalesce(
                 u.bio,
                 "No biography"
             ),
@@ -162,10 +162,10 @@ TEST(StringFunctionTest, Coalesce) {
 TEST(StringFunctionTest, CoalesceMultipleValues) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id,
-        sqllib::query::as(
-            sqllib::query::coalesce(
+        relx::query::as(
+            relx::query::coalesce(
                 u.bio,
                 u.name,
                 "Unknown"
@@ -188,10 +188,10 @@ TEST(StringFunctionTest, CoalesceMultipleValues) {
 TEST(StringFunctionTest, CoalesceInWhere) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(
-            sqllib::query::coalesce(
+            relx::query::coalesce(
                 u.bio,
                 ""
             ) != ""

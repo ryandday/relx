@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <regex>
 
-namespace sqllib {
+namespace relx {
 namespace connection {
 
 PostgreSQLConnection::PostgreSQLConnection(std::string_view connection_string)
@@ -313,4 +313,4 @@ std::string PostgreSQLConnection::convert_placeholders(const std::string& sql) {
 }
 
 } // namespace connection
-} // namespace sqllib 
+} // namespace relx 

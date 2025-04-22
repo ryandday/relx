@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema/column.hpp>
+#include <relx/schema/column.hpp>
 #include <string>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 TEST(ColumnTest, BasicProperties) {
     // Test regular column

@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 
-#include <sqllib/postgresql.hpp>
-#include <sqllib/schema.hpp>
-#include <sqllib/query.hpp>
-#include <sqllib/results.hpp>
+#include <relx/postgresql.hpp>
+#include <relx/schema.hpp>
+#include <relx/query.hpp>
+#include <relx/results.hpp>
 
 namespace {
 
@@ -12,21 +12,21 @@ struct Products {
     static constexpr auto table_name = "products";
     
     // Define columns with their types and constraints
-    sqllib::schema::column<"id", int> id;
-    sqllib::schema::column<"name", std::string> name;
-    sqllib::schema::column<"description", std::string> description;
-    sqllib::schema::column<"price", double> price;
-    sqllib::schema::column<"in_stock", bool> in_stock;
-    sqllib::schema::column<"category", std::string> category;
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"description", std::string> description;
+    relx::schema::column<"price", double> price;
+    relx::schema::column<"in_stock", bool> in_stock;
+    relx::schema::column<"category", std::string> category;
     
     // Define constraints
-    sqllib::schema::primary_key<&Products::id> pk;
+    relx::schema::primary_key<&Products::id> pk;
 };
 
 class PostgreSQLApiTest : public ::testing::Test {
 protected:
     // Connection string for the Docker container
-    std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
     
     void SetUp() override {
         // Clean up any existing test tables
@@ -40,22 +40,22 @@ protected:
     
     // Helper to clean up the test table
     void clean_test_table() {
-        sqllib::PostgreSQLConnection conn(conn_string);
+        relx::PostgreSQLConnection conn(conn_string);
         auto connect_result = conn.connect();
         if (connect_result) {
             // Use the schema's drop_table function
             Products p;
-            std::string drop_sql = sqllib::schema::drop_table(p);
+            std::string drop_sql = relx::schema::drop_table(p);
             auto drop_result = conn.execute_raw(drop_sql);
             conn.disconnect();
         }
     }
     
     // Helper to create the test table using schema
-    void create_test_table(sqllib::Connection& conn) {
+    void create_test_table(relx::Connection& conn) {
         Products p;
         // Generate CREATE TABLE SQL from the schema
-        std::string create_sql = sqllib::schema::create_table(p);
+        std::string create_sql = relx::schema::create_table(p);
         
         // For PostgreSQL, we need SERIAL for auto-incrementing primary keys
         // Since our schema doesn't generate this automatically, we need to modify the SQL
@@ -76,7 +76,7 @@ protected:
 };
 
 TEST_F(PostgreSQLApiTest, TestTableCreation) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table using schema
@@ -85,7 +85,7 @@ TEST_F(PostgreSQLApiTest, TestTableCreation) {
     // Verify table exists by trying to insert data
     Products p;
     auto insert_result = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Test Product", "A test product", 9.99, true, "Test")
     );
@@ -97,7 +97,7 @@ TEST_F(PostgreSQLApiTest, TestTableCreation) {
 }
 
 TEST_F(PostgreSQLApiTest, TestInsertAndSelect) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -106,21 +106,21 @@ TEST_F(PostgreSQLApiTest, TestInsertAndSelect) {
     // Insert test data
     Products p;
     auto insert1 = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Laptop", "High-end laptop", 1299.99, true, "Electronics")
     );
     ASSERT_TRUE(insert1) << "Failed to insert test data 1: " << insert1.error().message;
     
     auto insert2 = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Phone", "Smartphone", 699.99, true, "Electronics")
     );
     ASSERT_TRUE(insert2) << "Failed to insert test data 2: " << insert2.error().message;
     
     auto insert3 = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Headphones", "Wireless headphones", 149.99, false, "Accessories")
     );
@@ -128,7 +128,7 @@ TEST_F(PostgreSQLApiTest, TestInsertAndSelect) {
     
     // Test select all
     auto select_result = conn.execute(
-        sqllib::query::select(p.id, p.name, p.price, p.category)
+        relx::query::select(p.id, p.name, p.price, p.category)
             .from(p)
             .order_by(p.id)
     );
@@ -153,7 +153,7 @@ TEST_F(PostgreSQLApiTest, TestInsertAndSelect) {
     
     // Test select with where condition
     auto filtered_result = conn.execute(
-        sqllib::query::select(p.id, p.name, p.price)
+        relx::query::select(p.id, p.name, p.price)
             .from(p)
             .where(p.category == "Electronics")
             .order_by(p.price)
@@ -191,7 +191,7 @@ TEST_F(PostgreSQLApiTest, TestInsertAndSelect) {
 }
 
 TEST_F(PostgreSQLApiTest, TestUpdate) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -200,7 +200,7 @@ TEST_F(PostgreSQLApiTest, TestUpdate) {
     // Insert test data
     Products p;
     auto insert_result = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Old Product", "Old description", 99.99, true, "Old Category")
     );
@@ -208,7 +208,7 @@ TEST_F(PostgreSQLApiTest, TestUpdate) {
     
     // Update the product
     auto update_result = conn.execute(
-        sqllib::query::update(p)
+        relx::query::update(p)
             .set(p.name, "Updated Product")
             .set(p.price, 149.99)
             .set(p.category, "New Category")
@@ -219,7 +219,7 @@ TEST_F(PostgreSQLApiTest, TestUpdate) {
     
     // Verify the update was successful
     auto verify_result = conn.execute(
-        sqllib::query::select(p.id, p.name, p.price, p.category)
+        relx::query::select(p.id, p.name, p.price, p.category)
             .from(p)
             .where(p.id == 1)
     );
@@ -245,7 +245,7 @@ TEST_F(PostgreSQLApiTest, TestUpdate) {
 }
 
 TEST_F(PostgreSQLApiTest, TestDelete) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -254,21 +254,21 @@ TEST_F(PostgreSQLApiTest, TestDelete) {
     // Insert test data
     Products p;
     auto insert1 = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Product 1", "Description 1", 10.99, true, "Category A")
     );
     ASSERT_TRUE(insert1) << "Failed to insert test data 1: " << insert1.error().message;
     
     auto insert2 = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Product 2", "Description 2", 20.99, false, "Category B")
     );
     ASSERT_TRUE(insert2) << "Failed to insert test data 2: " << insert2.error().message;
     
     auto insert3 = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Product 3", "Description 3", 30.99, true, "Category A")
     );
@@ -276,7 +276,7 @@ TEST_F(PostgreSQLApiTest, TestDelete) {
     
     // Verify we have 3 products
     auto count_result1 = conn.execute(
-        sqllib::query::select(sqllib::query::count(p.id))
+        relx::query::select(relx::query::count(p.id))
             .from(p)
     );
     ASSERT_TRUE(count_result1) << "Count query failed: " << count_result1.error().message;
@@ -286,14 +286,14 @@ TEST_F(PostgreSQLApiTest, TestDelete) {
     
     // Delete product with id = 2
     auto delete_result = conn.execute(
-        sqllib::query::delete_from(p)
+        relx::query::delete_from(p)
             .where(p.id == 2)
     );
     ASSERT_TRUE(delete_result) << "Delete query failed: " << delete_result.error().message;
     
     // Verify we now have 2 products
     auto count_result2 = conn.execute(
-        sqllib::query::select(sqllib::query::count(p.id))
+        relx::query::select(relx::query::count(p.id))
             .from(p)
     );
     ASSERT_TRUE(count_result2) << "Count query failed: " << count_result2.error().message;
@@ -303,14 +303,14 @@ TEST_F(PostgreSQLApiTest, TestDelete) {
     
     // Delete all products in Category A
     auto delete_result2 = conn.execute(
-        sqllib::query::delete_from(p)
+        relx::query::delete_from(p)
             .where(p.category == "Category A")
     );
     ASSERT_TRUE(delete_result2) << "Delete query failed: " << delete_result2.error().message;
     
     // Verify we now have 0 products
     auto count_result3 = conn.execute(
-        sqllib::query::select(sqllib::query::count(p.id))
+        relx::query::select(relx::query::count(p.id))
             .from(p)
     );
     ASSERT_TRUE(count_result3) << "Count query failed: " << count_result3.error().message;
@@ -323,7 +323,7 @@ TEST_F(PostgreSQLApiTest, TestDelete) {
 }
 
 TEST_F(PostgreSQLApiTest, TestTransactionsWithApi) {
-    sqllib::PostgreSQLConnection conn(conn_string);
+    relx::PostgreSQLConnection conn(conn_string);
     ASSERT_TRUE(conn.connect());
     
     // Create test table
@@ -335,7 +335,7 @@ TEST_F(PostgreSQLApiTest, TestTransactionsWithApi) {
     // Insert data in transaction
     Products p;
     auto insert1 = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Transaction Product", "Product in transaction", 55.55, true, "Transaction")
     );
@@ -346,7 +346,7 @@ TEST_F(PostgreSQLApiTest, TestTransactionsWithApi) {
     
     // Verify data was committed
     auto verify_result = conn.execute(
-        sqllib::query::select(p.id, p.name)
+        relx::query::select(p.id, p.name)
             .from(p)
             .where(p.category == "Transaction")
     );
@@ -358,7 +358,7 @@ TEST_F(PostgreSQLApiTest, TestTransactionsWithApi) {
     
     // Insert data
     auto insert2 = conn.execute(
-        sqllib::query::insert_into(p)
+        relx::query::insert_into(p)
             .columns(p.name, p.description, p.price, p.in_stock, p.category)
             .values("Rollback Product", "Will be rolled back", 99.99, false, "Rollback")
     );
@@ -366,7 +366,7 @@ TEST_F(PostgreSQLApiTest, TestTransactionsWithApi) {
     
     // Verify data is visible within transaction
     auto verify_in_tx = conn.execute(
-        sqllib::query::select(sqllib::query::count(p.id))
+        relx::query::select(relx::query::count(p.id))
             .from(p)
             .where(p.category == "Rollback")
     );
@@ -380,7 +380,7 @@ TEST_F(PostgreSQLApiTest, TestTransactionsWithApi) {
     
     // Verify data was rolled back
     auto verify_after_rollback = conn.execute(
-        sqllib::query::select(sqllib::query::count(p.id))
+        relx::query::select(relx::query::count(p.id))
             .from(p)
             .where(p.category == "Rollback")
     );

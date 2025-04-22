@@ -7,7 +7,7 @@ using namespace test_utils;
 TEST(BasicSelectTest, SimpleSelect) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name, u.email)
+    auto query = relx::query::select(u.id, u.name, u.email)
         .from(u);
     
     std::string expected_sql = "SELECT id, name, email FROM users";
@@ -17,7 +17,7 @@ TEST(BasicSelectTest, SimpleSelect) {
 
 TEST(BasicSelectTest, SelectAllColumns) {
     // Using the new API with member pointers
-    auto query = sqllib::query::select<
+    auto query = relx::query::select<
                     &users::id, &users::name, &users::email, &users::age,
                     &users::created_at, &users::is_active, &users::bio, &users::login_count
                 >()
@@ -30,7 +30,7 @@ TEST(BasicSelectTest, SelectAllColumns) {
 
 TEST(BasicSelectTest, SelectWithExplicitTableName) {
     // Using the new API with member pointers from multiple tables
-    auto query = sqllib::query::select<&users::id, &posts::id>()
+    auto query = relx::query::select<&users::id, &posts::id>()
         .from(users{})
         .from(posts{});
     
@@ -42,10 +42,10 @@ TEST(BasicSelectTest, SelectWithExplicitTableName) {
 TEST(BasicSelectTest, SelectWithColumnAliases) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(u.id, "user_id"),
-        sqllib::query::as(u.name, "user_name"),
-        sqllib::query::as(u.email, "user_email")
+    auto query = relx::query::select_expr(
+        relx::query::as(u.id, "user_id"),
+        relx::query::as(u.name, "user_name"),
+        relx::query::as(u.email, "user_email")
     )
     .from(u);
     
@@ -57,10 +57,10 @@ TEST(BasicSelectTest, SelectWithColumnAliases) {
 TEST(BasicSelectTest, SelectWithLiteral) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id,
-        sqllib::query::val(42),
-        sqllib::query::val("constant string")
+        relx::query::val(42),
+        relx::query::val("constant string")
     )
     .from(u);
     
@@ -76,8 +76,8 @@ TEST(BasicSelectTest, SelectWithLiteral) {
 TEST(BasicSelectTest, SelectWithDistinct) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::distinct(u.age)
+    auto query = relx::query::select_expr(
+        relx::query::distinct(u.age)
     )
     .from(u);
     
@@ -89,7 +89,7 @@ TEST(BasicSelectTest, SelectWithDistinct) {
 TEST(BasicSelectTest, SelectWithLimit) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .limit(10);
     
@@ -104,7 +104,7 @@ TEST(BasicSelectTest, SelectWithLimit) {
 TEST(BasicSelectTest, SelectWithLimitAndOffset) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .limit(10)
         .offset(20);
@@ -121,9 +121,9 @@ TEST(BasicSelectTest, SelectWithLimitAndOffset) {
 TEST(BasicSelectTest, SelectWithOrderByAsc) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .order_by(sqllib::query::asc(u.name));
+        .order_by(relx::query::asc(u.name));
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY name ASC";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -133,9 +133,9 @@ TEST(BasicSelectTest, SelectWithOrderByAsc) {
 TEST(BasicSelectTest, SelectWithOrderByDesc) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
-        .order_by(sqllib::query::desc(u.age));
+        .order_by(relx::query::desc(u.age));
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -145,11 +145,11 @@ TEST(BasicSelectTest, SelectWithOrderByDesc) {
 TEST(BasicSelectTest, SelectWithMultipleOrderBy) {
     users u;
     
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .order_by(
-            sqllib::query::desc(u.age),
-            sqllib::query::asc(u.name)
+            relx::query::desc(u.age),
+            relx::query::asc(u.name)
         );
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC, name ASC";
@@ -159,7 +159,7 @@ TEST(BasicSelectTest, SelectWithMultipleOrderBy) {
 
 TEST(BasicSelectTest, SelectWithLimitNew) {
     // Using the new API with member pointers and limit
-    auto query = sqllib::query::select<&users::id, &users::name>()
+    auto query = relx::query::select<&users::id, &users::name>()
         .from(users{})
         .limit(10);
     
@@ -173,7 +173,7 @@ TEST(BasicSelectTest, SelectWithLimitNew) {
 
 TEST(BasicSelectTest, SelectWithLimitAndOffsetNew) {
     // Using the new API with member pointers, limit and offset
-    auto query = sqllib::query::select<&users::id, &users::name>()
+    auto query = relx::query::select<&users::id, &users::name>()
         .from(users{})
         .limit(10)
         .offset(20);
@@ -189,9 +189,9 @@ TEST(BasicSelectTest, SelectWithLimitAndOffsetNew) {
 
 TEST(BasicSelectTest, SelectWithOrderByAscNew) {
     // Using the new API with member pointers and order by
-    auto query = sqllib::query::select<&users::id, &users::name>()
+    auto query = relx::query::select<&users::id, &users::name>()
         .from(users{})
-        .order_by(sqllib::query::asc(sqllib::query::to_expr<&users::name>()));
+        .order_by(relx::query::asc(relx::query::to_expr<&users::name>()));
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY name ASC";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -200,9 +200,9 @@ TEST(BasicSelectTest, SelectWithOrderByAscNew) {
 
 TEST(BasicSelectTest, SelectWithOrderByDescNew) {
     // Using the new API with member pointers and order by desc
-    auto query = sqllib::query::select<&users::id, &users::name>()
+    auto query = relx::query::select<&users::id, &users::name>()
         .from(users{})
-        .order_by(sqllib::query::desc(sqllib::query::to_expr<&users::age>()));
+        .order_by(relx::query::desc(relx::query::to_expr<&users::age>()));
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -211,11 +211,11 @@ TEST(BasicSelectTest, SelectWithOrderByDescNew) {
 
 TEST(BasicSelectTest, SelectWithMultipleOrderByNew) {
     // Using the new API with member pointers and multiple order by clauses
-    auto query = sqllib::query::select<&users::id, &users::name>()
+    auto query = relx::query::select<&users::id, &users::name>()
         .from(users{})
         .order_by(
-            sqllib::query::desc(sqllib::query::to_expr<&users::age>()),
-            sqllib::query::asc(sqllib::query::to_expr<&users::name>())
+            relx::query::desc(relx::query::to_expr<&users::age>()),
+            relx::query::asc(relx::query::to_expr<&users::name>())
         );
     
     std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC, name ASC";
@@ -225,9 +225,9 @@ TEST(BasicSelectTest, SelectWithMultipleOrderByNew) {
 
 TEST(BasicSelectTest, SelectWithConditionNew) {
     // Using the new API with member pointers and WHERE conditions
-    auto query = sqllib::query::select<&users::id, &users::name>()
+    auto query = relx::query::select<&users::id, &users::name>()
         .from(users{})
-        .where(sqllib::query::to_expr<&users::age>() > 18);
+        .where(relx::query::to_expr<&users::age>() > 18);
     
     std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -239,10 +239,10 @@ TEST(BasicSelectTest, SelectWithConditionNew) {
 
 TEST(BasicSelectTest, SelectWithMultipleConditionsNew) {
     // Using the new API with member pointers and multiple WHERE conditions
-    auto query = sqllib::query::select<&users::id, &users::name>()
+    auto query = relx::query::select<&users::id, &users::name>()
         .from(users{})
-        .where(sqllib::query::to_expr<&users::age>() >= 18 && 
-               sqllib::query::to_expr<&users::name>() != "");
+        .where(relx::query::to_expr<&users::age>() >= 18 && 
+               relx::query::to_expr<&users::name>() != "");
     
     std::string expected_sql = "SELECT id, name FROM users WHERE ((age >= ?) AND (name != ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -257,9 +257,9 @@ TEST(BasicSelectTest, SelectWithJoinNew) {
     // Using the new API with member pointers and join
     users u;
     posts p;
-    auto query = sqllib::query::select<&users::name, &posts::title>()
+    auto query = relx::query::select<&users::name, &posts::title>()
         .from(u)
-        .join(p, sqllib::query::on(
+        .join(p, relx::query::on(
             u.id == p.user_id
         ));
     
@@ -270,7 +270,7 @@ TEST(BasicSelectTest, SelectWithJoinNew) {
 
 TEST(BasicSelectTest, SelectFromHelper) {
     // Using the select_from helper to create a query with FROM clause in one step
-    auto query = sqllib::query::select_from<&users::id, &users::name, &users::email>();
+    auto query = relx::query::select_from<&users::id, &users::name, &users::email>();
     
     std::string expected_sql = "SELECT id, name, email FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);

@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema/column.hpp>
-#include <sqllib/schema/unique_constraint.hpp>
-#include <sqllib/schema/table.hpp>
+#include <relx/schema/column.hpp>
+#include <relx/schema/unique_constraint.hpp>
+#include <relx/schema/table.hpp>
 #include <string>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Test table with unique constraints
 struct Employee {

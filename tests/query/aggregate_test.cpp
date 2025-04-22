@@ -7,8 +7,8 @@ using namespace test_utils;
 TEST(AggregateTest, CountAll) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::count_all(), "user_count")
+    auto query = relx::query::select_expr(
+        relx::query::as(relx::query::count_all(), "user_count")
     )
     .from(u);
     
@@ -20,8 +20,8 @@ TEST(AggregateTest, CountAll) {
 TEST(AggregateTest, CountColumn) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::count(u.id), "user_count")
+    auto query = relx::query::select_expr(
+        relx::query::as(relx::query::count(u.id), "user_count")
     )
     .from(u);
     
@@ -33,8 +33,8 @@ TEST(AggregateTest, CountColumn) {
 TEST(AggregateTest, CountDistinct) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::count_distinct(u.age), "unique_ages")
+    auto query = relx::query::select_expr(
+        relx::query::as(relx::query::count_distinct(u.age), "unique_ages")
     )
     .from(u);
     
@@ -46,8 +46,8 @@ TEST(AggregateTest, CountDistinct) {
 TEST(AggregateTest, Sum) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::sum(u.login_count), "total_logins")
+    auto query = relx::query::select_expr(
+        relx::query::as(relx::query::sum(u.login_count), "total_logins")
     )
     .from(u);
     
@@ -59,8 +59,8 @@ TEST(AggregateTest, Sum) {
 TEST(AggregateTest, Average) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::avg(u.age), "average_age")
+    auto query = relx::query::select_expr(
+        relx::query::as(relx::query::avg(u.age), "average_age")
     )
     .from(u);
     
@@ -72,9 +72,9 @@ TEST(AggregateTest, Average) {
 TEST(AggregateTest, MinMax) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::min(u.age), "youngest"),
-        sqllib::query::as(sqllib::query::max(u.age), "oldest")
+    auto query = relx::query::select_expr(
+        relx::query::as(relx::query::min(u.age), "youngest"),
+        relx::query::as(relx::query::max(u.age), "oldest")
     )
     .from(u);
     
@@ -86,10 +86,10 @@ TEST(AggregateTest, MinMax) {
 TEST(AggregateTest, MultipleAggregates) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::count_all(), "total_users"),
-        sqllib::query::as(sqllib::query::avg(u.age), "average_age"),
-        sqllib::query::as(sqllib::query::sum(u.login_count), "total_logins")
+    auto query = relx::query::select_expr(
+        relx::query::as(relx::query::count_all(), "total_users"),
+        relx::query::as(relx::query::avg(u.age), "average_age"),
+        relx::query::as(relx::query::sum(u.login_count), "total_logins")
     )
     .from(u);
     
@@ -101,9 +101,9 @@ TEST(AggregateTest, MultipleAggregates) {
 TEST(AggregateTest, AggregatesWithWhere) {
     users u;
     
-    auto query = sqllib::query::select_expr(
-        sqllib::query::as(sqllib::query::count_all(), "active_users"),
-        sqllib::query::as(sqllib::query::avg(u.age), "average_age")
+    auto query = relx::query::select_expr(
+        relx::query::as(relx::query::count_all(), "active_users"),
+        relx::query::as(relx::query::avg(u.age), "average_age")
     )
     .from(u)
     .where(u.is_active == true);
@@ -119,9 +119,9 @@ TEST(AggregateTest, AggregatesWithWhere) {
 TEST(AggregateTest, SimpleGroupBy) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.age,
-        sqllib::query::as(sqllib::query::count_all(), "user_count")
+        relx::query::as(relx::query::count_all(), "user_count")
     )
     .from(u)
     .group_by(u.age);
@@ -134,10 +134,10 @@ TEST(AggregateTest, SimpleGroupBy) {
 TEST(AggregateTest, GroupByMultipleColumns) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.age,
         u.is_active,
-        sqllib::query::as(sqllib::query::count_all(), "user_count")
+        relx::query::as(relx::query::count_all(), "user_count")
     )
     .from(u)
     .group_by(u.age, u.is_active);
@@ -150,13 +150,13 @@ TEST(AggregateTest, GroupByMultipleColumns) {
 TEST(AggregateTest, GroupByWithHaving) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.age,
-        sqllib::query::as(sqllib::query::count_all(), "user_count")
+        relx::query::as(relx::query::count_all(), "user_count")
     )
     .from(u)
     .group_by(u.age)
-    .having(sqllib::query::count_all() > 5);
+    .having(relx::query::count_all() > 5);
     
     std::string expected_sql = "SELECT age, COUNT(*) AS user_count FROM users GROUP BY age HAVING (COUNT(*) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -169,15 +169,15 @@ TEST(AggregateTest, GroupByWithHaving) {
 TEST(AggregateTest, GroupByWithHavingAndWhere) {
     posts p;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         p.user_id,
-        sqllib::query::as(sqllib::query::count_all(), "post_count"),
-        sqllib::query::as(sqllib::query::sum(p.views), "total_views")
+        relx::query::as(relx::query::count_all(), "post_count"),
+        relx::query::as(relx::query::sum(p.views), "total_views")
     )
     .from(p)
     .where(p.is_published == true)
     .group_by(p.user_id)
-    .having(sqllib::query::sum(p.views) > 1000);
+    .having(relx::query::sum(p.views) > 1000);
     
     std::string expected_sql = "SELECT user_id, COUNT(*) AS post_count, SUM(views) AS total_views FROM posts WHERE (is_published = ?) GROUP BY user_id HAVING (SUM(views) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -191,13 +191,13 @@ TEST(AggregateTest, GroupByWithHavingAndWhere) {
 TEST(AggregateTest, GroupByWithOrderBy) {
     users u;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.age,
-        sqllib::query::as(sqllib::query::count_all(), "user_count")
+        relx::query::as(relx::query::count_all(), "user_count")
     )
     .from(u)
     .group_by(u.age)
-    .order_by(sqllib::query::desc(sqllib::query::count_all()));
+    .order_by(relx::query::desc(relx::query::count_all()));
     
     std::string expected_sql = "SELECT age, COUNT(*) AS user_count FROM users GROUP BY age ORDER BY COUNT(*) DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);
@@ -208,15 +208,15 @@ TEST(AggregateTest, JoinWithGroupBy) {
     users u;
     posts p;
     
-    auto query = sqllib::query::select_expr(
+    auto query = relx::query::select_expr(
         u.id,
         u.name,
-        sqllib::query::as(sqllib::query::count(p.id), "post_count")
+        relx::query::as(relx::query::count(p.id), "post_count")
     )
     .from(u)
-    .left_join(p, sqllib::query::on(u.id == p.user_id))
+    .left_join(p, relx::query::on(u.id == p.user_id))
     .group_by(u.id, u.name)
-    .order_by(sqllib::query::desc(sqllib::query::count(p.id)));
+    .order_by(relx::query::desc(relx::query::count(p.id)));
     
     std::string expected_sql = "SELECT id, name, COUNT(id) AS post_count FROM users LEFT JOIN posts ON (id = user_id) GROUP BY id, name ORDER BY COUNT(id) DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);

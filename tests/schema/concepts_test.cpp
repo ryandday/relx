@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 #include <type_traits>
 #include <string>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Define various test types to check against concepts
 
@@ -65,7 +65,7 @@ struct InvalidQueryExpression {
 // is_constraint concept tests
 // static_assert(is_constraint<primary_key<&ValidTable::id>>, "primary_key should satisfy is_constraint");
 // Commenting out tests that don't match actual implementation
-// static_assert(is_constraint<sqllib::schema::index<&ValidTable::id>>, "index should satisfy is_constraint");
+// static_assert(is_constraint<relx::schema::index<&ValidTable::id>>, "index should satisfy is_constraint");
 // static_assert(!is_constraint<column<"id", int>>, "column should not satisfy is_constraint");
 // static_assert(!is_constraint<nullable_column<"name", std::string>>, "nullable_column should not satisfy is_constraint");
 

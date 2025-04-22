@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Test table with just columns
 struct SimpleTable {
@@ -30,7 +30,7 @@ struct UsersTable {
     column<"email", std::string> email;
     
     primary_key<&UsersTable::id> pk;
-    sqllib::schema::index<&UsersTable::email> email_idx{index_type::unique};
+    relx::schema::index<&UsersTable::email> email_idx{index_type::unique};
 };
 
 // Test table with foreign key constraint

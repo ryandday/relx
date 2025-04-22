@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <sqllib/schema.hpp>
+#include <relx/schema.hpp>
 #include <string>
 #include <optional>
 #include <limits>
@@ -8,7 +8,7 @@
 #include <vector>
 #include <tuple>
 
-using namespace sqllib::schema;
+using namespace relx::schema;
 
 // Most databases have identifier length limits (SQLite: 1024, PostgreSQL: 63, MySQL: 64)
 inline constexpr char veryLongTableName[] = "this_is_an_extremely_long_table_name_that_exceeds_the_normal_conventions_of_database_naming_and_might_cause_issues_with_some_database_engines_especially_when_the_name_gets_even_longer_and_longer_with_more_and_more_characters_until_it_eventually_hits_the_limit_of_what_is_reasonable_or_allowed_by_the_system";
@@ -23,7 +23,7 @@ struct CustomType {
 enum class CustomEnum { Value1, Value2, Value3 };
 
 // Extend column_traits for custom types
-namespace sqllib {
+namespace relx {
 namespace schema {
     template <>
     struct column_traits<CustomType> {

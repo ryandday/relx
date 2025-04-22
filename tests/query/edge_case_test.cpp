@@ -10,7 +10,7 @@ TEST(EdgeCaseTest, ExtremeLimits) {
     users u;
     
     // Test with very large LIMIT value
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .limit(std::numeric_limits<int>::max());
     
@@ -26,7 +26,7 @@ TEST(EdgeCaseTest, ZeroValues) {
     users u;
     
     // Test with zero LIMIT (should be handled gracefully)
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .limit(0);
     
@@ -42,7 +42,7 @@ TEST(EdgeCaseTest, EmptyStrings) {
     users u;
     
     // Test with empty string parameters
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.name == "");
     
@@ -59,7 +59,7 @@ TEST(EdgeCaseTest, SpecialCharactersInStrings) {
     
     // Test with strings containing SQL special characters
     std::string special_chars = "Test'\"\\%;_$#@!";
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.name == special_chars);
     
@@ -76,7 +76,7 @@ TEST(EdgeCaseTest, UnicodeStrings) {
     
     // Test with Unicode strings
     std::string unicode_string = "测试Unicode字符串😀🔥";
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.name == unicode_string);
     
@@ -93,7 +93,7 @@ TEST(EdgeCaseTest, VeryLongStrings) {
     
     // Create a very long string value
     std::string long_string(10000, 'a');
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.bio == long_string);
     
@@ -116,11 +116,11 @@ TEST(EdgeCaseTest, BooleanValues) {
     users u;
     
     // Test with boolean values
-    auto query_true = sqllib::query::select(u.id, u.name)
+    auto query_true = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.is_active == true);
     
-    auto query_false = sqllib::query::select(u.id, u.name)
+    auto query_false = relx::query::select(u.id, u.name)
         .from(u)
         .where(u.is_active == false);
     
@@ -146,11 +146,11 @@ TEST(EdgeCaseTest, ExtremeDateValues) {
     std::string min_date = "0001-01-01 00:00:00";
     std::string max_date = "9999-12-31 23:59:59";
     
-    auto query_min = sqllib::query::select(p.id, p.title)
+    auto query_min = relx::query::select(p.id, p.title)
         .from(p)
         .where(p.created_at == min_date);
     
-    auto query_max = sqllib::query::select(p.id, p.title)
+    auto query_max = relx::query::select(p.id, p.title)
         .from(p)
         .where(p.created_at == max_date);
     
@@ -172,9 +172,9 @@ TEST(EdgeCaseTest, ComplexExpressionsWithManyOperators) {
     posts p;
     
     // Create a complex WHERE condition with many operators
-    auto query = sqllib::query::select(u.id, u.name, p.title)
+    auto query = relx::query::select(u.id, u.name, p.title)
         .from(u)
-        .join(p, sqllib::query::on(u.id == p.user_id))
+        .join(p, relx::query::on(u.id == p.user_id))
         .where(
             (u.age > 18) &&
             (u.age <= 65) &&
@@ -203,7 +203,7 @@ TEST(EdgeCaseTest, NestedLogicalOperators) {
     users u;
     
     // Create deeply nested logical operators
-    auto query = sqllib::query::select(u.id, u.name)
+    auto query = relx::query::select(u.id, u.name)
         .from(u)
         .where(
             u.is_active == true &&
@@ -211,7 +211,7 @@ TEST(EdgeCaseTest, NestedLogicalOperators) {
                 (u.age < 30 || 
                  u.age > 60) &&
                 (u.login_count > 5 || 
-                 sqllib::query::is_not_null(u.bio))
+                 relx::query::is_not_null(u.bio))
             )
         );
     
@@ -242,15 +242,15 @@ TEST(EdgeCaseTest, NestedLogicalOperators) {
 //     post_tags pt;
     
 //     // Create a query with many joins and conditions
-//     auto query = sqllib::query::select(u.name, p.title, c.content, t.name)
+//     auto query = relx::query::select(u.name, p.title, c.content, t.name)
 //         .from(u)
-//         .join(p, sqllib::query::on(sqllib::query::to_expr(u.id) == sqllib::query::to_expr(p.user_id)))
-//         .join(c, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(c.post_id)))
-//         .join(pt, sqllib::query::on(sqllib::query::to_expr(p.id) == sqllib::query::to_expr(pt.post_id)))
-//         .join(t, sqllib::query::on(sqllib::query::to_expr(pt.tag_id) == sqllib::query::to_expr(t.id)))
-//         .where(sqllib::query::to_expr(u.is_active) == sqllib::query::val(true))
-//         .where(sqllib::query::to_expr(p.is_published) == sqllib::query::val(true))
-//         .where(sqllib::query::to_expr(c.is_approved) == sqllib::query::val(true));
+//         .join(p, relx::query::on(relx::query::to_expr(u.id) == relx::query::to_expr(p.user_id)))
+//         .join(c, relx::query::on(relx::query::to_expr(p.id) == relx::query::to_expr(c.post_id)))
+//         .join(pt, relx::query::on(relx::query::to_expr(p.id) == relx::query::to_expr(pt.post_id)))
+//         .join(t, relx::query::on(relx::query::to_expr(pt.tag_id) == relx::query::to_expr(t.id)))
+//         .where(relx::query::to_expr(u.is_active) == relx::query::val(true))
+//         .where(relx::query::to_expr(p.is_published) == relx::query::val(true))
+//         .where(relx::query::to_expr(c.is_approved) == relx::query::val(true));
     
 //     // Just verify we get a non-empty string with all the expected JOIN keywords
 //     std::string sql = query.to_sql();
