@@ -173,4 +173,82 @@ TEST(UpdateQueryTest, UpdateWithConditionalValue) {
     ASSERT_EQ(params.size(), 2);
     EXPECT_EQ(params[0], "active");
     EXPECT_EQ(params[1], "10");
+}
+
+// Test UPDATE with RETURNING clause
+TEST(UpdateQueryTest, UpdateWithReturning) {
+    User users;
+    
+    // Test basic returning with column references
+    auto basic_query = query::update(users)
+        .set(users.name, "John Doe")
+        .set(users.email, "john@example.com")
+        .where(users.id == 1)
+        .returning(query::column_ref(users.id), query::column_ref(users.name));
+    
+    EXPECT_EQ(basic_query.to_sql(), 
+        "UPDATE users SET name = ?, email = ? WHERE (id = ?) RETURNING id, name");
+    
+    auto basic_params = basic_query.bind_params();
+    ASSERT_EQ(basic_params.size(), 3);
+    EXPECT_EQ(basic_params[0], "John Doe");
+    EXPECT_EQ(basic_params[1], "john@example.com");
+    EXPECT_EQ(basic_params[2], "1");
+    
+    // Test basic returning with direct column references
+    auto direct_column_query = query::update(users)
+        .set(users.name, "John Doe")
+        .set(users.active, true)
+        .where(users.id == 1)
+        .returning(users.id, users.name);
+    
+    EXPECT_EQ(direct_column_query.to_sql(), 
+        "UPDATE users SET name = ?, active = ? WHERE (id = ?) RETURNING id, name");
+    
+    auto direct_params = direct_column_query.bind_params();
+    ASSERT_EQ(direct_params.size(), 3);
+    EXPECT_EQ(direct_params[0], "John Doe");
+    EXPECT_EQ(direct_params[1], "1"); // true becomes "1"
+    EXPECT_EQ(direct_params[2], "1");
+    
+    // Test returning with expressions
+    auto count_func = query::NullaryFunctionExpr("COUNT");
+    auto expr_query = query::update(users)
+        .set(users.name, "Jane Smith")
+        .set(users.email, "jane@example.com")
+        .where(users.active == true)
+        .returning(
+            query::column_ref(users.id), 
+            count_func, 
+            query::as(users.name, "updated_name")
+        );
+    
+    EXPECT_EQ(expr_query.to_sql(), 
+        "UPDATE users SET name = ?, email = ? WHERE (active = ?) RETURNING id, COUNT(), name AS updated_name");
+    
+    auto expr_params = expr_query.bind_params();
+    ASSERT_EQ(expr_params.size(), 3);
+    EXPECT_EQ(expr_params[0], "Jane Smith");
+    EXPECT_EQ(expr_params[1], "jane@example.com");
+    EXPECT_EQ(expr_params[2], "1");
+    
+    // Test mixed direct columns and expressions
+    auto mixed_query = query::update(users)
+        .set(users.name, "Jane Smith")
+        .set(users.email, "jane@example.com")
+        .where(users.active == true)
+        .returning(
+            users.id,  // Direct column reference
+            count_func, // SQL expression
+            query::as(users.name, "updated_name") // Aliased column
+        );
+    
+    EXPECT_EQ(mixed_query.to_sql(), 
+        "UPDATE users SET name = ?, email = ? WHERE (active = ?) RETURNING id, COUNT(), name AS updated_name");
+    
+    auto mixed_params = mixed_query.bind_params();
+    ASSERT_EQ(mixed_params.size(), 3);
+    EXPECT_EQ(mixed_params[0], "Jane Smith");
+    EXPECT_EQ(mixed_params[1], "jane@example.com");
+    EXPECT_EQ(mixed_params[2], "1");
 } 

@@ -41,32 +41,73 @@ struct SetItem {
 /// @tparam Table Table to update
 /// @tparam Sets Tuple of SET clause items
 /// @tparam Where Optional where condition
+/// @tparam ReturningColumns Tuple of column expressions to return after update
 template <
     TableType Table,
     typename Sets = std::tuple<>,
-    typename Where = std::nullopt_t
+    typename Where = std::nullopt_t,
+    typename ReturningColumns = std::tuple<>
 >
 class UpdateQuery {
 private:
     Table table_;
     Sets sets_;
     Where where_;
+    ReturningColumns returning_columns_;
+    
+    // Helper to convert the RETURNING clause to SQL
+    std::string returning_to_sql() const {
+        if constexpr (is_empty_tuple<ReturningColumns>()) {
+            return "";
+        } else {
+            std::stringstream ss;
+            ss << " RETURNING ";
+            int i = 0;
+            std::apply([&](const auto&... cols) {
+                ((ss << (i++ > 0 ? ", " : "") << cols.to_sql()), ...);
+            }, returning_columns_);
+            return ss.str();
+        }
+    }
+    
+    // Helper to collect bind parameters from RETURNING clause
+    std::vector<std::string> returning_bind_params() const {
+        std::vector<std::string> params;
+        
+        if constexpr (!is_empty_tuple<ReturningColumns>()) {
+            std::apply([&](const auto&... cols) {
+                auto process_col = [&params](const auto& col) {
+                    auto col_params = col.bind_params();
+                    params.insert(params.end(), col_params.begin(), col_params.end());
+                };
+                
+                (process_col(cols), ...);
+            }, returning_columns_);
+        }
+        
+        return params;
+    }
+
 public:
     using table_type = Table;
     using sets_type = Sets;
     using where_type = Where;
+    using returning_columns_type = ReturningColumns;
 
     /// @brief Constructor for the UPDATE query builder
     /// @param table The table to update
     /// @param sets The SET clause items
     /// @param where The WHERE condition
+    /// @param returning_columns The columns to return after update
     explicit UpdateQuery(
         Table table,
         Sets sets = {},
-        Where where = std::nullopt
+        Where where = std::nullopt,
+        ReturningColumns returning_columns = {}
     ) : table_(std::move(table)),
         sets_(std::move(sets)),
-        where_(std::move(where)) {}
+        where_(std::move(where)),
+        returning_columns_(std::move(returning_columns)) {}
 
     /// @brief Generate the SQL for this UPDATE query
     /// @return The SQL string
@@ -86,6 +127,9 @@ public:
                 ss << " WHERE " << where_.value().to_sql();
             }
         }
+        
+        // Add RETURNING clause if specified
+        ss << returning_to_sql();
         
         return ss.str();
     }
@@ -108,6 +152,10 @@ public:
                 params.insert(params.end(), where_params.begin(), where_params.end());
             }
         }
+        
+        // Add RETURNING bind parameters
+        auto returning_params = returning_bind_params();
+        params.insert(params.end(), returning_params.begin(), returning_params.end());
         
         return params;
     }
@@ -133,10 +181,11 @@ public:
         auto new_sets = std::tuple_cat(sets_, std::move(new_item_tuple));
         
         // Return a new query with the updated sets
-        return UpdateQuery<Table, decltype(new_sets), Where>(
+        return UpdateQuery<Table, decltype(new_sets), Where, ReturningColumns>(
             table_,
             std::move(new_sets),
-            where_
+            where_,
+            returning_columns_
         );
     }
 
@@ -161,11 +210,12 @@ public:
     template <ConditionExpr Condition>
     auto where(const Condition& cond) const {
         return UpdateQuery<
-            Table, Sets, std::optional<Condition>
+            Table, Sets, std::optional<Condition>, ReturningColumns
         >(
             table_,
             sets_,
-            std::optional<Condition>(cond)
+            std::optional<Condition>(cond),
+            returning_columns_
         );
     }
 
@@ -182,7 +232,37 @@ public:
         auto in_condition = in(col_expr, values);
         return where(in_condition);
     }
-
+    
+    /// @brief Specify columns to return after update
+    /// @tparam Args Column types or SQL expressions
+    /// @param args The columns or expressions to return
+    /// @return New UpdateQuery with the RETURNING clause added
+    template <typename... Args>
+    auto returning(const Args&... args) const {
+        // Helper to convert columns to ColumnRef expressions if they're not already SqlExpr
+        auto to_expr = [](const auto& arg) {
+            if constexpr (SqlExpr<std::decay_t<decltype(arg)>>) {
+                return arg;
+            } else if constexpr (ColumnType<std::decay_t<decltype(arg)>>) {
+                return column_ref(arg);
+            } else {
+                static_assert(SqlExpr<std::decay_t<decltype(arg)>> || ColumnType<std::decay_t<decltype(arg)>>, 
+                              "Arguments to returning() must be either columns or SQL expressions");
+                // This line is never reached, it's just to make the compiler happy
+                return arg;
+            }
+        };
+        
+        using ReturningTuple = std::tuple<decltype(to_expr(std::declval<Args>()))...>;
+        auto returning_tuple = std::make_tuple(to_expr(args)...);
+        
+        return UpdateQuery<Table, Sets, Where, ReturningTuple>(
+            table_,
+            sets_,
+            where_,
+            std::move(returning_tuple)
+        );
+    }
 };
 
 /// @brief Create an UPDATE query for the specified table

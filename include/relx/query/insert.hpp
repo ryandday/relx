@@ -352,7 +352,8 @@ public:
             columns_,
             values_,
             select_,
-            
+            std::move(returning_tuple)
+        );
     }
 };
 
