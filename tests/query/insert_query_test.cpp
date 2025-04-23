@@ -211,3 +211,60 @@ TEST(InsertQueryTest, InsertWithRawValues) {
     EXPECT_EQ("25", multi_params[4]);
     EXPECT_EQ("0", multi_params[5]);
 } 
+
+// Test INSERT with RETURNING clause
+TEST(InsertQueryTest, InsertWithReturning) {
+    User users;
+    
+    // Test basic returning with column references
+    auto basic_query = query::insert_into(users)
+        .columns(users.name, users.email, users.active)
+        .values("John Doe", "john@example.com", true)
+        .returning(query::column_ref(users.id), query::column_ref(users.name));
+    
+    EXPECT_EQ(basic_query.to_sql(), 
+        "INSERT INTO users (name, email, active) VALUES (?, ?, ?) RETURNING id, name");
+    
+    auto basic_params = basic_query.bind_params();
+    ASSERT_EQ(basic_params.size(), 3);
+    EXPECT_EQ(basic_params[0], "John Doe");
+    EXPECT_EQ(basic_params[1], "john@example.com");
+    EXPECT_EQ(basic_params[2], "1");
+    
+    // Test returning with expressions
+    auto count_func = query::NullaryFunctionExpr("COUNT");
+    auto expr_query = query::insert_into(users)
+        .columns(users.name, users.email)
+        .values("Jane Smith", "jane@example.com")
+        .returning(
+            query::column_ref(users.id), 
+            count_func, 
+            query::as(users.name, "inserted_name")
+        );
+    
+    EXPECT_EQ(expr_query.to_sql(), 
+        "INSERT INTO users (name, email) VALUES (?, ?) RETURNING id, COUNT(), name AS inserted_name");
+    
+    auto expr_params = expr_query.bind_params();
+    ASSERT_EQ(expr_params.size(), 2);
+    EXPECT_EQ(expr_params[0], "Jane Smith");
+    EXPECT_EQ(expr_params[1], "jane@example.com");
+    
+    // Test returning with INSERT ... SELECT
+    auto select_query = query::select(users.id, users.name, query::val("default@example.com"))
+        .from(users)
+        .where(query::column_ref(users.active) == query::val(true));
+    
+    auto select_insert_query = query::insert_into(users)
+        .columns(users.id, users.name, users.email)
+        .select(select_query)
+        .returning(query::column_ref(users.id));
+    
+    EXPECT_EQ(select_insert_query.to_sql(), 
+        "INSERT INTO users (id, name, email) SELECT id, name, ? FROM users WHERE (active = ?) RETURNING id");
+    
+    auto select_params = select_insert_query.bind_params();
+    ASSERT_EQ(select_params.size(), 2);
+    EXPECT_EQ(select_params[0], "default@example.com");
+    EXPECT_EQ(select_params[1], "1");
+} 

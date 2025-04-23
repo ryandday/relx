@@ -47,11 +47,13 @@ struct InsertItem {
 /// @tparam Columns Tuple of column references
 /// @tparam Values Tuple of value tuples for multi-row inserts, or empty for other insertion types
 /// @tparam SelectQuery Optional SELECT query for INSERT ... SELECT statements
+/// @tparam ReturningColumns Tuple of column expressions to return after insertion
 template <
     TableType Table,
     typename Columns = std::tuple<>,
     typename Values = std::tuple<>,
-    typename SelectStmt = std::nullopt_t
+    typename SelectStmt = std::nullopt_t,
+    typename ReturningColumns = std::tuple<>
 >
 class InsertQuery {
 private:
@@ -59,6 +61,7 @@ private:
     Columns columns_;
     Values values_;
     SelectStmt select_;
+    ReturningColumns returning_columns_;
     
     // Helper to convert a tuple of column references to column names for INSERT
     std::string columns_to_sql() const {
@@ -128,27 +131,64 @@ private:
         
         return params;
     }
+    
+    // Helper to convert the RETURNING clause to SQL
+    std::string returning_to_sql() const {
+        if constexpr (is_empty_tuple<ReturningColumns>()) {
+            return "";
+        } else {
+            std::stringstream ss;
+            ss << " RETURNING ";
+            int i = 0;
+            std::apply([&](const auto&... cols) {
+                ((ss << (i++ > 0 ? ", " : "") << cols.to_sql()), ...);
+            }, returning_columns_);
+            return ss.str();
+        }
+    }
+    
+    // Helper to collect bind parameters from RETURNING clause
+    std::vector<std::string> returning_bind_params() const {
+        std::vector<std::string> params;
+        
+        if constexpr (!is_empty_tuple<ReturningColumns>()) {
+            std::apply([&](const auto&... cols) {
+                auto process_col = [&params](const auto& col) {
+                    auto col_params = col.bind_params();
+                    params.insert(params.end(), col_params.begin(), col_params.end());
+                };
+                
+                (process_col(cols), ...);
+            }, returning_columns_);
+        }
+        
+        return params;
+    }
 
 public:
     using table_type = Table;
     using columns_type = Columns;
     using values_type = Values;
     using select_type = SelectStmt;
+    using returning_columns_type = ReturningColumns;
 
     /// @brief Constructor for the INSERT query builder
     /// @param table The table to insert into
     /// @param columns The columns to insert into
     /// @param values The values to insert
     /// @param select The SELECT statement (for INSERT ... SELECT)
+    /// @param returning_columns The columns to return after insertion
     explicit InsertQuery(
         Table table,
         Columns columns = {},
         Values values = {},
-        SelectStmt select = std::nullopt
+        SelectStmt select = std::nullopt,
+        ReturningColumns returning_columns = {}
     ) : table_(std::move(table)),
         columns_(std::move(columns)),
         values_(std::move(values)),
-        select_(std::move(select)) {}
+        select_(std::move(select)),
+        returning_columns_(std::move(returning_columns)) {}
 
     /// @brief Generate the SQL for this INSERT query
     /// @return The SQL string
@@ -174,6 +214,9 @@ public:
             }
         }
         
+        // Add RETURNING clause if specified
+        ss << returning_to_sql();
+        
         return ss.str();
     }
 
@@ -195,6 +238,10 @@ public:
             }
         }
         
+        // Add RETURNING bind parameters
+        auto returning_params = returning_bind_params();
+        params.insert(params.end(), returning_params.begin(), returning_params.end());
+        
         return params;
     }
 
@@ -207,11 +254,12 @@ public:
         using NewColumns = std::tuple<ColumnRef<Cols>...>;
         auto column_refs = std::make_tuple(ColumnRef<Cols>(cols)...);
         
-        return InsertQuery<Table, NewColumns, Values, SelectStmt>(
+        return InsertQuery<Table, NewColumns, Values, SelectStmt, ReturningColumns>(
             table_,
             std::move(column_refs),
             values_,
-            select_
+            select_,
+            returning_columns_
         );
     }
 
@@ -237,11 +285,12 @@ public:
         if constexpr (!is_empty_tuple<Values>()) {
             auto new_values = std::tuple_cat(values_, std::make_tuple(value_tuple));
             
-            return InsertQuery<Table, Columns, decltype(new_values), SelectStmt>(
+            return InsertQuery<Table, Columns, decltype(new_values), SelectStmt, ReturningColumns>(
                 table_,
                 columns_,
                 std::move(new_values),
-                select_
+                select_,
+                returning_columns_
             );
         }
         // If this is the first value tuple, create a new tuple
@@ -249,11 +298,12 @@ public:
             using NewValues = std::tuple<ValueTuple>;
             auto new_values = std::make_tuple(value_tuple);
             
-            return InsertQuery<Table, Columns, NewValues, SelectStmt>(
+            return InsertQuery<Table, Columns, NewValues, SelectStmt, ReturningColumns>(
                 table_,
                 columns_,
                 std::move(new_values),
-                select_
+                select_,
+                returning_columns_
             );
         }
     }
@@ -265,11 +315,30 @@ public:
     template <typename Select>
     requires SqlExpr<Select>
     auto select(const Select& select) const {
-        return InsertQuery<Table, Columns, Values, std::optional<Select>>(
+        return InsertQuery<Table, Columns, Values, std::optional<Select>, ReturningColumns>(
             table_,
             columns_,
             values_,
-            std::optional<Select>(select)
+            std::optional<Select>(select),
+            returning_columns_
+        );
+    }
+    
+    /// @brief Specify columns to return after insertion
+    /// @tparam Cols Column expression types
+    /// @param cols The columns to return
+    /// @return New InsertQuery with the RETURNING clause added
+    template <SqlExpr... Cols>
+    auto returning(const Cols&... cols) const {
+        using NewReturningColumns = std::tuple<Cols...>;
+        auto returning_columns = std::make_tuple(cols...);
+        
+        return InsertQuery<Table, Columns, Values, SelectStmt, NewReturningColumns>(
+            table_,
+            columns_,
+            values_,
+            select_,
+            std::move(returning_columns)
         );
     }
 };
