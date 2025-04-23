@@ -13,44 +13,44 @@
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"email", std::string> email;
-    relx::schema::column<"age", int> age;
-    relx::schema::column<"is_active", bool> is_active;
+    relx::column<"id", int> id;
+    relx::column<"name", std::string> name;
+    relx::column<"email", std::string> email;
+    relx::column<"age", int> age;
+    relx::column<"is_active", bool> is_active;
     
-    relx::schema::primary_key<&Users::id> pk;
-    relx::schema::unique_constraint<&Users::email> unique_email;
+    relx::primary_key<&Users::id> pk;
+    relx::unique_constraint<&Users::email> unique_email;
 };
 
 // Posts table definition with foreign key to Users
 struct Posts {
     static constexpr auto table_name = "posts";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"user_id", int> user_id;
-    relx::schema::column<"title", std::string> title;
-    relx::schema::column<"content", std::string> content;
-    relx::schema::column<"views", int> views;
-    relx::schema::column<"created_at", std::string> created_at;
+    relx::column<"id", int> id;
+    relx::column<"user_id", int> user_id;
+    relx::column<"title", std::string> title;
+    relx::column<"content", std::string> content;
+    relx::column<"views", int> views;
+    relx::column<"created_at", std::string> created_at;
     
-    relx::schema::primary_key<&Posts::id> pk;
-    relx::schema::foreign_key<&Posts::user_id, &Users::id> user_fk;
+    relx::primary_key<&Posts::id> pk;
+    relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
 };
 
 // Comments table definition with foreign key to Posts
 struct Comments {
     static constexpr auto table_name = "comments";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"post_id", int> post_id;
-    relx::schema::column<"user_id", int> user_id;
-    relx::schema::column<"content", std::string> content;
-    relx::schema::column<"created_at", std::string> created_at;
+    relx::column<"id", int> id;
+    relx::column<"post_id", int> post_id;
+    relx::column<"user_id", int> user_id;
+    relx::column<"content", std::string> content;
+    relx::column<"created_at", std::string> created_at;
     
-    relx::schema::primary_key<&Comments::id> pk;
-    relx::schema::foreign_key<&Comments::post_id, &Posts::id> post_fk;
-    relx::schema::foreign_key<&Comments::user_id, &Users::id> user_fk;
+    relx::primary_key<&Comments::id> pk;
+    relx::foreign_key<&Comments::post_id, &Posts::id> post_fk;
+    relx::foreign_key<&Comments::user_id, &Users::id> user_fk;
 };
 
 // Function to handle errors in connection results
@@ -71,45 +71,23 @@ void print_divider() {
 bool create_tables(relx::Connection& conn) {
     std::cout << "Creating tables..." << std::endl;
     
+    Users users;
     // Create Users table
-    std::string create_users_sql = R"(
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            age INTEGER NOT NULL,
-            is_active BOOLEAN NOT NULL DEFAULT TRUE
-        )
-    )";
+    auto create_users_sql = relx::create_table(users);
     
     auto users_result = conn.execute_raw(create_users_sql);
     if (!check_result(users_result, "creating users table")) return false;
     
     // Create Posts table
-    std::string create_posts_sql = R"(
-        CREATE TABLE IF NOT EXISTS posts (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            views INTEGER NOT NULL DEFAULT 0,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-    )";
+    Posts posts;
+    auto create_posts_sql = relx::create_table(posts);
     
     auto posts_result = conn.execute_raw(create_posts_sql);
     if (!check_result(posts_result, "creating posts table")) return false;
     
     // Create Comments table
-    std::string create_comments_sql = R"(
-        CREATE TABLE IF NOT EXISTS comments (
-            id SERIAL PRIMARY KEY,
-            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            content TEXT NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-    )";
+    Comments comments;
+    auto create_comments_sql = relx::create_table(comments);
     
     auto comments_result = conn.execute_raw(create_comments_sql);
     if (!check_result(comments_result, "creating comments table")) return false;
@@ -128,73 +106,95 @@ bool insert_sample_data(relx::Connection& conn) {
     
     try {
         // Insert users
-        auto insert_user1 = conn.execute_raw(
-            "INSERT INTO users (name, email, age, is_active) VALUES ($1, $2, $3, $4) RETURNING id",
-            {"Alice Johnson", "alice@example.com", "28", "true"}
+        Users users;
+        auto insert_user1 = relx::insert_into(users).columns(
+            users.name, users.email, users.age, users.is_active
+        ).values(
+            "Alice Johnson", "alice@example.com", "28", "true"
         );
-        if (!check_result(insert_user1, "inserting user 1")) throw std::runtime_error("Failed to insert user 1");
+        // TODO implement RETURNING id
+        auto insert_user1_result = conn.execute(insert_user1);
+        if (!check_result(insert_user1_result, "inserting user 1")) throw std::runtime_error("Failed to insert user 1");
         
-        int user1_id = (*insert_user1)[0].get<int>("id").value_or(0);
+        int user1_id = (*insert_user1_result)[0].get<int>("id").value_or(0);
         
-        auto insert_user2 = conn.execute_raw(
-            "INSERT INTO users (name, email, age, is_active) VALUES ($1, $2, $3, $4) RETURNING id",
-            {"Bob Smith", "bob@example.com", "35", "true"}
+        auto insert_user2 = relx::insert_into(users).columns(
+            users.name, users.email, users.age, users.is_active
+        ).values(
+            "Bob Smith", "bob@example.com", "35", "true"
         );
-        if (!check_result(insert_user2, "inserting user 2")) throw std::runtime_error("Failed to insert user 2");
+        auto insert_user2_result = conn.execute(insert_user2);
+        if (!check_result(insert_user2_result, "inserting user 2")) throw std::runtime_error("Failed to insert user 2");
         
-        int user2_id = (*insert_user2)[0].get<int>("id").value_or(0);
+        int user2_id = (*insert_user2_result)[0].get<int>("id").value_or(0);
         
-        auto insert_user3 = conn.execute_raw(
-            "INSERT INTO users (name, email, age, is_active) VALUES ($1, $2, $3, $4) RETURNING id",
-            {"Charlie Davis", "charlie@example.com", "42", "false"}
+        auto insert_user3 = relx::insert_into(users).columns(
+            users.name, users.email, users.age, users.is_active
+        ).values(
+            "Charlie Davis", "charlie@example.com", "42", "false"
         );
-        if (!check_result(insert_user3, "inserting user 3")) throw std::runtime_error("Failed to insert user 3");
+        auto insert_user3_result = conn.execute(insert_user3);
+        if (!check_result(insert_user3_result, "inserting user 3")) throw std::runtime_error("Failed to insert user 3");
         
-        int user3_id = (*insert_user3)[0].get<int>("id").value_or(0);
+        int user3_id = (*insert_user3_result)[0].get<int>("id").value_or(0);
         
         // Insert posts
-        auto insert_post1 = conn.execute_raw(
-            "INSERT INTO posts (user_id, title, content, views) VALUES ($1, $2, $3, $4) RETURNING id",
-            {std::to_string(user1_id), "First Post", "This is Alice's first post content", "150"}
+        Posts posts;
+        auto insert_post1 = relx::insert_into(posts).columns(
+            posts.user_id, posts.title, posts.content, posts.views
+        ).values(
+            user1_id, "First Post", "This is Alice's first post content", "150"
         );
-        if (!check_result(insert_post1, "inserting post 1")) throw std::runtime_error("Failed to insert post 1");
+        auto insert_post1_result = conn.execute(insert_post1);
+        if (!check_result(insert_post1_result, "inserting post 1")) throw std::runtime_error("Failed to insert post 1");
         
-        int post1_id = (*insert_post1)[0].get<int>("id").value_or(0);
+        int post1_id = (*insert_post1_result)[0].get<int>("id").value_or(0);
         
-        auto insert_post2 = conn.execute_raw(
-            "INSERT INTO posts (user_id, title, content, views) VALUES ($1, $2, $3, $4) RETURNING id",
-            {std::to_string(user2_id), "Hello World", "Bob's introduction post", "75"}
+        auto insert_post2 = relx::insert_into(posts).columns(
+            posts.user_id, posts.title, posts.content, posts.views
+        ).values(
+            user2_id, "Hello World", "Bob's introduction post", "75"
         );
-        if (!check_result(insert_post2, "inserting post 2")) throw std::runtime_error("Failed to insert post 2");
+        auto insert_post2_result = conn.execute(insert_post2);
+        if (!check_result(insert_post2_result, "inserting post 2")) throw std::runtime_error("Failed to insert post 2");
         
-        int post2_id = (*insert_post2)[0].get<int>("id").value_or(0);
+        int post2_id = (*insert_post2_result)[0].get<int>("id").value_or(0);
         
-        auto insert_post3 = conn.execute_raw(
-            "INSERT INTO posts (user_id, title, content, views) VALUES ($1, $2, $3, $4) RETURNING id",
-            {std::to_string(user1_id), "Second Post", "Alice's follow-up post", "200"}
+        auto insert_post3 = relx::insert_into(posts).columns(
+            posts.user_id, posts.title, posts.content, posts.views
+        ).values(
+            user1_id, "Second Post", "Alice's follow-up post", "200"
         );
-        if (!check_result(insert_post3, "inserting post 3")) throw std::runtime_error("Failed to insert post 3");
+        auto insert_post3_result = conn.execute(insert_post3);
+        if (!check_result(insert_post3_result, "inserting post 3")) throw std::runtime_error("Failed to insert post 3");
         
-        int post3_id = (*insert_post3)[0].get<int>("id").value_or(0);
+        int post3_id = (*insert_post3_result)[0].get<int>("id").value_or(0);
         
         // Insert comments
-        auto insert_comment1 = conn.execute_raw(
-            "INSERT INTO comments (post_id, user_id, content) VALUES ($1, $2, $3)",
-            {std::to_string(post1_id), std::to_string(user2_id), "Great first post!"}
+        Comments comments;
+        auto insert_comment1 = relx::insert_into(comments).columns(
+            comments.post_id, comments.user_id, comments.content
+        ).values(
+            post1_id, user2_id, "Great first post!"
         );
-        if (!check_result(insert_comment1, "inserting comment 1")) throw std::runtime_error("Failed to insert comment 1");
+        auto insert_comment1_result = conn.execute(insert_comment1);
+        if (!check_result(insert_comment1_result, "inserting comment 1")) throw std::runtime_error("Failed to insert comment 1");
         
-        auto insert_comment2 = conn.execute_raw(
-            "INSERT INTO comments (post_id, user_id, content) VALUES ($1, $2, $3)",
-            {std::to_string(post1_id), std::to_string(user3_id), "I agree with Bob"}
+        auto insert_comment2 = relx::insert_into(comments).columns(
+            comments.post_id, comments.user_id, comments.content
+        ).values(
+            post1_id, user3_id, "I agree with Bob"
         );
-        if (!check_result(insert_comment2, "inserting comment 2")) throw std::runtime_error("Failed to insert comment 2");
+        auto insert_comment2_result = conn.execute(insert_comment2);
+        if (!check_result(insert_comment2_result, "inserting comment 2")) throw std::runtime_error("Failed to insert comment 2");
         
-        auto insert_comment3 = conn.execute_raw(
-            "INSERT INTO comments (post_id, user_id, content) VALUES ($1, $2, $3)",
-            {std::to_string(post2_id), std::to_string(user1_id), "Welcome, Bob!"}
+        auto insert_comment3 = relx::insert_into(comments).columns(
+            comments.post_id, comments.user_id, comments.content
+        ).values(
+            post2_id, user1_id, "Welcome, Bob!"
         );
-        if (!check_result(insert_comment3, "inserting comment 3")) throw std::runtime_error("Failed to insert comment 3");
+        auto insert_comment3_result = conn.execute(insert_comment3);
+        if (!check_result(insert_comment3_result, "inserting comment 3")) throw std::runtime_error("Failed to insert comment 3");
         
         // Commit the transaction
         auto commit_result = conn.commit_transaction();
@@ -226,7 +226,7 @@ void demonstrate_basic_queries(relx::Connection& conn) {
     std::cout << "1. Selecting all users:" << std::endl;
     
     Users u;
-    auto users_query = relx::query::select(u.id, u.name, u.email, u.age, u.is_active)
+    auto users_query = relx::select(u.id, u.name, u.email, u.age, u.is_active)
         .from(u)
         .order_by(u.id);
     
@@ -247,7 +247,7 @@ void demonstrate_basic_queries(relx::Connection& conn) {
     // 2. SELECT with WHERE condition - get active users over 30
     std::cout << "2. Selecting active users over 30:" << std::endl;
     
-    auto active_users_query = relx::query::select(u.id, u.name, u.age)
+    auto active_users_query = relx::select(u.id, u.name, u.age)
         .from(u)
         .where((u.age > 30) && (u.is_active == true));
     
@@ -266,7 +266,7 @@ void demonstrate_basic_queries(relx::Connection& conn) {
     // 3. UPDATE query - update a user's active status
     std::cout << "3. Updating user's active status:" << std::endl;
     
-    auto update_query = relx::query::update(u)
+    auto update_query = relx::update(u)
         .set(u.is_active, true)
         .where(u.name == "Charlie Davis");
     
@@ -276,7 +276,7 @@ void demonstrate_basic_queries(relx::Connection& conn) {
     }
     
     // Verify the update
-    auto verify_update = relx::query::select(u.id, u.name, u.is_active)
+    auto verify_update = relx::select(u.id, u.name, u.is_active)
         .from(u)
         .where(u.name == "Charlie Davis");
     
@@ -293,7 +293,7 @@ void demonstrate_basic_queries(relx::Connection& conn) {
     // 4. DELETE query - delete a non-existent user (safe example)
     std::cout << "4. Deleting a user (safe example):" << std::endl;
     
-    auto delete_query = relx::query::delete_from(u)
+    auto delete_query = relx::delete_from(u)
         .where(u.name == "NonExistentUser");
     
     auto delete_result = conn.execute(delete_query);
@@ -315,10 +315,10 @@ void demonstrate_complex_queries(relx::Connection& conn) {
     // 1. JOIN query - Get posts with their author information
     std::cout << "1. JOIN: Posts with author information:" << std::endl;
     
-    auto join_query = relx::query::select(p.id, p.title, p.views, relx::query::as(u.name, "author_name"), relx::query::as(u.email, "author_email"))
+    auto join_query = relx::select(p.id, p.title, p.views, relx::as(u.name, "author_name"), relx::as(u.email, "author_email"))
         .from(p)
-        .join(u, relx::query::on(p.user_id == u.id))
-        .order_by(relx::query::desc(p.views));
+        .join(u, relx::on(p.user_id == u.id))
+        .order_by(relx::desc(p.views));
     
     auto join_result = conn.execute(join_query);
     if (check_result(join_result, "post-author join")) {
@@ -337,15 +337,15 @@ void demonstrate_complex_queries(relx::Connection& conn) {
     // 2. Aggregate functions - Count posts per user with total views
     std::cout << "2. Aggregates: Post counts and total views per user:" << std::endl;
     
-    auto agg_query = relx::query::select_expr(
+    auto agg_query = relx::select_expr(
         u.name,
-        relx::query::as(relx::query::count(p.id), "post_count"),
-        relx::query::as(relx::query::sum(p.views), "total_views")
+        relx::as(relx::count(p.id), "post_count"),
+        relx::as(relx::sum(p.views), "total_views")
     )
     .from(u)
-    .left_join(p, relx::query::on(u.id == p.user_id))
+    .left_join(p, relx::on(u.id == p.user_id))
     .group_by(u.id, u.name)
-    .order_by(relx::query::desc(relx::query::sum(p.views)));
+    .order_by(relx::desc(relx::sum(p.views)));
     
     auto agg_result = conn.execute(agg_query);
     if (check_result(agg_result, "aggregate query")) {
@@ -362,22 +362,22 @@ void demonstrate_complex_queries(relx::Connection& conn) {
     // 3. Complex JOIN with subquery and HAVING - Get popular posts with comment counts
     std::cout << "3. Complex JOIN: Popular posts with comment counts:" << std::endl;
     
-    auto complex_query = relx::query::select_expr(
+    auto complex_query = relx::select_expr(
         p.id,
         p.title,
-        relx::query::as(u.name, "author"),
+        relx::as(u.name, "author"),
         p.views,
-        relx::query::as(relx::query::count(c.id), "comment_count")
+        relx::as(relx::count(c.id), "comment_count")
     )
     .from(p)
-    .join(u, relx::query::on(p.user_id == u.id))
-    .left_join(c, relx::query::on(p.id == c.post_id))
+    .join(u, relx::on(p.user_id == u.id))
+    .left_join(c, relx::on(p.id == c.post_id))
     .group_by(p.id, p.title, u.name, p.views)
     .having(
         (p.views > 50) &&
-        (relx::query::count(c.id) > 0)
+        (relx::count(c.id) > 0)
     )
-    .order_by(relx::query::desc(p.views));
+    .order_by(relx::desc(p.views));
     
     auto complex_result = conn.execute(complex_query);
     if (check_result(complex_result, "complex join query")) {
@@ -396,16 +396,16 @@ void demonstrate_complex_queries(relx::Connection& conn) {
     // 4. Advanced query with CASE expression - User activity categories
     std::cout << "4. Advanced CASE expression: User activity categories:" << std::endl;
     
-    auto case_query = relx::query::select_expr(
+    auto case_query = relx::select_expr(
         u.name,
-        relx::query::as(
-            relx::query::case_()
+        relx::as(
+            relx::case_()
                 .when(
-                    relx::query::count(p.id) == 0,
+                    relx::count(p.id) == 0,
                     "Inactive"
                 )
                 .when(
-                    (relx::query::count(p.id) >= 1) && (relx::query::count(p.id) < 3),
+                    (relx::count(p.id) >= 1) && (relx::count(p.id) < 3),
                     "Casual"
                 )
                 .else_(
@@ -414,12 +414,12 @@ void demonstrate_complex_queries(relx::Connection& conn) {
                 .build(),
             "user_category"
         ),
-        relx::query::as(relx::query::count(p.id), "post_count")
+        relx::as(relx::count(p.id), "post_count")
     )
     .from(u)
-    .left_join(p, relx::query::on(u.id == p.user_id))
+    .left_join(p, relx::on(u.id == p.user_id))
     .group_by(u.id, u.name)
-    .order_by(relx::query::desc(relx::query::count(p.id)));
+    .order_by(relx::desc(relx::count(p.id)));
     
     auto case_result = conn.execute(case_query);
     if (check_result(case_result, "case expression query")) {
@@ -437,10 +437,14 @@ bool clean_up(relx::Connection& conn) {
     print_divider();
     std::cout << "Cleaning up database..." << std::endl;
     
+    Users users;
+    Posts posts;
+    Comments comments;
+
     std::vector<std::string> drop_tables = {
-        "DROP TABLE IF EXISTS comments",
-        "DROP TABLE IF EXISTS posts",
-        "DROP TABLE IF EXISTS users"
+        relx::drop_table(comments),
+        relx::drop_table(posts),
+        relx::drop_table(users)
     };
     
     bool success = true;
