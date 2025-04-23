@@ -325,21 +325,34 @@ public:
     }
     
     /// @brief Specify columns to return after insertion
-    /// @tparam Cols Column expression types
-    /// @param cols The columns to return
+    /// @tparam Args Column types or SQL expressions
+    /// @param args The columns or expressions to return
     /// @return New InsertQuery with the RETURNING clause added
-    template <SqlExpr... Cols>
-    auto returning(const Cols&... cols) const {
-        using NewReturningColumns = std::tuple<Cols...>;
-        auto returning_columns = std::make_tuple(cols...);
+    template <typename... Args>
+    auto returning(const Args&... args) const {
+        // Helper to convert columns to ColumnRef expressions if they're not already SqlExpr
+        auto to_expr = [](const auto& arg) {
+            if constexpr (SqlExpr<std::decay_t<decltype(arg)>>) {
+                return arg;
+            } else if constexpr (ColumnType<std::decay_t<decltype(arg)>>) {
+                return column_ref(arg);
+            } else {
+                static_assert(SqlExpr<std::decay_t<decltype(arg)>> || ColumnType<std::decay_t<decltype(arg)>>, 
+                              "Arguments to returning() must be either columns or SQL expressions");
+                // This line is never reached, it's just to make the compiler happy
+                return arg;
+            }
+        };
         
-        return InsertQuery<Table, Columns, Values, SelectStmt, NewReturningColumns>(
+        using ReturningTuple = std::tuple<decltype(to_expr(std::declval<Args>()))...>;
+        auto returning_tuple = std::make_tuple(to_expr(args)...);
+        
+        return InsertQuery<Table, Columns, Values, SelectStmt, ReturningTuple>(
             table_,
             columns_,
             values_,
             select_,
-            std::move(returning_columns)
-        );
+            
     }
 };
 

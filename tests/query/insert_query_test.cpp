@@ -231,6 +231,21 @@ TEST(InsertQueryTest, InsertWithReturning) {
     EXPECT_EQ(basic_params[1], "john@example.com");
     EXPECT_EQ(basic_params[2], "1");
     
+    // Test basic returning with direct column references
+    auto direct_column_query = query::insert_into(users)
+        .columns(users.name, users.email, users.active)
+        .values("John Doe", "john@example.com", true)
+        .returning(users.id, users.name);
+    
+    EXPECT_EQ(direct_column_query.to_sql(), 
+        "INSERT INTO users (name, email, active) VALUES (?, ?, ?) RETURNING id, name");
+    
+    auto direct_params = direct_column_query.bind_params();
+    ASSERT_EQ(direct_params.size(), 3);
+    EXPECT_EQ(direct_params[0], "John Doe");
+    EXPECT_EQ(direct_params[1], "john@example.com");
+    EXPECT_EQ(direct_params[2], "1");
+    
     // Test returning with expressions
     auto count_func = query::NullaryFunctionExpr("COUNT");
     auto expr_query = query::insert_into(users)
@@ -250,6 +265,24 @@ TEST(InsertQueryTest, InsertWithReturning) {
     EXPECT_EQ(expr_params[0], "Jane Smith");
     EXPECT_EQ(expr_params[1], "jane@example.com");
     
+    // Test mixed direct columns and expressions
+    auto mixed_query = query::insert_into(users)
+        .columns(users.name, users.email)
+        .values("Jane Smith", "jane@example.com")
+        .returning(
+            users.id,  // Direct column reference
+            count_func, // SQL expression
+            query::as(users.name, "inserted_name") // Aliased column
+        );
+    
+    EXPECT_EQ(mixed_query.to_sql(), 
+        "INSERT INTO users (name, email) VALUES (?, ?) RETURNING id, COUNT(), name AS inserted_name");
+    
+    auto mixed_params = mixed_query.bind_params();
+    ASSERT_EQ(mixed_params.size(), 2);
+    EXPECT_EQ(mixed_params[0], "Jane Smith");
+    EXPECT_EQ(mixed_params[1], "jane@example.com");
+    
     // Test returning with INSERT ... SELECT
     auto select_query = query::select(users.id, users.name, query::val("default@example.com"))
         .from(users)
@@ -258,7 +291,7 @@ TEST(InsertQueryTest, InsertWithReturning) {
     auto select_insert_query = query::insert_into(users)
         .columns(users.id, users.name, users.email)
         .select(select_query)
-        .returning(query::column_ref(users.id));
+        .returning(users.id); // Direct column reference
     
     EXPECT_EQ(select_insert_query.to_sql(), 
         "INSERT INTO users (id, name, email) SELECT id, name, ? FROM users WHERE (active = ?) RETURNING id");
