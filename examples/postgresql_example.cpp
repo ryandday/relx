@@ -96,6 +96,28 @@ bool create_tables(relx::Connection& conn) {
     return true;
 }
 
+bool drop_tables(relx::Connection& conn) {
+    std::cout << "Dropping tables..." << std::endl;
+    
+    Users users;
+    Posts posts;
+    Comments comments;
+
+    std::vector<std::string> drop_tables = {
+        relx::drop_table(comments),
+        relx::drop_table(posts),
+        relx::drop_table(users)
+    };
+    
+    for (const auto& sql : drop_tables) {
+        auto result = conn.execute_raw(sql);
+        if (!check_result(result, "dropping table")) return false;
+    }
+    
+    std::cout << "Tables dropped successfully!" << std::endl;
+    return true;
+}
+
 // Function to insert sample data
 bool insert_sample_data(relx::Connection& conn) {
     std::cout << "Inserting sample data..." << std::endl;
@@ -111,8 +133,7 @@ bool insert_sample_data(relx::Connection& conn) {
             users.name, users.email, users.age, users.is_active
         ).values(
             "Alice Johnson", "alice@example.com", "28", "true"
-        );
-        // TODO implement RETURNING id
+        ).returning(users.id);
         auto insert_user1_result = conn.execute(insert_user1);
         if (!check_result(insert_user1_result, "inserting user 1")) throw std::runtime_error("Failed to insert user 1");
         
@@ -122,7 +143,7 @@ bool insert_sample_data(relx::Connection& conn) {
             users.name, users.email, users.age, users.is_active
         ).values(
             "Bob Smith", "bob@example.com", "35", "true"
-        );
+        ).returning(users.id);
         auto insert_user2_result = conn.execute(insert_user2);
         if (!check_result(insert_user2_result, "inserting user 2")) throw std::runtime_error("Failed to insert user 2");
         
@@ -132,7 +153,7 @@ bool insert_sample_data(relx::Connection& conn) {
             users.name, users.email, users.age, users.is_active
         ).values(
             "Charlie Davis", "charlie@example.com", "42", "false"
-        );
+        ).returning(users.id);
         auto insert_user3_result = conn.execute(insert_user3);
         if (!check_result(insert_user3_result, "inserting user 3")) throw std::runtime_error("Failed to insert user 3");
         
@@ -144,7 +165,7 @@ bool insert_sample_data(relx::Connection& conn) {
             posts.user_id, posts.title, posts.content, posts.views
         ).values(
             user1_id, "First Post", "This is Alice's first post content", "150"
-        );
+        ).returning(posts.id);
         auto insert_post1_result = conn.execute(insert_post1);
         if (!check_result(insert_post1_result, "inserting post 1")) throw std::runtime_error("Failed to insert post 1");
         
@@ -154,7 +175,7 @@ bool insert_sample_data(relx::Connection& conn) {
             posts.user_id, posts.title, posts.content, posts.views
         ).values(
             user2_id, "Hello World", "Bob's introduction post", "75"
-        );
+        ).returning(posts.id);
         auto insert_post2_result = conn.execute(insert_post2);
         if (!check_result(insert_post2_result, "inserting post 2")) throw std::runtime_error("Failed to insert post 2");
         
@@ -164,7 +185,7 @@ bool insert_sample_data(relx::Connection& conn) {
             posts.user_id, posts.title, posts.content, posts.views
         ).values(
             user1_id, "Second Post", "Alice's follow-up post", "200"
-        );
+        ).returning(posts.id);
         auto insert_post3_result = conn.execute(insert_post3);
         if (!check_result(insert_post3_result, "inserting post 3")) throw std::runtime_error("Failed to insert post 3");
         
@@ -478,6 +499,12 @@ int main() {
     
     std::cout << "Connected to PostgreSQL database successfully!" << std::endl;
     
+    // drop tables if they exist
+    if (!drop_tables(conn)) {
+        conn.disconnect();
+        return 1;
+    }
+
     // Create tables
     if (!create_tables(conn)) {
         conn.disconnect();
