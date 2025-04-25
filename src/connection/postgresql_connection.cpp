@@ -209,7 +209,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     rows.reserve(row_count);
 
     // Get column types to identify BYTEA columns
-    std::vector<bool> is_bytea_column(column_count, false);
+    std::deque<bool> is_bytea_column(column_count, false);
     for (int i = 0; i < column_count; i++) {
         // PostgreSQL BYTEA type OID is 17
         is_bytea_column[i] = (PQftype(pg_result, i) == 17);
