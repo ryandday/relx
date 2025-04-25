@@ -62,9 +62,6 @@ protected:
     // We input as a string, but Postgres returns it as a hex string
     // So we need to convert it back to a binary blob
     bool validate_binary_data(const std::string& expected, const std::string& actual) {
-        std::cout << "MAGIC STRING FINISHED" << std::endl;
-        std::cout << "expected: " << expected.size() << " actual: " << actual.size() << std::endl;
-        
         // Check if actual data is in hex format (PostgreSQL bytea hex format starts with \x)
         if (actual.size() >= 2 && actual.substr(0, 2) == "\\x") {
             // Convert hex string to binary for comparison
@@ -90,7 +87,6 @@ protected:
         }
         
         // If not in hex format, do direct comparison
-        std::cout << "expected: " << expected << "\n actual: " << actual << std::endl;
         if (expected.size() != actual.size()) {
             return false;
         }
