@@ -63,10 +63,11 @@ public:
     /// @param params Vector of parameter values
     /// @param is_binary Vector of flags indicating whether each parameter is binary
     /// @return Result containing the query results or an error
+    // TODO make binary type for bytea type in postgresql instead of this hacky function
     ConnectionResult<result::ResultSet> execute_raw_binary(
         const std::string& sql,
         const std::vector<std::string>& params,
-        const std::vector<bool>& is_binary);
+        const std::vector<bool>& is_binary); // TODO replace vector bool
         
     /// @brief Execute a raw SQL query with typed parameters
     /// @tparam Args The types of the parameters
