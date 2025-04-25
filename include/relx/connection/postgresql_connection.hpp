@@ -3,6 +3,8 @@
 #include <string>
 #include <string_view>
 #include <memory>
+#include <sstream>
+#include <type_traits>
 
 #include "connection.hpp"
 
@@ -11,6 +13,13 @@ struct pg_conn;
 typedef struct pg_conn PGconn;
 struct pg_result;
 typedef struct pg_result PGresult;
+
+// Forward declare statement class
+namespace relx {
+namespace connection {
+class PostgreSQLStatement;
+} // namespace connection
+} // namespace relx
 
 namespace relx {
 namespace connection {
@@ -48,6 +57,60 @@ public:
     ConnectionResult<result::ResultSet> execute_raw(
         const std::string& sql, 
         const std::vector<std::string>& params = {}) override;
+        
+    /// @brief Execute a raw SQL query with binary parameters
+    /// @param sql The SQL query string
+    /// @param params Vector of parameter values
+    /// @param is_binary Vector of flags indicating whether each parameter is binary
+    /// @return Result containing the query results or an error
+    ConnectionResult<result::ResultSet> execute_raw_binary(
+        const std::string& sql,
+        const std::vector<std::string>& params,
+        const std::vector<bool>& is_binary);
+        
+    /// @brief Execute a raw SQL query with typed parameters
+    /// @tparam Args The types of the parameters
+    /// @param sql The SQL query string
+    /// @param args The parameter values
+    /// @return Result containing the query results or an error
+    template <typename... Args>
+    ConnectionResult<result::ResultSet> execute_typed(const std::string& sql, Args&&... args) {
+        // Convert each parameter to its string representation
+        std::vector<std::string> param_strings;
+        param_strings.reserve(sizeof...(Args));
+        
+        // Helper to convert a parameter to string and add to vector
+        auto add_param = [&param_strings](auto&& param) {
+            using ParamType = std::decay_t<decltype(param)>;
+            
+            if constexpr (std::is_same_v<ParamType, std::nullptr_t>) {
+                // Handle NULL values
+                param_strings.push_back("NULL");
+            } else if constexpr (std::is_same_v<ParamType, std::string> || 
+                                std::is_same_v<ParamType, const char*> ||
+                                std::is_same_v<ParamType, std::string_view>) {
+                // String types
+                param_strings.push_back(std::string(param));
+            } else if constexpr (std::is_arithmetic_v<ParamType>) {
+                // Numeric types
+                param_strings.push_back(std::to_string(param));
+            } else if constexpr (std::is_same_v<ParamType, bool>) {
+                // Boolean values
+                param_strings.push_back(param ? "t" : "f");
+            } else {
+                // Other types, try to use stream conversion
+                std::ostringstream ss;
+                ss << param;
+                param_strings.push_back(ss.str());
+            }
+        };
+        
+        // Add each parameter to the vector
+        (add_param(std::forward<Args>(args)), ...);
+        
+        // Call the string-based execute_raw with our converted parameters
+        return execute_raw(sql, param_strings);
+    }
 
     /// @brief Check if the connection is open
     /// @return True if connected, false otherwise
@@ -70,6 +133,20 @@ public:
     /// @brief Check if a transaction is currently active
     /// @return True if a transaction is active, false otherwise
     bool in_transaction() const override;
+
+    /// @brief Create a prepared statement
+    /// @param name The name of the prepared statement
+    /// @param sql The SQL query text
+    /// @param param_count The number of parameters in the statement
+    /// @return A new prepared statement
+    std::unique_ptr<PostgreSQLStatement> prepare_statement(
+        const std::string& name,
+        const std::string& sql,
+        int param_count);
+    
+    /// @brief Get direct access to the PostgreSQL connection
+    /// @return The PGconn pointer
+    PGconn* get_pg_conn() { return pg_conn_; }
 
 private:
     std::string connection_string_;

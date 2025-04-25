@@ -42,6 +42,9 @@ FetchContent_MakeAvailable(googletest)
 # Add library
 add_library(${PROJECT_NAME} 
   src/connection/postgresql_connection.cpp
+  src/connection/postgresql_connection_pool.cpp
+  src/connection/postgresql_errors.cpp
+  src/connection/postgresql_statement.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE include/relx)
 target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost PostgreSQL::PostgreSQL)
@@ -91,6 +94,10 @@ add_executable(relx_tests
   # Connection tests
   tests/connection/postgresql_connection_test.cpp
   tests/connection/postgresql_api_test.cpp
+  tests/connection/postgresql_typed_params_test.cpp
+  tests/connection/postgresql_binary_test.cpp
+  tests/connection/postgresql_statement_test.cpp
+  tests/connection/postgresql_connection_pool_test.cpp
   # Additional comprehensive tests
   tests/query/edge_case_test.cpp
   tests/query/data_type_test.cpp

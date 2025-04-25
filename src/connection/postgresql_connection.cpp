@@ -1,9 +1,11 @@
-#include "connection/postgresql_connection.hpp"
+#include "relx/connection/postgresql_connection.hpp"
+#include "relx/connection/postgresql_statement.hpp"
 
 #include <libpq-fe.h>
 #include <stdexcept>
 #include <regex>
-
+#include <iostream>
+#include <vector>
 namespace relx {
 namespace connection {
 
@@ -109,6 +111,12 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     const std::string& sql, 
     const std::vector<std::string>& params) {
     
+    std::cout << "Executing raw SQL: " << sql << std::endl;
+    std::cout << "Params: " << params.size() << std::endl;
+    for (const auto& param : params) {
+        std::cout << "Param: " << param << std::endl;
+    }
+    std::cout << "--------------------------------" << std::endl;
     if (!is_connected_ || !pg_conn_) {
         return std::unexpected(ConnectionError{
             .message = "Not connected to database",
@@ -154,6 +162,107 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     pg_result = *result_handler;
 
     // Create result set
+    std::vector<std::string> column_names;
+    std::vector<result::Row> rows;
+
+    // Get column names
+    int column_count = PQnfields(pg_result);
+    column_names.reserve(column_count);
+    for (int i = 0; i < column_count; i++) {
+        const char* name = PQfname(pg_result, i);
+        column_names.push_back(name ? name : "");
+    }
+
+    // Process rows
+    int row_count = PQntuples(pg_result);
+    rows.reserve(row_count);
+    
+    for (int row_idx = 0; row_idx < row_count; row_idx++) {
+        std::vector<result::Cell> cells;
+        cells.reserve(column_count);
+        
+        for (int col_idx = 0; col_idx < column_count; col_idx++) {
+            if (PQgetisnull(pg_result, row_idx, col_idx)) {
+                cells.emplace_back("NULL");
+            } else {
+                const char* value = PQgetvalue(pg_result, row_idx, col_idx);
+                cells.emplace_back(value ? value : "");
+            }
+        }
+        
+        rows.push_back(result::Row(std::move(cells), column_names));
+    }
+
+    PQclear(pg_result);
+    
+    // Create the result set from the data we collected
+    return result::ResultSet(std::move(rows), std::move(column_names));
+}
+
+ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
+    const std::string& sql,
+    const std::vector<std::string>& params,
+    const std::vector<bool>& is_binary) {
+    
+    if (!is_connected_ || !pg_conn_) {
+        return std::unexpected(ConnectionError{
+            .message = "Not connected to database",
+            .error_code = -1
+        });
+    }
+
+    if (params.size() != is_binary.size()) {
+        return std::unexpected(ConnectionError{
+            .message = "Parameter count mismatch with binary flags",
+            .error_code = -1
+        });
+    }
+
+    PGresult* pg_result = nullptr;
+
+    if (params.empty()) {
+        // Execute without parameters
+        pg_result = PQexec(pg_conn_, sql.c_str());
+    } else {
+        // Convert ? placeholders to $1, $2, etc.
+        std::string pg_sql = convert_placeholders(sql);
+        
+        // Prepare parameter values and format arrays
+        std::vector<const char*> param_values;
+        std::vector<int> param_formats;
+        std::vector<int> param_lengths;
+        
+        param_values.reserve(params.size());
+        param_formats.reserve(params.size());
+        param_lengths.reserve(params.size());
+        
+        for (size_t i = 0; i < params.size(); ++i) {
+            param_values.push_back(params[i].c_str());
+            param_lengths.push_back(static_cast<int>(params[i].size()));
+            param_formats.push_back(is_binary[i] ? 1 : 0);  // 1 for binary, 0 for text
+        }
+
+        // Execute with parameters
+        pg_result = PQexecParams(
+            pg_conn_,
+            pg_sql.c_str(),
+            static_cast<int>(params.size()),
+            nullptr,  // Use default parameter types
+            param_values.data(),
+            param_lengths.data(),
+            param_formats.data(),
+            0  // Use text format for results
+        );
+    }
+
+    auto result_handler = handle_pg_result(pg_result);
+    if (!result_handler) {
+        return std::unexpected(result_handler.error());
+    }
+    
+    pg_result = *result_handler;
+
+    // Process the result set - same as in execute_raw
     std::vector<std::string> column_names;
     std::vector<result::Row> rows;
 
@@ -310,6 +419,42 @@ std::string PostgreSQLConnection::convert_placeholders(const std::string& sql) {
 
     result.append(search_start, sql.cend());
     return result;
+}
+
+std::unique_ptr<PostgreSQLStatement> PostgreSQLConnection::prepare_statement(
+    const std::string& name,
+    const std::string& sql,
+    int param_count) {
+    
+    if (!is_connected_ || !pg_conn_) {
+        throw ConnectionError{
+            .message = "Not connected to database",
+            .error_code = -1
+        };
+    }
+    
+    // Convert ? placeholders to $1, $2, etc.
+    std::string pg_sql = convert_placeholders(sql);
+    
+    // Prepare the statement in PostgreSQL
+    PGresult* result = PQprepare(
+        pg_conn_,
+        name.c_str(),
+        pg_sql.c_str(),
+        param_count,
+        nullptr  // Use default parameter types
+    );
+    
+    auto result_handler = handle_pg_result(result);
+    if (!result_handler) {
+        PQclear(result);
+        throw result_handler.error();
+    }
+    
+    PQclear(result);
+    
+    // Create and return the statement object
+    return std::make_unique<PostgreSQLStatement>(*this, name, sql, param_count);
 }
 
 } // namespace connection

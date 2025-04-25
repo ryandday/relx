@@ -9,7 +9,6 @@ relx is a modern C++23 library for constructing and executing SQL queries with c
 - **Schema Definition**: Strongly typed table and column definitions
 - **Query Building**: Type-safe SELECT, INSERT, UPDATE, and DELETE operations
 - **Compile-time Validation**: Catch SQL syntax errors during compilation when possible
-- **Modern C++ Design**: Leverages C++23 features like concepts, compile-time evaluation, and more
 
 ## Requirements
 
@@ -34,7 +33,7 @@ relx is a modern C++23 library for constructing and executing SQL queries with c
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/relx.git
+git clone https://github.com/ryandday/relx.git
 cd relx
 
 # Build using make

@@ -57,7 +57,7 @@ struct Comments {
 template<typename T>
 bool check_result(const relx::ConnectionResult<T>& result, const std::string& operation) {
     if (!result) {
-        std::cerr << "Error during " << operation << ": " << result.error().message << std::endl;
+        std::cerr << "Error during " << operation << ": " << result.error().message << " (" << result.error().error_code << ")" << std::endl;
         return false;
     }
     return true;
