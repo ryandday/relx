@@ -59,11 +59,41 @@ protected:
     }
     
     // Helper to validate binary data
+    // We input as a string, but Postgres returns it as a hex string
+    // So we need to convert it back to a binary blob
     bool validate_binary_data(const std::string& expected, const std::string& actual) {
+        std::cout << "MAGIC STRING FINISHED" << std::endl;
+        std::cout << "expected: " << expected.size() << " actual: " << actual.size() << std::endl;
+        
+        // Check if actual data is in hex format (PostgreSQL bytea hex format starts with \x)
+        if (actual.size() >= 2 && actual.substr(0, 2) == "\\x") {
+            // Convert hex string to binary for comparison
+            std::string binary_actual;
+            binary_actual.reserve((actual.size() - 2) / 2);
+            
+            for (size_t i = 2; i < actual.size(); i += 2) {
+                if (i + 1 < actual.size()) {
+                    std::string hex_byte = actual.substr(i, 2);
+                    char byte = static_cast<char>(std::stoi(hex_byte, nullptr, 16));
+                    binary_actual.push_back(byte);
+                }
+            }
+            
+            if (expected.size() != binary_actual.size()) {
+                std::cout << "Size mismatch after hex conversion. Expected: " << expected.size() 
+                          << ", Actual: " << binary_actual.size() << std::endl;
+                return false;
+            }
+            
+            // Compare the binary content
+            return std::memcmp(expected.data(), binary_actual.data(), expected.size()) == 0;
+        }
+        
+        // If not in hex format, do direct comparison
+        std::cout << "expected: " << expected << "\n actual: " << actual << std::endl;
         if (expected.size() != actual.size()) {
             return false;
         }
-        
         return std::memcmp(expected.data(), actual.data(), expected.size()) == 0;
     }
 };

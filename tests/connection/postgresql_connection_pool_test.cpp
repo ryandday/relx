@@ -124,73 +124,74 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMaxConnections) {
     }
 }
 
-// TEST_F(PostgreSQLConnectionPoolTest, TestPoolWithConnection) {
-//     relx::connection::PostgreSQLConnectionPoolConfig config;
-//     config.connection_string = conn_string;
-//     config.initial_size = 2;
-//     config.max_size = 5;
+TEST_F(PostgreSQLConnectionPoolTest, TestPoolWithConnection) {
+    relx::connection::PostgreSQLConnectionPoolConfig config;
+    config.connection_string = conn_string;
+    config.initial_size = 2;
+    config.max_size = 5;
     
-//     relx::connection::PostgreSQLConnectionPool pool(config);
-//     ASSERT_TRUE(pool.initialize());
+    relx::connection::PostgreSQLConnectionPool pool(config);
+    ASSERT_TRUE(pool.initialize());
     
-//     // Create test table using the pool
-//     auto create_result = pool.with_connection([this](auto conn) -> relx::connection::ConnectionResult<void> {
-//         create_test_table(*conn);
-//         return {};
-//     });
+    // Create test table using the pool
+    auto create_result = pool.with_connection([this](auto conn) -> relx::connection::ConnectionResult<void> {
+        create_test_table(*conn);
+        return {};
+    });
     
-//     ASSERT_TRUE(create_result) << "Failed to create table: " << create_result.error().message;
+    ASSERT_TRUE(create_result) << "Failed to create table: " << create_result.error().message;
     
-//     // Insert some data using the pool
-//     auto insert_result = pool.with_connection([](auto conn) -> relx::connection::ConnectionResult<int> {
-//         auto result = conn->execute_raw(
-//             "INSERT INTO connection_pool_test (thread_id, value) VALUES ($1, $2) RETURNING id",
-//             {"0", "42"}
-//         );
+    // Insert some data using the pool
+    auto insert_result = pool.with_connection([](auto conn) -> relx::connection::ConnectionResult<int> {
+        auto result = conn->execute_raw(
+            "INSERT INTO connection_pool_test (thread_id, value) VALUES ($1, $2) RETURNING id",
+            {"0", "42"}
+        );
         
-//         if (!result) {
-//             return std::unexpected(result.error());
-//         }
+        if (!result) {
+            return std::unexpected(result.error());
+        }
         
-//         // Get the returned ID
-//         const auto& row = (*result)[0];
-//         auto id = row.template get<int>("id");
-//         if (!id) {
-//             return std::unexpected(relx::connection::ConnectionError{
-//                 .message = "Failed to get returned ID",
-//                 .error_code = -1
-//             });
-//         }
+        // Get the returned ID
+        const auto& row = (*result)[0];
+        auto id = row.template get<int>("id");
+        if (!id) {
+            return std::unexpected(relx::connection::ConnectionError{
+                .message = "Failed to get returned ID",
+                .error_code = -1
+            });
+        }
         
-//         return *id;
-//     });
+        return *id;
+    });
     
-//     ASSERT_TRUE(insert_result) << "Failed to insert data: " << insert_result.error().message;
-//     EXPECT_GT(insert_result.value().value(), 0);
+    ASSERT_TRUE(insert_result) << "Failed to insert data: " << insert_result.error().message;
+    int result = **insert_result; // TODO why do I get linker errors when I use .value()?
+    EXPECT_GT(result, 0);
     
-//     // Check that the data was inserted
-//     auto check_result = pool.with_connection([](auto conn) -> relx::connection::ConnectionResult<int> {
-//         auto result = conn->execute_raw("SELECT COUNT(*) FROM connection_pool_test");
+    // Check that the data was inserted
+    auto check_result = pool.with_connection([](auto conn) -> relx::connection::ConnectionResult<int> {
+        auto result = conn->execute_raw("SELECT COUNT(*) FROM connection_pool_test");
         
-//         if (!result) {
-//             return std::unexpected(result.error());
-//         }
+        if (!result) {
+            return std::unexpected(result.error());
+        }
         
-//         const auto& row = (*result)[0];
-//         auto count = row.template get<int>(0);
-//         if (!count) {
-//             return std::unexpected(relx::connection::ConnectionError{
-//                 .message = "Failed to get count",
-//                 .error_code = -1
-//             });
-//         }
+        const auto& row = (*result)[0];
+        auto count = row.template get<int>(0);
+        if (!count) {
+            return std::unexpected(relx::connection::ConnectionError{
+                .message = "Failed to get count",
+                .error_code = -1
+            });
+        }
         
-//         return *count;
-//     });
+        return *count;
+    });
     
-//     ASSERT_TRUE(check_result) << "Failed to check data: " << check_result.error().message;
-//     EXPECT_EQ(1, *check_result);
-// }
+    ASSERT_TRUE(check_result) << "Failed to check data: " << check_result.error().message;
+    EXPECT_EQ(1, *check_result);
+}
 
 TEST_F(PostgreSQLConnectionPoolTest, TestPoolMultithreaded) {
     relx::connection::PostgreSQLConnectionPoolConfig config;

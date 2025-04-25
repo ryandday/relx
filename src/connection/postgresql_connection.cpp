@@ -107,16 +107,19 @@ ConnectionResult<PGresult*> PostgreSQLConnection::handle_pg_result(PGresult* res
     return result;
 }
 
+// Nice for debugging
+constexpr bool ultra_verbose = false;
 ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     const std::string& sql, 
     const std::vector<std::string>& params) {
     
-    std::cout << "Executing raw SQL: " << sql << std::endl;
-    std::cout << "Params: " << params.size() << std::endl;
-    for (const auto& param : params) {
-        std::cout << "Param: " << param << std::endl;
+    if constexpr (ultra_verbose) {
+        std::cout << "Executing raw SQL: " << sql << std::endl;
+        for (const auto& param : params) {
+            std::cout << "Param: " << param << std::endl;
+        }
     }
-    std::cout << "--------------------------------" << std::endl;
+
     if (!is_connected_ || !pg_conn_) {
         return std::unexpected(ConnectionError{
             .message = "Not connected to database",
