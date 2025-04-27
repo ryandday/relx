@@ -23,8 +23,8 @@ struct Employee {
     // Multi-column unique constraint
     composite_unique_constraint<&Employee::first_name, &Employee::last_name> unique_name;
     
-    // Another multi-column unique constraint using the alias 'unique'
-    unique<&Employee::department, &Employee::position> unique_dept_pos;
+    // Another multi-column unique constraint
+    composite_unique_constraint<&Employee::department, &Employee::position> unique_dept_pos;
 };
 
 TEST(UniqueConstraintTest, SingleColumnUnique) {
@@ -43,11 +43,11 @@ TEST(UniqueConstraintTest, MultiColumnUnique) {
     EXPECT_EQ(name_unique.sql_definition(), "UNIQUE (first_name, last_name)");
     
     // Test using the unified 'unique' alias
-    unique<&Employee::department, &Employee::position> dept_pos_unique;
+    composite_unique_constraint<&Employee::department, &Employee::position> dept_pos_unique;
     EXPECT_EQ(dept_pos_unique.sql_definition(), "UNIQUE (department, position)");
     
     // Test with three columns
-    unique<&Employee::first_name, &Employee::last_name, &Employee::department> name_dept_unique;
+    composite_unique_constraint<&Employee::first_name, &Employee::last_name, &Employee::department> name_dept_unique;
     EXPECT_EQ(name_dept_unique.sql_definition(), "UNIQUE (first_name, last_name, department)");
 }
 

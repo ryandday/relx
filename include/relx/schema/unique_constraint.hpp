@@ -94,11 +94,5 @@ private:
     };
 };
 
-// Helper type alias for variadic template arguments
-template <auto... ColumnPtrs>
-using unique = std::conditional_t<sizeof...(ColumnPtrs) == 1, 
-                                 unique_constraint<(ColumnPtrs, ...)>, 
-                                 composite_unique_constraint<ColumnPtrs...>>;
-
 } // namespace schema
 } // namespace relx 
