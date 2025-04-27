@@ -233,7 +233,14 @@ private:
             return std::is_same_v<DefaultValueType, ValueT> || 
                    std::is_convertible_v<DefaultValueType, ValueT>;
         } else if constexpr (is_string_default_specialization<Mod>::value) {
-            return std::is_convertible_v<std::string_view, ValueT>;
+            if constexpr (std::is_same_v<ValueT, std::string> || 
+                         std::is_convertible_v<std::string, ValueT> ||
+                         std::is_constructible_v<ValueT, std::string_view> ||
+                         std::is_constructible_v<ValueT, const char*>) {
+                return true;
+            } else {
+                return false;
+            }
         } else {
             return false;
         }
@@ -249,7 +256,13 @@ private:
         } else if constexpr (is_default_value_specialization<Mod>::value) {
             return static_cast<ValueT>(Mod::value);
         } else if constexpr (is_string_default_specialization<Mod>::value) {
-            return ValueT(std::string_view(Mod::value));
+            if constexpr (std::is_constructible_v<ValueT, std::string_view>) {
+                return ValueT(std::string_view(Mod::value));
+            } else if constexpr (std::is_constructible_v<ValueT, std::string>) {
+                return ValueT(std::string(std::string_view(Mod::value)));
+            } else if constexpr (std::is_constructible_v<ValueT, const char*>) {
+                return ValueT(Mod::value.data());
+            }
         }
         return std::nullopt;
     }
@@ -337,14 +350,20 @@ private:
     // Extract the default value from a modifier
     template <typename Mod, typename ValueT>
     static std::optional<ValueT> extract_default_value() {
-        using OptionalBaseType = typename ValueT::value_type;
-        
         if constexpr (std::is_same_v<Mod, null_default>) {
-            return ValueT(std::nullopt);
+            if constexpr (column_traits<ValueT>::nullable) {
+                return std::nullopt;
+            }
         } else if constexpr (is_default_value_specialization<Mod>::value) {
-            return ValueT(static_cast<OptionalBaseType>(Mod::value));
+            return static_cast<ValueT>(Mod::value);
         } else if constexpr (is_string_default_specialization<Mod>::value) {
-            return ValueT(static_cast<OptionalBaseType>(std::string_view(Mod::value)));
+            if constexpr (std::is_constructible_v<ValueT, std::string_view>) {
+                return ValueT(std::string_view(Mod::value));
+            } else if constexpr (std::is_constructible_v<ValueT, std::string>) {
+                return ValueT(std::string(std::string_view(Mod::value)));
+            } else if constexpr (std::is_constructible_v<ValueT, const char*>) {
+                return ValueT(Mod::value.data());
+            }
         }
         return std::nullopt;
     }
