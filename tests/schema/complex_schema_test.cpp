@@ -31,16 +31,16 @@ inline constexpr FixedString credit_card = "credit_card";
 struct Users {
     static constexpr auto table_name = "users";
     
-    column<"id", int> id;
-    column<"username", std::string> username;
-    column<"email", std::string> email;
-    column<"password_hash", std::string> password_hash;
-    column<"email_verified", bool, default_value<false>> email_verified;
-    column<"profile_image", std::optional<std::string>> profile_image;
-    column<"active", bool, default_value<true>> active;
-    column<"status", std::string, string_default<active_status>> status;
-    column<"login_attempts", int, default_value<0>> login_attempts;
-    column<"role", std::string, string_default<user_role>> role;
+    column<Users, "id", int> id;
+    column<Users, "username", std::string> username;
+    column<Users, "email", std::string> email;
+    column<Users, "password_hash", std::string> password_hash;
+    column<Users, "email_verified", bool, default_value<false>> email_verified;
+    column<Users, "profile_image", std::optional<std::string>> profile_image;
+    column<Users, "active", bool, default_value<true>> active;
+    column<Users, "status", std::string, string_default<active_status>> status;
+    column<Users, "login_attempts", int, default_value<0>> login_attempts;
+    column<Users, "role", std::string, string_default<user_role>> role;
     
     // Constraints
     table_primary_key<&Users::id> pk;
@@ -60,12 +60,12 @@ struct Users {
 struct Categories {
     static constexpr auto table_name = "categories";
     
-    column<"id", int> id;
-    column<"name", std::string> name_col;
-    column<"description", std::optional<std::string>> description;
-    column<"parent_id", std::optional<int>> parent_id;
-    column<"is_active", bool, default_value<true>> is_active;
-    column<"display_order", int, default_value<0>> display_order;
+    column<Categories, "id", int> id;
+    column<Categories, "name", std::string> name_col;
+    column<Categories, "description", std::optional<std::string>> description;
+    column<Categories, "parent_id", std::optional<int>> parent_id;
+    column<Categories, "is_active", bool, default_value<true>> is_active;
+    column<Categories, "display_order", int, default_value<0>> display_order;
     
     // Constraints
     table_primary_key<&Categories::id> pk;
@@ -83,18 +83,18 @@ struct Categories {
 struct Products {
     static constexpr auto table_name = "products";
     
-    column<"id", int> id;
-    column<"name", std::string> name_col;
-    column<"sku", std::string> sku;
-    column<"price", double, default_value<0.0>> price;
-    column<"discount_price", std::optional<double>> discount_price;
-    column<"stock", int, default_value<0>> stock;
-    column<"description", std::optional<std::string>> description;
-    column<"is_featured", bool, default_value<false>> is_featured;
-    column<"weight", std::optional<double>> weight;
-    column<"category_id", int> category_id;
-    column<"created_by", int> created_by;
-    column<"status", std::string, string_default<active_status>> status;
+    column<Products, "id", int> id;
+    column<Products, "name", std::string> name_col;
+    column<Products, "sku", std::string> sku;
+    column<Products, "price", double, default_value<0.0>> price;
+    column<Products, "discount_price", std::optional<double>> discount_price;
+    column<Products, "stock", int, default_value<0>> stock;
+    column<Products, "description", std::optional<std::string>> description;
+    column<Products, "is_featured", bool, default_value<false>> is_featured;
+    column<Products, "weight", std::optional<double>> weight;
+    column<Products, "category_id", int> category_id;
+    column<Products, "created_by", int> created_by;
+    column<Products, "status", std::string, string_default<active_status>> status;
     
     // Constraints
     table_primary_key<&Products::id> pk;
@@ -115,15 +115,15 @@ struct Products {
 struct Orders {
     static constexpr auto table_name = "orders";
     
-    column<"id", int> id;
-    column<"user_id", int> user_id;
-    column<"total", double, default_value<0.0>> total;
-    column<"status", std::string, string_default<pending_status>> status;
-    column<"shipping_address", std::optional<std::string>> shipping_address;
-    column<"billing_address", std::optional<std::string>> billing_address;
-    column<"payment_method", std::string, string_default<credit_card>> payment_method;
-    column<"notes", std::optional<std::string>, null_default> notes;
-    column<"tracking_number", std::optional<std::string>> tracking_number;
+    column<Orders, "id", int> id;
+    column<Orders, "user_id", int> user_id;
+    column<Orders, "total", double, default_value<0.0>> total;
+    column<Orders, "status", std::string, string_default<pending_status>> status;
+    column<Orders, "shipping_address", std::optional<std::string>> shipping_address;
+    column<Orders, "billing_address", std::optional<std::string>> billing_address;
+    column<Orders, "payment_method", std::string, string_default<credit_card>> payment_method;
+    column<Orders, "notes", std::optional<std::string>, null_default> notes;
+    column<Orders, "tracking_number", std::optional<std::string>> tracking_number;
     
     // Constraints
     table_primary_key<&Orders::id> pk;
@@ -139,13 +139,13 @@ struct Orders {
 struct OrderItems {
     static constexpr auto table_name = "order_items";
     
-    column<"order_id", int> order_id;
-    column<"product_id", int> product_id;
-    column<"quantity", int, default_value<1>> quantity;
-    column<"price", double> price; // Price at time of order
-    column<"discount", double, default_value<0.0>> discount;
-    column<"subtotal", double, default_value<0.0>> subtotal;
-    column<"notes", std::optional<std::string>, null_default> notes;
+    column<OrderItems, "order_id", int> order_id;
+    column<OrderItems, "product_id", int> product_id;
+    column<OrderItems, "quantity", int, default_value<1>> quantity;
+    column<OrderItems, "price", double> price; // Price at time of order
+    column<OrderItems, "discount", double, default_value<0.0>> discount;
+    column<OrderItems, "subtotal", double, default_value<0.0>> subtotal;
+    column<OrderItems, "notes", std::optional<std::string>, null_default> notes;
     
     // Constraints - composite primary key
     composite_primary_key<&OrderItems::order_id, &OrderItems::product_id> pk;
@@ -168,14 +168,14 @@ struct OrderItems {
 struct CustomerReviews {
     static constexpr auto table_name = "customer_reviews";
     
-    column<"id", int> id;
-    column<"product_id", int> product_id;
-    column<"user_id", int> user_id;
-    column<"rating", int> rating;
-    column<"review_text", std::string> review_text;
-    column<"is_verified_purchase", bool, default_value<false>> is_verified_purchase;
-    column<"helpful_votes", int, default_value<0>> helpful_votes;
-    column<"unhelpful_votes", int, default_value<0>> unhelpful_votes;
+    column<CustomerReviews, "id", int> id;
+    column<CustomerReviews, "product_id", int> product_id;
+    column<CustomerReviews, "user_id", int> user_id;
+    column<CustomerReviews, "rating", int> rating;
+    column<CustomerReviews, "review_text", std::string> review_text;
+    column<CustomerReviews, "is_verified_purchase", bool, default_value<false>> is_verified_purchase;
+    column<CustomerReviews, "helpful_votes", int, default_value<0>> helpful_votes;
+    column<CustomerReviews, "unhelpful_votes", int, default_value<0>> unhelpful_votes;
     
     // Constraints
     table_primary_key<&CustomerReviews::id> pk;

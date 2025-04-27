@@ -11,38 +11,38 @@
 // Define test tables for our advanced query tests
 struct Users {
     static constexpr auto table_name = "users";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"email", std::string> email;
-    relx::schema::column<"age", int> age;
-    relx::schema::column<"is_active", bool> is_active;
-    relx::schema::column<"department_id", int> department_id;
+    relx::schema::column<Users, "id", int> id;
+    relx::schema::column<Users, "name", std::string> name;
+    relx::schema::column<Users, "email", std::string> email;
+    relx::schema::column<Users, "age", int> age;
+    relx::schema::column<Users, "is_active", bool> is_active;
+    relx::schema::column<Users, "department_id", int> department_id;
 };
 
 struct Posts {
     static constexpr auto table_name = "posts";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"user_id", int> user_id;
-    relx::schema::column<"title", std::string> title;
-    relx::schema::column<"content", std::string> content;
-    relx::schema::column<"views", int> views;
-    relx::schema::column<"created_at", std::string> created_at;
+    relx::schema::column<Posts, "id", int> id;
+    relx::schema::column<Posts, "user_id", int> user_id;
+    relx::schema::column<Posts, "title", std::string> title;
+    relx::schema::column<Posts, "content", std::string> content;
+    relx::schema::column<Posts, "views", int> views;
+    relx::schema::column<Posts, "created_at", std::string> created_at;
 };
 
 struct Comments {
     static constexpr auto table_name = "comments";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"post_id", int> post_id;
-    relx::schema::column<"user_id", int> user_id; 
-    relx::schema::column<"content", std::string> content;
-    relx::schema::column<"created_at", std::string> created_at;
+    relx::schema::column<Comments,  "id", int> id;
+    relx::schema::column<Comments, "post_id", int> post_id;
+    relx::schema::column<Comments, "user_id", int> user_id; 
+    relx::schema::column<Comments, "content", std::string> content;
+    relx::schema::column<Comments, "created_at", std::string> created_at;
 };
 
 struct Departments {
     static constexpr auto table_name = "departments";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"budget", double> budget;
+    relx::schema::column<Departments, "id", int> id;
+    relx::schema::column<Departments, "name", std::string> name;
+    relx::schema::column<Departments, "budget", double> budget;
 };
 
 // Utility function to create sample raw results for testing

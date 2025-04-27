@@ -13,33 +13,33 @@ using namespace relx;
 struct User {
     static constexpr auto table_name = "users";
     
-    schema::column<"id", int> id;
-    schema::column<"name", std::string> name;
-    schema::column<"email", std::string> email;
-    schema::column<"active", bool> active;
-    schema::column<"login_count", int> login_count;
-    schema::column<"last_login", std::string> last_login;
-    schema::column<"status", std::string> status;
-    schema::column<"age", int> age;
+    schema::column<User, "id", int> id;
+    schema::column<User, "name", std::string> name;
+    schema::column<User, "email", std::string> email;
+    schema::column<User, "active", bool> active;
+    schema::column<User, "login_count", int> login_count;
+    schema::column<User, "last_login", std::string> last_login;
+    schema::column<User, "status", std::string> status;
+    schema::column<User, "age", int> age;
 };
 
 // Define a Posts table for INSERT ... SELECT tests
 struct Post {
     static constexpr auto table_name = "posts";
-    schema::column<"id", int> id;
-    schema::column<"user_id", int> user_id;
-    schema::column<"title", std::string> title;
-    schema::column<"content", std::string> content;
-    schema::column<"created_at", std::string> created_at;
+    schema::column<Post, "id", int> id;
+    schema::column<Post, "user_id", int> user_id;
+    schema::column<Post, "title", std::string> title;
+    schema::column<Post, "content", std::string> content;
+    schema::column<Post, "created_at", std::string> created_at;
 };
 
 // Test table struct
 struct InsertTestTable {
     static constexpr auto table_name = "insert_test";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"age", int> age;
-    relx::schema::column<"active", bool> active;
+    relx::schema::column<InsertTestTable, "id", int> id;
+    relx::schema::column<InsertTestTable, "name", std::string> name;
+    relx::schema::column<InsertTestTable, "age", int> age;
+    relx::schema::column<InsertTestTable, "active", bool> active;
 };
 
 // Test basic INSERT with explicit columns and values

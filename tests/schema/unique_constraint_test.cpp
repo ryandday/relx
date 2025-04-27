@@ -10,12 +10,12 @@ using namespace relx::schema;
 struct Employee {
     static constexpr auto table_name = "employees";
     
-    column<"id", int> id;
-    column<"email", std::string> email;
-    column<"first_name", std::string> first_name;
-    column<"last_name", std::string> last_name;
-    column<"department", std::string> department;
-    column<"position", std::string> position;
+    column<Employee, "id", int> id;
+    column<Employee, "email", std::string> email;
+    column<Employee, "first_name", std::string> first_name;
+    column<Employee, "last_name", std::string> last_name;
+    column<Employee, "department", std::string> department;
+    column<Employee, "position", std::string> position;
     
     // Single column unique constraint
     unique_constraint<&Employee::email> unique_email;

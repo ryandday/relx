@@ -13,11 +13,11 @@
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<"id", int, relx::serial> id;
-    relx::column<"name", std::string> name;
-    relx::column<"email", std::string> email;
-    relx::column<"age", int> age;
-    relx::column<"is_active", bool> is_active;
+    relx::column<Users, "id", int, relx::serial> id;
+    relx::column<Users, "name", std::string> name;
+    relx::column<Users, "email", std::string> email;
+    relx::column<Users, "age", int> age;
+    relx::column<Users, "is_active", bool> is_active;
     
     relx::table_primary_key<&Users::id> pk;
     relx::unique_constraint<&Users::email> unique_email;
@@ -27,12 +27,12 @@ struct Users {
 struct Posts {
     static constexpr auto table_name = "posts";
     
-    relx::column<"id", int, relx::serial> id;
-    relx::column<"user_id", int> user_id;
-    relx::column<"title", std::string> title;
-    relx::column<"content", std::string> content;
-    relx::column<"views", int> views;
-    relx::column<"created_at", std::string> created_at;
+    relx::column<Posts, "id", int, relx::serial> id;
+    relx::column<Posts, "user_id", int> user_id;
+    relx::column<Posts, "title", std::string> title;
+    relx::column<Posts, "content", std::string> content;
+    relx::column<Posts, "views", int> views;
+    relx::column<Posts, "created_at", std::string> created_at;
     
     relx::table_primary_key<&Posts::id> pk;
     relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
@@ -42,11 +42,11 @@ struct Posts {
 struct Comments {
     static constexpr auto table_name = "comments";
     
-    relx::column<"id", int, relx::serial> id;
-    relx::column<"post_id", int> post_id;
-    relx::column<"user_id", int> user_id;
-    relx::column<"content", std::string> content;
-    relx::column<"created_at", std::string> created_at;
+    relx::column<Comments, "id", int, relx::serial> id;
+    relx::column<Comments, "post_id", int> post_id;
+    relx::column<Comments, "user_id", int> user_id;
+    relx::column<Comments, "content", std::string> content;
+    relx::column<Comments, "created_at", std::string> created_at;
     
     relx::table_primary_key<&Comments::id> pk;
     relx::foreign_key<&Comments::post_id, &Posts::id> post_fk;

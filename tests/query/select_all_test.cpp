@@ -9,14 +9,14 @@
 // Define test tables
 struct users {
     static constexpr auto table_name = "users";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"email", std::string> email;
-    relx::schema::column<"age", int> age;
-    relx::schema::column<"created_at", std::string> created_at;
-    relx::schema::column<"is_active", bool> is_active;
-    relx::schema::column<"bio", std::optional<std::string>> bio;
-    relx::schema::column<"login_count", int> login_count;
+    relx::schema::column<users, "id", int> id;
+    relx::schema::column<users, "name", std::string> name;
+    relx::schema::column<users, "email", std::string> email;
+    relx::schema::column<users, "age", int> age;
+    relx::schema::column<users, "created_at", std::string> created_at;
+    relx::schema::column<users, "is_active", bool> is_active;
+    relx::schema::column<users, "bio", std::optional<std::string>> bio;
+    relx::schema::column<users, "login_count", int> login_count;
     
     relx::schema::table_primary_key<&users::id> pk;
     relx::schema::unique_constraint<&users::email> unique_email;
@@ -25,10 +25,10 @@ struct users {
 // Define a second table
 struct posts {
     static constexpr auto table_name = "posts";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"user_id", int> user_id;
-    relx::schema::column<"title", std::string> title;
-    relx::schema::column<"content", std::string> content;
+    relx::schema::column<posts, "id", int> id;
+    relx::schema::column<posts, "user_id", int> user_id;
+    relx::schema::column<posts, "title", std::string> title;
+    relx::schema::column<posts, "content", std::string> content;
     
     relx::schema::table_primary_key<&posts::id> pk;
     relx::schema::foreign_key<&posts::user_id, &users::id> user_fk;

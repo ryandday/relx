@@ -586,7 +586,6 @@ public:
     MemberColumnRef() = default;
     
     std::string to_sql() const override {
-        // For backward compatibility, don't include table prefix
         return column_name();
     }
     

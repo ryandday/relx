@@ -24,13 +24,13 @@ struct InvalidColumnType {
 // Valid table type with name
 struct ValidTable {
     static constexpr auto table_name = "valid_table";
-    column<"id", int> id;
+    column<ValidTable, "id", int> id;
 };
 
 // Invalid table without constexpr name
 struct InvalidTable {
     static std::string name; // Not constexpr
-    column<"id", int> id;
+    column<InvalidTable, "id", int> id;
 };
 
 // Table with QueryExpr
@@ -84,15 +84,15 @@ TEST(ConceptsTest, ConceptChecks) {
     EXPECT_TRUE((ColumnTypeConcept<ValidColumnType>));
     
     // Runtime checks for is_column
-    EXPECT_TRUE((is_column<column<"id", int>>));
-    EXPECT_TRUE((is_column<column<"name", std::optional<std::string>>>));
+    EXPECT_TRUE((is_column<column<ValidTable, "id", int>>));
+    EXPECT_TRUE((is_column<column<ValidTable, "name", std::optional<std::string>>>));
     EXPECT_FALSE((is_column<int>));
     EXPECT_FALSE((is_column<std::string>));
     
     // Runtime checks for is_constraint
     EXPECT_TRUE((is_constraint<table_primary_key<&ValidTable::id>>));
-    EXPECT_FALSE((is_constraint<column<"id", int>>));
-    EXPECT_FALSE((is_constraint<column<"name", std::optional<std::string>>>));
+    EXPECT_FALSE((is_constraint<column<ValidTable, "id", int>>));
+    EXPECT_FALSE((is_constraint<column<ValidTable, "name", std::optional<std::string>>>));
     
     // Runtime checks for TableConcept
     EXPECT_TRUE((TableConcept<ValidTable>));
@@ -102,16 +102,16 @@ TEST(ConceptsTest, ConceptChecks) {
 
 TEST(ConceptsTest, FixedStringConcept) {
     // Test that FixedString works correctly as a template parameter
-    using IdCol = column<"id", int>;
+    using IdCol = column<ValidTable, "id", int>;
     // static_assert(std::string_view(IdCol::name) == "id", "FixedString name should be 'id'");
     
     // Test with longer strings
-    using LongNameCol = column<"very_long_column_name_for_testing", int>;
+    using LongNameCol = column<ValidTable, "very_long_column_name_for_testing", int>;
     // static_assert(std::string_view(LongNameCol::name) == "very_long_column_name_for_testing", 
     //              "FixedString should work with longer names");
     
     // Test with empty string
-    using EmptyCol = column<"", int>;
+    using EmptyCol = column<ValidTable, "", int>;
     // static_assert(std::string_view(EmptyCol::name) == "", "Empty FixedString should work");
     
     // Add runtime checks instead

@@ -10,11 +10,11 @@ namespace {
 // Test table definition
 struct Users {
     static constexpr auto table_name = "users";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"email", std::string> email;
-    relx::schema::column<"age", int> age;
-    relx::schema::column<"active", bool> active;
+    relx::schema::column<Users, "id", int> id;
+    relx::schema::column<Users, "name", std::string> name;
+    relx::schema::column<Users, "email", std::string> email;
+    relx::schema::column<Users, "age", int> age;
+    relx::schema::column<Users, "active", bool> active;
     
     relx::schema::table_primary_key<&Users::id> pk;
 };

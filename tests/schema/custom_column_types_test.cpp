@@ -109,17 +109,17 @@ struct relx::schema::column_traits<Timestamp> {
 struct CustomTypesTable {
     static constexpr auto table_name = "custom_types";
     
-    column<"id", int> id;
-    column<"role", UserRole> role;
-    column<"uuid", UUID> uuid;
-    column<"created_at", Timestamp> created_at;
-    column<"updated_at", std::optional<Timestamp>> updated_at;
+    column<CustomTypesTable, "id", int> id;
+    column<CustomTypesTable, "role", UserRole> role;
+    column<CustomTypesTable, "uuid", UUID> uuid;
+    column<CustomTypesTable, "created_at", Timestamp> created_at;
+    column<CustomTypesTable, "updated_at", std::optional<Timestamp>> updated_at;
     
     table_primary_key<&CustomTypesTable::id> pk;
 };
 
 TEST(CustomColumnTypesTest, UserRoleType) {
-    column<"role", UserRole> role_col;
+    column<CustomTypesTable, "role", UserRole> role_col;
     
     // Test SQL type
     EXPECT_EQ(std::string_view(role_col.sql_type), "TEXT");
@@ -142,7 +142,7 @@ TEST(CustomColumnTypesTest, UserRoleType) {
 }
 
 TEST(CustomColumnTypesTest, UUIDType) {
-    column<"uuid", UUID> uuid_col;
+    column<CustomTypesTable, "uuid", UUID> uuid_col;
     
     // Test SQL type
     EXPECT_EQ(std::string_view(uuid_col.sql_type), "BLOB");
@@ -166,7 +166,7 @@ TEST(CustomColumnTypesTest, UUIDType) {
 }
 
 TEST(CustomColumnTypesTest, TimestampType) {
-    column<"created_at", Timestamp> timestamp_col;
+    column<CustomTypesTable, "created_at", Timestamp> timestamp_col;
     
     // Test SQL type
     EXPECT_EQ(std::string_view(timestamp_col.sql_type), "TEXT");

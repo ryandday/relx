@@ -7,8 +7,8 @@ using namespace relx::schema;
 struct User {
     static constexpr auto table_name = "users";
     
-    column<"id", int> id;
-    column<"username", std::string> username;
+    column<User, "id", int> id;
+    column<User, "username", std::string> username;
     
     table_primary_key<&User::id> pk;
 };
@@ -16,8 +16,8 @@ struct User {
 struct Category {
     static constexpr auto table_name = "categories";
     
-    column<"id", int> id;
-    column<"name", std::string> name_col;
+    column<Category, "id", int> id;
+    column<Category, "name", std::string> name_col;
     
     table_primary_key<&Category::id> pk;
 };
@@ -26,11 +26,11 @@ struct Category {
 struct Post {
     static constexpr auto table_name = "posts";
     
-    column<"id", int> id;
-    column<"title", std::string> title;
-    column<"content", std::string> content;
-    column<"user_id", int> user_id;
-    column<"category_id", std::optional<int>> category_id;
+    column<Post, "id", int> id;
+    column<Post, "title", std::string> title;
+    column<Post, "content", std::string> content;
+    column<Post, "user_id", int> user_id;
+    column<Post, "category_id", std::optional<int>> category_id;
     
     // Primary key
     table_primary_key<&Post::id> pk;

@@ -7,10 +7,10 @@ using namespace relx::schema;
 struct ProductColumns {
     static constexpr auto table_name = "products";
     
-    column<"id", int> id;
-    column<"name", std::string> name;
-    column<"price", double> price;
-    column<"stock", int> stock;
+    column<ProductColumns, "id", int> id;
+    column<ProductColumns, "name", std::string> name;
+    column<ProductColumns, "price", double> price;
+    column<ProductColumns, "stock", int> stock;
 };
 
 TEST(ConstraintAliasTest, PrimaryKeyAlias) {
@@ -61,10 +61,10 @@ TEST(ConstraintAliasTest, ColumnCheckConstraint) {
 struct CompositeKeyColumns {
     static constexpr auto table_name = "composite_products";
     
-    column<"category", std::string> category;
-    column<"product_code", std::string> product_code;
-    column<"name", std::string> name;
-    column<"price", double> price;
+    column<CompositeKeyColumns, "category", std::string> category;
+    column<CompositeKeyColumns, "product_code", std::string> product_code;
+    column<CompositeKeyColumns, "name", std::string> name;
+    column<CompositeKeyColumns, "price", double> price;
 };
 
 TEST(ConstraintAliasTest, CompositePrimaryKeyAlias) {

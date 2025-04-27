@@ -12,12 +12,12 @@ struct Products {
     static constexpr auto table_name = "products";
     
     // Define columns with their types and constraints
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"description", std::string> description;
-    relx::schema::column<"price", double> price;
-    relx::schema::column<"in_stock", bool> in_stock;
-    relx::schema::column<"category", std::string> category;
+    relx::schema::column<Products, "id", int> id;
+    relx::schema::column<Products, "name", std::string> name;
+    relx::schema::column<Products, "description", std::string> description;
+    relx::schema::column<Products, "price", double> price;
+    relx::schema::column<Products, "in_stock", bool> in_stock;
+    relx::schema::column<Products, "category", std::string> category;
     
     // Define constraints
     relx::schema::table_primary_key<&Products::id> pk;

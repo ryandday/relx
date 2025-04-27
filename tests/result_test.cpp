@@ -11,12 +11,12 @@
 // Define a test table
 struct Users {
     static constexpr auto table_name = "users";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"email", std::string> email;
-    relx::schema::column<"age", int> age;
-    relx::schema::column<"is_active", bool> is_active;
-    relx::schema::column<"score", double> score;
+    relx::schema::column<Users, "id", int> id;
+    relx::schema::column<Users, "name", std::string> name;
+    relx::schema::column<Users, "email", std::string> email;
+    relx::schema::column<Users, "age", int> age;
+    relx::schema::column<Users, "is_active", bool> is_active;
+    relx::schema::column<Users, "score", double> score;
 };
 
 // Test fixture for result processing tests

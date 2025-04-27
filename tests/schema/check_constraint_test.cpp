@@ -10,11 +10,11 @@ using namespace relx::schema;
 struct Item {
     static constexpr auto table_name = "items";
     
-    column<"id", int> id;
-    column<"item_name", std::string> item_name;
-    column<"price", double> price;
-    column<"quantity", int> quantity;
-    column<"category", std::string> category;
+    column<Item, "id", int> id;
+    column<Item, "item_name", std::string> item_name;
+    column<Item, "price", double> price;
+    column<Item, "quantity", int> quantity;
+    column<Item, "category", std::string> category;
     
     // Single column check constraints - now using compile-time strings
     table_check_constraint<"price > 0"> positive_price;
@@ -28,14 +28,14 @@ struct Item {
 // Special item struct for testing special characters in constraints
 struct SpecialItem {
     static constexpr auto table_name = "special_items";
-    column<"item_name", std::string> item_name;
+    column<SpecialItem, "item_name", std::string> item_name;
 };
 
 // Named item struct for testing named constraints
 struct NamedItem {
     static constexpr auto table_name = "named_items";
-    column<"price", double> price;
-    column<"quantity", int> quantity;
+    column<NamedItem, "price", double> price;
+    column<NamedItem, "quantity", int> quantity;
 };
 
 TEST(CheckConstraintTest, SingleColumnConstraints) {

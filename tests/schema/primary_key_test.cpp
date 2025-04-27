@@ -7,8 +7,8 @@ using namespace relx::schema;
 struct User {
     static constexpr auto table_name = "users";
     
-    column<"id", int> id;
-    column<"username", std::string> username;
+    column<User, "id", int> id;
+    column<User, "username", std::string> username;
     
     table_primary_key<&User::id> pk;
 };
@@ -17,10 +17,10 @@ struct User {
 struct SessionData {
     static constexpr auto table_name = "session_data";
     
-    column<"user_id", int> user_id;
-    column<"session_id", std::string> session_id;
-    column<"key", std::string> key;
-    column<"value", std::string> value;
+    column<SessionData, "user_id", int> user_id;
+    column<SessionData, "session_id", std::string> session_id;
+    column<SessionData, "key", std::string> key;
+    column<SessionData, "value", std::string> value;
     
     // Note: composite primary key may not be fully implemented in the library yet
     // This is a test for the intended functionality

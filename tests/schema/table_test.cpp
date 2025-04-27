@@ -7,27 +7,27 @@ using namespace relx::schema;
 struct SimpleTable {
     static constexpr auto table_name = "simple_table";
     
-    column<"id", int> id;
-    column<"name", std::string> name_col;
-    column<"active", bool> active;
+    column<SimpleTable, "id", int> id;
+    column<SimpleTable, "name", std::string> name_col;
+    column<SimpleTable, "active", bool> active;
 };
 
 // Test table with nullable columns
 struct TableWithNullables {
     static constexpr auto table_name = "nullable_table";
     
-    column<"id", int> id;
-    column<"name", std::optional<std::string>> name_col;
-    column<"description", std::optional<std::string>> description;
+    column<TableWithNullables, "id", int> id;
+    column<TableWithNullables, "name", std::optional<std::string>> name_col;
+    column<TableWithNullables, "description", std::optional<std::string>> description;
 };
 
 // Test table with constraints
 struct UsersTable {
     static constexpr auto table_name = "users";
     
-    column<"id", int> id;
-    column<"username", std::string> username;
-    column<"email", std::string> email;
+    column<UsersTable, "id", int> id;
+    column<UsersTable, "username", std::string> username;
+    column<UsersTable, "email", std::string> email;
     
     table_primary_key<&UsersTable::id> pk;
     relx::schema::index<&UsersTable::email> email_idx{index_type::unique};
@@ -37,9 +37,9 @@ struct UsersTable {
 struct PostsTable {
     static constexpr auto table_name = "posts";
     
-    column<"id", int> id;
-    column<"title", std::string> title;
-    column<"user_id", int> user_id;
+    column<PostsTable, "id", int> id;
+    column<PostsTable, "title", std::string> title;
+    column<PostsTable, "user_id", int> user_id;
     
     table_primary_key<&PostsTable::id> pk;
     foreign_key<&PostsTable::user_id, &UsersTable::id> user_fk;

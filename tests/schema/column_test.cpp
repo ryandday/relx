@@ -4,9 +4,11 @@
 
 using namespace relx::schema;
 
+struct DummyTable {};
+
 TEST(ColumnTest, BasicProperties) {
     // Test regular column
-    column<"id", int> id_col;
+    column<DummyTable, "id", int> id_col;
     EXPECT_EQ(std::string_view(id_col.name), "id");
     EXPECT_EQ(std::string_view(id_col.sql_type), "INTEGER");
     EXPECT_FALSE(id_col.nullable);
@@ -15,7 +17,7 @@ TEST(ColumnTest, BasicProperties) {
     EXPECT_EQ(id_col.sql_definition(), "id INTEGER NOT NULL");
     
     // Test nullable column
-    column<"name", std::optional<std::string>> name_col;
+    column<DummyTable, "name", std::optional<std::string>> name_col;
     EXPECT_EQ(std::string_view(name_col.name), "name");
     EXPECT_EQ(std::string_view(name_col.sql_type), "TEXT");
     EXPECT_TRUE(name_col.nullable);
@@ -25,7 +27,7 @@ TEST(ColumnTest, BasicProperties) {
 }
 
 TEST(ColumnTest, IntegerConversion) {
-    column<"id", int> id_col;
+    column<DummyTable, "id", int> id_col;
     
     // Test converting int to SQL string
     EXPECT_EQ(id_col.to_sql_string(42), "42");
@@ -39,7 +41,7 @@ TEST(ColumnTest, IntegerConversion) {
 }
 
 TEST(ColumnTest, DoubleConversion) {
-    column<"price", double> price_col;
+    column<DummyTable, "price", double> price_col;
     
     // Test converting double to SQL string
     EXPECT_EQ(price_col.to_sql_string(42.5), "42.500000");
@@ -53,7 +55,7 @@ TEST(ColumnTest, DoubleConversion) {
 }
 
 TEST(ColumnTest, StringConversion) {
-    column<"name", std::string> name_col;
+    column<DummyTable, "name", std::string> name_col;
     
     // Test converting string to SQL string (with escaping)
     EXPECT_EQ(name_col.to_sql_string("hello"), "'hello'");
@@ -70,7 +72,7 @@ TEST(ColumnTest, StringConversion) {
 }
 
 TEST(ColumnTest, BooleanConversion) {
-    column<"active", bool> active_col;
+    column<DummyTable, "active", bool> active_col;
     
     // Test converting bool to SQL string
     EXPECT_EQ(active_col.to_sql_string(true), "1");
@@ -87,7 +89,7 @@ TEST(ColumnTest, BooleanConversion) {
 }
 
 TEST(ColumnTest, ColumnWithLongName) {
-    column<"very_long_column_name_that_tests_the_fixed_string_implementation", int> long_name_col;
+    column<DummyTable, "very_long_column_name_that_tests_the_fixed_string_implementation", int> long_name_col;
     
     EXPECT_EQ(std::string_view(long_name_col.name), 
               "very_long_column_name_that_tests_the_fixed_string_implementation");

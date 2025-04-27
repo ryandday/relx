@@ -7,12 +7,12 @@ using namespace relx::schema;
 struct Product {
     static constexpr auto table_name = "products";
     
-    column<"id", int> id;
-    column<"name", std::string> name_col;
-    column<"sku", std::string> sku;
-    column<"description", std::string> description;
-    column<"price", double> price;
-    column<"stock", int> stock;
+    column<Product, "id", int> id;
+    column<Product, "name", std::string> name_col;
+    column<Product, "sku", std::string> sku;
+    column<Product, "description", std::string> description;
+    column<Product, "price", double> price;
+    column<Product, "stock", int> stock;
     
     // Primary key
     table_primary_key<&Product::id> pk;

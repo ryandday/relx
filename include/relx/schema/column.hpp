@@ -151,12 +151,16 @@ template <FixedString Value, bool IsLiteral>
 struct is_string_default_specialization<string_default<Value, IsLiteral>> : std::true_type {};
 
 /// @brief Represents a column in a database table
+/// @tparam TableT The table type this column belongs to
 /// @tparam Name The name of the column as a string literal
 /// @tparam T The C++ type of the column
 /// @tparam Modifiers Additional column modifiers (UNIQUE, PRIMARY KEY, etc.)
-template <FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, FixedString Name, typename T, typename... Modifiers>
 class column {
 public:
+    /// @brief The table type this column belongs to
+    using table_type = TableT;
+    
     /// @brief The C++ type of the column
     using value_type = T;
     
@@ -269,9 +273,12 @@ private:
 };
 
 // Specialization for std::optional columns (nullable)
-template <FixedString Name, typename T, typename... Modifiers>
-class column<Name, std::optional<T>, Modifiers...> {
+template <typename TableT, FixedString Name, typename T, typename... Modifiers>
+class column<TableT, Name, std::optional<T>, Modifiers...> {
 public:
+    /// @brief The table type this column belongs to
+    using table_type = TableT;
+    
     using value_type = std::optional<T>;
     using base_type = T;
     

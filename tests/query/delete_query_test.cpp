@@ -13,14 +13,14 @@ using namespace relx;
 struct User {
     static constexpr auto table_name = "users";
     
-    schema::column<"id", int> id;
-    schema::column<"name", std::string> name;
-    schema::column<"email", std::string> email;
-    schema::column<"active", bool> active;
-    schema::column<"login_count", int> login_count;
-    schema::column<"last_login", std::string> last_login;
-    schema::column<"status", std::string> status;
-    schema::column<"age", int> age;
+    schema::column<User, "id", int> id;
+    schema::column<User, "name", std::string> name;
+    schema::column<User, "email", std::string> email;
+    schema::column<User, "active", bool> active;
+    schema::column<User, "login_count", int> login_count;
+    schema::column<User, "last_login", std::string> last_login;
+    schema::column<User, "status", std::string> status;
+    schema::column<User, "age", int> age;
 };
 
 // Test basic DELETE query without WHERE clause

@@ -7,9 +7,9 @@ using namespace relx::schema;
 struct Customer {
     static constexpr auto table_name = "customers";
     
-    column<"id", int> id;
-    column<"country_code", std::string> country_code;
-    column<"customer_name", std::string> customer_name;
+    column<Customer, "id", int> id;
+    column<Customer, "country_code", std::string> country_code;
+    column<Customer, "customer_name", std::string> customer_name;
     
     // Composite primary key (id, country_code)
     pk<&Customer::id, &Customer::country_code> primary;
@@ -18,9 +18,9 @@ struct Customer {
 struct Product {
     static constexpr auto table_name = "products";
     
-    column<"product_id", int> product_id;
-    column<"sku", std::string> sku;
-    column<"name", std::string> name;
+    column<Product, "product_id", int> product_id;
+    column<Product, "sku", std::string> sku;
+    column<Product, "name", std::string> name;
     
     // Single column primary key
     pk<&Product::product_id> primary;
@@ -30,11 +30,11 @@ struct Product {
 struct OrderColumns {
     static constexpr auto table_name = "orders";
     
-    column<"order_id", int> order_id;
-    column<"customer_id", int> customer_id;
-    column<"customer_country", std::string> customer_country;
-    column<"product_id", int> product_id;
-    column<"quantity", int> quantity;
+    column<OrderColumns, "order_id", int> order_id;
+    column<OrderColumns, "customer_id", int> customer_id;
+    column<OrderColumns, "customer_country", std::string> customer_country;
+    column<OrderColumns, "product_id", int> product_id;
+    column<OrderColumns, "quantity", int> quantity;
 };
 
 TEST(CompositeForeignKeyTest, BasicCompositeForeignKey) {
