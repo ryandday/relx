@@ -20,7 +20,7 @@ struct Products {
     relx::schema::column<"category", std::string> category;
     
     // Define constraints
-    relx::schema::primary_key<&Products::id> pk;
+    relx::schema::table_primary_key<&Products::id> pk;
 };
 
 class PostgreSQLApiTest : public ::testing::Test {

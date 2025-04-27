@@ -150,7 +150,7 @@ using schema::column;
 using schema::column_traits;
 using schema::DefaultValue;
 using schema::null_default;
-using schema::primary_key;
+using schema::table_primary_key;
 using schema::unique_constraint;
 using schema::composite_unique_constraint;
 using schema::check_constraint;

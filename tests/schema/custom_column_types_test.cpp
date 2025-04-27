@@ -115,7 +115,7 @@ struct CustomTypesTable {
     column<"created_at", Timestamp> created_at;
     column<"updated_at", std::optional<Timestamp>> updated_at;
     
-    primary_key<&CustomTypesTable::id> pk;
+    table_primary_key<&CustomTypesTable::id> pk;
 };
 
 TEST(CustomColumnTypesTest, UserRoleType) {

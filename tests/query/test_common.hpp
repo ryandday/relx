@@ -22,7 +22,7 @@ struct users {
     relx::schema::column<"bio", std::optional<std::string>> bio;
     relx::schema::column<"login_count", int> login_count;
     
-    relx::schema::primary_key<&users::id> pk;
+    relx::schema::table_primary_key<&users::id> pk;
     relx::schema::unique_constraint<&users::email> unique_email;
 };
 
@@ -37,7 +37,7 @@ struct posts {
     relx::schema::column<"created_at", std::string> created_at;
     relx::schema::column<"is_published", bool> is_published;
     
-    relx::schema::primary_key<&posts::id> pk;
+    relx::schema::table_primary_key<&posts::id> pk;
     relx::schema::foreign_key<&posts::user_id, &users::id> user_fk;
 };
 
@@ -51,7 +51,7 @@ struct comments {
     relx::schema::column<"created_at", std::string> created_at;
     relx::schema::column<"is_approved", bool> is_approved;
     
-    relx::schema::primary_key<&comments::id> pk;
+    relx::schema::table_primary_key<&comments::id> pk;
     relx::schema::foreign_key<&comments::post_id, &posts::id> post_fk;
     relx::schema::foreign_key<&comments::user_id, &users::id> user_fk;
 };
@@ -62,7 +62,7 @@ struct tags {
     relx::schema::column<"id", int> id;
     relx::schema::column<"name", std::string> name;
     
-    relx::schema::primary_key<&tags::id> pk;
+    relx::schema::table_primary_key<&tags::id> pk;
     relx::schema::unique_constraint<&tags::name> unique_name;
 };
 
@@ -86,7 +86,7 @@ struct user_profiles {
     relx::schema::column<"website", std::optional<std::string>> website;
     relx::schema::column<"location", std::optional<std::string>> location;
     
-    relx::schema::primary_key<&user_profiles::user_id> pk;
+    relx::schema::table_primary_key<&user_profiles::user_id> pk;
     relx::schema::foreign_key<&user_profiles::user_id, &users::id> user_fk;
 };
 

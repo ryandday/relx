@@ -22,7 +22,7 @@ TEST(ConstraintAliasTest, PrimaryKeyAlias) {
     
     // Create both types to compare
     pk<&ProductColumns::id> pk_alias;
-    primary_key<&ProductColumns::id> pk_direct;
+    table_primary_key<&ProductColumns::id> pk_direct;
     
     // Verify they produce the same output
     EXPECT_EQ(pk_alias.sql_definition(), pk_direct.sql_definition());

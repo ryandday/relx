@@ -123,7 +123,7 @@ struct SQLInjectionTable {
     // Check constraint with potential SQL injection
     check_constraint<"safe_column != ''''DROP TABLE users;--''"> injection_check;
     
-    primary_key<&SQLInjectionTable::id> pk;
+    table_primary_key<&SQLInjectionTable::id> pk;
 };
 
 // Define tables with circular foreign key references but without inheritance
@@ -133,7 +133,7 @@ struct CircularTable1 {
     column<"id", int> id;
     column<"ref_to_table2", int> ref_to_table2;
     
-    primary_key<&CircularTable1::id> pk;
+    table_primary_key<&CircularTable1::id> pk;
 };
 
 struct CircularTable2 {
@@ -142,7 +142,7 @@ struct CircularTable2 {
     column<"id", int> id;
     column<"ref_to_table1", int> ref_to_table1;
     
-    primary_key<&CircularTable2::id> pk;
+    table_primary_key<&CircularTable2::id> pk;
     
     // This creates a circular reference
     foreign_key<&CircularTable2::ref_to_table1, &CircularTable1::id> fk_to_table1;
@@ -155,7 +155,7 @@ struct CircularTable1WithFK {
     column<"id", int> id;
     column<"ref_to_table2", int> ref_to_table2;
     
-    primary_key<&CircularTable1WithFK::id> pk;
+    table_primary_key<&CircularTable1WithFK::id> pk;
     
     // This completes the circular reference
     foreign_key<&CircularTable1WithFK::ref_to_table2, &CircularTable2::id> fk_to_table2;
@@ -170,7 +170,7 @@ struct UnusualTypesTable {
     column<"enum_type", CustomEnum, DefaultValue<CustomEnum::Value2>> enum_type_col;
     column<"optional_custom", std::optional<CustomType>> optional_custom_col;
     
-    primary_key<&UnusualTypesTable::id> pk;
+    table_primary_key<&UnusualTypesTable::id> pk;
     
     // Check constraint referencing the custom values
     check_constraint<"id > 0"> simple_check;
@@ -184,7 +184,7 @@ struct RecursiveTable {
     column<"name", std::string> name;
     column<"parent_id", std::optional<int>> parent_id;
     
-    primary_key<&RecursiveTable::id> pk;
+    table_primary_key<&RecursiveTable::id> pk;
     
     // Self-referencing foreign key
     foreign_key<&RecursiveTable::parent_id, &RecursiveTable::id> parent_fk;
@@ -210,7 +210,7 @@ struct UnicodeTable {
     column<"unicode_default", std::string> unicode_default;
     column<"emoji_default", std::string> emoji_default;
     
-    primary_key<&UnicodeTable::id> pk;
+    table_primary_key<&UnicodeTable::id> pk;
     
     // Check constraint with unicode
     check_constraint<"unicode_column != ''"> unicode_check;
@@ -274,7 +274,7 @@ struct ManyColumnsTable {
     column<"col50", double> col50;
     
     // Primary key
-    primary_key<&ManyColumnsTable::id> pk;
+    table_primary_key<&ManyColumnsTable::id> pk;
     
     // Many check constraints
     check_constraint<"col1 > 0"> check1;
@@ -303,7 +303,7 @@ struct MalformedConstraintTable {
     column<"id", int> id;
     column<"value", int> value;
     
-    primary_key<&MalformedConstraintTable::id> pk;
+    table_primary_key<&MalformedConstraintTable::id> pk;
     
     // Malformed check constraints (syntax errors, unbalanced parentheses, etc.)
     check_constraint<"value > (1 + 2 * (3 - 4)"> unbalanced_parentheses;

@@ -90,7 +90,7 @@ TEST(ConceptsTest, ConceptChecks) {
     EXPECT_FALSE((is_column<std::string>));
     
     // Runtime checks for is_constraint
-    EXPECT_TRUE((is_constraint<primary_key<&ValidTable::id>>));
+    EXPECT_TRUE((is_constraint<table_primary_key<&ValidTable::id>>));
     EXPECT_FALSE((is_constraint<column<"id", int>>));
     EXPECT_FALSE((is_constraint<column<"name", std::optional<std::string>>>));
     

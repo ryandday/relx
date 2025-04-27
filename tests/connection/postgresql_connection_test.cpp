@@ -16,7 +16,7 @@ struct Users {
     relx::schema::column<"age", int> age;
     relx::schema::column<"active", bool> active;
     
-    relx::schema::primary_key<&Users::id> pk;
+    relx::schema::table_primary_key<&Users::id> pk;
 };
 
 class PostgreSQLConnectionTest : public ::testing::Test {

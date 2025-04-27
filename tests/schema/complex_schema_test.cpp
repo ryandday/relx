@@ -43,7 +43,7 @@ struct Users {
     column<"role", std::string, DefaultValue<user_role>> role;
     
     // Constraints
-    primary_key<&Users::id> pk;
+    table_primary_key<&Users::id> pk;
     unique_constraint<&Users::username> unique_username;
     unique_constraint<&Users::email> unique_email;
     
@@ -68,7 +68,7 @@ struct Categories {
     column<"display_order", int, DefaultValue<0>> display_order;
     
     // Constraints
-    primary_key<&Categories::id> pk;
+    table_primary_key<&Categories::id> pk;
     unique_constraint<&Categories::name_col> unique_name;
     foreign_key<&Categories::parent_id, &Categories::id> parent_fk{
         reference_action::set_null, reference_action::cascade
@@ -97,7 +97,7 @@ struct Products {
     column<"status", std::string, DefaultValue<active_status>> status;
     
     // Constraints
-    primary_key<&Products::id> pk;
+    table_primary_key<&Products::id> pk;
     unique_constraint<&Products::sku> unique_sku;
     composite_unique_constraint<&Products::name_col, &Products::category_id> unique_name_per_category;
     
@@ -126,7 +126,7 @@ struct Orders {
     column<"tracking_number", std::optional<std::string>> tracking_number;
     
     // Constraints
-    primary_key<&Orders::id> pk;
+    table_primary_key<&Orders::id> pk;
     foreign_key<&Orders::user_id, &Users::id> user_fk;
     
     // Check constraints
@@ -178,7 +178,7 @@ struct CustomerReviews {
     column<"unhelpful_votes", int, DefaultValue<0>> unhelpful_votes;
     
     // Constraints
-    primary_key<&CustomerReviews::id> pk;
+    table_primary_key<&CustomerReviews::id> pk;
     composite_unique_constraint<&CustomerReviews::product_id, &CustomerReviews::user_id> one_review_per_product;
     foreign_key<&CustomerReviews::product_id, &Products::id> product_fk;
     foreign_key<&CustomerReviews::user_id, &Users::id> user_fk;

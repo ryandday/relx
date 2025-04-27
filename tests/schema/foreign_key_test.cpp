@@ -10,7 +10,7 @@ struct User {
     column<"id", int> id;
     column<"username", std::string> username;
     
-    primary_key<&User::id> pk;
+    table_primary_key<&User::id> pk;
 };
 
 struct Category {
@@ -19,7 +19,7 @@ struct Category {
     column<"id", int> id;
     column<"name", std::string> name_col;
     
-    primary_key<&Category::id> pk;
+    table_primary_key<&Category::id> pk;
 };
 
 // Child table with multiple foreign keys
@@ -33,7 +33,7 @@ struct Post {
     column<"category_id", std::optional<int>> category_id;
     
     // Primary key
-    primary_key<&Post::id> pk;
+    table_primary_key<&Post::id> pk;
     
     // Foreign keys with different reference actions
     foreign_key<&Post::user_id, &User::id> user_fk;

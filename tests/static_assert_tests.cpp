@@ -87,7 +87,7 @@ struct UsersTable {
     column<"username", std::string> username;
     column<"email", std::string> email;
     
-    primary_key<&UsersTable::id> pk;
+    table_primary_key<&UsersTable::id> pk;
     relx::schema::index<&UsersTable::email> email_idx{index_type::unique};
 };
 
@@ -99,7 +99,7 @@ struct PostsTable {
     column<"title", std::string> title;
     column<"user_id", int> user_id;
     
-    primary_key<&PostsTable::id> pk;
+    table_primary_key<&PostsTable::id> pk;
     foreign_key<&PostsTable::user_id, &UsersTable::id> user_fk;
 };
 
@@ -118,7 +118,7 @@ static_assert(!is_column<int>, "int should not satisfy is_column");
 static_assert(!is_column<std::string>, "std::string should not satisfy is_column");
 
 // is_constraint concept tests
-static_assert(is_constraint<primary_key<&ValidTable::id>>, "primary_key should satisfy is_constraint");
+static_assert(is_constraint<table_primary_key<&ValidTable::id>>, "primary_key should satisfy is_constraint");
 static_assert(!is_constraint<column<"id", int>>, "column should not satisfy is_constraint");
 static_assert(!is_constraint<column<"name", std::optional<std::string>>>, "column with std::optional should not satisfy is_constraint");
 

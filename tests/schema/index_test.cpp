@@ -15,7 +15,7 @@ struct Product {
     column<"stock", int> stock;
     
     // Primary key
-    primary_key<&Product::id> pk;
+    table_primary_key<&Product::id> pk;
     
     // Various index types
     relx::schema::index<&Product::sku> sku_idx{index_type::unique};

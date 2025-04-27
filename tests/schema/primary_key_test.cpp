@@ -10,7 +10,7 @@ struct User {
     column<"id", int> id;
     column<"username", std::string> username;
     
-    primary_key<&User::id> pk;
+    table_primary_key<&User::id> pk;
 };
 
 // Test table with composite primary key

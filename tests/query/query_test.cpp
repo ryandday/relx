@@ -15,7 +15,7 @@ struct users {
     relx::schema::column<"age", int> age;
     relx::schema::column<"bio", std::optional<std::string>> bio;
     
-    relx::schema::primary_key<&users::id> pk;
+    relx::schema::table_primary_key<&users::id> pk;
     relx::schema::unique_constraint<&users::email> unique_email;
 };
 
@@ -27,7 +27,7 @@ struct posts {
     relx::schema::column<"content", std::string> content;
     relx::schema::column<"created_at", std::string> created_at;
     
-    relx::schema::primary_key<&posts::id> pk;
+    relx::schema::table_primary_key<&posts::id> pk;
     relx::schema::foreign_key<&posts::user_id, &users::id> user_fk;
 };
 

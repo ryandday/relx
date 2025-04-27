@@ -10,10 +10,10 @@ namespace schema {
 /// @brief Represents a primary key constraint on a table
 /// @tparam ColumnPtr Pointer to the column member
 template <auto ColumnPtr>
-class primary_key {
+class table_primary_key {
 public:
     /// @brief Default constructor
-    primary_key() = default;
+    table_primary_key() = default;
     
     /// @brief Get SQL definition for the PRIMARY KEY constraint
     /// @return SQL string defining the constraint
@@ -104,7 +104,7 @@ template <auto... ColumnPtrs>
 auto make_pk() {
     if constexpr (sizeof...(ColumnPtrs) == 1) {
         // Use fold expression to extract the single column pointer
-        return primary_key<([]<auto Ptr>() { return Ptr; }.template operator()<ColumnPtrs>(), ...)>();
+        return table_primary_key<([]<auto Ptr>() { return Ptr; }.template operator()<ColumnPtrs>(), ...)>();
     } else {
         return composite_primary_key<ColumnPtrs...>();
     }
