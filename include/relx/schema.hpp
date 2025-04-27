@@ -7,11 +7,10 @@
 #include "schema/foreign_key.hpp"
 #include "schema/index.hpp"
 #include "schema/fixed_string.hpp"
-#include "schema/default_value.hpp"
 #include "schema/check_constraint.hpp"
 #include "schema/unique_constraint.hpp"
 #include "query/operators.hpp"
-#include "schema/autoincrement.hpp"
+
 /**
  * @brief relx - A type-safe SQL library
  * 
@@ -35,20 +34,20 @@
  *     // Nullable column using std::optional
  *     relx::schema::column<"bio", std::optional<std::string>> bio;
  *     
- *     // Column with default value - automatically deduces type
- *     relx::schema::column<"age", int, relx::schema::DefaultValue<18>> age;
+ *     // Column with default value - uses default_value template
+ *     relx::schema::column<"age", int, relx::schema::default_value<18>> age;
  *     
- *     // Default value for float - automatically deduces type
- *     relx::schema::column<"score", double, relx::schema::DefaultValue<0.0>> score;
+ *     // Default value for float
+ *     relx::schema::column<"score", double, relx::schema::default_value<0.0>> score;
  *     
- *     // Default value for boolean - automatically deduces type
- *     relx::schema::column<"is_active", bool, relx::schema::DefaultValue<true>> is_active;
+ *     // Default value for boolean
+ *     relx::schema::column<"is_active", bool, relx::schema::default_value<true>> is_active;
  *     
- *     // Default value for string - automatically deduces type
- *     relx::schema::column<"status", std::string, relx::schema::DefaultValue<"pending">> status;
+ *     // Default value for string
+ *     relx::schema::column<"status", std::string, relx::schema::string_default<"pending">> status;
  *     
  *     // SQL literal default value
- *     relx::schema::column<"created_at", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> created_at;
+ *     relx::schema::column<"created_at", std::string, relx::schema::string_default<"CURRENT_TIMESTAMP", true>> created_at;
  *     
  *     // Nullable with explicit NULL default
  *     relx::schema::column<"notes", std::optional<std::string>, relx::schema::null_default> notes;
@@ -122,19 +121,20 @@ namespace relx {
  * // Define nullable columns with std::optional
  * relx::schema::column<"email", std::optional<std::string>> email_column;
  * 
- * // Define columns with strongly typed default values
- * relx::schema::column<"age", int, relx::schema::DefaultValue<18>> age_column;
- * relx::schema::column<"price", double, relx::schema::DefaultValue<0.0>> price_column;
- * relx::schema::column<"is_active", bool, relx::schema::DefaultValue<true>> is_active_column;
+ * // Define columns with default values
+ * relx::schema::column<"age", int, relx::schema::default_value<18>> age_column;
+ * relx::schema::column<"price", double, relx::schema::default_value<0.0>> price_column;
+ * relx::schema::column<"is_active", bool, relx::schema::default_value<true>> is_active_column;
  * 
  * // Define columns with string default values
- * relx::schema::string_column_with_default<"status", "active"> status_column;
+ * relx::schema::column<"status", std::string, relx::schema::string_default<"active">> status_column;
  * 
  * // Define columns with SQL literals as default
- * relx::schema::column<"created_at", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> created_at_column;
+ * relx::schema::column<"created_at", std::string, relx::schema::string_default<"CURRENT_TIMESTAMP", true>> created_at_column;
  * 
  * // Define autoincrement primary key columns
- * relx::schema::pg_serial<"id"> postgres_id_column;
+ * relx::schema::column<"id", int, relx::schema::autoincrement> sqlite_id_column;
+ * relx::schema::column<"id", int, relx::schema::serial> postgres_id_column;
  * 
  * // Define check constraints
  * relx::schema::check_constraint<&product::price, "> 0"> price_check;
@@ -148,21 +148,16 @@ namespace relx {
 using schema::FixedString;
 using schema::column;
 using schema::column_traits;
-using schema::DefaultValue;
+using schema::default_value;
+using schema::string_default;
 using schema::null_default;
 using schema::table_primary_key;
 using schema::unique_constraint;
 using schema::composite_unique_constraint;
-using schema::check_constraint;
 using schema::table_check_constraint;
 using schema::foreign_key;
 using schema::index;
 using schema::create_table;
 using schema::drop_table;
-using schema::autoincrement;
-using schema::SqlDialect;
-using schema::sqlite_autoincrement;
-using schema::pg_serial;
-using schema::mysql_auto_increment;
 
 } // namespace relx

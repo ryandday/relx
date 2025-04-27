@@ -13,7 +13,7 @@ namespace schema {
 /// @tparam Condition The SQL condition as a FixedString
 /// @tparam Name Optional name for the constraint
 template <FixedString Condition, FixedString Name = "">
-class check_constraint {
+class table_check_constraint {
 public:
     /// @brief Get SQL definition for the CHECK constraint
     /// @return SQL string defining the constraint
@@ -116,15 +116,15 @@ private:
 /// @return A check constraint with the given condition and name
 template <FixedString Condition, FixedString Name>
 constexpr auto named_check() {
-    return check_constraint<Condition, Name>();
+    return table_check_constraint<Condition, Name>();
 }
 
 /// @brief Helper function to create an unnamed check constraint at compile time
 /// @tparam Condition The SQL condition
 /// @return A check constraint with the given condition
 template <FixedString Condition>
-constexpr auto check() {
-    return check_constraint<Condition, "">();
+constexpr auto table_check() {
+    return table_check_constraint<Condition, "">();
 }
 
 /// @brief Helper function to create a column-bound check constraint at compile time
@@ -145,10 +145,6 @@ template <auto ColumnPtr, FixedString Condition, FixedString Name>
 constexpr auto named_column_check() {
     return column_check_constraint<ColumnPtr, Condition, Name>();
 }
-
-/// @brief Helper type alias for backward compatibility with older code
-template <FixedString Condition, FixedString Name = "">
-using table_check_constraint = check_constraint<Condition, Name>;
 
 } // namespace schema
 } // namespace relx 

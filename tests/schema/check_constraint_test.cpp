@@ -17,12 +17,12 @@ struct Item {
     column<"category", std::string> category;
     
     // Single column check constraints - now using compile-time strings
-    check_constraint<"price > 0"> positive_price;
-    check_constraint<"quantity >= 0"> non_negative_quantity;
+    table_check_constraint<"price > 0"> positive_price;
+    table_check_constraint<"quantity >= 0"> non_negative_quantity;
     
     // Table-level check constraints using compile-time strings
-    check_constraint<"category IN ('electronics', 'books', 'clothing')"> valid_category;
-    check_constraint<"(price < 100.0 AND category = 'books') OR category != 'books'"> books_pricing;
+    table_check_constraint<"category IN ('electronics', 'books', 'clothing')"> valid_category;
+    table_check_constraint<"(price < 100.0 AND category = 'books') OR category != 'books'"> books_pricing;
 };
 
 // Special item struct for testing special characters in constraints
@@ -40,29 +40,29 @@ struct NamedItem {
 
 TEST(CheckConstraintTest, SingleColumnConstraints) {
     // Test positive price constraint
-    auto price_check = check<"price > 0">();
+    auto price_check = table_check<"price > 0">();
     EXPECT_EQ(price_check.sql_definition(), "CHECK (price > 0)");
     
     // Test non-negative quantity constraint
-    auto quantity_check = check<"quantity >= 0">();
+    auto quantity_check = table_check<"quantity >= 0">();
     EXPECT_EQ(quantity_check.sql_definition(), "CHECK (quantity >= 0)");
     
     // Test more complex column constraint
-    auto name_check = check<"item_name IS NOT NULL AND length(item_name) > 3">();
+    auto name_check = table_check<"item_name IS NOT NULL AND length(item_name) > 3">();
     EXPECT_EQ(name_check.sql_definition(), "CHECK (item_name IS NOT NULL AND length(item_name) > 3)");
 }
 
 TEST(CheckConstraintTest, TableLevelConstraints) {
     // Test table-level constraint using compile-time string
-    auto category_check = check<"category IN ('electronics', 'books', 'clothing')">();
+    auto category_check = table_check<"category IN ('electronics', 'books', 'clothing')">();
     EXPECT_EQ(category_check.sql_definition(), "CHECK (category IN ('electronics', 'books', 'clothing'))");
     
     // Test table-level check constraint 
-    auto price_quantity_check = check<"price < quantity * 2.0">();
+    auto price_quantity_check = table_check<"price < quantity * 2.0">();
     EXPECT_EQ(price_quantity_check.sql_definition(), "CHECK (price < quantity * 2.0)");
     
     // Test more complex multi-column constraint
-    auto electronics_price = check<"(price <= 1000.0 AND category = 'electronics') OR category != 'electronics'">();
+    auto electronics_price = table_check<"(price <= 1000.0 AND category = 'electronics') OR category != 'electronics'">();
     EXPECT_EQ(electronics_price.sql_definition(), 
               "CHECK ((price <= 1000.0 AND category = 'electronics') OR category != 'electronics')");
 }
@@ -84,20 +84,20 @@ TEST(CheckConstraintTest, TableWithCheckConstraints) {
 // Test for handling special characters in check constraints
 TEST(CheckConstraintTest, SpecialCharacters) {
     // Test with single quotes in constraint
-    auto quotes_check = check<"item_name LIKE '%special''s item%'">();
+    auto quotes_check = table_check<"item_name LIKE '%special''s item%'">();
     EXPECT_EQ(quotes_check.sql_definition(), "CHECK (item_name LIKE '%special''s item%')");
     
     // Test with backslash and double quotes
-    auto backslash_check = check<"item_name LIKE '%\\special\\%' OR item_name LIKE '%\"quoted\"%'">();
+    auto backslash_check = table_check<"item_name LIKE '%\\special\\%' OR item_name LIKE '%\"quoted\"%'">();
     EXPECT_EQ(backslash_check.sql_definition(), "CHECK (item_name LIKE '%\\special\\%' OR item_name LIKE '%\"quoted\"%')");
     
     // Test with comparison operators and parentheses
-    auto complex_check = check<"(price > 100.0 AND price <= 1000.0) OR (price = 50.0 AND category = 'sale')">();
+    auto complex_check = table_check<"(price > 100.0 AND price <= 1000.0) OR (price = 50.0 AND category = 'sale')">();
     EXPECT_EQ(complex_check.sql_definition(), 
               "CHECK ((price > 100.0 AND price <= 1000.0) OR (price = 50.0 AND category = 'sale'))");
     
     // Test with column constraint and special characters
-    auto special_name_check = check<"item_name LIKE '%O''Brien''s%' OR item_name LIKE '%100\\%%'">();
+    auto special_name_check = table_check<"item_name LIKE '%O''Brien''s%' OR item_name LIKE '%100\\%%'">();
     EXPECT_EQ(special_name_check.sql_definition(), 
               "CHECK (item_name LIKE '%O''Brien''s%' OR item_name LIKE '%100\\%%')");
 }
