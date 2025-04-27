@@ -130,7 +130,7 @@ struct null_default {
 template <typename... Modifiers>
 static std::string apply_modifiers() {
     std::string result;
-    (result += ... += Modifiers::to_sql());
+    [[maybe_unused]] auto _ = (result += ... += Modifiers::to_sql()); // supress unused warning
     return result;
 }
 

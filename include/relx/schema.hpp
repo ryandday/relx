@@ -157,6 +157,10 @@ using schema::composite_unique_constraint;
 using schema::table_check_constraint;
 using schema::foreign_key;
 using schema::index;
+using schema::autoincrement;
+using schema::serial;
+using schema::unique;
+using schema::primary_key;
 using schema::create_table;
 using schema::drop_table;
 
