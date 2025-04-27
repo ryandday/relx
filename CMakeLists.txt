@@ -74,6 +74,7 @@ add_executable(relx_tests
   tests/schema/optional_column_test.cpp
   tests/schema/composite_foreign_key_test.cpp
   tests/schema/constraint_alias_test.cpp
+  tests/schema/autoincrement_test.cpp
   # Query tests
   tests/query/query_test.cpp
   tests/query/basic_select_test.cpp

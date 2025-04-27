@@ -11,6 +11,7 @@
 #include "schema/check_constraint.hpp"
 #include "schema/unique_constraint.hpp"
 #include "query/operators.hpp"
+#include "schema/autoincrement.hpp"
 /**
  * @brief relx - A type-safe SQL library
  * 
@@ -24,6 +25,8 @@
  * 
  * // Define a table
  * struct users { 
+ *     static constexpr auto table_name = "users";
+ *     
  *     // Define columns
  *     relx::schema::column<"id", int> id;
  *     relx::schema::column<"name", std::string> name;
@@ -62,18 +65,33 @@
  *     // Define a table-level check constraint
  *     relx::schema::table_check_constraint<"status IN ('pending', 'active', 'suspended')"> status_check;
  * };
+ * 
+ * // Example with autoincrement primary key
+ * struct users_with_autoincrement {
+ *     static constexpr auto table_name = "users";
+ *     
+ *     // For PostgreSQL, you would use:
+ *     // relx::schema::pg_serial<"id"> id;
+ *     
+ *     // Regular columns
+ *     relx::schema::column<"name", std::string> name;
+ *     relx::schema::column<"email", std::string> email;
+ * };
  * ```
  * 
  * You can generate the SQL for creating the table:
  * ```cpp
  * users user_table;
- * std::string sql = relx::schema::create_table_sql(user_table);
+ * std::string sql = relx::schema::create_table(user_table);
+ * 
+ * users_with_autoincrement auto_table;
+ * std::string auto_sql = relx::schema::create_table(auto_table);
  * ```
  * 
- * Result:
+ * Result for users:
  * ```sql
- * CREATE TABLE users (
- *     id INTEGER NOT NULL,
+ * CREATE TABLE IF NOT EXISTS users (
+ *     id INTEGER PRIMARY KEY,
  *     name TEXT NOT NULL,
  *     email TEXT NOT NULL,
  *     bio TEXT,
@@ -115,6 +133,9 @@ namespace relx {
  * // Define columns with SQL literals as default
  * relx::schema::column<"created_at", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> created_at_column;
  * 
+ * // Define autoincrement primary key columns
+ * relx::schema::pg_serial<"id"> postgres_id_column;
+ * 
  * // Define check constraints
  * relx::schema::check_constraint<&product::price, "> 0"> price_check;
  * 
@@ -138,5 +159,10 @@ using schema::foreign_key;
 using schema::index;
 using schema::create_table;
 using schema::drop_table;
+using schema::autoincrement;
+using schema::SqlDialect;
+using schema::sqlite_autoincrement;
+using schema::pg_serial;
+using schema::mysql_auto_increment;
 
 } // namespace relx
