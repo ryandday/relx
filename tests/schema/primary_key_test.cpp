@@ -45,9 +45,6 @@ TEST(PrimaryKeyTest, BasicPrimaryKey) {
 TEST(PrimaryKeyTest, CompositePrimaryKey) {
     SessionData session;
     
-    // Note: This test checks the intended behavior, but the code 
-    // may not support composite keys yet. The test might fail.
-    
     // Test the SQL definition of a composite primary key
     EXPECT_EQ(session.pk.sql_definition(), "PRIMARY KEY (user_id, session_id, key)");
     
