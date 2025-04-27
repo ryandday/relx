@@ -93,7 +93,7 @@ struct column_traits<std::string> {
 
 template <>
 struct column_traits<bool> {
-    static constexpr auto sql_type_name = "INTEGER";
+    static constexpr auto sql_type_name = "BOOLEAN";
     static constexpr bool nullable = false;
     
     static std::string to_sql_string(const bool& value) {

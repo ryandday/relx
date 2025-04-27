@@ -76,7 +76,7 @@ TEST(TableTest, ColumnCollectionSimple) {
     std::string columns = collect_column_definitions(simple);
     EXPECT_TRUE(columns.find("id INTEGER NOT NULL") != std::string::npos);
     EXPECT_TRUE(columns.find("name TEXT NOT NULL") != std::string::npos);
-    EXPECT_TRUE(columns.find("active INTEGER NOT NULL") != std::string::npos);
+    EXPECT_TRUE(columns.find("active BOOLEAN NOT NULL") != std::string::npos);
 }
 
 TEST(TableTest, ColumnCollectionWithNullables) {
@@ -105,7 +105,7 @@ TEST(TableTest, ForeignKeyConstraints) {
     
     std::string constraints = collect_constraint_definitions(posts);
     EXPECT_TRUE(constraints.find("PRIMARY KEY (id)") != std::string::npos);
-    EXPECT_TRUE(constraints.find("FOREIGN KEY (user_id) REFERENCES users (id)") != std::string::npos);
+    EXPECT_TRUE(constraints.find("FOREIGN KEY (user_id) REFERENCES users(id)") != std::string::npos);
 }
 
 TEST(TableTest, CreateTableSQL) {
@@ -115,7 +115,7 @@ TEST(TableTest, CreateTableSQL) {
     EXPECT_TRUE(sql.find("CREATE TABLE IF NOT EXISTS simple_table") != std::string::npos);
     EXPECT_TRUE(sql.find("id INTEGER NOT NULL") != std::string::npos);
     EXPECT_TRUE(sql.find("name TEXT NOT NULL") != std::string::npos);
-    EXPECT_TRUE(sql.find("active INTEGER NOT NULL") != std::string::npos);
+    EXPECT_TRUE(sql.find("active BOOLEAN NOT NULL") != std::string::npos);
     
     // Test table with nullable columns
     TableWithNullables nullables;
@@ -137,5 +137,5 @@ TEST(TableTest, CreateTableSQL) {
     sql = create_table(posts);
     
     EXPECT_TRUE(sql.find("CREATE TABLE IF NOT EXISTS posts") != std::string::npos);
-    EXPECT_TRUE(sql.find("FOREIGN KEY (user_id) REFERENCES users (id)") != std::string::npos);
+    EXPECT_TRUE(sql.find("FOREIGN KEY (user_id) REFERENCES users(id)") != std::string::npos);
 } 

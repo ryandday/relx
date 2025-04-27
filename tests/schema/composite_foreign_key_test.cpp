@@ -44,11 +44,11 @@ TEST(CompositeForeignKeyTest, BasicCompositeForeignKey) {
     
     // Test the SQL definition of a composite foreign key
     EXPECT_EQ(customer_fk.sql_definition(), 
-              "FOREIGN KEY (customer_id, customer_country) REFERENCES customers (id, country_code)");
+              "FOREIGN KEY (customer_id, customer_country) REFERENCES customers(id, country_code)");
     
     // Direct SQL testing
     std::string fk_sql = customer_fk.sql_definition();
-    EXPECT_TRUE(fk_sql.find("FOREIGN KEY (customer_id, customer_country) REFERENCES customers (id, country_code)") 
+    EXPECT_TRUE(fk_sql.find("FOREIGN KEY (customer_id, customer_country) REFERENCES customers(id, country_code)") 
                 != std::string::npos);
 }
 
@@ -60,7 +60,7 @@ TEST(CompositeForeignKeyTest, ForeignKeyWithReferenceActions) {
     
     // Test that actions are included in the SQL
     EXPECT_EQ(fk_with_actions.sql_definition(), 
-              "FOREIGN KEY (customer_id, customer_country) REFERENCES customers (id, country_code) "
+              "FOREIGN KEY (customer_id, customer_country) REFERENCES customers(id, country_code) "
               "ON DELETE CASCADE ON UPDATE SET NULL");
 }
 
@@ -81,7 +81,7 @@ TEST(CompositeForeignKeyTest, FkAlias) {
     
     // Verify the make_fk helper chooses the right implementation based on parameter count
     EXPECT_EQ(customer_fk_alias.sql_definition(), 
-              "FOREIGN KEY (customer_id, customer_country) REFERENCES customers (id, country_code)");
+              "FOREIGN KEY (customer_id, customer_country) REFERENCES customers(id, country_code)");
     EXPECT_EQ(product_fk_alias.sql_definition(), 
-              "FOREIGN KEY (product_id) REFERENCES products (product_id)");
+              "FOREIGN KEY (product_id) REFERENCES products(product_id)");
 } 

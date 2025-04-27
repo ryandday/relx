@@ -249,7 +249,7 @@ private:
         } else if constexpr (is_default_value_specialization<Mod>::value) {
             return static_cast<ValueT>(Mod::value);
         } else if constexpr (is_string_default_specialization<Mod>::value) {
-            return static_cast<ValueT>(std::string_view(Mod::value));
+            return ValueT(std::string_view(Mod::value));
         }
         return std::nullopt;
     }

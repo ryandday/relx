@@ -52,8 +52,7 @@ TEST(OptionalColumnTest, OptionalProperties) {
     // Test std::optional with NULL default
     column<"inactive", std::optional<bool>, null_default> inactive_col;
     EXPECT_TRUE(inactive_col.nullable);
-    EXPECT_TRUE(inactive_col.sql_definition().find("DEFAULT NULL") != std::string::npos);
-    EXPECT_EQ(inactive_col.sql_definition(), "inactive INTEGER DEFAULT NULL");
+    EXPECT_EQ(inactive_col.sql_definition(), "inactive BOOLEAN DEFAULT NULL");
 }
 
 TEST(OptionalColumnTest, ValueConversion) {

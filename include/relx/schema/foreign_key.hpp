@@ -61,7 +61,7 @@ public:
         
         // Generate the SQL using the static members
         std::string result = "FOREIGN KEY (" + std::string(local_column_type::name) + ") ";
-        result += "REFERENCES " + ref_table_name + " (";
+        result += "REFERENCES " + ref_table_name + "(";
         result += std::string(ref_column_type::name) + ")";
         
         // Add ON DELETE and ON UPDATE clauses
@@ -129,7 +129,7 @@ public:
         // Add reference columns (second half of the parameter pack)
         result += ") REFERENCES ";
         std::string ref_table_name = get_referenced_table_name();
-        result += ref_table_name + " (";
+        result += ref_table_name + "(";
         
         std::string ref_names;
         get_column_names<sizeof...(ColumnPtrs) / 2, sizeof...(ColumnPtrs)>(ref_names);
