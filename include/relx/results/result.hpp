@@ -806,11 +806,12 @@ public:
     }
 
     std::string to_string() const {
-        std::stringstream result;
+        std::string result;
         for (const auto& row : rows_) {
-            result << row.to_string() << '\n';
+            result += row.to_string();
+            std::println("");
         }
-        return result.str();
+        return result;
     }
 
 private:
