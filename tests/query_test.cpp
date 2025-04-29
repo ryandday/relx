@@ -49,7 +49,7 @@ TEST(QueryTest, SelectWithCondition) {
         .from(u)
         .where(u.age > 18);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -65,7 +65,7 @@ TEST(QueryTest, SelectWithJoin) {
         .from(u)
         .join(p, relx::query::on(u.id == p.user_id));
     
-    std::string expected_sql = "SELECT name, title FROM users JOIN posts ON (id = user_id)";
+    std::string expected_sql = "SELECT users.name, posts.title FROM users JOIN posts ON (users.id = posts.user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -77,7 +77,7 @@ TEST(QueryTest, SelectWithMultipleConditions) {
         .from(u)
         .where(u.age >= 18 && u.name != "");
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE ((age >= ?) AND (name != ?))";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE ((users.age >= ?) AND (users.name != ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -94,7 +94,7 @@ TEST(QueryTest, SelectWithOrderByAndLimit) {
         .order_by(relx::query::desc(u.name))
         .limit(10);
     
-    std::string expected_sql = "SELECT id, name FROM users ORDER BY name DESC LIMIT ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY users.name DESC LIMIT ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -110,7 +110,7 @@ TEST(QueryTest, SelectWithAggregateFunction) {
         relx::query::as(relx::query::avg(u.age), "average_age")
     ).from(u);
     
-    std::string expected_sql = "SELECT COUNT(*) AS user_count, AVG(age) AS average_age FROM users";
+    std::string expected_sql = "SELECT COUNT(*) AS user_count, AVG(users.age) AS average_age FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -127,7 +127,7 @@ TEST(QueryTest, SelectWithGroupByAndHaving) {
         .group_by(u.id)
         .having(relx::query::count(p.id) > 5);
     
-    std::string expected_sql = "SELECT id, COUNT(id) AS post_count FROM users JOIN posts ON (id = user_id) GROUP BY id HAVING (COUNT(id) > ?)";
+    std::string expected_sql = "SELECT users.id, COUNT(posts.id) AS post_count FROM users JOIN posts ON (users.id = posts.user_id) GROUP BY users.id HAVING (COUNT(posts.id) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -143,7 +143,7 @@ TEST(QueryTest, SelectWithInCondition) {
         .from(u)
         .where(relx::query::in(u.name, names));
     
-    std::string expected_sql = "SELECT id, email FROM users WHERE name IN (?, ?, ?)";
+    std::string expected_sql = "SELECT users.id, users.email FROM users WHERE (users.name IN (?, ?, ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -160,7 +160,7 @@ TEST(QueryTest, SelectWithLikeCondition) {
         .from(u)
         .where(relx::query::like(u.email, "%@example.com"));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE email LIKE ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.email LIKE ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -204,7 +204,7 @@ TEST(QueryTest, SelectWithCaseExpression) {
     
     std::cout << "Query SQL: " << query.to_sql() << std::endl;
     
-    std::string expected_sql = "SELECT name, CASE WHEN (age < ?) THEN ? WHEN (age < ?) THEN ? ELSE ? END AS age_group FROM users";
+    std::string expected_sql = "SELECT users.name, CASE WHEN (users.age < ?) THEN ? WHEN (users.age < ?) THEN ? ELSE ? END AS age_group FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();

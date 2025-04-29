@@ -22,9 +22,8 @@ TEST(DataTypeTest, IntegerTypes) {
         .from(u)
         .where(u.id == 9223372036854775807L); // max int64_t
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (id = ?)";
-    EXPECT_EQ(query_int.to_sql(), expected_sql);
-    EXPECT_EQ(query_long.to_sql(), expected_sql);
+    EXPECT_EQ(query_int.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.id = ?)");
+    EXPECT_EQ(query_long.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.id = ?)");
     
     auto params_int = query_int.bind_params();
     auto params_long = query_long.bind_params();
@@ -94,9 +93,8 @@ TEST(DataTypeTest, FloatingPointTypes) {
         .from(u)
         .where(sc > 2.7182818284590452);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (score > ?)";
-    EXPECT_EQ(query_float.to_sql(), expected_sql);
-    EXPECT_EQ(query_double.to_sql(), expected_sql);
+    EXPECT_EQ(query_float.to_sql(), "SELECT users.id, users.name FROM users WHERE (score > ?)");
+    EXPECT_EQ(query_double.to_sql(), "SELECT users.id, users.name FROM users WHERE (score > ?)");
     
     auto params_float = query_float.bind_params();
     auto params_double = query_double.bind_params();
@@ -133,10 +131,9 @@ TEST(DataTypeTest, StringTypes) {
         .from(u)
         .where(u.name == "String literal");
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
-    EXPECT_EQ(query_std_string.to_sql(), expected_sql);
-    EXPECT_EQ(query_c_string.to_sql(), expected_sql);
-    EXPECT_EQ(query_string_literal.to_sql(), expected_sql);
+    EXPECT_EQ(query_std_string.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.name = ?)");
+    EXPECT_EQ(query_c_string.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.name = ?)");
+    EXPECT_EQ(query_string_literal.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.name = ?)");
     
     auto params_std_string = query_std_string.bind_params();
     auto params_c_string = query_c_string.bind_params();
@@ -168,11 +165,8 @@ TEST(DataTypeTest, OptionalTypes) {
         .from(u)
         .where(relx::query::is_null(u.bio));
     
-    std::string expected_present_sql = "SELECT id, name FROM users WHERE (bio = ?)";
-    std::string expected_absent_sql = "SELECT id, name FROM users WHERE bio IS NULL";
-    
-    EXPECT_EQ(query_with_value.to_sql(), expected_present_sql);
-    EXPECT_EQ(query_with_null.to_sql(), expected_absent_sql);
+    EXPECT_EQ(query_with_value.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.bio = ?)");
+    EXPECT_EQ(query_with_null.to_sql(), "SELECT users.id, users.name FROM users WHERE users.bio IS NULL");
     
     auto params_present = query_with_value.bind_params();
     auto params_absent = query_with_null.bind_params();
@@ -198,11 +192,8 @@ TEST(DataTypeTest, ContainerTypes) {
         .from(u)
         .where(relx::query::in(u.name, string_array));
     
-    std::string expected_vector_sql = "SELECT id, name FROM users WHERE name IN (?, ?, ?, ?, ?)";
-    std::string expected_array_sql = "SELECT id, name FROM users WHERE name IN (?, ?, ?)";
-    
-    EXPECT_EQ(query_vector.to_sql(), expected_vector_sql);
-    EXPECT_EQ(query_array.to_sql(), expected_array_sql);
+    EXPECT_EQ(query_vector.to_sql(), "SELECT users.id, users.name FROM users WHERE users.name IN (?, ?, ?, ?, ?)");
+    EXPECT_EQ(query_array.to_sql(), "SELECT users.id, users.name FROM users WHERE users.name IN (?, ?, ?)");
     
     auto params_vector = query_vector.bind_params();
     auto params_array = query_array.bind_params();
@@ -237,8 +228,7 @@ TEST(DataTypeTest, BooleanTypes) {
         .from(u)
         .where(u.is_active && (u.age > 18));
     
-    std::string expected_equals_sql = "SELECT id, name FROM users WHERE (is_active = ?)";
-    EXPECT_EQ(query_bool_equals.to_sql(), expected_equals_sql);
+    EXPECT_EQ(query_bool_equals.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.is_active = ?)");
     
     // The exact SQL for boolean NOT and AND operations may vary by implementation
     std::string not_sql = query_bool_not.to_sql();
@@ -279,13 +269,9 @@ TEST(DataTypeTest, NullHandling) {
         .from(u)
         .where(relx::query::is_null(u.bio));
     
-    std::string expected_is_null_sql = "SELECT id, name FROM users WHERE bio IS NULL";
-    std::string expected_is_not_null_sql = "SELECT id, name FROM users WHERE bio IS NOT NULL";
-    std::string expected_equals_null_sql = "SELECT id, name FROM users WHERE bio IS NULL";
-    
-    EXPECT_EQ(query_is_null.to_sql(), expected_is_null_sql);
-    EXPECT_EQ(query_is_not_null.to_sql(), expected_is_not_null_sql);
-    EXPECT_EQ(query_equals_null.to_sql(), expected_equals_null_sql);
+    EXPECT_EQ(query_is_null.to_sql(), "SELECT users.id, users.name FROM users WHERE users.bio IS NULL");
+    EXPECT_EQ(query_is_not_null.to_sql(), "SELECT users.id, users.name FROM users WHERE users.bio IS NOT NULL");
+    EXPECT_EQ(query_equals_null.to_sql(), "SELECT users.id, users.name FROM users WHERE users.bio IS NULL");
     
     EXPECT_TRUE(query_is_null.bind_params().empty());
     EXPECT_TRUE(query_is_not_null.bind_params().empty());
@@ -317,15 +303,10 @@ TEST(DataTypeTest, DirectLiteralComparisons) {
         .where(u.name == "Direct string literal");
     
     // Verify the generated SQL is correct
-    std::string expected_int_sql = "SELECT id, name FROM users WHERE (id = ?)";
-    std::string expected_float_sql = "SELECT id, name FROM users WHERE (score > ?)";
-    std::string expected_combined_sql = "SELECT id, name FROM users WHERE (is_active AND (age > ?))";
-    std::string expected_string_sql = "SELECT id, name FROM users WHERE (name = ?)";
-    
-    EXPECT_EQ(query_int_literal.to_sql(), expected_int_sql);
-    EXPECT_EQ(query_float_literal.to_sql(), expected_float_sql);
-    EXPECT_EQ(query_combined_literal.to_sql(), expected_combined_sql);
-    EXPECT_EQ(query_string_literal.to_sql(), expected_string_sql);
+    EXPECT_EQ(query_int_literal.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.id = ?)");
+    EXPECT_EQ(query_float_literal.to_sql(), "SELECT users.id, users.name FROM users WHERE (score > ?)");
+    EXPECT_EQ(query_combined_literal.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.is_active AND (users.age > ?))");
+    EXPECT_EQ(query_string_literal.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.name = ?)");
     
     // Verify bind parameters are correct
     auto params_int = query_int_literal.bind_params();
@@ -353,8 +334,8 @@ TEST(DataTypeTest, DirectLiteralComparisons) {
         .from(u)
         .where("Direct string literal" == u.name);
     
-    EXPECT_EQ(query_reversed_int.to_sql(), expected_int_sql);
-    EXPECT_EQ(query_reversed_string.to_sql(), expected_string_sql);
+    EXPECT_EQ(query_reversed_int.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.id = ?)");
+    EXPECT_EQ(query_reversed_string.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.name = ?)");
     
     auto params_rev_int = query_reversed_int.bind_params();
     auto params_rev_string = query_reversed_string.bind_params();

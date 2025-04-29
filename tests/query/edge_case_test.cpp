@@ -14,7 +14,7 @@ TEST(EdgeCaseTest, ExtremeLimits) {
         .from(u)
         .limit(std::numeric_limits<int>::max());
     
-    std::string expected_sql = "SELECT id, name FROM users LIMIT ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users LIMIT ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -30,7 +30,7 @@ TEST(EdgeCaseTest, ZeroValues) {
         .from(u)
         .limit(0);
     
-    std::string expected_sql = "SELECT id, name FROM users LIMIT ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users LIMIT ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -46,7 +46,7 @@ TEST(EdgeCaseTest, EmptyStrings) {
         .from(u)
         .where(u.name == "");
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.name = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -63,7 +63,7 @@ TEST(EdgeCaseTest, SpecialCharactersInStrings) {
         .from(u)
         .where(u.name == special_chars);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.name = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -80,7 +80,7 @@ TEST(EdgeCaseTest, UnicodeStrings) {
         .from(u)
         .where(u.name == unicode_string);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (name = ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.name = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -97,7 +97,7 @@ TEST(EdgeCaseTest, VeryLongStrings) {
         .from(u)
         .where(u.bio == long_string);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (bio = ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.bio = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -124,7 +124,7 @@ TEST(EdgeCaseTest, BooleanValues) {
         .from(u)
         .where(u.is_active == false);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (is_active = ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.is_active = ?)";
     EXPECT_EQ(query_true.to_sql(), expected_sql);
     EXPECT_EQ(query_false.to_sql(), expected_sql);
     
@@ -154,7 +154,7 @@ TEST(EdgeCaseTest, ExtremeDateValues) {
         .from(p)
         .where(p.created_at == max_date);
     
-    std::string expected_sql = "SELECT id, title FROM posts WHERE (created_at = ?)";
+    std::string expected_sql = "SELECT posts.id, posts.title FROM posts WHERE (posts.created_at = ?)";
     EXPECT_EQ(query_min.to_sql(), expected_sql);
     EXPECT_EQ(query_max.to_sql(), expected_sql);
     

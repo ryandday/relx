@@ -62,7 +62,7 @@ TEST(SelectAllTest, SelectAllWithWhere) {
         .where(relx::query::to_expr<&users::age>() > 18);
     
     // The expected SQL should include all columns with the WHERE clause
-    std::string expected_sql = "SELECT * FROM users WHERE (age > ?)";
+    std::string expected_sql = "SELECT * FROM users WHERE (users.age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -76,7 +76,7 @@ TEST(SelectAllTest, SelectAllWithJoin) {
         .join(posts{}, relx::query::on(relx::query::to_expr<&users::id>() == relx::query::to_expr<&posts::user_id>()));
     
     // The expected SQL should include all columns from users and the JOIN clause
-    std::string expected_sql = "SELECT * FROM users JOIN posts ON (id = user_id)";
+    std::string expected_sql = "SELECT * FROM users JOIN posts ON (users.id = posts.user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -94,11 +94,11 @@ TEST(SelectAllTest, SelectAllWithAllClauses) {
     
     // The expected SQL should include all clauses
     std::string expected_sql = "SELECT * FROM users "
-                           "JOIN posts ON (id = user_id) "
-                           "WHERE (age > ?) "
-                           "GROUP BY id "
-                           "HAVING (COUNT(id) > ?) "
-                           "ORDER BY age DESC "
+                           "JOIN posts ON (users.id = posts.user_id) "
+                           "WHERE (user.age > ?) "
+                           "GROUP BY user.id "
+                           "HAVING (COUNT(posts.id) > ?) "
+                           "ORDER BY users.age DESC "
                            "LIMIT ? "
                            "OFFSET ?";
     EXPECT_EQ(query.to_sql(), expected_sql);

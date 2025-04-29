@@ -21,7 +21,7 @@ public:
     using value_type = typename C::value_type;
     
     explicit SchemaColumnAdapter(const C& col, std::string_view table_name = "") 
-        : col_(col), table_name_(table_name) {}
+        : col_(col), table_name_(table_name.empty() ? get_parent_table_name() : table_name) {}
     
     std::string to_sql() const override {
         return qualified_name();
@@ -52,6 +52,16 @@ private:
             return std::string(C::name);
         } else {
             return std::string(table_name_) + "." + std::string(C::name);
+        }
+    }
+    
+    std::string_view get_parent_table_name() const {
+        // Get table name from parent table if available
+        if constexpr (requires { typename C::table_type; }) {
+            using parent_table = typename C::table_type;
+            return parent_table::table_name;
+        } else {
+            return "";
         }
     }
 };
@@ -96,12 +106,12 @@ auto to_expr() {
     using table_type = class_of_t_t<decltype(MemberPtr)>;
     using column_type = std::remove_reference_t<decltype(std::declval<table_type>().*MemberPtr)>;
     
-    // Create a temporary instance, but don't specify the table name to match existing behavior
+    // Create a temporary instance
     table_type table;
     const auto& col = table.*MemberPtr;
     
-    // Don't include table name for backward compatibility
-    return SchemaColumnAdapter<column_type>(col, "");
+    // Include table name from the table type
+    return SchemaColumnAdapter<column_type>(col, table_type::table_name);
 }
 
 /// @brief Helper to wrap a schema table in a table adapter

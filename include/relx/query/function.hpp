@@ -32,7 +32,12 @@ public:
     }
 
     std::string table_name() const override {
-        return "";
+        if constexpr (std::is_base_of_v<ColumnExpression, Expr>) {
+            // Propagate table name from the expression if it's a column expression
+            return expr_.table_name();
+        } else {
+            return "";
+        }
     }
 
 private:

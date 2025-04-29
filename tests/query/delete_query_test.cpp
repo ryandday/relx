@@ -43,7 +43,7 @@ TEST(DeleteQueryTest, DeleteWithWhere) {
     auto query = query::delete_from(users)
         .where(id_ref == query::val(1));
     
-    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE (id = ?)");
+    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE (users.id = ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 1);
@@ -61,7 +61,7 @@ TEST(DeleteQueryTest, DeleteWithComplexWhere) {
     auto query = query::delete_from(users)
         .where(id_ref > query::val(10) && active_ref == query::val(true));
     
-    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE ((id > ?) AND (active = ?))");
+    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE ((users.id > ?) AND (users.active = ?))");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 2);
@@ -77,7 +77,7 @@ TEST(DeleteQueryTest, DeleteWithDirectColumnComparison) {
     auto query = query::delete_from(users)
         .where(users.id == 1);
     
-    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE (id = ?)");
+    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE (users.id = ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 1);
@@ -87,7 +87,7 @@ TEST(DeleteQueryTest, DeleteWithDirectColumnComparison) {
     auto complex_query = query::delete_from(users)
         .where(users.id > 10 && users.active == true);
     
-    EXPECT_EQ(complex_query.to_sql(), "DELETE FROM users WHERE ((id > ?) AND (active = ?))");
+    EXPECT_EQ(complex_query.to_sql(), "DELETE FROM users WHERE ((users.id > ?) AND (users.active = ?))");
     
     auto complex_params = complex_query.bind_params();
     ASSERT_EQ(complex_params.size(), 2);
@@ -105,7 +105,7 @@ TEST(DeleteQueryTest, DeleteWithInCondition) {
     auto query = query::delete_from(users)
         .where(query::in(query::column_ref(users.id), ids));
     
-    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE id IN (?, ?, ?, ?)");
+    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE users.id IN (?, ?, ?, ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 4);
@@ -125,7 +125,7 @@ TEST(DeleteQueryTest, DeleteWithWhereInMethod) {
     auto query = query::delete_from(users)
         .where_in(users.status, statuses);
     
-    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE status IN (?, ?, ?)");
+    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE users.status IN (?, ?, ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 3);
@@ -142,7 +142,7 @@ TEST(DeleteQueryTest, DeleteWithMultipleConditionTypes) {
         .where(query::column_ref(users.age) < query::val(18) || 
                query::like(query::column_ref(users.email), "%@test.com"));
     
-    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE ((age < ?) OR email LIKE ?)");
+    EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE ((users.age < ?) OR users.email LIKE ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 2);

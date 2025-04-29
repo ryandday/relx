@@ -586,7 +586,7 @@ public:
     MemberColumnRef() = default;
     
     std::string to_sql() const override {
-        return column_name();
+        return qualified_name();
     }
     
     std::vector<std::string> bind_params() const override {

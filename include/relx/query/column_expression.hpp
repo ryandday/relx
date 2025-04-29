@@ -54,10 +54,8 @@ public:
 
     std::string table_name() const override {
         // Get the table name from the parent table class
-        // This requires reflection to determine the parent class
-        // For now, we'll return an empty string, and the user will
-        // need to qualify column names when needed
-        return "";
+        using parent_table = typename Column::table_type;
+        return std::string(parent_table::table_name);
     }
     
     const Column& column() const {

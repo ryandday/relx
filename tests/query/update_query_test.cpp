@@ -48,7 +48,7 @@ TEST(UpdateQueryTest, UpdateWithWhere) {
         .set(users.email, "john@example.com")
         .where(users.id == 1);
     
-    EXPECT_EQ(query.to_sql(), "UPDATE users SET name = ?, email = ? WHERE (id = ?)");
+    EXPECT_EQ(query.to_sql(), "UPDATE users SET name = ?, email = ? WHERE (users.id = ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 3);
@@ -65,7 +65,7 @@ TEST(UpdateQueryTest, UpdateWithComplexWhere) {
         .set(users.name, "John Doe")
         .where(users.id > 10 && users.active == true);
     
-    EXPECT_EQ(query.to_sql(), "UPDATE users SET name = ? WHERE ((id > ?) AND (active = ?))");
+    EXPECT_EQ(query.to_sql(), "UPDATE users SET name = ? WHERE ((users.id > ?) AND (users.active = ?))");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 3);
@@ -103,7 +103,7 @@ TEST(UpdateQueryTest, UpdateWithFunctionInSet) {
         .set(users.last_login, current_timestamp)
         .where(users.id == 1);
     
-    EXPECT_EQ(query.to_sql(), "UPDATE users SET last_login = CURRENT_TIMESTAMP() WHERE (id = ?)");
+    EXPECT_EQ(query.to_sql(), "UPDATE users SET last_login = CURRENT_TIMESTAMP() WHERE (users.id = ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 1);
@@ -147,7 +147,7 @@ TEST(UpdateQueryTest, UpdateWithInCondition) {
         .set(users.active, true)
         .where(query::in(users.id, ids));
     
-    EXPECT_EQ(query.to_sql(), "UPDATE users SET active = ? WHERE id IN (?, ?, ?, ?)");
+    EXPECT_EQ(query.to_sql(), "UPDATE users SET active = ? WHERE users.id IN (?, ?, ?, ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 5);
@@ -167,7 +167,7 @@ TEST(UpdateQueryTest, UpdateWithConditionalValue) {
         .set(users.status, query::val("active"))
         .where(query::column_ref(users.login_count) > query::val(10));
     
-    EXPECT_EQ(query.to_sql(), "UPDATE users SET status = ? WHERE (login_count > ?)");
+    EXPECT_EQ(query.to_sql(), "UPDATE users SET status = ? WHERE (users.login_count > ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 2);
@@ -187,7 +187,7 @@ TEST(UpdateQueryTest, UpdateWithReturning) {
         .returning(query::column_ref(users.id), query::column_ref(users.name));
     
     EXPECT_EQ(basic_query.to_sql(), 
-        "UPDATE users SET name = ?, email = ? WHERE (id = ?) RETURNING id, name");
+        "UPDATE users SET name = ?, email = ? WHERE (users.id = ?) RETURNING users.id, users.name");
     
     auto basic_params = basic_query.bind_params();
     ASSERT_EQ(basic_params.size(), 3);
@@ -203,7 +203,7 @@ TEST(UpdateQueryTest, UpdateWithReturning) {
         .returning(users.id, users.name);
     
     EXPECT_EQ(direct_column_query.to_sql(), 
-        "UPDATE users SET name = ?, active = ? WHERE (id = ?) RETURNING id, name");
+        "UPDATE users SET name = ?, active = ? WHERE (users.id = ?) RETURNING users.id, users.name");
     
     auto direct_params = direct_column_query.bind_params();
     ASSERT_EQ(direct_params.size(), 3);
@@ -224,7 +224,7 @@ TEST(UpdateQueryTest, UpdateWithReturning) {
         );
     
     EXPECT_EQ(expr_query.to_sql(), 
-        "UPDATE users SET name = ?, email = ? WHERE (active = ?) RETURNING id, COUNT(), name AS updated_name");
+        "UPDATE users SET name = ?, email = ? WHERE (users.active = ?) RETURNING users.id, COUNT(), users.name AS updated_name");
     
     auto expr_params = expr_query.bind_params();
     ASSERT_EQ(expr_params.size(), 3);
@@ -244,7 +244,7 @@ TEST(UpdateQueryTest, UpdateWithReturning) {
         );
     
     EXPECT_EQ(mixed_query.to_sql(), 
-        "UPDATE users SET name = ?, email = ? WHERE (active = ?) RETURNING id, COUNT(), name AS updated_name");
+        "UPDATE users SET name = ?, email = ? WHERE (users.active = ?) RETURNING users.id, COUNT(), users.name AS updated_name");
     
     auto mixed_params = mixed_query.bind_params();
     ASSERT_EQ(mixed_params.size(), 3);

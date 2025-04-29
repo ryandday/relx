@@ -114,8 +114,7 @@ TEST(InsertQueryTest, InsertWithSelect) {
         .columns(posts.user_id, posts.title, posts.content)
         .select(select_query);
     
-    EXPECT_EQ(query.to_sql(), 
-        "INSERT INTO posts (user_id, title, content) SELECT id, name, ? FROM users WHERE (active = ?)");
+    EXPECT_EQ(query.to_sql(), "INSERT INTO posts (user_id, title, content) SELECT users.id, users.name, ? FROM users WHERE (users.active = ?)");
     
     auto params = query.bind_params();
     ASSERT_EQ(params.size(), 2);
@@ -222,8 +221,7 @@ TEST(InsertQueryTest, InsertWithReturning) {
         .values("John Doe", "john@example.com", true)
         .returning(query::column_ref(users.id), query::column_ref(users.name));
     
-    EXPECT_EQ(basic_query.to_sql(), 
-        "INSERT INTO users (name, email, active) VALUES (?, ?, ?) RETURNING id, name");
+    EXPECT_EQ(basic_query.to_sql(), "INSERT INTO users (name, email, active) VALUES (?, ?, ?) RETURNING users.id, users.name");
     
     auto basic_params = basic_query.bind_params();
     ASSERT_EQ(basic_params.size(), 3);
@@ -237,8 +235,7 @@ TEST(InsertQueryTest, InsertWithReturning) {
         .values("John Doe", "john@example.com", true)
         .returning(users.id, users.name);
     
-    EXPECT_EQ(direct_column_query.to_sql(), 
-        "INSERT INTO users (name, email, active) VALUES (?, ?, ?) RETURNING id, name");
+    EXPECT_EQ(direct_column_query.to_sql(), "INSERT INTO users (name, email, active) VALUES (?, ?, ?) RETURNING users.id, users.name");
     
     auto direct_params = direct_column_query.bind_params();
     ASSERT_EQ(direct_params.size(), 3);
@@ -257,8 +254,7 @@ TEST(InsertQueryTest, InsertWithReturning) {
             query::as(users.name, "inserted_name")
         );
     
-    EXPECT_EQ(expr_query.to_sql(), 
-        "INSERT INTO users (name, email) VALUES (?, ?) RETURNING id, COUNT(), name AS inserted_name");
+    EXPECT_EQ(expr_query.to_sql(), "INSERT INTO users (name, email) VALUES (?, ?) RETURNING users.id, COUNT(), users.name AS inserted_name");
     
     auto expr_params = expr_query.bind_params();
     ASSERT_EQ(expr_params.size(), 2);
@@ -275,8 +271,7 @@ TEST(InsertQueryTest, InsertWithReturning) {
             query::as(users.name, "inserted_name") // Aliased column
         );
     
-    EXPECT_EQ(mixed_query.to_sql(), 
-        "INSERT INTO users (name, email) VALUES (?, ?) RETURNING id, COUNT(), name AS inserted_name");
+    EXPECT_EQ(mixed_query.to_sql(), "INSERT INTO users (name, email) VALUES (?, ?) RETURNING users.id, COUNT(), users.name AS inserted_name");
     
     auto mixed_params = mixed_query.bind_params();
     ASSERT_EQ(mixed_params.size(), 2);
@@ -293,8 +288,7 @@ TEST(InsertQueryTest, InsertWithReturning) {
         .select(select_query)
         .returning(users.id); // Direct column reference
     
-    EXPECT_EQ(select_insert_query.to_sql(), 
-        "INSERT INTO users (id, name, email) SELECT id, name, ? FROM users WHERE (active = ?) RETURNING id");
+    EXPECT_EQ(select_insert_query.to_sql(), "INSERT INTO users (id, name, email) SELECT users.id, users.name, ? FROM users WHERE (users.active = ?) RETURNING users.id");
     
     auto select_params = select_insert_query.bind_params();
     ASSERT_EQ(select_params.size(), 2);

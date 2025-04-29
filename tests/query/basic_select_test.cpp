@@ -10,7 +10,7 @@ TEST(BasicSelectTest, SimpleSelect) {
     auto query = relx::query::select(u.id, u.name, u.email)
         .from(u);
     
-    std::string expected_sql = "SELECT id, name, email FROM users";
+    std::string expected_sql = "SELECT users.id, users.name, users.email FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -23,7 +23,7 @@ TEST(BasicSelectTest, SelectAllColumns) {
                 >()
                 .from(users{});
     
-    std::string expected_sql = "SELECT id, name, email, age, created_at, is_active, bio, login_count FROM users";
+    std::string expected_sql = "SELECT users.id, users.name, users.email, users.age, users.created_at, users.is_active, users.bio, users.login_count FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -34,7 +34,7 @@ TEST(BasicSelectTest, SelectWithExplicitTableName) {
         .from(users{})
         .from(posts{});
     
-    std::string expected_sql = "SELECT id, id FROM users, posts";
+    std::string expected_sql = "SELECT users.id, posts.id FROM users, posts";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -49,7 +49,7 @@ TEST(BasicSelectTest, SelectWithColumnAliases) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT id AS user_id, name AS user_name, email AS user_email FROM users";
+    std::string expected_sql = "SELECT users.id AS user_id, users.name AS user_name, users.email AS user_email FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -64,7 +64,7 @@ TEST(BasicSelectTest, SelectWithLiteral) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT id, ?, ? FROM users";
+    std::string expected_sql = "SELECT users.id, ?, ? FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -81,7 +81,7 @@ TEST(BasicSelectTest, SelectWithDistinct) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT DISTINCT age FROM users";
+    std::string expected_sql = "SELECT DISTINCT users.age FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -93,7 +93,7 @@ TEST(BasicSelectTest, SelectWithLimit) {
         .from(u)
         .limit(10);
     
-    std::string expected_sql = "SELECT id, name FROM users LIMIT ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users LIMIT ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -109,7 +109,7 @@ TEST(BasicSelectTest, SelectWithLimitAndOffset) {
         .limit(10)
         .offset(20);
     
-    std::string expected_sql = "SELECT id, name FROM users LIMIT ? OFFSET ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users LIMIT ? OFFSET ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -125,7 +125,7 @@ TEST(BasicSelectTest, SelectWithOrderByAsc) {
         .from(u)
         .order_by(relx::query::asc(u.name));
     
-    std::string expected_sql = "SELECT id, name FROM users ORDER BY name ASC";
+    std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY users.name ASC";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -137,7 +137,7 @@ TEST(BasicSelectTest, SelectWithOrderByDesc) {
         .from(u)
         .order_by(relx::query::desc(u.age));
     
-    std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC";
+    std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY users.age DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -152,7 +152,7 @@ TEST(BasicSelectTest, SelectWithMultipleOrderBy) {
             relx::query::asc(u.name)
         );
     
-    std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC, name ASC";
+    std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY users.age DESC, users.name ASC";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -163,7 +163,7 @@ TEST(BasicSelectTest, SelectWithLimitNew) {
         .from(users{})
         .limit(10);
     
-    std::string expected_sql = "SELECT id, name FROM users LIMIT ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users LIMIT ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -178,7 +178,7 @@ TEST(BasicSelectTest, SelectWithLimitAndOffsetNew) {
         .limit(10)
         .offset(20);
     
-    std::string expected_sql = "SELECT id, name FROM users LIMIT ? OFFSET ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users LIMIT ? OFFSET ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -193,7 +193,7 @@ TEST(BasicSelectTest, SelectWithOrderByAscNew) {
         .from(users{})
         .order_by(relx::query::asc(relx::query::to_expr<&users::name>()));
     
-    std::string expected_sql = "SELECT id, name FROM users ORDER BY name ASC";
+    std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY users.name ASC";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -204,7 +204,7 @@ TEST(BasicSelectTest, SelectWithOrderByDescNew) {
         .from(users{})
         .order_by(relx::query::desc(relx::query::to_expr<&users::age>()));
     
-    std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC";
+    std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY users.age DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -218,7 +218,7 @@ TEST(BasicSelectTest, SelectWithMultipleOrderByNew) {
             relx::query::asc(relx::query::to_expr<&users::name>())
         );
     
-    std::string expected_sql = "SELECT id, name FROM users ORDER BY age DESC, name ASC";
+    std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY users.age DESC, users.name ASC";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -229,7 +229,7 @@ TEST(BasicSelectTest, SelectWithConditionNew) {
         .from(users{})
         .where(relx::query::to_expr<&users::age>() > 18);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -244,7 +244,7 @@ TEST(BasicSelectTest, SelectWithMultipleConditionsNew) {
         .where(relx::query::to_expr<&users::age>() >= 18 && 
                relx::query::to_expr<&users::name>() != "");
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE ((age >= ?) AND (name != ?))";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE ((users.age >= ?) AND (users.name != ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -263,7 +263,7 @@ TEST(BasicSelectTest, SelectWithJoinNew) {
             u.id == p.user_id
         ));
     
-    std::string expected_sql = "SELECT name, title FROM users JOIN posts ON (id = user_id)";
+    std::string expected_sql = "SELECT users.name, posts.title FROM users JOIN posts ON (users.id = posts.user_id)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -272,14 +272,14 @@ TEST(BasicSelectTest, SelectFromHelper) {
     // Using the select_from helper to create a query with FROM clause in one step
     auto query = relx::query::select_from<&users::id, &users::name, &users::email>();
     
-    std::string expected_sql = "SELECT id, name, email FROM users";
+    std::string expected_sql = "SELECT users.id, users.name, users.email FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
     
     users u;
     // Add a WHERE condition to make sure it works with other methods
     auto query_with_where = query.where(u.age > 18);
-    std::string expected_where_sql = "SELECT id, name, email FROM users WHERE (age > ?)";
+    std::string expected_where_sql = "SELECT users.id, users.name, users.email FROM users WHERE (users.age > ?)";
     EXPECT_EQ(query_with_where.to_sql(), expected_where_sql);
     
     auto params = query_with_where.bind_params();

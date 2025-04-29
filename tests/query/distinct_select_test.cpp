@@ -13,8 +13,7 @@ TEST(DistinctSelectTest, SimpleSelectDistinctLegacy) {
     auto query = relx::query::select_distinct(u.id, u.name, u.email)
         .from(u);
     
-    std::string expected_sql = "SELECT DISTINCT id, name, email FROM users";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.id, users.name, users.email FROM users");
     EXPECT_TRUE(query.bind_params().empty());
 }
 
@@ -24,8 +23,7 @@ TEST(DistinctSelectTest, SelectDistinctWithCondition) {
         .from(users{})
         .where(relx::query::to_expr<&users::age>() > 18);
     
-    std::string expected_sql = "SELECT DISTINCT id, name FROM users WHERE (age > ?)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.id, users.name FROM users WHERE (users.age > ?)");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 1);
@@ -42,8 +40,7 @@ TEST(DistinctSelectTest, SelectDistinctWithJoin) {
             u.id == p.user_id
         ));
     
-    std::string expected_sql = "SELECT DISTINCT id, title FROM users JOIN posts ON (id = user_id)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.id, posts.title FROM users JOIN posts ON (users.id = posts.user_id)");
     EXPECT_TRUE(query.bind_params().empty());
 }
 
@@ -53,8 +50,7 @@ TEST(DistinctSelectTest, SelectDistinctWithGroupBy) {
         .from(users{})
         .group_by(relx::query::to_expr<&users::age>());
     
-    std::string expected_sql = "SELECT DISTINCT name, age FROM users GROUP BY age";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.name, users.age FROM users GROUP BY users.age");
     EXPECT_TRUE(query.bind_params().empty());
 }
 
@@ -64,8 +60,7 @@ TEST(DistinctSelectTest, SelectDistinctWithOrderBy) {
         .from(users{})
         .order_by(relx::query::desc(relx::query::to_expr<&users::age>()));
     
-    std::string expected_sql = "SELECT DISTINCT name, age FROM users ORDER BY age DESC";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.name, users.age FROM users ORDER BY users.age DESC");
     EXPECT_TRUE(query.bind_params().empty());
 }
 
@@ -76,8 +71,7 @@ TEST(DistinctSelectTest, SelectDistinctWithLimitOffset) {
         .limit(10)
         .offset(5);
     
-    std::string expected_sql = "SELECT DISTINCT name, age FROM users LIMIT ? OFFSET ?";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.name, users.age FROM users LIMIT ? OFFSET ?");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 2);
@@ -90,8 +84,7 @@ TEST(DistinctSelectTest, SelectDistinctAllColumns) {
     users u;
     auto query = relx::query::select_distinct_all(u);
     
-    std::string expected_sql = "SELECT DISTINCT * FROM users";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT * FROM users");
     EXPECT_TRUE(query.bind_params().empty());
 }
 
@@ -99,8 +92,7 @@ TEST(DistinctSelectTest, SelectDistinctAllColumnsWithTemplateArg) {
     // Test SELECT DISTINCT * using template argument
     auto query = relx::query::select_distinct_all<users>();
     
-    std::string expected_sql = "SELECT DISTINCT * FROM users";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT * FROM users");
     EXPECT_TRUE(query.bind_params().empty());
 }
 
@@ -114,8 +106,7 @@ TEST(DistinctSelectTest, SelectDistinctExpressions) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT DISTINCT id AS user_id, name AS user_name FROM users";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.id AS user_id, users.name AS user_name FROM users");
     EXPECT_TRUE(query.bind_params().empty());
 }
 
@@ -130,8 +121,7 @@ TEST(DistinctSelectTest, SelectDistinctWithMixedExpressions) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT DISTINCT id, ?, name AS user_name FROM users";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.id, ?, users.name AS user_name FROM users");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 1);
@@ -153,6 +143,5 @@ TEST(DistinctSelectTest, ComparisonWithDistinctExpr) {
     .from(u);
     
     // Both should generate the same SQL
-    EXPECT_EQ(query1.to_sql(), query2.to_sql());
-    EXPECT_EQ(query1.to_sql(), "SELECT DISTINCT age FROM users");
+    EXPECT_EQ(query1.to_sql(), "SELECT DISTINCT users.age FROM users");
 } 

@@ -13,8 +13,7 @@ TEST(ConciseApiTest, DirectComparisonOperators) {
         .from(u)
         .where(u.age > 18);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.age > ?)");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 1);
@@ -29,8 +28,7 @@ TEST(ConciseApiTest, MultipleConditionsWithDirectComparison) {
         .from(u)
         .where((u.age >= 18) && (u.is_active == true));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE ((age >= ?) AND (is_active = ?))";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name FROM users WHERE ((users.age >= ?) AND (users.is_active = ?))");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 2);
@@ -48,8 +46,7 @@ TEST(ConciseApiTest, DirectColumnComparison) {
         .from(u)
         .join(p, relx::query::on(u.id == p.user_id));
     
-    std::string expected_sql = "SELECT id, name, title FROM users JOIN posts ON (id = user_id)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name, posts.title FROM users JOIN posts ON (users.id = posts.user_id)");
     EXPECT_TRUE(query.bind_params().empty());
 }
 
@@ -61,8 +58,7 @@ TEST(ConciseApiTest, SQLLiterals) {
         .from(u)
         .where((u.age > 18_sql) && (u.name != "John"_sql));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE ((age > ?) AND (name != ?))";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name FROM users WHERE ((users.age > ?) AND (users.name != ?))");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 2);
@@ -79,8 +75,7 @@ TEST(ConciseApiTest, ShorthandHelpers) {
         .from(u)
         .where(e(u.age) > v(18));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.age > ?)");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 1);
@@ -100,8 +95,7 @@ TEST(ConciseApiTest, ShorthandAggregates) {
     .from(u)
     .where(u.is_active == true);
     
-    std::string expected_sql = "SELECT COUNT(*) AS user_count, AVG(age) AS average_age, SUM(login_count) AS total_logins FROM users WHERE (is_active = ?)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT COUNT(*) AS user_count, AVG(users.age) AS average_age, SUM(users.login_count) AS total_logins FROM users WHERE (users.is_active = ?)");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 1);
@@ -118,8 +112,7 @@ TEST(ConciseApiTest, ShorthandOrderBy) {
         .from(u)
         .order_by(a_by(e(u.name)), d_by(e(u.age)));
     
-    std::string expected_sql = "SELECT id, name FROM users ORDER BY name ASC, age DESC";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name FROM users ORDER BY users.name ASC, users.age DESC");
     EXPECT_TRUE(query.bind_params().empty());
 }
 
@@ -131,8 +124,7 @@ TEST(ConciseApiTest, MixConciseAndFullApi) {
         .where((u.age > 18) && 
                (relx::query::to_expr(u.email) != relx::query::val("")));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE ((age > ?) AND (email != ?))";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name FROM users WHERE ((users.age > ?) AND (users.email != ?))");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 2);
@@ -157,8 +149,7 @@ TEST(ConciseApiTest, ComplexQuery) {
         .limit(10)
         .offset(20);
     
-    std::string expected_sql = "SELECT id, name, COUNT(id) AS post_count FROM users LEFT JOIN posts ON (id = user_id) WHERE ((age >= ?) AND (is_active = ?)) GROUP BY id, name HAVING (COUNT(id) > ?) ORDER BY age DESC LIMIT ? OFFSET ?";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name, COUNT(posts.id) AS post_count FROM users LEFT JOIN posts ON (users.id = posts.user_id) WHERE ((users.age >= ?) AND (users.is_active = ?)) GROUP BY users.id, users.name HAVING (COUNT(posts.id) > ?) ORDER BY users.age DESC LIMIT ? OFFSET ?");
     
     auto params = query.bind_params();
     EXPECT_EQ(params.size(), 5);

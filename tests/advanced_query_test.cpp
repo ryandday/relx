@@ -93,8 +93,7 @@ TEST_F(AdvancedQueryTest, JoinTest) {
      ));
     
     // Check the SQL generated
-    std::string expected_sql = "SELECT id, name, id, title FROM users JOIN posts ON (id = user_id)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name, posts.id, posts.title FROM users JOIN posts ON (users.id = posts.user_id)");
     
     // Create some sample raw results - note that columns are aliased to avoid duplicate names
     std::vector<std::string> headers = {"id", "name", "id", "title"};
@@ -175,8 +174,7 @@ TEST_F(AdvancedQueryTest, WhereClauseTest) {
      );
     
     // Check the SQL generated
-    std::string expected_sql = "SELECT id, name, age FROM users WHERE ((age > ?) AND (is_active = ?))";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name, users.age FROM users WHERE ((users.age > ?) AND (users.is_active = ?))");
     
     // Check the parameters
     auto params = query.bind_params();
@@ -228,8 +226,7 @@ TEST_F(AdvancedQueryTest, GroupByTest) {
      .having(relx::query::count(posts.id) > 1);
     
     // Check the SQL generated
-    std::string expected_sql = "SELECT id, name, COUNT(id) AS post_count FROM users JOIN posts ON (id = user_id) GROUP BY id, name HAVING (COUNT(id) > ?)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name, COUNT(posts.id) AS post_count FROM users JOIN posts ON (users.id = posts.user_id) GROUP BY users.id, users.name HAVING (COUNT(posts.id) > ?)");
     
     // Check the parameters
     auto params = query.bind_params();
@@ -305,8 +302,7 @@ TEST_F(AdvancedQueryTest, ComplexQueryTest) {
      .limit(5);
     
     // Check the SQL generated (expect a complex query)
-    std::string expected_sql = "SELECT name, COUNT(DISTINCT id) AS user_count, COUNT(id) AS post_count, SUM(views) AS total_views FROM departments JOIN users ON (id = department_id) JOIN posts ON (id = user_id) JOIN comments ON (id = post_id) WHERE ((budget > ?) AND (views >= ?)) GROUP BY name ORDER BY COUNT(DISTINCT id) DESC LIMIT ?";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT departments.name, COUNT(DISTINCT users.id) AS user_count, COUNT(posts.id) AS post_count, SUM(posts.views) AS total_views FROM departments JOIN users ON (departments.id = users.department_id) JOIN posts ON (users.id = posts.user_id) JOIN comments ON (posts.id = comments.post_id) WHERE ((departments.budget > ?) AND (posts.views >= ?)) GROUP BY departments.name ORDER BY COUNT(DISTINCT users.id) DESC LIMIT ?");
     
     // Check the parameters - don't check exact string representation for doubles
     auto params = query.bind_params();
@@ -381,8 +377,7 @@ TEST_F(AdvancedQueryTest, PartialColumnSelectionTest) {
      .where(users.age > 25);
     
     // Check the SQL generated - only id and name should be selected
-    std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.age > ?)");
     
     // Create some sample raw results
     std::vector<std::string> headers = {"id", "name"};
@@ -427,8 +422,7 @@ TEST_F(AdvancedQueryTest, LeftJoinWithNullValues) {
      ));
     
     // Check the SQL generated
-    std::string expected_sql = "SELECT id, name, id, title FROM users LEFT JOIN posts ON (id = user_id)";
-    EXPECT_EQ(query.to_sql(), expected_sql);
+    EXPECT_EQ(query.to_sql(), "SELECT users.id, users.name, posts.id, posts.title FROM users LEFT JOIN posts ON (users.id = posts.user_id)");
     
     // Create some sample raw results with NULLs for users without posts
     std::vector<std::string> headers = {"id", "name", "id", "title"};
