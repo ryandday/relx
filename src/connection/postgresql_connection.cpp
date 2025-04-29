@@ -9,6 +9,56 @@
 namespace relx {
 namespace connection {
 
+// RAII wrapper for PGresult
+class PGResultWrapper {
+public:
+    explicit PGResultWrapper(PGresult* result) : result_(result) {}
+    ~PGResultWrapper() {
+        if (result_) {
+            PQclear(result_);
+        }
+    }
+
+    // Delete copy constructor and assignment
+    PGResultWrapper(const PGResultWrapper&) = delete;
+    PGResultWrapper& operator=(const PGResultWrapper&) = delete;
+
+    // Allow move
+    PGResultWrapper(PGResultWrapper&& other) noexcept : result_(other.result_) {
+        other.result_ = nullptr;
+    }
+    PGResultWrapper& operator=(PGResultWrapper&& other) noexcept {
+        if (this != &other) {
+            if (result_) {
+                PQclear(result_);
+            }
+            result_ = other.result_;
+            other.result_ = nullptr;
+        }
+        return *this;
+    }
+
+    // Get the raw pointer
+    PGresult* get() const { return result_; }
+    PGresult* operator->() const { return result_; }
+    PGresult* release() {
+        PGresult* result = result_;
+        result_ = nullptr;
+        return result;
+    }
+
+    // reset with new result
+    void reset(PGresult* result) {
+        if (result_) {
+            PQclear(result_);
+        }
+        result_ = result;
+    }
+
+private:
+    PGresult* result_;
+};
+
 // Helper function to convert PostgreSQL hex BYTEA format to binary
 std::string convert_pg_bytea_to_binary(const std::string& hex_value) {
     // Check if this is a PostgreSQL hex-encoded BYTEA value (starts with \x)
@@ -125,7 +175,6 @@ ConnectionResult<PGresult*> PostgreSQLConnection::handle_pg_result(PGresult* res
     
     if (expected_status != -1 && status != expected_status) {
         std::string error_msg = PQresultErrorMessage(result);
-        PQclear(result);
         return std::unexpected(ConnectionError{
             .message = "PostgreSQL error: " + error_msg,
             .error_code = static_cast<int>(status)
@@ -163,11 +212,11 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         });
     }
 
-    PGresult* pg_result = nullptr;
+    PGResultWrapper pg_result(nullptr);
 
     if (params.empty()) {
         // Execute without parameters
-        pg_result = PQexec(pg_conn_, sql.c_str());
+        pg_result = PGResultWrapper(PQexec(pg_conn_, sql.c_str()));
     } else {
         // Convert ? placeholders to $1, $2, etc.
         std::string pg_sql = convert_placeholders(sql);
@@ -181,7 +230,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         }
 
         // Execute with parameters
-        pg_result = PQexecParams(
+        pg_result = PGResultWrapper(PQexecParams(
             pg_conn_,
             pg_sql.c_str(),
             static_cast<int>(params.size()),
@@ -190,11 +239,11 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
             nullptr,  // All parameters are text format
             nullptr,  // All parameters are text format
             0         // Use text format for results
-        );
+        ));
     }
 
     // Check if memory allocation failed
-    if (!pg_result) {
+    if (!pg_result.get()) {
         return std::unexpected(ConnectionError{
             .message = "Failed to execute query",
             .error_code = -1
@@ -202,7 +251,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     }
 
     // Handle the result
-    ExecStatusType status = PQresultStatus(pg_result);
+    ExecStatusType status = PQresultStatus(pg_result.get());
     
     // Handle different result statuses
     switch (status) {
@@ -213,7 +262,6 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
             break;
             
         case PGRES_EMPTY_QUERY:
-            PQclear(pg_result);
             return std::unexpected(ConnectionError{
                 .message = "Empty query string was executed",
                 .error_code = static_cast<int>(status)
@@ -221,20 +269,18 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
             
         case PGRES_NONFATAL_ERROR:
             // Log the warning but continue processing
-            std::cerr << "PostgreSQL warning: " << PQresultErrorMessage(pg_result) << std::endl;
+            std::cerr << "PostgreSQL warning: " << PQresultErrorMessage(pg_result.get()) << std::endl;
             break;
             
         case PGRES_COPY_IN:
         case PGRES_COPY_OUT:
         case PGRES_COPY_BOTH:
-            PQclear(pg_result);
             return std::unexpected(ConnectionError{
                 .message = "COPY operations are not supported in this context",
                 .error_code = static_cast<int>(status)
             });
             
         case PGRES_PIPELINE_SYNC:
-            PQclear(pg_result);
             return std::unexpected(ConnectionError{
                 .message = "Pipeline operations are not supported in this context",
                 .error_code = static_cast<int>(status)
@@ -243,8 +289,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         case PGRES_BAD_RESPONSE:
         case PGRES_FATAL_ERROR:
         case PGRES_PIPELINE_ABORTED:
-            std::string error_msg = PQresultErrorMessage(pg_result);
-            PQclear(pg_result);
+            std::string error_msg = PQresultErrorMessage(pg_result.get());
             return std::unexpected(ConnectionError{
                 .message = "PostgreSQL error: " + error_msg,
                 .error_code = static_cast<int>(status)
@@ -256,15 +301,15 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     std::vector<result::Row> rows;
 
     // Get column names
-    int column_count = PQnfields(pg_result);
+    int column_count = PQnfields(pg_result.get());
     column_names.reserve(column_count);
     for (int i = 0; i < column_count; i++) {
-        const char* name = PQfname(pg_result, i);
+        const char* name = PQfname(pg_result.get(), i);
         column_names.push_back(name ? name : "");
     }
 
     // Process rows
-    int row_count = PQntuples(pg_result);
+    int row_count = PQntuples(pg_result.get());
     rows.reserve(row_count);
     
     for (int row_idx = 0; row_idx < row_count; row_idx++) {
@@ -272,18 +317,16 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         cells.reserve(column_count);
         
         for (int col_idx = 0; col_idx < column_count; col_idx++) {
-            if (PQgetisnull(pg_result, row_idx, col_idx)) {
+            if (PQgetisnull(pg_result.get(), row_idx, col_idx)) {
                 cells.emplace_back("NULL");
             } else {
-                const char* value = PQgetvalue(pg_result, row_idx, col_idx);
+                const char* value = PQgetvalue(pg_result.get(), row_idx, col_idx);
                 cells.emplace_back(value ? value : "");
             }
         }
         
         rows.push_back(result::Row(std::move(cells), column_names));
     }
-
-    PQclear(pg_result);
     
     // Create the result set from the data we collected
     return result::ResultSet(std::move(rows), std::move(column_names));
@@ -308,11 +351,11 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
         });
     }
 
-    PGresult* pg_result = nullptr;
+    PGResultWrapper pg_result(nullptr);
 
     if (params.empty()) {
         // Execute without parameters
-        pg_result = PQexec(pg_conn_, sql.c_str());
+        pg_result = PGResultWrapper(PQexec(pg_conn_, sql.c_str()));
     } else {
         // Convert ? placeholders to $1, $2, etc.
         std::string pg_sql = convert_placeholders(sql);
@@ -333,7 +376,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
         }
 
         // Execute with parameters
-        pg_result = PQexecParams(
+        pg_result = PGResultWrapper(PQexecParams(
             pg_conn_,
             pg_sql.c_str(),
             static_cast<int>(params.size()),
@@ -342,37 +385,35 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
             param_lengths.data(),
             param_formats.data(),
             0  // Use text format for results
-        );
+        ));
     }
 
-    auto result_handler = handle_pg_result(pg_result);
+    auto result_handler = handle_pg_result(pg_result.get());
     if (!result_handler) {
         return std::unexpected(result_handler.error());
     }
-    
-    pg_result = *result_handler;
 
     // Process the result set - same as in execute_raw
     std::vector<std::string> column_names;
     std::vector<result::Row> rows;
 
     // Get column names
-    int column_count = PQnfields(pg_result);
+    int column_count = PQnfields(pg_result.get());
     column_names.reserve(column_count);
     for (int i = 0; i < column_count; i++) {
-        const char* name = PQfname(pg_result, i);
+        const char* name = PQfname(pg_result.get(), i);
         column_names.push_back(name ? name : "");
     }
 
     // Process rows
-    int row_count = PQntuples(pg_result);
+    int row_count = PQntuples(pg_result.get());
     rows.reserve(row_count);
     
     // Get column types to identify BYTEA columns
     std::vector<bool> is_bytea_column(column_count, false);
     for (int i = 0; i < column_count; i++) {
         // PostgreSQL BYTEA type OID is 17
-        is_bytea_column[i] = (PQftype(pg_result, i) == 17);
+        is_bytea_column[i] = (PQftype(pg_result.get(), i) == 17);
     }
     
     for (int row_idx = 0; row_idx < row_count; row_idx++) {
@@ -380,10 +421,10 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
         cells.reserve(column_count);
         
         for (int col_idx = 0; col_idx < column_count; col_idx++) {
-            if (PQgetisnull(pg_result, row_idx, col_idx)) {
+            if (PQgetisnull(pg_result.get(), row_idx, col_idx)) {
                 cells.emplace_back("NULL");
             } else {
-                const char* value = PQgetvalue(pg_result, row_idx, col_idx);
+                const char* value = PQgetvalue(pg_result.get(), row_idx, col_idx);
                 std::string cell_value = value ? value : "";
                 
                 // Automatically convert BYTEA data from hex to binary
@@ -397,8 +438,6 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
         
         rows.push_back(result::Row(std::move(cells), column_names));
     }
-
-    PQclear(pg_result);
     
     // Create the result set from the data we collected
     return result::ResultSet(std::move(rows), std::move(column_names));
@@ -541,21 +580,18 @@ std::unique_ptr<PostgreSQLStatement> PostgreSQLConnection::prepare_statement(
     std::string pg_sql = convert_placeholders(sql);
     
     // Prepare the statement in PostgreSQL
-    PGresult* result = PQprepare(
+    PGResultWrapper result(PQprepare(
         pg_conn_,
         name.c_str(),
         pg_sql.c_str(),
         param_count,
         nullptr  // Use default parameter types
-    );
+    ));
     
-    auto result_handler = handle_pg_result(result);
+    auto result_handler = handle_pg_result(result.get());
     if (!result_handler) {
-        PQclear(result);
         throw result_handler.error();
     }
-    
-    PQclear(result);
     
     // Create and return the statement object
     return std::make_unique<PostgreSQLStatement>(*this, name, sql, param_count);

@@ -29,12 +29,66 @@ protected:
         if (connect_result) {
             // Drop table if it exists
             conn.execute_raw("DROP TABLE IF EXISTS prepared_test");
+            
+            // Clean up any prepared statements that might be lingering
+            // These are common statement names used in our tests
+            const std::vector<std::string> statement_names = {
+                "insert_statement", "insert_typed_statement", "statement1", 
+                "insert_stmt", "update_stmt", "select_stmt"
+            };
+            
+            // PostgreSQL doesn't support "IF EXISTS" for DEALLOCATE, so we need to check first
+            // Get a list of all prepared statements that match our names
+            std::string check_sql = "SELECT name FROM pg_prepared_statements";
+            auto result = conn.execute_raw(check_sql);
+            if (result) {
+                for (const auto& row : *result) {
+                    auto stmt_name = row.get<std::string>(0);
+                    if (stmt_name) {
+                        // Check if this statement is one of ours
+                        if (std::find(statement_names.begin(), statement_names.end(), *stmt_name) != statement_names.end()) {
+                            try {
+                                conn.execute_raw("DEALLOCATE " + *stmt_name);
+                            } catch (...) {
+                                // Ignore any errors
+                            }
+                        }
+                    }
+                }
+            }
+            
             conn.disconnect();
         }
     }
     
     // Helper to create the test table
     void create_test_table(relx::connection::PostgreSQLConnection& conn) {
+        // Clean up any lingering prepared statements first
+        const std::vector<std::string> statement_names = {
+            "insert_statement", "insert_typed_statement", "statement1", 
+            "insert_stmt", "update_stmt", "select_stmt"
+        };
+        
+        // PostgreSQL doesn't support "IF EXISTS" for DEALLOCATE, so we need to check first
+        // Get a list of all prepared statements that match our names
+        std::string check_sql = "SELECT name FROM pg_prepared_statements";
+        auto result = conn.execute_raw(check_sql);
+        if (result) {
+            for (const auto& row : *result) {
+                auto stmt_name = row.get<std::string>(0);
+                if (stmt_name) {
+                    // Check if this statement is one of ours
+                    if (std::find(statement_names.begin(), statement_names.end(), *stmt_name) != statement_names.end()) {
+                        try {
+                            conn.execute_raw("DEALLOCATE " + *stmt_name);
+                        } catch (...) {
+                            // Ignore any errors
+                        }
+                    }
+                }
+            }
+        }
+        
         std::string create_table_sql = R"(
             CREATE TABLE IF NOT EXISTS prepared_test (
                 id SERIAL PRIMARY KEY,
@@ -42,8 +96,8 @@ protected:
                 value INTEGER NOT NULL
             )
         )";
-        auto result = conn.execute_raw(create_table_sql);
-        ASSERT_TRUE(result) << "Failed to create table: " << result.error().message;
+        auto create_result = conn.execute_raw(create_table_sql);
+        ASSERT_TRUE(create_result) << "Failed to create table: " << create_result.error().message;
     }
 };
 
@@ -109,6 +163,9 @@ TEST_F(PostgreSQLStatementTest, TestBasicPreparedStatement) {
     EXPECT_EQ("Item 3", *name3);
     EXPECT_EQ(300, *value3);
     
+    // Explicitly deallocate the statement
+    stmt.reset(); // This will call the destructor and deallocate
+    
     // Clean up
     conn.disconnect();
 }
@@ -161,6 +218,9 @@ TEST_F(PostgreSQLStatementTest, TestTypedPreparedStatement) {
     EXPECT_EQ("Item B", *name2);
     EXPECT_EQ(222, *value2);
     
+    // Explicitly deallocate the statement
+    stmt.reset(); // This will call the destructor and deallocate
+    
     // Clean up
     conn.disconnect();
 }
@@ -211,6 +271,9 @@ TEST_F(PostgreSQLStatementTest, TestStatementLifecycle) {
     
     EXPECT_EQ("Lifecycle Test", *name);
     EXPECT_EQ(999, *value);
+    
+    // Explicitly deallocate the statement
+    stmt2.reset();
     
     // Clean up
     conn.disconnect();
@@ -277,6 +340,11 @@ TEST_F(PostgreSQLStatementTest, TestMultipleStatements) {
     
     EXPECT_EQ("Gamma", *name2);
     EXPECT_EQ(300, *value2);
+    
+    // Explicitly deallocate all statements
+    insert_stmt.reset();
+    update_stmt.reset();
+    select_stmt.reset();
     
     // Clean up
     conn.disconnect();

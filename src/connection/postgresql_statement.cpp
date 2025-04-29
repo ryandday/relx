@@ -1,4 +1,4 @@
-#include "connection/postgresql_statement.hpp"
+#include "relx/connection/postgresql_statement.hpp"
 #include <libpq-fe.h>
 #include <iostream>
 #include <sstream>
@@ -16,12 +16,8 @@ PostgreSQLStatement::PostgreSQLStatement(
       sql_(std::move(sql)),
       param_count_(param_count) {
     
-    // Prepare the statement using the connection
-    auto result = connection_.execute_raw("PREPARE " + name_ + " AS " + sql_);
-    if (!result) {
-        std::cerr << "Failed to prepare statement: " << result.error().message << std::endl;
-        is_valid_ = false;
-    }
+    // The statement should already be prepared by the PostgreSQLConnection class
+    // We just initialize the object here
 }
 
 PostgreSQLStatement::~PostgreSQLStatement() {
