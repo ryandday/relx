@@ -185,12 +185,63 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         );
     }
 
-    auto result_handler = handle_pg_result(pg_result);
-    if (!result_handler) {
-        return std::unexpected(result_handler.error());
+    // Handle the result
+    if (!pg_result) {
+        return std::unexpected(ConnectionError{
+            .message = PQerrorMessage(pg_conn_),
+            .error_code = static_cast<int>(PQstatus(pg_conn_))
+        });
     }
+
+    ExecStatusType status = PQresultStatus(pg_result);
     
-    pg_result = *result_handler;
+    // Handle different result statuses
+    switch (status) {
+        case PGRES_COMMAND_OK:
+        case PGRES_TUPLES_OK:
+        case PGRES_SINGLE_TUPLE:
+            // These are all success cases
+            break;
+            
+        case PGRES_EMPTY_QUERY:
+            PQclear(pg_result);
+            return std::unexpected(ConnectionError{
+                .message = "Empty query string was executed",
+                .error_code = static_cast<int>(status)
+            });
+            
+        case PGRES_NONFATAL_ERROR:
+            // Log the warning but continue processing
+            std::cerr << "PostgreSQL warning: " << PQresultErrorMessage(pg_result) << std::endl;
+            break;
+            
+        case PGRES_COPY_IN:
+        case PGRES_COPY_OUT:
+        case PGRES_COPY_BOTH:
+            PQclear(pg_result);
+            return std::unexpected(ConnectionError{
+                .message = "COPY operations are not supported in this context",
+                .error_code = static_cast<int>(status)
+            });
+            
+        case PGRES_PIPELINE_SYNC:
+            PQclear(pg_result);
+            return std::unexpected(ConnectionError{
+                .message = "Pipeline operations are not supported in this context",
+                .error_code = static_cast<int>(status)
+            });
+            
+        case PGRES_BAD_RESPONSE:
+        case PGRES_FATAL_ERROR:
+        case PGRES_PIPELINE_ABORTED:
+        default:
+            std::string error_msg = PQresultErrorMessage(pg_result);
+            PQclear(pg_result);
+            return std::unexpected(ConnectionError{
+                .message = "PostgreSQL error: " + error_msg,
+                .error_code = static_cast<int>(status)
+            });
+    }
 
     // Create result set
     std::vector<std::string> column_names;
@@ -207,14 +258,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     // Process rows
     int row_count = PQntuples(pg_result);
     rows.reserve(row_count);
-
-    // Get column types to identify BYTEA columns
-    std::deque<bool> is_bytea_column(column_count, false);
-    for (int i = 0; i < column_count; i++) {
-        // PostgreSQL BYTEA type OID is 17
-        is_bytea_column[i] = (PQftype(pg_result, i) == 17);
-    }
-
+    
     for (int row_idx = 0; row_idx < row_count; row_idx++) {
         std::vector<result::Cell> cells;
         cells.reserve(column_count);
@@ -224,14 +268,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
                 cells.emplace_back("NULL");
             } else {
                 const char* value = PQgetvalue(pg_result, row_idx, col_idx);
-                std::string cell_value = value ? value : "";
-                
-                // Automatically convert BYTEA data from hex to binary
-                if (is_bytea_column[col_idx]) {
-                    cell_value = convert_pg_bytea_to_binary(cell_value);
-                }
-                
-                cells.emplace_back(std::move(cell_value));
+                cells.emplace_back(value ? value : "");
             }
         }
         
