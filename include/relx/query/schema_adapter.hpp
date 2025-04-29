@@ -20,6 +20,7 @@ class SchemaColumnAdapter : public ColumnExpression {
 public:
     using value_type = typename C::value_type;
     
+    // TODO delete table_name
     explicit SchemaColumnAdapter(const C& col, std::string_view table_name = "") 
         : col_(col), table_name_(table_name.empty() ? get_parent_table_name() : table_name) {}
     
