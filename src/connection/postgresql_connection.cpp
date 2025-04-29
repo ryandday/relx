@@ -155,6 +155,14 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         });
     }
 
+    // Check connection status
+    if (PQstatus(pg_conn_) != CONNECTION_OK) {
+        return std::unexpected(ConnectionError{
+            .message = "Connection is not in OK state: " + std::string(PQerrorMessage(pg_conn_)),
+            .error_code = static_cast<int>(PQstatus(pg_conn_))
+        });
+    }
+
     PGresult* pg_result = nullptr;
 
     if (params.empty()) {
@@ -185,14 +193,15 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         );
     }
 
-    // Handle the result
+    // Check if memory allocation failed
     if (!pg_result) {
         return std::unexpected(ConnectionError{
-            .message = PQerrorMessage(pg_conn_),
-            .error_code = static_cast<int>(PQstatus(pg_conn_))
+            .message = "Failed to execute query",
+            .error_code = -1
         });
     }
 
+    // Handle the result
     ExecStatusType status = PQresultStatus(pg_result);
     
     // Handle different result statuses
