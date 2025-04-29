@@ -57,51 +57,50 @@ enable_testing()
 
 # Add tests
 add_executable(relx_tests
-  tests/main_test.cpp
+  test/main_test.cpp
   # Schema tests
-  tests/schema/fixed_string_test.cpp
-  tests/schema/column_test.cpp
-  tests/schema/table_test.cpp
-  tests/schema/primary_key_test.cpp
-  tests/schema/foreign_key_test.cpp
-  tests/schema/index_test.cpp
-  tests/schema/complex_schema_test.cpp
-  tests/schema/concepts_test.cpp
-  tests/schema/custom_column_types_test.cpp
-  tests/schema/default_value_test.cpp
-  tests/schema/check_constraint_test.cpp
-  tests/schema/unique_constraint_test.cpp
-  tests/schema/optional_column_test.cpp
-  tests/schema/composite_foreign_key_test.cpp
-  tests/schema/constraint_alias_test.cpp
+  test/schema/fixed_string_test.cpp
+  test/schema/column_test.cpp
+  test/schema/table_test.cpp
+  test/schema/primary_key_test.cpp
+  test/schema/foreign_key_test.cpp
+  test/schema/index_test.cpp
+  test/schema/complex_schema_test.cpp
+  test/schema/concepts_test.cpp
+  test/schema/custom_column_types_test.cpp
+  test/schema/default_value_test.cpp
+  test/schema/check_constraint_test.cpp
+  test/schema/unique_constraint_test.cpp
+  test/schema/optional_column_test.cpp
+  test/schema/composite_foreign_key_test.cpp
+  test/schema/constraint_alias_test.cpp
   # Query tests
-  tests/query/query_test.cpp
-  tests/query/basic_select_test.cpp
-  tests/query/join_test.cpp
-  tests/query/condition_test.cpp
-  tests/query/aggregate_test.cpp
-  tests/query/case_expression_test.cpp
-  tests/query/string_function_test.cpp
-  tests/query/update_query_test.cpp
-  tests/query/delete_query_test.cpp
-  tests/query/insert_query_test.cpp
-  tests/query/select_all_test.cpp
-  tests/query/distinct_select_test.cpp
-  tests/query/concise_api_test.cpp
+  test/query/query_test.cpp
+  test/query/basic_select_test.cpp
+  test/query/join_test.cpp
+  test/query/condition_test.cpp
+  test/query/aggregate_test.cpp
+  test/query/case_expression_test.cpp
+  test/query/string_function_test.cpp
+  test/query/update_query_test.cpp
+  test/query/delete_query_test.cpp
+  test/query/insert_query_test.cpp
+  test/query/select_all_test.cpp
+  test/query/distinct_select_test.cpp
+  test/query/concise_api_test.cpp
   # Result processing tests
-  tests/result_test.cpp
-  tests/advanced_query_test.cpp
+  test/result_test.cpp
+  test/advanced_query_test.cpp
   # Connection tests
-  tests/connection/postgresql_connection_test.cpp
-  tests/connection/postgresql_api_test.cpp
-  tests/connection/postgresql_typed_params_test.cpp
-  tests/connection/postgresql_binary_test.cpp
-  tests/connection/postgresql_statement_test.cpp
-  tests/connection/postgresql_connection_pool_test.cpp
+  test/connection/postgresql_connection_test.cpp
+  test/connection/postgresql_api_test.cpp
+  test/connection/postgresql_typed_params_test.cpp
+  test/connection/postgresql_binary_test.cpp
+  test/connection/postgresql_statement_test.cpp
+  test/connection/postgresql_connection_pool_test.cpp
   # Additional comprehensive tests
-  tests/query/edge_case_test.cpp
-  tests/query/data_type_test.cpp
-#   tests/break_the_library_test.cpp
+  test/query/edge_case_test.cpp
+  test/query/data_type_test.cpp
 )
 
 # Link against both gtest and gtest_main libraries
@@ -115,7 +114,7 @@ target_link_libraries(relx_tests PRIVATE
 add_test(NAME relx_tests COMMAND relx_tests)
 
 # Add static_assert tests executable
-add_executable(static_assert_tests tests/static_assert_tests.cpp)
+add_executable(static_assert_tests test/static_assert_tests.cpp)
 target_link_libraries(static_assert_tests PRIVATE ${PROJECT_NAME})
 
 # Add examples

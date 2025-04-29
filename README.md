@@ -334,7 +334,7 @@ For more detailed documentation, check the following:
 - `include/relx/`: Header files
 - `src/`: Implementation files
 - `examples/`: Usage examples
-- `tests/`: Unit tests
+- `test/`: Unit and integration tests
 - `build/`: Build output (created during build)
 
 ## Contributing
