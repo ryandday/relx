@@ -520,6 +520,15 @@ public:
         return column_names_;
     }
 
+    std::string to_string() const {
+        std::stringstream result;
+        result << "| ";
+        for (const auto& cell : cells_) {
+            result << cell.raw_value() << " | ";
+        }
+        return result.str();
+    }
+
 private:
     std::vector<Cell> cells_;
     std::vector<std::string> column_names_;
@@ -794,6 +803,14 @@ public:
     requires schema::TableConcept<std::remove_reference_t<Table>>
     auto with_schema(const Table& table, P1 mp1, Ps... mps) const {
         return with_schema<std::remove_reference_t<Table>>(mp1, mps...);
+    }
+
+    std::string to_string() const {
+        std::stringstream result;
+        for (const auto& row : rows_) {
+            result << row.to_string() << '\n';
+        }
+        return result.str();
     }
 
 private:
