@@ -1,21 +1,22 @@
 #pragma once
 
+#include <array>
+#include <concepts>
+#include <expected>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <ranges>
+#include <stdexcept>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <sstream>
 #include <tuple>
-#include <optional>
-#include <variant>
-#include <functional>
-#include <stdexcept>
 #include <type_traits>
-#include <memory>
 #include <utility>
-#include <ranges>
-#include <map>
-#include <expected>
-#include <concepts>
-#include <array>
+#include <variant>
+#include <vector>
 
 #include "../schema/core.hpp"
 #include "../schema/column.hpp"
