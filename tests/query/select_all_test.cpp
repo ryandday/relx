@@ -95,8 +95,8 @@ TEST(SelectAllTest, SelectAllWithAllClauses) {
     // The expected SQL should include all clauses
     std::string expected_sql = "SELECT * FROM users "
                            "JOIN posts ON (users.id = posts.user_id) "
-                           "WHERE (user.age > ?) "
-                           "GROUP BY user.id "
+                           "WHERE (users.age > ?) "
+                           "GROUP BY users.id "
                            "HAVING (COUNT(posts.id) > ?) "
                            "ORDER BY users.age DESC "
                            "LIMIT ? "

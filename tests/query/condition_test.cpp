@@ -11,7 +11,7 @@ TEST(ConditionTest, SimpleEquality) {
         .from(u)
         .where(u.id == 1);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (id = ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.id = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -26,7 +26,7 @@ TEST(ConditionTest, SimpleInequality) {
         .from(u)
         .where(u.age > 21);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (age > ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.age > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -44,7 +44,7 @@ TEST(ConditionTest, LogicalAnd) {
             (u.is_active == true)
         );
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE ((age >= ?) AND (is_active = ?))";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE ((users.age >= ?) AND (users.is_active = ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -63,7 +63,7 @@ TEST(ConditionTest, LogicalOr) {
             (u.age >= 65)
         );
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE ((age < ?) OR (age >= ?))";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE ((users.age < ?) OR (users.age >= ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -80,7 +80,7 @@ TEST(ConditionTest, LogicalNotValue) {
         .from(u)
         .where(u.is_active == false);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (is_active = ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.is_active = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -100,7 +100,7 @@ TEST(ConditionTest, ComplexLogicalExpression) {
         );
     
     // Note: testing exact parentheses nesting is implementation-dependent
-    std::string expected_sql = "SELECT id, name FROM users WHERE ((age >= ?) AND ((is_active = ?) OR (login_count > ?)))";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE ((users.age >= ?) AND ((users.is_active = ?) OR (users.login_count > ?)))";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -117,7 +117,7 @@ TEST(ConditionTest, StringLike) {
         .from(u)
         .where(relx::query::like(u.email, "%@example.com"));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE email LIKE ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE users.email LIKE ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -133,7 +133,7 @@ TEST(ConditionTest, StringNotLike) {
         .from(u)
         .where(!(relx::query::like(u.email, "%@example.com")));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (NOT email LIKE ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (NOT users.email LIKE ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -149,7 +149,7 @@ TEST(ConditionTest, InList) {
         .from(u)
         .where(relx::query::in(u.name, names));
     
-    std::string expected_sql = "SELECT id, email FROM users WHERE name IN (?, ?, ?)";
+    std::string expected_sql = "SELECT users.id, users.email FROM users WHERE users.name IN (?, ?, ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -170,7 +170,7 @@ TEST(ConditionTest, NotInList) {
         .from(u)
         .where(!(relx::query::in(u.age, age_strings)));
     
-    std::string expected_sql = "SELECT id, email FROM users WHERE (NOT age IN (?, ?, ?))";
+    std::string expected_sql = "SELECT users.id, users.email FROM users WHERE (NOT users.age IN (?, ?, ?))";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -187,7 +187,7 @@ TEST(ConditionTest, IsNull) {
         .from(u)
         .where(relx::query::is_null(u.bio));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE bio IS NULL";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE users.bio IS NULL";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -200,7 +200,7 @@ TEST(ConditionTest, IsNotNull) {
         .from(u)
         .where(relx::query::is_not_null(u.bio));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE bio IS NOT NULL";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE users.bio IS NOT NULL";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -213,7 +213,7 @@ TEST(ConditionTest, Between) {
         .from(u)
         .where(relx::query::between(u.age, "18", "65"));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE age BETWEEN ? AND ?";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE users.age BETWEEN ? AND ?";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -230,7 +230,7 @@ TEST(ConditionTest, NotBetween) {
         .from(u)
         .where(!(relx::query::between(u.age, "18", "65")));
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (NOT age BETWEEN ? AND ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (NOT users.age BETWEEN ? AND ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();

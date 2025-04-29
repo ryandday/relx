@@ -25,7 +25,7 @@ TEST(AggregateTest, CountColumn) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT COUNT(id) AS user_count FROM users";
+    std::string expected_sql = "SELECT COUNT(users.id) AS user_count FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -38,7 +38,7 @@ TEST(AggregateTest, CountDistinct) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT COUNT(DISTINCT age) AS unique_ages FROM users";
+    std::string expected_sql = "SELECT COUNT(DISTINCT users.age) AS unique_ages FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -51,7 +51,7 @@ TEST(AggregateTest, Sum) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT SUM(login_count) AS total_logins FROM users";
+    std::string expected_sql = "SELECT SUM(users.login_count) AS total_logins FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -64,7 +64,7 @@ TEST(AggregateTest, Average) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT AVG(age) AS average_age FROM users";
+    std::string expected_sql = "SELECT AVG(users.age) AS average_age FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -78,7 +78,7 @@ TEST(AggregateTest, MinMax) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT MIN(age) AS youngest, MAX(age) AS oldest FROM users";
+    std::string expected_sql = "SELECT MIN(users.age) AS youngest, MAX(users.age) AS oldest FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -93,7 +93,7 @@ TEST(AggregateTest, MultipleAggregates) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT COUNT(*) AS total_users, AVG(age) AS average_age, SUM(login_count) AS total_logins FROM users";
+    std::string expected_sql = "SELECT COUNT(*) AS total_users, AVG(users.age) AS average_age, SUM(users.login_count) AS total_logins FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -108,7 +108,7 @@ TEST(AggregateTest, AggregatesWithWhere) {
     .from(u)
     .where(u.is_active == true);
     
-    std::string expected_sql = "SELECT COUNT(*) AS active_users, AVG(age) AS average_age FROM users WHERE (is_active = ?)";
+    std::string expected_sql = "SELECT COUNT(*) AS active_users, AVG(users.age) AS average_age FROM users WHERE (users.is_active = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -126,7 +126,7 @@ TEST(AggregateTest, SimpleGroupBy) {
     .from(u)
     .group_by(u.age);
     
-    std::string expected_sql = "SELECT age, COUNT(*) AS user_count FROM users GROUP BY age";
+    std::string expected_sql = "SELECT users.age, COUNT(*) AS user_count FROM users GROUP BY users.age";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -142,7 +142,7 @@ TEST(AggregateTest, GroupByMultipleColumns) {
     .from(u)
     .group_by(u.age, u.is_active);
     
-    std::string expected_sql = "SELECT age, is_active, COUNT(*) AS user_count FROM users GROUP BY age, is_active";
+    std::string expected_sql = "SELECT users.age, users.is_active, COUNT(*) AS user_count FROM users GROUP BY users.age, users.is_active";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -158,7 +158,7 @@ TEST(AggregateTest, GroupByWithHaving) {
     .group_by(u.age)
     .having(relx::query::count_all() > 5);
     
-    std::string expected_sql = "SELECT age, COUNT(*) AS user_count FROM users GROUP BY age HAVING (COUNT(*) > ?)";
+    std::string expected_sql = "SELECT users.age, COUNT(*) AS user_count FROM users GROUP BY users.age HAVING (COUNT(*) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -179,7 +179,7 @@ TEST(AggregateTest, GroupByWithHavingAndWhere) {
     .group_by(p.user_id)
     .having(relx::query::sum(p.views) > 1000);
     
-    std::string expected_sql = "SELECT user_id, COUNT(*) AS post_count, SUM(views) AS total_views FROM posts WHERE (is_published = ?) GROUP BY user_id HAVING (SUM(views) > ?)";
+    std::string expected_sql = "SELECT posts.user_id, COUNT(*) AS post_count, SUM(posts.views) AS total_views FROM posts WHERE (posts.is_published = ?) GROUP BY posts.user_id HAVING (SUM(posts.views) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -199,7 +199,7 @@ TEST(AggregateTest, GroupByWithOrderBy) {
     .group_by(u.age)
     .order_by(relx::query::desc(relx::query::count_all()));
     
-    std::string expected_sql = "SELECT age, COUNT(*) AS user_count FROM users GROUP BY age ORDER BY COUNT(*) DESC";
+    std::string expected_sql = "SELECT users.age, COUNT(*) AS user_count FROM users GROUP BY users.age ORDER BY COUNT(*) DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -218,7 +218,7 @@ TEST(AggregateTest, JoinWithGroupBy) {
     .group_by(u.id, u.name)
     .order_by(relx::query::desc(relx::query::count(p.id)));
     
-    std::string expected_sql = "SELECT id, name, COUNT(id) AS post_count FROM users LEFT JOIN posts ON (id = user_id) GROUP BY id, name ORDER BY COUNT(id) DESC";
+    std::string expected_sql = "SELECT users.id, users.name, COUNT(posts.id) AS post_count FROM users LEFT JOIN posts ON (users.id = posts.user_id) GROUP BY users.id, users.name ORDER BY COUNT(posts.id) DESC";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 } 

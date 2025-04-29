@@ -37,7 +37,7 @@ TEST(QueryTest, SimpleSelect) {
     auto query = relx::query::select(u.id, u.name, u.email)
         .from(u);
     
-    std::string expected_sql = "SELECT id, name, email FROM users";
+    std::string expected_sql = "SELECT users.id, users.name, users.email FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }

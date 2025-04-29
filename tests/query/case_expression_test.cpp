@@ -19,7 +19,7 @@ TEST(CaseExpressionTest, SimpleCase) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT name, CASE WHEN (age < ?) THEN ? WHEN (age < ?) THEN ? ELSE ? END AS age_group FROM users";
+    std::string expected_sql = "SELECT users.name, CASE WHEN (users.age < ?) THEN ? WHEN (users.age < ?) THEN ? ELSE ? END AS age_group FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -45,7 +45,7 @@ TEST(CaseExpressionTest, CaseWithoutElse) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT name, CASE WHEN (is_active = ?) THEN ? WHEN (is_active = ?) THEN ? END AS status FROM users";
+    std::string expected_sql = "SELECT users.name, CASE WHEN (users.is_active = ?) THEN ? WHEN (users.is_active = ?) THEN ? END AS status FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -79,7 +79,7 @@ TEST(CaseExpressionTest, CaseWithComplexConditions) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT name, CASE WHEN ((age < ?) AND (login_count > ?)) THEN ? WHEN ((age >= ?) AND (login_count > ?)) THEN ? ELSE ? END AS complex_status FROM users";
+    std::string expected_sql = "SELECT users.name, CASE WHEN ((users.age < ?) AND (users.login_count > ?)) THEN ? WHEN ((users.age >= ?) AND (users.login_count > ?)) THEN ? ELSE ? END AS complex_status FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -107,7 +107,7 @@ TEST(CaseExpressionTest, CaseWithColumnResults) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT name, CASE WHEN (bio IS NULL) THEN ? ELSE ? END AS bio_display FROM users";
+    std::string expected_sql = "SELECT users.name, CASE WHEN (users.bio IS NULL) THEN ? ELSE ? END AS bio_display FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -132,7 +132,7 @@ TEST(CaseExpressionTest, CaseWithNumericResults) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT name, CASE WHEN (login_count = ?) THEN ? WHEN (login_count <= ?) THEN ? WHEN (login_count <= ?) THEN ? ELSE ? END AS activity_level FROM users";
+    std::string expected_sql = "SELECT users.name, CASE WHEN (users.login_count = ?) THEN ? WHEN (users.login_count <= ?) THEN ? WHEN (users.login_count <= ?) THEN ? ELSE ? END AS activity_level FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -171,7 +171,7 @@ TEST(CaseExpressionTest, NestedCaseExpression) {
     // The expected SQL is implementation-dependent, this is just an example
     // The real implementation might inline the inner CASE or handle it differently
     auto sql = query.to_sql();
-    EXPECT_TRUE(sql.find("SELECT name") != std::string::npos);
+    EXPECT_TRUE(sql.find("SELECT users.name") != std::string::npos);
     EXPECT_TRUE(sql.find("CASE") != std::string::npos);
     
     // Check that parameters are present
@@ -202,7 +202,7 @@ TEST(CaseExpressionTest, CaseInWhere) {
     
     // Expected SQL should include the CASE expression in both the SELECT list and WHERE
     std::string sql = query.to_sql();
-    EXPECT_TRUE(sql.find("SELECT id, name, CASE") != std::string::npos); 
+    EXPECT_TRUE(sql.find("SELECT users.id, users.name, CASE") != std::string::npos); 
     EXPECT_TRUE(sql.find("WHERE (CASE") != std::string::npos);
     
     auto params = query.bind_params();
@@ -233,7 +233,7 @@ TEST(CaseExpressionTest, CaseInOrderBy) {
     
     // Expected SQL should include the case expression in both the SELECT list and ORDER BY
     std::string sql = query.to_sql();
-    EXPECT_TRUE(sql.find("SELECT id, name, CASE") != std::string::npos);
+    EXPECT_TRUE(sql.find("SELECT users.id, users.name, CASE") != std::string::npos);
     EXPECT_TRUE(sql.find("ORDER BY CASE") != std::string::npos);
     
     auto params = query.bind_params();

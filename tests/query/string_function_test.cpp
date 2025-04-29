@@ -13,7 +13,7 @@ TEST(StringFunctionTest, Lower) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT id, LOWER(name) AS lowercase_name FROM users";
+    std::string expected_sql = "SELECT users.id, LOWER(users.name) AS lowercase_name FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -27,7 +27,7 @@ TEST(StringFunctionTest, Upper) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT id, UPPER(name) AS uppercase_name FROM users";
+    std::string expected_sql = "SELECT users.id, UPPER(users.name) AS uppercase_name FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -41,7 +41,7 @@ TEST(StringFunctionTest, Length) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT name, LENGTH(name) AS name_length FROM users";
+    std::string expected_sql = "SELECT users.name, LENGTH(users.name) AS name_length FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -55,7 +55,7 @@ TEST(StringFunctionTest, Trim) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT id, TRIM(name) AS trimmed_name FROM users";
+    std::string expected_sql = "SELECT users.id, TRIM(users.name) AS trimmed_name FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -67,7 +67,7 @@ TEST(StringFunctionTest, StringFunctionInWhere) {
         .from(u)
         .where(relx::query::upper(u.email) == "EMAIL@EXAMPLE.COM");
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (UPPER(email) = ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (UPPER(users.email) = ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -82,7 +82,7 @@ TEST(StringFunctionTest, LengthInCondition) {
         .from(u)
         .where(relx::query::length(u.name) > 5);
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (LENGTH(name) > ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (LENGTH(users.name) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -101,7 +101,7 @@ TEST(StringFunctionTest, CombinedStringFunctions) {
             ) > 10
         );
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (LENGTH(TRIM(LOWER(email))) > ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (LENGTH(TRIM(LOWER(users.email))) > ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -116,7 +116,7 @@ TEST(StringFunctionTest, StringFunctionInOrderBy) {
         .from(u)
         .order_by(relx::query::length(u.name));
     
-    std::string expected_sql = "SELECT id, name FROM users ORDER BY LENGTH(name)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY LENGTH(users.name)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -131,7 +131,7 @@ TEST(StringFunctionTest, StringFunctionInGroupBy) {
     .from(u)
     .group_by(relx::query::upper(u.name));
     
-    std::string expected_sql = "SELECT UPPER(name), COUNT(*) AS count FROM users GROUP BY UPPER(name)";
+    std::string expected_sql = "SELECT UPPER(users.name), COUNT(*) AS count FROM users GROUP BY UPPER(users.name)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     EXPECT_TRUE(query.bind_params().empty());
 }
@@ -151,7 +151,7 @@ TEST(StringFunctionTest, Coalesce) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT id, COALESCE(bio, ?) AS biography FROM users";
+    std::string expected_sql = "SELECT users.id, COALESCE(users.bio, ?) AS biography FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -175,7 +175,7 @@ TEST(StringFunctionTest, CoalesceMultipleValues) {
     )
     .from(u);
     
-    std::string expected_sql = "SELECT id, COALESCE(bio, name, ?) AS display_text FROM users";
+    std::string expected_sql = "SELECT users.id, COALESCE(users.bio, users.name, ?) AS display_text FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
@@ -197,7 +197,7 @@ TEST(StringFunctionTest, CoalesceInWhere) {
             ) != ""
         );
     
-    std::string expected_sql = "SELECT id, name FROM users WHERE (COALESCE(bio, ?) != ?)";
+    std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (COALESCE(users.bio, ?) != ?)";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
