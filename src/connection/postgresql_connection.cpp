@@ -234,7 +234,6 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
         case PGRES_BAD_RESPONSE:
         case PGRES_FATAL_ERROR:
         case PGRES_PIPELINE_ABORTED:
-        default:
             std::string error_msg = PQresultErrorMessage(pg_result);
             PQclear(pg_result);
             return std::unexpected(ConnectionError{
