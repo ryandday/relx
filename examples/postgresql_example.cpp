@@ -13,7 +13,7 @@
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<Users, "id", int, relx::serial> id;
+    relx::column<Users, "id", int, relx::identity<>> id;
     relx::column<Users, "name", std::string> name;
     relx::column<Users, "email", std::string> email;
     relx::column<Users, "age", int> age;
@@ -27,7 +27,7 @@ struct Users {
 struct Posts {
     static constexpr auto table_name = "posts";
     
-    relx::column<Posts, "id", int, relx::serial> id;
+    relx::column<Posts, "id", int, relx::identity<>> id;
     relx::column<Posts, "user_id", int> user_id;
     relx::column<Posts, "title", std::string> title;
     relx::column<Posts, "content", std::string> content;
@@ -42,7 +42,7 @@ struct Posts {
 struct Comments {
     static constexpr auto table_name = "comments";
     
-    relx::column<Comments, "id", int, relx::serial> id;
+    relx::column<Comments, "id", int, relx::identity<>> id;
     relx::column<Comments, "post_id", int> post_id;
     relx::column<Comments, "user_id", int> user_id;
     relx::column<Comments, "content", std::string> content;
@@ -74,17 +74,14 @@ bool create_tables(relx::Connection& conn) {
     Users users;
     // Create Users table
     auto create_users_sql = relx::create_table(users);
-    
     auto users_result = conn.execute_raw(create_users_sql);
     if (!check_result(users_result, "creating users table")) return false;
     
     // Create Posts table
     Posts posts;
     auto create_posts_sql = relx::create_table(posts);
-    
     auto posts_result = conn.execute_raw(create_posts_sql);
     if (!check_result(posts_result, "creating posts table")) return false;
-    
     // Create Comments table
     Comments comments;
     auto create_comments_sql = relx::create_table(comments);
@@ -136,8 +133,7 @@ bool insert_sample_data(relx::Connection& conn) {
         ).returning(users.id);
         auto insert_user1_result = conn.execute(insert_user1);
         if (!check_result(insert_user1_result, "inserting user 1")) throw std::runtime_error("Failed to insert user 1");
-        
-        int user1_id = (*insert_user1_result)[0].get<int>("id").value_or(0);
+        int user1_id = (*insert_user1_result).at(0).get<int>("id").value_or(0);
         
         auto insert_user2 = relx::insert_into(users).columns(
             users.name, users.email, users.age, users.is_active
@@ -158,62 +154,58 @@ bool insert_sample_data(relx::Connection& conn) {
         if (!check_result(insert_user3_result, "inserting user 3")) throw std::runtime_error("Failed to insert user 3");
         
         int user3_id = (*insert_user3_result)[0].get<int>("id").value_or(0);
-        
         // Insert posts
         Posts posts;
         auto insert_post1 = relx::insert_into(posts).columns(
-            posts.user_id, posts.title, posts.content, posts.views
+            posts.user_id, posts.title, posts.content, posts.views, posts.created_at
         ).values(
-            user1_id, "First Post", "This is Alice's first post content", "150"
+            user1_id, "First Post", "This is Alice's first post content", "150", "2024-04-29 12:00:00"
         ).returning(posts.id);
         auto insert_post1_result = conn.execute(insert_post1);
         if (!check_result(insert_post1_result, "inserting post 1")) throw std::runtime_error("Failed to insert post 1");
         
         int post1_id = (*insert_post1_result)[0].get<int>("id").value_or(0);
-        
         auto insert_post2 = relx::insert_into(posts).columns(
-            posts.user_id, posts.title, posts.content, posts.views
+            posts.user_id, posts.title, posts.content, posts.views, posts.created_at
         ).values(
-            user2_id, "Hello World", "Bob's introduction post", "75"
+            user2_id, "Hello World", "Bob's introduction post", "75", "2024-04-29 13:00:00"
         ).returning(posts.id);
         auto insert_post2_result = conn.execute(insert_post2);
         if (!check_result(insert_post2_result, "inserting post 2")) throw std::runtime_error("Failed to insert post 2");
         
         int post2_id = (*insert_post2_result)[0].get<int>("id").value_or(0);
-        
         auto insert_post3 = relx::insert_into(posts).columns(
-            posts.user_id, posts.title, posts.content, posts.views
+            posts.user_id, posts.title, posts.content, posts.views, posts.created_at
         ).values(
-            user1_id, "Second Post", "Alice's follow-up post", "200"
+            user1_id, "Second Post", "Alice's follow-up post", "200", "2024-04-29 14:00:00"
         ).returning(posts.id);
         auto insert_post3_result = conn.execute(insert_post3);
         if (!check_result(insert_post3_result, "inserting post 3")) throw std::runtime_error("Failed to insert post 3");
         
         int post3_id = (*insert_post3_result)[0].get<int>("id").value_or(0);
-        
         // Insert comments
         Comments comments;
         auto insert_comment1 = relx::insert_into(comments).columns(
-            comments.post_id, comments.user_id, comments.content
+            comments.post_id, comments.user_id, comments.content, comments.created_at
         ).values(
-            post1_id, user2_id, "Great first post!"
-        );
+            post1_id, user2_id, "Great first post!", "2024-04-29 12:30:00"
+        ).returning(comments.id);
         auto insert_comment1_result = conn.execute(insert_comment1);
         if (!check_result(insert_comment1_result, "inserting comment 1")) throw std::runtime_error("Failed to insert comment 1");
         
         auto insert_comment2 = relx::insert_into(comments).columns(
-            comments.post_id, comments.user_id, comments.content
+            comments.post_id, comments.user_id, comments.content, comments.created_at
         ).values(
-            post1_id, user3_id, "I agree with Bob"
-        );
+            post1_id, user3_id, "I agree with Bob", "2024-04-29 12:45:00"
+        ).returning(comments.id);
         auto insert_comment2_result = conn.execute(insert_comment2);
         if (!check_result(insert_comment2_result, "inserting comment 2")) throw std::runtime_error("Failed to insert comment 2");
         
         auto insert_comment3 = relx::insert_into(comments).columns(
-            comments.post_id, comments.user_id, comments.content
+            comments.post_id, comments.user_id, comments.content, comments.created_at
         ).values(
-            post2_id, user1_id, "Welcome, Bob!"
-        );
+            post2_id, user1_id, "Welcome, Bob!", "2024-04-29 13:15:00"
+        ).returning(comments.id);
         auto insert_comment3_result = conn.execute(insert_comment3);
         if (!check_result(insert_comment3_result, "inserting comment 3")) throw std::runtime_error("Failed to insert comment 3");
         

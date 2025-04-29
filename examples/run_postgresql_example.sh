@@ -33,11 +33,7 @@ echo "Running PostgreSQL example..."
 ../build/examples/postgresql_example
 
 # Ask if the user wants to stop the PostgreSQL container
-read -p "Do you want to stop the PostgreSQL container? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Stopping PostgreSQL container..."
-    docker stop relx-postgres
-    docker rm relx-postgres
-    echo "PostgreSQL container stopped and removed."
-fi 
+echo "Stopping PostgreSQL container..."
+docker stop relx-postgres
+docker rm relx-postgres
+echo "PostgreSQL container stopped and removed."

@@ -32,11 +32,71 @@ struct autoincrement {
     }
 };
 
-/// @brief SERIAL modifier (PostgreSQL's equivalent to AUTOINCREMENT)
-struct serial {
+/// @brief Concept for valid identity types
+template <typename T>
+concept ValidIdentityType = std::is_integral_v<T> && !std::is_same_v<T, bool>;
+
+/// @brief IDENTITY constraint with configurable options
+/// @tparam Start The starting value for the identity column
+/// @tparam Increment The increment value for the identity column
+/// @tparam MinValue The minimum value for the identity column
+/// @tparam MaxValue The maximum value for the identity column
+/// @tparam Cycle Whether to cycle back to MinValue when MaxValue is reached
+template <auto Start = 1, auto Increment = 1, auto MinValue = std::numeric_limits<decltype(Start)>::min(), 
+          auto MaxValue = std::numeric_limits<decltype(Start)>::max(), bool Cycle = false>
+    requires ValidIdentityType<decltype(Start)> && 
+             ValidIdentityType<decltype(Increment)> && 
+             ValidIdentityType<decltype(MinValue)> && 
+             ValidIdentityType<decltype(MaxValue)>
+struct identity {
+    static constexpr auto start = Start;
+    static constexpr auto increment = Increment;
+    static constexpr auto min_value = MinValue;
+    static constexpr auto max_value = MaxValue;
+    static constexpr bool cycle = Cycle;
+    
     static std::string to_sql() {
-        // PostgreSQL syntax
-        return " SERIAL";
+        std::string result = " GENERATED ALWAYS AS IDENTITY";
+        
+        // Add options if they differ from defaults
+        if constexpr (start != 1 || increment != 1 || min_value != std::numeric_limits<decltype(start)>::min() || 
+                     max_value != std::numeric_limits<decltype(start)>::max() || cycle) {
+            result += " (";
+            
+            // Add start value if not default
+            if constexpr (start != 1) {
+                result += "START WITH " + std::to_string(start);
+            }
+            
+            // Add increment if not default
+            if constexpr (increment != 1) {
+                if constexpr (start != 1) result += " ";
+                result += "INCREMENT BY " + std::to_string(increment);
+            }
+            
+            // Add min value if not default
+            if constexpr (min_value != std::numeric_limits<decltype(start)>::min()) {
+                if constexpr (start != 1 || increment != 1) result += " ";
+                result += "MINVALUE " + std::to_string(min_value);
+            }
+            
+            // Add max value if not default
+            if constexpr (max_value != std::numeric_limits<decltype(start)>::max()) {
+                if constexpr (start != 1 || increment != 1 || min_value != std::numeric_limits<decltype(start)>::min()) result += " ";
+                result += "MAXVALUE " + std::to_string(max_value);
+            }
+            
+            // Add cycle option if true
+            if constexpr (cycle) {
+                if constexpr (start != 1 || increment != 1 || min_value != std::numeric_limits<decltype(start)>::min() || 
+                             max_value != std::numeric_limits<decltype(start)>::max()) result += " ";
+                result += "CYCLE";
+            }
+            
+            result += ")";
+        }
+        
+        return result;
     }
 };
 
