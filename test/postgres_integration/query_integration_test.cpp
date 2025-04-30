@@ -26,7 +26,7 @@ protected:
     
     void SetUp() override {
         // Connect to the database
-        conn = std::make_unique<Connection>("host=localhost port=5432 dbname=relx_test user=postgres password=postgres");
+        conn = std::make_unique<Connection>("host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres");
         auto result = conn->connect();
         ASSERT_TRUE(result) << "Failed to connect: " << result.error().message;
         
@@ -66,16 +66,20 @@ protected:
     
     void setup_schema() {
         // Create tables in dependency order
-        auto result = relx::schema::create_table(conn.get(), category);
+        auto sql = relx::schema::create_table(category);
+        auto result = conn->execute_raw(sql);
         ASSERT_TRUE(result) << "Failed to create category table: " << result.error().message;
         
-        result = relx::schema::create_table(conn.get(), product);
+        sql = relx::schema::create_table(product);
+        result = conn->execute_raw(sql);
         ASSERT_TRUE(result) << "Failed to create product table: " << result.error().message;
         
-        result = relx::schema::create_table(conn.get(), customer);
+        sql = relx::schema::create_table(customer);
+        result = conn->execute_raw(sql);
         ASSERT_TRUE(result) << "Failed to create customer table: " << result.error().message;
         
-        result = relx::schema::create_table(conn.get(), order);
+        sql = relx::schema::create_table(order);
+        result = conn->execute_raw(sql);
         ASSERT_TRUE(result) << "Failed to create order table: " << result.error().message;
     }
     
@@ -193,7 +197,7 @@ TEST_F(QueryIntegrationTest, OrderByClause) {
     // Test ascending order
     auto asc_query = select(product.name, product.price)
         .from(product)
-        .order_by(product.price, true);  // Ascending
+        .order_by(product.price);  // Ascending
         
     auto result = conn->execute_raw(asc_query.to_sql(), asc_query.bind_params());
     ASSERT_TRUE(result) << "Failed to execute ascending query: " << result.error().message;
@@ -210,7 +214,7 @@ TEST_F(QueryIntegrationTest, OrderByClause) {
     // Test descending order
     auto desc_query = select(product.name, product.price)
         .from(product)
-        .order_by(product.price, false);  // Descending
+        .order_by(relx::desc(product.price));  // Descending
         
     result = conn->execute_raw(desc_query.to_sql(), desc_query.bind_params());
     ASSERT_TRUE(result) << "Failed to execute descending query: " << result.error().message;
@@ -227,8 +231,8 @@ TEST_F(QueryIntegrationTest, OrderByClause) {
     // Test multiple order by columns
     auto multi_query = select(product.category_id, product.name, product.price)
         .from(product)
-        .order_by(product.category_id, true)  // Ascending category_id
-        .then_by(product.price, false);       // Descending price within category
+        .order_by(product.category_id)  // Ascending category_id
+        .order_by(relx::desc(product.price));       // Descending price within category
         
     result = conn->execute_raw(multi_query.to_sql(), multi_query.bind_params());
     ASSERT_TRUE(result) << "Failed to execute multi-order query: " << result.error().message;

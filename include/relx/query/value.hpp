@@ -212,5 +212,11 @@ auto val(std::optional<T> opt) {
     return Value<std::optional<T>>(std::move(opt));
 }
 
+/// @brief Helper to create a value expression from a nullopt
+/// @return A Value<std::nullopt> expression
+inline auto val(std::nullopt_t) {
+    return Value<std::nullopt_t>(std::nullopt);
+}
+
 } // namespace query
 } // namespace relx 

@@ -169,6 +169,21 @@ struct column_traits<std::optional<T>> {
     }
 };
 
+// Specialization for std::nullopt_t
+template <>
+struct column_traits<std::nullopt_t> {
+    static constexpr auto sql_type_name = "TEXT";
+    static constexpr bool nullable = true;
+
+    static std::string to_sql_string(const std::nullopt_t&) {
+        return "NULL";
+    }
+
+    static std::nullopt_t from_sql_string(const std::string& value) {
+        return std::nullopt;
+    }
+};  
+
 // Concept for defining what is a valid SQL column type
 template <typename T>
 concept ColumnTypeConcept = requires {
