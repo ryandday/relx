@@ -109,9 +109,12 @@ std::string collect_constraint_definitions(const Table& table_instance) {
 /// @param table_instance An instance of the table
 /// @return SQL string to create the table
 template <TableConcept Table>
-std::string create_table(const Table& table_instance) {
-    std::string sql = "CREATE TABLE IF NOT EXISTS " + 
-                     std::string(Table::table_name) + 
+std::string create_table(const Table& table_instance, bool if_not_exists = true) {
+    std::string sql = "CREATE TABLE ";
+    if (if_not_exists) {
+        sql += "IF NOT EXISTS ";
+    }
+    sql += std::string(Table::table_name) + 
                      " (\n";
     
     // Add column definitions
@@ -127,22 +130,64 @@ std::string create_table(const Table& table_instance) {
     return sql;
 }
 
-/// @brief Generate DROP TABLE SQL statement for a table struct
-/// @tparam Table The table struct type
-/// @param table_instance An instance of the table
-/// @param if_exists Whether to include the IF EXISTS clause
-/// @return SQL string to drop the table
 template <TableConcept Table>
-std::string drop_table(const Table& table_instance, bool if_exists = true) {
+std::string drop_table_raw(const Table& table_instance, bool if_exists = true, bool cascade = false, bool restrict = false) {
     std::string sql = "DROP TABLE ";
     
     if (if_exists) {
         sql += "IF EXISTS ";
     }
-    
-    sql += std::string(Table::table_name) + ";";
+
+    sql += std::string(Table::table_name);
+
+    if (cascade) {
+        sql += " CASCADE";
+    }
+
+    if (restrict) {
+        sql += " RESTRICT";
+    }
+
+    sql += ";";
+
     return sql;
 }
 
+/// @brief Generate DROP TABLE SQL statement for a table struct
+/// @tparam Table The table struct type
+/// @param table_instance An instance of the table
+/// @param if_exists Whether to include the IF EXISTS clause
+/// @return SQL string to drop the table
+
+template <TableConcept Table>
+class drop_table {
+public:
+    drop_table(const Table& table_instance) : table_instance_(table_instance) {}
+
+    drop_table& if_exists(bool if_exists = true) {
+        if_exists_ = if_exists;
+        return *this;
+    }
+
+    drop_table& cascade(bool cascade = true) {
+        cascade_ = cascade;
+        return *this;
+    }
+    
+    drop_table& restrict(bool restrict = true) {
+        restrict_ = restrict;
+        return *this;
+    }
+
+    std::string build() {
+        return drop_table_raw(table_instance_, if_exists_, cascade_, restrict_);
+    }
+
+private:
+    const Table& table_instance_;
+    bool if_exists_ = true;
+    bool cascade_ = false;
+    bool restrict_ = false;
+};
 } // namespace schema
 } // namespace relx

@@ -34,7 +34,7 @@ TEST(DefaultValueTest, BasicDefaultValues) {
     
     // Test bool default value
     column<Product, "is_active", bool, default_value<true>> is_active_col;
-    EXPECT_EQ(is_active_col.sql_definition(), "is_active BOOLEAN NOT NULL DEFAULT 1");
+    EXPECT_EQ(is_active_col.sql_definition(), "is_active BOOLEAN NOT NULL DEFAULT true");
     auto is_active_default = is_active_col.get_default_value();
     ASSERT_TRUE(is_active_default.has_value());
     EXPECT_EQ(*is_active_default, true);
@@ -80,6 +80,6 @@ TEST(DefaultValueTest, TableWithDefaults) {
     // Validate SQL contains default values
     EXPECT_TRUE(create_sql.find("price REAL NOT NULL DEFAULT 0") != std::string::npos);
     EXPECT_TRUE(create_sql.find("stock INTEGER NOT NULL DEFAULT 10") != std::string::npos);
-    EXPECT_TRUE(create_sql.find("active BOOLEAN NOT NULL DEFAULT 1") != std::string::npos);
+    EXPECT_TRUE(create_sql.find("active BOOLEAN NOT NULL DEFAULT true") != std::string::npos);
     EXPECT_TRUE(create_sql.find("status TEXT NOT NULL DEFAULT 'active'") != std::string::npos);
 } 

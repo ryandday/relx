@@ -151,8 +151,8 @@ struct default_value {
     
     static std::string to_sql() {
         if constexpr (std::is_same_v<value_type, bool>) {
-            // For boolean values, use 1/0 in SQL
-            return " DEFAULT " + std::string(value ? "1" : "0");
+            // For boolean values, use true/false in SQL
+            return " DEFAULT " + std::string(value ? "true" : "false");
         } else if constexpr (std::is_integral_v<value_type> || std::is_floating_point_v<value_type>) {
             // For numeric types, convert to string
             return " DEFAULT " + std::to_string(value);

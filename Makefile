@@ -26,9 +26,13 @@ clean:
 run: build
 	./$(BUILD_DIR)/schema_example
 
+.PHONY: build-tests
+build-tests:
+	cd $(BUILD_DIR) && cmake --build . --target relx_tests --parallel 4
+
 .PHONY: test
-test: postgres-up
-	cd $(BUILD_DIR) && cmake --build . --target relx_tests --parallel 4 && ./relx_tests --gtest_color=yes
+test: build-tests postgres-up
+	cd $(BUILD_DIR) && ./relx_tests --gtest_color=yes
 
 # Development helpers
 .PHONY: format

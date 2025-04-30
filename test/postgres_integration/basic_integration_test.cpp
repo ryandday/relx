@@ -41,8 +41,8 @@ protected:
         auto connect_result = conn.connect();
         if (connect_result) {
             Users u;
-            auto drop_query = relx::drop_table(u);
-            conn.execute_raw(drop_query);
+            auto raw_sql = relx::drop_table(u).cascade().build();
+            conn.execute_raw(raw_sql);
             conn.disconnect();
         }
     }

@@ -48,7 +48,7 @@ struct Product {
     relx::schema::unique_constraint<&Product::sku> unique_sku;
     
     // Check constraint
-    relx::schema::table_check_constraint<&Product::price, "> 0"> price_check;
+    relx::schema::table_check_constraint<"price > 0"> price_check;
 };
 
 // Customers table
@@ -78,7 +78,7 @@ struct Order {
     relx::schema::column<Order, "product_id", int> product_id;
     relx::schema::column<Order, "quantity", int> quantity;
     relx::schema::column<Order, "total", double> total;
-    relx::schema::column<Order, "status", std::string, relx::schema::default_value<"pending">> status;
+    relx::schema::column<Order, "status", std::string, relx::schema::string_default<"pending">> status;
     relx::schema::column<Order, "created_at", std::string, relx::schema::string_default<"CURRENT_TIMESTAMP">> created_at;
     
     // Primary key
@@ -89,7 +89,7 @@ struct Order {
     relx::schema::foreign_key<&Order::product_id, &Product::id> product_fk;
     
     // Check constraint
-    relx::schema::table_check_constraint<&Order::quantity, "> 0"> quantity_check;
+    relx::schema::table_check_constraint<"quantity > 0"> quantity_check;
     relx::schema::table_check_constraint<"status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')"> status_check;
 };
 
@@ -109,7 +109,7 @@ struct Inventory {
     relx::schema::foreign_key<&Inventory::product_id, &Product::id> product_fk;
     
     // Check constraint
-    relx::schema::table_check_constraint<&Inventory::quantity, ">= 0"> quantity_check;
+    relx::schema::table_check_constraint<"quantity >= 0"> quantity_check;
 };
 
 } // namespace schema
@@ -123,7 +123,7 @@ protected:
     
     void SetUp() override {
         // Connect to the database
-        conn = std::make_unique<Connection>("host=localhost port=5432 dbname=relx_test user=postgres password=postgres");
+        conn = std::make_unique<Connection>("host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres");
         auto result = conn->connect();
         ASSERT_TRUE(result) << "Failed to connect: " << result.error().message;
         
@@ -167,46 +167,37 @@ TEST_F(SchemaIntegrationTest, CreateTables) {
     
     // Generate and execute create table statements in the correct order
     // 1. Create categories table
-    std::string sql = relx::schema::create_table_sql(category);
+    std::string sql = relx::schema::create_table(category);
     auto result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
     
     // 2. Create products table
-    sql = relx::schema::create_table_sql(product);
+    sql = relx::schema::create_table(product);
     result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
     
     // 3. Create customers table
-    sql = relx::schema::create_table_sql(customer);
+    sql = relx::schema::create_table(customer);
     result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create customers table: " << result.error().message;
     
     // 4. Create orders table
-    sql = relx::schema::create_table_sql(order);
+    sql = relx::schema::create_table(order);
     result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create orders table: " << result.error().message;
     
     // 5. Create inventory table
-    sql = relx::schema::create_table_sql(inventory);
+    sql = relx::schema::create_table(inventory);
     result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create inventory table: " << result.error().message;
     
-    // Verify tables exist by querying information_schema
-    using namespace relx::query;
+    // Verify tables exist by querying the database
+    auto tables = conn->execute_raw("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+    ASSERT_TRUE(tables) << "Failed to query tables: " << tables.error().message;
     
-    auto table_query = select(val("table_name"))
-        .from(val("information_schema.tables"))
-        .where(val("table_schema") == val("public"))
-        .and_where(val("table_name") + val(" IN ('categories', 'products', 'customers', 'orders', 'inventory')"))
-        .order_by(val("table_name"));
-    
-    result = conn->execute_raw(table_query.to_sql(), table_query.bind_params());
-    ASSERT_TRUE(result) << "Failed to query tables: " << result.error().message;
-    
-    auto& rows = *result;
+    auto& rows = *tables;
     ASSERT_EQ(5, rows.size()) << "Expected 5 tables to be created";
     
-    // Check table names
     std::vector<std::string> expected_tables = {"categories", "customers", "inventory", "orders", "products"};
     for (size_t i = 0; i < rows.size(); ++i) {
         auto table_name = rows[i].get<std::string>(0);
@@ -225,23 +216,23 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
     schema::Inventory inventory;
     
     // Create all tables first
-    std::string sql = relx::schema::create_table_sql(category);
+    std::string sql = relx::schema::create_table(category);
     auto result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
     
-    sql = relx::schema::create_table_sql(product);
+    sql = relx::schema::create_table(product);
     result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
     
-    sql = relx::schema::create_table_sql(customer);
+    sql = relx::schema::create_table(customer);
     result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create customers table: " << result.error().message;
     
-    sql = relx::schema::create_table_sql(order);
+    sql = relx::schema::create_table(order);
     result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create orders table: " << result.error().message;
     
-    sql = relx::schema::create_table_sql(inventory);
+    sql = relx::schema::create_table(inventory);
     result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create inventory table: " << result.error().message;
     
@@ -249,18 +240,8 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
     using namespace relx::query;
     
     // Query primary keys
-    auto pk_query = select(val("tc.table_name"), val("kc.column_name"))
-        .from(val("information_schema.table_constraints") + val(" AS tc"))
-        .join(val("information_schema.key_column_usage") + val(" AS kc"), 
-              val("tc.constraint_name") == val("kc.constraint_name") + 
-              val(" AND tc.table_schema = kc.table_schema"))
-        .where(val("tc.constraint_type") == val("PRIMARY KEY"))
-        .and_where(val("tc.table_schema") == val("public"))
-        .order_by(val("tc.table_name"), val("kc.ordinal_position"));
-    
-    result = conn->execute_raw(pk_query.to_sql(), pk_query.bind_params());
+    result = conn->execute_raw("SELECT table_name, column_name FROM information_schema.table_constraints WHERE constraint_type = 'PRIMARY KEY' AND table_schema = 'public'");
     ASSERT_TRUE(result) << "Failed to query primary keys: " << result.error().message;
-    
     // Verify primary key constraints
     auto& pk_rows = *result;
     
@@ -285,22 +266,9 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
     }
     
     // Query foreign keys
-    auto fk_query = select(val("tc.table_name"), val("kcu.column_name"), 
-                          val("ccu.table_name") + val(" AS foreign_table_name"), 
-                          val("ccu.column_name") + val(" AS foreign_column_name"))
-        .from(val("information_schema.table_constraints") + val(" AS tc"))
-        .join(val("information_schema.key_column_usage") + val(" AS kcu"),
-              val("tc.constraint_name") == val("kcu.constraint_name"))
-        .join(val("information_schema.constraint_column_usage") + val(" AS ccu"),
-              val("tc.constraint_name") == val("ccu.constraint_name"))
-        .where(val("tc.constraint_type") == val("FOREIGN KEY"))
-        .and_where(val("tc.table_schema") == val("public"))
-        .order_by(val("tc.table_name"), val("kcu.column_name"));
-    
-    result = conn->execute_raw(fk_query.to_sql(), fk_query.bind_params());
+    result = conn->execute_raw("SELECT table_name, column_name, foreign_table_name, foreign_column_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_schema = 'public'");
     ASSERT_TRUE(result) << "Failed to query foreign keys: " << result.error().message;
     
-    // Verify foreign key constraints
     auto& fk_rows = *result;
     
     // Expected foreign keys (table_name, column_name, foreign_table, foreign_column)
@@ -331,7 +299,7 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
 TEST_F(SchemaIntegrationTest, DefaultValues) {
     // Create product table
     schema::Product product;
-    auto sql = relx::schema::create_table_sql(product);
+    auto sql = relx::schema::create_table(product);
     auto result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
     
@@ -370,13 +338,13 @@ TEST_F(SchemaIntegrationTest, DefaultValues) {
 TEST_F(SchemaIntegrationTest, ConstraintViolation) {
     // Create categories table
     schema::Category category;
-    auto sql = relx::schema::create_table_sql(category);
+    auto sql = relx::schema::create_table(category);
     auto result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
     
     // Create product table
     schema::Product product;
-    sql = relx::schema::create_table_sql(product);
+    sql = relx::schema::create_table(product);
     result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
     
@@ -430,15 +398,18 @@ TEST_F(SchemaIntegrationTest, CreateTableHelper) {
     schema::Product product;
     
     // Use the helper function to create a category table
-    auto result = relx::schema::create_table(conn.get(), category);
+    auto sql = relx::schema::create_table(category);
+    auto result = conn->execute_raw(sql);
     EXPECT_TRUE(result) << "Failed to create category table with helper: " << result.error().message;
     
     // Try to create it again, which should fail
-    result = relx::schema::create_table(conn.get(), category);
+    auto sql2 = relx::schema::create_table(category, false);
+    result = conn->execute_raw(sql2);
     EXPECT_FALSE(result) << "Should fail to create duplicate table";
     
     // Use if_not_exists flag to avoid errors on duplicate creation
-    result = relx::schema::create_table(conn.get(), category, true);
+    auto sql3 = relx::schema::create_table(category, true);
+    result = conn->execute_raw(sql3);
     EXPECT_TRUE(result) << "Should succeed with if_not_exists flag: " << result.error().message;
     
     // Verify the table exists by inserting data
@@ -452,15 +423,18 @@ TEST_F(SchemaIntegrationTest, CreateTableHelper) {
     EXPECT_TRUE(result) << "Failed to insert into category table: " << result.error().message;
     
     // Now create the product table with a dependency
-    result = relx::schema::create_table(conn.get(), product);
+    auto sql4 = relx::schema::create_table(product, false);
+    result = conn->execute_raw(sql4);
     EXPECT_TRUE(result) << "Failed to create product table with helper: " << result.error().message;
     
     // Try to drop the category table (should fail due to foreign key)
-    result = relx::schema::drop_table(conn.get(), category);
+    auto raw_sql = relx::schema::drop_table(category).build();
+    result = conn->execute_raw(raw_sql);
     EXPECT_FALSE(result) << "Should fail to drop table with dependencies";
     
     // Use cascade flag to drop with dependencies
-    result = relx::schema::drop_table(conn.get(), category, false, true);
+    auto raw_sql2 = relx::schema::drop_table(category).cascade().build();
+    result = conn->execute_raw(raw_sql2);
     EXPECT_TRUE(result) << "Failed to drop table with cascade: " << result.error().message;
     
     // Verify both tables are gone

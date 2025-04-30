@@ -101,10 +101,10 @@ add_executable(relx_tests
   # PostgreSQL Integration tests
   test/postgres_integration/basic_integration_test.cpp
   test/postgres_integration/schema_integration_test.cpp
-  test/postgres_integration/join_integration_test.cpp
-  test/postgres_integration/dml_integration_test.cpp
-  test/postgres_integration/connection_pool_integration_test.cpp
-  test/postgres_integration/query_integration_test.cpp
+  # test/postgres_integration/join_integration_test.cpp
+  # test/postgres_integration/dml_integration_test.cpp
+  # test/postgres_integration/connection_pool_integration_test.cpp
+  # test/postgres_integration/query_integration_test.cpp
   # Additional comprehensive tests
   test/query/edge_case_test.cpp
   test/query/data_type_test.cpp

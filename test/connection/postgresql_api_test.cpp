@@ -45,8 +45,8 @@ protected:
         if (connect_result) {
             // Use the schema's drop_table function
             Products p;
-            std::string drop_sql = relx::schema::drop_table(p);
-            auto drop_result = conn.execute_raw(drop_sql);
+            auto raw_sql = relx::schema::drop_table(p).cascade().build();
+            auto drop_result = conn.execute_raw(raw_sql);
             conn.disconnect();
         }
     }
