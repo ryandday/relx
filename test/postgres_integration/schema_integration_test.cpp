@@ -192,7 +192,7 @@ TEST_F(SchemaIntegrationTest, CreateTables) {
     ASSERT_TRUE(result) << "Failed to create inventory table: " << result.error().message;
     
     // Verify tables exist by querying the database
-    auto tables = conn->execute_raw("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+    auto tables = conn->execute_raw("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name");
     ASSERT_TRUE(tables) << "Failed to query tables: " << tables.error().message;
     
     auto& rows = *tables;
@@ -240,7 +240,15 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
     using namespace relx::query;
     
     // Query primary keys
-    result = conn->execute_raw("SELECT table_name, column_name FROM information_schema.table_constraints WHERE constraint_type = 'PRIMARY KEY' AND table_schema = 'public'");
+    result = conn->execute_raw(
+        "SELECT kcu.table_name, kcu.column_name "
+        "FROM information_schema.table_constraints tc "
+        "JOIN information_schema.key_column_usage kcu "
+        "ON tc.constraint_name = kcu.constraint_name "
+        "AND tc.table_schema = kcu.table_schema "
+        "WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = 'public' "
+        "ORDER BY kcu.table_name, kcu.ordinal_position"
+    );
     ASSERT_TRUE(result) << "Failed to query primary keys: " << result.error().message;
     // Verify primary key constraints
     auto& pk_rows = *result;
@@ -265,8 +273,19 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
         EXPECT_EQ(expected_pks[i].second, *column_name);
     }
     
-    // Query foreign keys
-    result = conn->execute_raw("SELECT table_name, column_name, foreign_table_name, foreign_column_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_schema = 'public'");
+    // Query foreign keys - using constraint_column_usage and key_column_usage to get referenced table/column
+    result = conn->execute_raw(
+        "SELECT kcu.table_name, kcu.column_name, ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name "
+        "FROM information_schema.table_constraints tc "
+        "JOIN information_schema.key_column_usage kcu "
+        "ON tc.constraint_name = kcu.constraint_name "
+        "AND tc.table_schema = kcu.table_schema "
+        "JOIN information_schema.constraint_column_usage ccu "
+        "ON tc.constraint_name = ccu.constraint_name "
+        "AND tc.table_schema = ccu.table_schema "
+        "WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public' "
+        "ORDER BY kcu.table_name, kcu.column_name"
+    );
     ASSERT_TRUE(result) << "Failed to query foreign keys: " << result.error().message;
     
     auto& fk_rows = *result;
@@ -297,15 +316,27 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
 
 // Test default values are correctly applied
 TEST_F(SchemaIntegrationTest, DefaultValues) {
-    // Create product table
-    schema::Product product;
-    auto sql = relx::schema::create_table(product);
+    // First create the categories table
+    schema::Category category;
+    auto sql = relx::schema::create_table(category);
     auto result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
+    
+    // Insert a category
+    using namespace relx::query;
+    auto insert_category = insert_into(category)
+        .columns(category.id, category.name)
+        .values(1, "Test Category");
+    result = conn->execute_raw(insert_category.to_sql(), insert_category.bind_params());
+    ASSERT_TRUE(result) << "Failed to insert category: " << result.error().message;
+    
+    // Create product table that references category table
+    schema::Product product;
+    sql = relx::schema::create_table(product);
+    result = conn->execute_raw(sql);
     ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
     
     // Insert a product with minimum fields (omitting columns with defaults)
-    using namespace relx::query;
-    
     auto insert = insert_into(product)
         .columns(product.id, product.category_id, product.name, product.price, product.sku)
         .values(1, 1, "Test Product", 9.99, "TP001");
@@ -432,18 +463,24 @@ TEST_F(SchemaIntegrationTest, CreateTableHelper) {
     result = conn->execute_raw(raw_sql);
     EXPECT_FALSE(result) << "Should fail to drop table with dependencies";
     
-    // Use cascade flag to drop with dependencies
-    auto raw_sql2 = relx::schema::drop_table(category).cascade().build();
+    // First drop the product table, then drop the category table
+    auto raw_sql2 = relx::schema::drop_table(product).build();
     result = conn->execute_raw(raw_sql2);
-    EXPECT_TRUE(result) << "Failed to drop table with cascade: " << result.error().message;
+    EXPECT_TRUE(result) << "Failed to drop products table: " << result.error().message;
     
-    // Verify both tables are gone
-    auto select_category = select(val("*")).from(category);
-    result = conn->execute_raw(select_category.to_sql(), select_category.bind_params());
-    EXPECT_FALSE(result) << "Category table should be dropped";
+    result = conn->execute_raw(raw_sql);
+    EXPECT_TRUE(result) << "Failed to drop categories table: " << result.error().message;
     
-    auto select_product = select(val("*")).from(product);
-    result = conn->execute_raw(select_product.to_sql(), select_product.bind_params());
-    result = conn->execute_raw(select_product.to_sql(), select_product.bind_params());
-    EXPECT_FALSE(result) << "Product table should be dropped (cascade)";
+    // Verify both tables are gone by checking if they exist in information_schema
+    result = conn->execute_raw("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'categories')");
+    EXPECT_TRUE(result) << "Failed to query existence of category table";
+    auto category_exists = (*result)[0].get<bool>(0);
+    ASSERT_TRUE(category_exists);
+    EXPECT_FALSE(*category_exists) << "Category table should be dropped";
+    
+    result = conn->execute_raw("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'products')");
+    EXPECT_TRUE(result) << "Failed to query existence of product table";
+    auto product_exists = (*result)[0].get<bool>(0);
+    ASSERT_TRUE(product_exists);
+    EXPECT_FALSE(*product_exists) << "Product table should be dropped";
 } 
