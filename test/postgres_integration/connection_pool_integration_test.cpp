@@ -144,7 +144,7 @@ TEST_F(ConnectionPoolIntegrationTest, WithConnectionHelper) {
     setup_test_schema();
     
     // Use the with_connection helper
-    auto result = pool->with_connection([](auto conn) {
+    auto result = pool->with_connection([](auto conn) -> relx::ConnectionPoolResult<int> {
         // Insert a record
         auto insert_result = conn->execute_raw(
             "INSERT INTO test_pool (value) VALUES ('with_connection_test') RETURNING id"
@@ -155,14 +155,15 @@ TEST_F(ConnectionPoolIntegrationTest, WithConnectionHelper) {
         }
         
         auto& rows = *insert_result;
-        int id = *(rows[0].get<int>(0));
+        int id = *(rows[0].template get<int>(0));
         
         // Return the ID
         return id;
     });
     
     ASSERT_TRUE(result) << "Failed to execute with_connection: " << result.error().message;
-    int inserted_id = *result;
+    ASSERT_TRUE(*result) << "Failed to execute with_connection: " << result.error().message;
+    int inserted_id = **result;
     
     // Verify data with another with_connection call
     auto verify_result = pool->with_connection([inserted_id](auto conn) {
