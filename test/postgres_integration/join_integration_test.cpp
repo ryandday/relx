@@ -202,12 +202,14 @@ TEST_F(JoinIntegrationTest, InnerJoin) {
 TEST_F(JoinIntegrationTest, LeftJoin) {
     using namespace relx::query;
     
-    // Run a direct SQL left join to verify the expected results
-    auto direct_sql = "SELECT c.id, c.name, o.id AS order_id FROM customers c "
-                     "LEFT JOIN orders o ON c.id = o.customer_id "
-                     "ORDER BY c.id, o.id";
-    
-    auto result = conn->execute_raw(direct_sql);
+    auto left_join_query = relx::query::select(
+        customer.id,
+        customer.name,
+        relx::as(order.id, "order_id")
+    )
+    .from(customer)
+    .left_join(order, customer.id == order.customer_id);
+    auto result = conn->execute(left_join_query);
     ASSERT_TRUE(result) << "Failed to execute direct SQL left join";
     
     auto& rows = *result;
@@ -278,7 +280,17 @@ TEST_F(JoinIntegrationTest, RightJoin) {
                      "RIGHT JOIN categories c ON p.category_id = c.id "
                      "ORDER BY c.id, p.id";
     
-    auto result = conn->execute_raw(direct_sql);
+    auto right_join_query = relx::query::select(
+        category.id,
+        category.name,
+        relx::as(product.id, "product_id"),
+        relx::as(product.name, "product_name"))
+    .from(product)
+    .right_join(category, product.category_id == category.id)
+    .order_by(category.id)
+    .order_by(product.id);
+    
+    auto result = conn->execute(right_join_query);
     ASSERT_TRUE(result) << "Failed to execute direct SQL right join";
     
     auto& rows = *result;
@@ -356,7 +368,17 @@ TEST_F(JoinIntegrationTest, FullOuterJoin) {
                      "FULL OUTER JOIN orders o ON c.id = o.customer_id "
                      "ORDER BY c.id, o.id";
     
-    auto result = conn->execute_raw(direct_sql);
+    auto full_outer_join_query = relx::query::select(
+        relx::as(customer.id, "customer_id"),
+        customer.name,
+        relx::as(order.id, "order_id"),
+        order.status
+    ).from(customer)
+    .full_join(order, customer.id == order.customer_id)
+    .order_by(customer.id)
+    .order_by(order.id);
+    
+    auto result = conn->execute(full_outer_join_query);
     ASSERT_TRUE(result) << "Failed to execute direct SQL full outer join";
     
     auto& rows = *result;
