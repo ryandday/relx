@@ -101,9 +101,9 @@ bool drop_tables(relx::Connection& conn) {
     Comments comments;
 
     std::vector<std::string> drop_tables = {
-        relx::drop_table(comments),
-        relx::drop_table(posts),
-        relx::drop_table(users)
+        relx::drop_table(comments).build(),
+        relx::drop_table(posts).build(),
+        relx::drop_table(users).build()
     };
     
     for (const auto& sql : drop_tables) {
@@ -455,9 +455,9 @@ bool clean_up(relx::Connection& conn) {
     Comments comments;
 
     std::vector<std::string> drop_tables = {
-        relx::drop_table(comments),
-        relx::drop_table(posts),
-        relx::drop_table(users)
+        relx::drop_table(comments).build(),
+        relx::drop_table(posts).build(),
+        relx::drop_table(users).build()
     };
     
     bool success = true;

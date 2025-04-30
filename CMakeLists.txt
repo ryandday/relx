@@ -24,7 +24,7 @@ if(APPLE)
 endif()
 
 # Find dependencies (Conan or system provided)
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(PostgreSQL REQUIRED)
 
 # Set up Google Test with FetchContent
@@ -45,6 +45,7 @@ add_library(${PROJECT_NAME}
   src/connection/postgresql_connection_pool.cpp
   src/connection/postgresql_errors.cpp
   src/connection/postgresql_statement.cpp
+  src/connection/postgresql_async_connection.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE include/relx)
 target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost PostgreSQL::PostgreSQL)
@@ -98,6 +99,7 @@ add_executable(relx_tests
   test/connection/postgresql_binary_test.cpp
   test/connection/postgresql_statement_test.cpp
   test/connection/postgresql_connection_pool_test.cpp
+  test/connection/dto_mapping_test.cpp
   # PostgreSQL Integration tests
   test/postgres_integration/basic_integration_test.cpp
   test/postgres_integration/schema_integration_test.cpp
@@ -105,6 +107,8 @@ add_executable(relx_tests
   test/postgres_integration/dml_integration_test.cpp
   # test/postgres_integration/connection_pool_integration_test.cpp
   test/postgres_integration/query_integration_test.cpp
+  test/postgres_integration/dto_mapping_integration_test.cpp
+  test/postgres_integration/async_dto_mapping_test.cpp
   # Additional comprehensive tests
   test/query/edge_case_test.cpp
   test/query/data_type_test.cpp
