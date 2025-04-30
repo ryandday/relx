@@ -1,0 +1,475 @@
+#include <gtest/gtest.h>
+#include <relx/schema.hpp>
+#include <relx/query.hpp>
+#include <relx/connection.hpp>
+#include <relx/postgresql.hpp>
+#include <string>
+#include <memory>
+#include <optional>
+
+// Schema for our integration tests
+namespace schema {
+
+// Categories table
+struct Category {
+    static constexpr auto table_name = "categories";
+    
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"description", std::optional<std::string>> description;
+    
+    // Primary key
+    relx::schema::pk<&Category::id> primary;
+    
+    // Unique constraint
+    relx::schema::unique_constraint<&Category::name> unique_name;
+};
+
+// Products table
+struct Product {
+    static constexpr auto table_name = "products";
+    
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"category_id", int> category_id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"description", std::optional<std::string>> description;
+    relx::schema::column<"price", double> price;
+    relx::schema::column<"sku", std::string> sku;
+    relx::schema::column<"is_active", bool, relx::schema::DefaultValue<true>> is_active;
+    relx::schema::column<"created_at", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> created_at;
+    
+    // Primary key
+    relx::schema::pk<&Product::id> primary;
+    
+    // Foreign key
+    relx::schema::foreign_key<&Product::category_id, &Category::id> category_fk;
+    
+    // Unique constraint
+    relx::schema::unique_constraint<&Product::sku> unique_sku;
+    
+    // Check constraint
+    relx::schema::check_constraint<&Product::price, "> 0"> price_check;
+};
+
+// Customers table
+struct Customer {
+    static constexpr auto table_name = "customers";
+    
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"name", std::string> name;
+    relx::schema::column<"email", std::string> email;
+    relx::schema::column<"phone", std::optional<std::string>> phone;
+    relx::schema::column<"is_active", bool, relx::schema::DefaultValue<true>> is_active;
+    relx::schema::column<"created_at", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> created_at;
+    
+    // Primary key
+    relx::schema::pk<&Customer::id> primary;
+    
+    // Unique constraint
+    relx::schema::unique_constraint<&Customer::email> unique_email;
+};
+
+// Orders table with composite foreign key
+struct Order {
+    static constexpr auto table_name = "orders";
+    
+    relx::schema::column<"id", int> id;
+    relx::schema::column<"customer_id", int> customer_id;
+    relx::schema::column<"product_id", int> product_id;
+    relx::schema::column<"quantity", int> quantity;
+    relx::schema::column<"total", double> total;
+    relx::schema::column<"status", std::string, relx::schema::DefaultValue<"pending">> status;
+    relx::schema::column<"created_at", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> created_at;
+    
+    // Primary key
+    relx::schema::pk<&Order::id> primary;
+    
+    // Foreign keys
+    relx::schema::foreign_key<&Order::customer_id, &Customer::id> customer_fk;
+    relx::schema::foreign_key<&Order::product_id, &Product::id> product_fk;
+    
+    // Check constraint
+    relx::schema::check_constraint<&Order::quantity, "> 0"> quantity_check;
+    relx::schema::table_check_constraint<"status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')"> status_check;
+};
+
+// Table with a composite primary key
+struct Inventory {
+    static constexpr auto table_name = "inventory";
+    
+    relx::schema::column<"product_id", int> product_id;
+    relx::schema::column<"warehouse_code", std::string> warehouse_code;
+    relx::schema::column<"quantity", int> quantity;
+    relx::schema::column<"last_updated", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> last_updated;
+    
+    // Composite primary key
+    relx::schema::pk<&Inventory::product_id, &Inventory::warehouse_code> primary;
+    
+    // Foreign key
+    relx::schema::foreign_key<&Inventory::product_id, &Product::id> product_fk;
+    
+    // Check constraint
+    relx::schema::check_constraint<&Inventory::quantity, ">= 0"> quantity_check;
+};
+
+} // namespace schema
+
+// Test fixture for schema integration tests
+class SchemaIntegrationTest : public ::testing::Test {
+protected:
+    using Connection = relx::connection::PostgreSQLConnection;
+    
+    std::unique_ptr<Connection> conn;
+    
+    void SetUp() override {
+        // Connect to the database
+        conn = std::make_unique<Connection>("host=localhost port=5432 dbname=relx_test user=postgres password=postgres");
+        auto result = conn->connect();
+        ASSERT_TRUE(result) << "Failed to connect: " << result.error().message;
+        
+        // Clean up any existing tables
+        cleanup_database();
+    }
+    
+    void TearDown() override {
+        if (conn && conn->is_connected()) {
+            cleanup_database();
+            conn->disconnect();
+        }
+    }
+    
+    void cleanup_database() {
+        auto result = conn->execute_raw("DROP TABLE IF EXISTS orders CASCADE");
+        ASSERT_TRUE(result) << "Failed to drop orders table: " << result.error().message;
+        
+        result = conn->execute_raw("DROP TABLE IF EXISTS inventory CASCADE");
+        ASSERT_TRUE(result) << "Failed to drop inventory table: " << result.error().message;
+        
+        result = conn->execute_raw("DROP TABLE IF EXISTS customers CASCADE");
+        ASSERT_TRUE(result) << "Failed to drop customers table: " << result.error().message;
+        
+        result = conn->execute_raw("DROP TABLE IF EXISTS products CASCADE");
+        ASSERT_TRUE(result) << "Failed to drop products table: " << result.error().message;
+        
+        result = conn->execute_raw("DROP TABLE IF EXISTS categories CASCADE");
+        ASSERT_TRUE(result) << "Failed to drop categories table: " << result.error().message;
+    }
+};
+
+// Test creating tables from schema
+TEST_F(SchemaIntegrationTest, CreateTables) {
+    // Create instances of our table schemas
+    schema::Category category;
+    schema::Product product;
+    schema::Customer customer;
+    schema::Order order;
+    schema::Inventory inventory;
+    
+    // Generate and execute create table statements in the correct order
+    // 1. Create categories table
+    std::string sql = relx::schema::create_table_sql(category);
+    auto result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
+    
+    // 2. Create products table
+    sql = relx::schema::create_table_sql(product);
+    result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
+    
+    // 3. Create customers table
+    sql = relx::schema::create_table_sql(customer);
+    result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create customers table: " << result.error().message;
+    
+    // 4. Create orders table
+    sql = relx::schema::create_table_sql(order);
+    result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create orders table: " << result.error().message;
+    
+    // 5. Create inventory table
+    sql = relx::schema::create_table_sql(inventory);
+    result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create inventory table: " << result.error().message;
+    
+    // Verify tables exist by querying information_schema
+    using namespace relx::query;
+    
+    auto table_query = select(val("table_name"))
+        .from(val("information_schema.tables"))
+        .where(val("table_schema") == val("public"))
+        .and_where(val("table_name") + val(" IN ('categories', 'products', 'customers', 'orders', 'inventory')"))
+        .order_by(val("table_name"));
+    
+    result = conn->execute_raw(table_query.to_sql(), table_query.bind_params());
+    ASSERT_TRUE(result) << "Failed to query tables: " << result.error().message;
+    
+    auto& rows = *result;
+    ASSERT_EQ(5, rows.size()) << "Expected 5 tables to be created";
+    
+    // Check table names
+    std::vector<std::string> expected_tables = {"categories", "customers", "inventory", "orders", "products"};
+    for (size_t i = 0; i < rows.size(); ++i) {
+        auto table_name = rows[i].get<std::string>(0);
+        ASSERT_TRUE(table_name);
+        EXPECT_EQ(expected_tables[i], *table_name);
+    }
+}
+
+// Test constraints are properly created
+TEST_F(SchemaIntegrationTest, TableConstraints) {
+    // Create instances of our table schemas
+    schema::Category category;
+    schema::Product product;
+    schema::Customer customer;
+    schema::Order order;
+    schema::Inventory inventory;
+    
+    // Create all tables first
+    std::string sql = relx::schema::create_table_sql(category);
+    auto result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
+    
+    sql = relx::schema::create_table_sql(product);
+    result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
+    
+    sql = relx::schema::create_table_sql(customer);
+    result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create customers table: " << result.error().message;
+    
+    sql = relx::schema::create_table_sql(order);
+    result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create orders table: " << result.error().message;
+    
+    sql = relx::schema::create_table_sql(inventory);
+    result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create inventory table: " << result.error().message;
+    
+    // Now query the constraints from information_schema
+    using namespace relx::query;
+    
+    // Query primary keys
+    auto pk_query = select(val("tc.table_name"), val("kc.column_name"))
+        .from(val("information_schema.table_constraints") + val(" AS tc"))
+        .join(val("information_schema.key_column_usage") + val(" AS kc"), 
+              val("tc.constraint_name") == val("kc.constraint_name") + 
+              val(" AND tc.table_schema = kc.table_schema"))
+        .where(val("tc.constraint_type") == val("PRIMARY KEY"))
+        .and_where(val("tc.table_schema") == val("public"))
+        .order_by(val("tc.table_name"), val("kc.ordinal_position"));
+    
+    result = conn->execute_raw(pk_query.to_sql(), pk_query.bind_params());
+    ASSERT_TRUE(result) << "Failed to query primary keys: " << result.error().message;
+    
+    // Verify primary key constraints
+    auto& pk_rows = *result;
+    
+    // Expected primary keys (table_name, column_name)
+    std::vector<std::pair<std::string, std::string>> expected_pks = {
+        {"categories", "id"},
+        {"customers", "id"},
+        {"inventory", "product_id"},
+        {"inventory", "warehouse_code"},
+        {"orders", "id"},
+        {"products", "id"}
+    };
+    
+    ASSERT_EQ(expected_pks.size(), pk_rows.size()) << "Expected " << expected_pks.size() << " primary key columns";
+    
+    for (size_t i = 0; i < pk_rows.size(); ++i) {
+        auto table_name = pk_rows[i].get<std::string>(0);
+        auto column_name = pk_rows[i].get<std::string>(1);
+        ASSERT_TRUE(table_name && column_name);
+        EXPECT_EQ(expected_pks[i].first, *table_name);
+        EXPECT_EQ(expected_pks[i].second, *column_name);
+    }
+    
+    // Query foreign keys
+    auto fk_query = select(val("tc.table_name"), val("kcu.column_name"), 
+                          val("ccu.table_name") + val(" AS foreign_table_name"), 
+                          val("ccu.column_name") + val(" AS foreign_column_name"))
+        .from(val("information_schema.table_constraints") + val(" AS tc"))
+        .join(val("information_schema.key_column_usage") + val(" AS kcu"),
+              val("tc.constraint_name") == val("kcu.constraint_name"))
+        .join(val("information_schema.constraint_column_usage") + val(" AS ccu"),
+              val("tc.constraint_name") == val("ccu.constraint_name"))
+        .where(val("tc.constraint_type") == val("FOREIGN KEY"))
+        .and_where(val("tc.table_schema") == val("public"))
+        .order_by(val("tc.table_name"), val("kcu.column_name"));
+    
+    result = conn->execute_raw(fk_query.to_sql(), fk_query.bind_params());
+    ASSERT_TRUE(result) << "Failed to query foreign keys: " << result.error().message;
+    
+    // Verify foreign key constraints
+    auto& fk_rows = *result;
+    
+    // Expected foreign keys (table_name, column_name, foreign_table, foreign_column)
+    std::vector<std::tuple<std::string, std::string, std::string, std::string>> expected_fks = {
+        {"inventory", "product_id", "products", "id"},
+        {"orders", "customer_id", "customers", "id"},
+        {"orders", "product_id", "products", "id"},
+        {"products", "category_id", "categories", "id"}
+    };
+    
+    ASSERT_EQ(expected_fks.size(), fk_rows.size()) << "Expected " << expected_fks.size() << " foreign key relationships";
+    
+    for (size_t i = 0; i < fk_rows.size(); ++i) {
+        auto table_name = fk_rows[i].get<std::string>(0);
+        auto column_name = fk_rows[i].get<std::string>(1);
+        auto foreign_table = fk_rows[i].get<std::string>(2);
+        auto foreign_column = fk_rows[i].get<std::string>(3);
+        
+        ASSERT_TRUE(table_name && column_name && foreign_table && foreign_column);
+        EXPECT_EQ(std::get<0>(expected_fks[i]), *table_name);
+        EXPECT_EQ(std::get<1>(expected_fks[i]), *column_name);
+        EXPECT_EQ(std::get<2>(expected_fks[i]), *foreign_table);
+        EXPECT_EQ(std::get<3>(expected_fks[i]), *foreign_column);
+    }
+}
+
+// Test default values are correctly applied
+TEST_F(SchemaIntegrationTest, DefaultValues) {
+    // Create product table
+    schema::Product product;
+    auto sql = relx::schema::create_table_sql(product);
+    auto result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
+    
+    // Insert a product with minimum fields (omitting columns with defaults)
+    using namespace relx::query;
+    
+    auto insert = insert_into(product)
+        .columns(product.id, product.category_id, product.name, product.price, product.sku)
+        .values(1, 1, "Test Product", 9.99, "TP001");
+        
+    result = conn->execute_raw(insert.to_sql(), insert.bind_params());
+    ASSERT_TRUE(result) << "Failed to insert product: " << result.error().message;
+    
+    // Query the product to check default values
+    auto select_query = select(product.id, product.name, product.is_active, product.created_at)
+        .from(product)
+        .where(product.id == 1);
+        
+    result = conn->execute_raw(select_query.to_sql(), select_query.bind_params());
+    ASSERT_TRUE(result) << "Failed to select product: " << result.error().message;
+    
+    auto& rows = *result;
+    ASSERT_EQ(1, rows.size()) << "Expected 1 product row";
+    
+    auto is_active = rows[0].get<bool>(2);
+    auto created_at = rows[0].get<std::string>(3);
+    
+    ASSERT_TRUE(is_active);
+    EXPECT_TRUE(*is_active) << "Default value for is_active should be true";
+    
+    ASSERT_TRUE(created_at);
+    EXPECT_FALSE(created_at->empty()) << "Default value for created_at should not be empty";
+}
+
+// Test constraint violations are properly enforced
+TEST_F(SchemaIntegrationTest, ConstraintViolation) {
+    // Create categories table
+    schema::Category category;
+    auto sql = relx::schema::create_table_sql(category);
+    auto result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
+    
+    // Create product table
+    schema::Product product;
+    sql = relx::schema::create_table_sql(product);
+    result = conn->execute_raw(sql);
+    ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
+    
+    // Insert a category
+    using namespace relx::query;
+    
+    auto insert_category = insert_into(category)
+        .columns(category.id, category.name)
+        .values(1, "Test Category");
+        
+    result = conn->execute_raw(insert_category.to_sql(), insert_category.bind_params());
+    ASSERT_TRUE(result) << "Failed to insert category: " << result.error().message;
+    
+    // Test primary key violation
+    auto duplicate_pk = insert_into(category)
+        .columns(category.id, category.name)
+        .values(1, "Another Category");
+        
+    result = conn->execute_raw(duplicate_pk.to_sql(), duplicate_pk.bind_params());
+    EXPECT_FALSE(result) << "Should fail due to duplicate primary key";
+    
+    // Test unique constraint violation
+    auto duplicate_name = insert_into(category)
+        .columns(category.id, category.name)
+        .values(2, "Test Category");
+        
+    result = conn->execute_raw(duplicate_name.to_sql(), duplicate_name.bind_params());
+    EXPECT_FALSE(result) << "Should fail due to duplicate name (unique constraint)";
+    
+    // Test foreign key constraint
+    auto invalid_fk = insert_into(product)
+        .columns(product.id, product.category_id, product.name, product.price, product.sku)
+        .values(1, 999, "Invalid Product", 9.99, "IP001");
+        
+    result = conn->execute_raw(invalid_fk.to_sql(), invalid_fk.bind_params());
+    EXPECT_FALSE(result) << "Should fail due to invalid foreign key";
+    
+    // Test check constraint
+    auto invalid_price = insert_into(product)
+        .columns(product.id, product.category_id, product.name, product.price, product.sku)
+        .values(1, 1, "Negative Price", -1.0, "NP001");
+        
+    result = conn->execute_raw(invalid_price.to_sql(), invalid_price.bind_params());
+    EXPECT_FALSE(result) << "Should fail due to negative price (check constraint)";
+}
+
+// Test database creation using create_table helper
+TEST_F(SchemaIntegrationTest, CreateTableHelper) {
+    // Create instances of our table schemas
+    schema::Category category;
+    schema::Product product;
+    
+    // Use the helper function to create a category table
+    auto result = relx::schema::create_table(conn.get(), category);
+    EXPECT_TRUE(result) << "Failed to create category table with helper: " << result.error().message;
+    
+    // Try to create it again, which should fail
+    result = relx::schema::create_table(conn.get(), category);
+    EXPECT_FALSE(result) << "Should fail to create duplicate table";
+    
+    // Use if_not_exists flag to avoid errors on duplicate creation
+    result = relx::schema::create_table(conn.get(), category, true);
+    EXPECT_TRUE(result) << "Should succeed with if_not_exists flag: " << result.error().message;
+    
+    // Verify the table exists by inserting data
+    using namespace relx::query;
+    
+    auto insert = insert_into(category)
+        .columns(category.id, category.name)
+        .values(1, "Test Category");
+        
+    result = conn->execute_raw(insert.to_sql(), insert.bind_params());
+    EXPECT_TRUE(result) << "Failed to insert into category table: " << result.error().message;
+    
+    // Now create the product table with a dependency
+    result = relx::schema::create_table(conn.get(), product);
+    EXPECT_TRUE(result) << "Failed to create product table with helper: " << result.error().message;
+    
+    // Try to drop the category table (should fail due to foreign key)
+    result = relx::schema::drop_table(conn.get(), category);
+    EXPECT_FALSE(result) << "Should fail to drop table with dependencies";
+    
+    // Use cascade flag to drop with dependencies
+    result = relx::schema::drop_table(conn.get(), category, false, true);
+    EXPECT_TRUE(result) << "Failed to drop table with cascade: " << result.error().message;
+    
+    // Verify both tables are gone
+    auto select_category = select(val("*")).from(category);
+    result = conn->execute_raw(select_category.to_sql(), select_category.bind_params());
+    EXPECT_FALSE(result) << "Category table should be dropped";
+    
+    auto select_product = select(val("*")).from(product);
+    result = conn->execute_raw(select_product.to_sql(), select_product.bind_params());
+    result = conn->execute_raw(select_product.to_sql(), select_product.bind_params());
+    EXPECT_FALSE(result) << "Product table should be dropped (cascade)";
+} 
