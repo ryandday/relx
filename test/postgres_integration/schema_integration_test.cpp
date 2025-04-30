@@ -14,9 +14,9 @@ namespace schema {
 struct Category {
     static constexpr auto table_name = "categories";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"description", std::optional<std::string>> description;
+    relx::schema::column<Category, "id", int> id;
+    relx::schema::column<Category, "name", std::string> name;
+    relx::schema::column<Category, "description", std::optional<std::string>> description;
     
     // Primary key
     relx::schema::pk<&Category::id> primary;
@@ -29,14 +29,14 @@ struct Category {
 struct Product {
     static constexpr auto table_name = "products";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"category_id", int> category_id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"description", std::optional<std::string>> description;
-    relx::schema::column<"price", double> price;
-    relx::schema::column<"sku", std::string> sku;
-    relx::schema::column<"is_active", bool, relx::schema::DefaultValue<true>> is_active;
-    relx::schema::column<"created_at", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> created_at;
+    relx::schema::column<Product, "id", int> id;
+    relx::schema::column<Product, "category_id", int> category_id;
+    relx::schema::column<Product, "name", std::string> name;
+    relx::schema::column<Product, "description", std::optional<std::string>> description;
+    relx::schema::column<Product, "price", double> price;
+    relx::schema::column<Product, "sku", std::string> sku;
+    relx::schema::column<Product, "is_active", bool, relx::schema::default_value<true>> is_active;
+    relx::schema::column<Product, "created_at", std::string, relx::schema::string_default<"CURRENT_TIMESTAMP">> created_at;
     
     // Primary key
     relx::schema::pk<&Product::id> primary;
@@ -48,19 +48,19 @@ struct Product {
     relx::schema::unique_constraint<&Product::sku> unique_sku;
     
     // Check constraint
-    relx::schema::check_constraint<&Product::price, "> 0"> price_check;
+    relx::schema::table_check_constraint<&Product::price, "> 0"> price_check;
 };
 
 // Customers table
 struct Customer {
     static constexpr auto table_name = "customers";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"email", std::string> email;
-    relx::schema::column<"phone", std::optional<std::string>> phone;
-    relx::schema::column<"is_active", bool, relx::schema::DefaultValue<true>> is_active;
-    relx::schema::column<"created_at", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> created_at;
+    relx::schema::column<Customer, "id", int> id;
+    relx::schema::column<Customer, "name", std::string> name;
+    relx::schema::column<Customer, "email", std::string> email;
+    relx::schema::column<Customer, "phone", std::optional<std::string>> phone;
+    relx::schema::column<Customer, "is_active", bool, relx::schema::default_value<true>> is_active;
+    relx::schema::column<Customer, "created_at", std::string, relx::schema::string_default<"CURRENT_TIMESTAMP">> created_at;
     
     // Primary key
     relx::schema::pk<&Customer::id> primary;
@@ -73,13 +73,13 @@ struct Customer {
 struct Order {
     static constexpr auto table_name = "orders";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"customer_id", int> customer_id;
-    relx::schema::column<"product_id", int> product_id;
-    relx::schema::column<"quantity", int> quantity;
-    relx::schema::column<"total", double> total;
-    relx::schema::column<"status", std::string, relx::schema::DefaultValue<"pending">> status;
-    relx::schema::column<"created_at", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> created_at;
+    relx::schema::column<Order, "id", int> id;
+    relx::schema::column<Order, "customer_id", int> customer_id;
+    relx::schema::column<Order, "product_id", int> product_id;
+    relx::schema::column<Order, "quantity", int> quantity;
+    relx::schema::column<Order, "total", double> total;
+    relx::schema::column<Order, "status", std::string, relx::schema::default_value<"pending">> status;
+    relx::schema::column<Order, "created_at", std::string, relx::schema::string_default<"CURRENT_TIMESTAMP">> created_at;
     
     // Primary key
     relx::schema::pk<&Order::id> primary;
@@ -89,7 +89,7 @@ struct Order {
     relx::schema::foreign_key<&Order::product_id, &Product::id> product_fk;
     
     // Check constraint
-    relx::schema::check_constraint<&Order::quantity, "> 0"> quantity_check;
+    relx::schema::table_check_constraint<&Order::quantity, "> 0"> quantity_check;
     relx::schema::table_check_constraint<"status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')"> status_check;
 };
 
@@ -97,10 +97,10 @@ struct Order {
 struct Inventory {
     static constexpr auto table_name = "inventory";
     
-    relx::schema::column<"product_id", int> product_id;
-    relx::schema::column<"warehouse_code", std::string> warehouse_code;
-    relx::schema::column<"quantity", int> quantity;
-    relx::schema::column<"last_updated", std::string, relx::schema::DefaultValue<relx::schema::current_timestamp>> last_updated;
+    relx::schema::column<Inventory, "product_id", int> product_id;
+    relx::schema::column<Inventory, "warehouse_code", std::string> warehouse_code;
+    relx::schema::column<Inventory, "quantity", int> quantity;
+    relx::schema::column<Inventory, "last_updated", std::string, relx::schema::string_default<"CURRENT_TIMESTAMP">> last_updated;
     
     // Composite primary key
     relx::schema::pk<&Inventory::product_id, &Inventory::warehouse_code> primary;
@@ -109,7 +109,7 @@ struct Inventory {
     relx::schema::foreign_key<&Inventory::product_id, &Product::id> product_fk;
     
     // Check constraint
-    relx::schema::check_constraint<&Inventory::quantity, ">= 0"> quantity_check;
+    relx::schema::table_check_constraint<&Inventory::quantity, ">= 0"> quantity_check;
 };
 
 } // namespace schema

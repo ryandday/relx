@@ -59,7 +59,7 @@
  *     relx::schema::unique_constraint<&users::email> unique_email;
  *     
  *     // Define a check constraint
- *     relx::schema::check_constraint<&users::age, ">= 18"> age_check;
+ *     relx::schema::table_check_constraint<&users::age, ">= 18"> age_check;
  *     
  *     // Define a table-level check constraint
  *     relx::schema::table_check_constraint<"status IN ('pending', 'active', 'suspended')"> status_check;
@@ -137,7 +137,7 @@ namespace relx {
  * relx::schema::column<"id", int, relx::schema::serial> postgres_id_column;
  * 
  * // Define check constraints
- * relx::schema::check_constraint<&product::price, "> 0"> price_check;
+ * relx::schema::table_check_constraint<&product::price, "> 0"> price_check;
  * 
  * // Define unique constraints
  * relx::schema::unique_constraint<&user::email> unique_email;

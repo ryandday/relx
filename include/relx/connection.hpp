@@ -3,7 +3,7 @@
 #include "connection/connection.hpp"
 #include "connection/postgresql_connection.hpp"
 #include "connection/transaction_guard.hpp"
-
+#include "connection/postgresql_connection_pool.hpp"
 /**
  * @brief relx database connection
  * 
@@ -71,6 +71,11 @@ namespace relx {
 using connection::Connection;
 using connection::ConnectionError;
 using connection::ConnectionResult;
-using connection::PostgresConnection;
+using connection::PostgreSQLConnection;
+using connection::PostgreSQLConnectionPool;
+using connection::PostgreSQLConnectionPoolConfig;
+using connection::ConnectionPoolResult;
+using connection::ConnectionPoolError;
+
 
 } // namespace relx 
