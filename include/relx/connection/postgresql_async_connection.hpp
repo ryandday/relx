@@ -227,19 +227,18 @@ public:
     /// @return The PGconn pointer
     PGconn* get_pg_conn() const { return pg_conn_; }
 
-    /// @brief Get a reference to the io_context
-    /// @return Reference to the io_context
-    boost::asio::io_context& get_io_context() { return io_context_; }
+    /// @brief Get a reference to the socket
+    /// @return Reference to the socket
+    boost::asio::ip::tcp::socket& get_socket() { return socket_; }
 
 private:
-    boost::asio::io_context& io_context_;
     std::string connection_string_;
     PGconn* pg_conn_ = nullptr;
     bool is_connected_ = false;
     bool in_transaction_ = false;
     
     // Socket for async operations
-    std::unique_ptr<boost::asio::ip::tcp::socket> socket_;
+    boost::asio::ip::tcp::socket socket_;
 
     /// @brief Helper method to handle PGresult and convert to ConnectionResult
     /// @param result PGresult pointer to process

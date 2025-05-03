@@ -59,14 +59,16 @@ class AsyncPgIntegrationTest : public ::testing::Test {
 protected:
     // Connection string for the PostgreSQL test database
     std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
-    boost::asio::io_context io_context;
+    std::unique_ptr<boost::asio::io_context> io_context;
     std::unique_ptr<relx::connection::PostgreSQLAsyncConnection> conn;
     Users users;
     
     void SetUp() override {
-        // Create the connection
-        conn = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(io_context, conn_string);
+        // Create a fresh io_context for each test
+        io_context = std::make_unique<boost::asio::io_context>();
         
+        // Create a new connection with the fresh io_context
+        conn = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(*io_context, conn_string);
         // Run setup tasks in a separate thread
         auto setup_future = std::async(std::launch::async, [this]() {
             // Connect to the database
@@ -76,20 +78,35 @@ protected:
                     throw std::runtime_error("Failed to connect to database: " + connect_result.error().message);
                 } 
 
-                // Clean up existing table
-                co_await clean_test_table();
+                // Clean up existing table, don't fail if the table doesn't exist
+                try {
+                    co_await clean_test_table();
+                } catch (const std::exception& e) {
+                    std::cerr << "Error cleaning test table: " << e.what() << std::endl;
+                    // Ignore errors - table might not exist
+                }
                 
                 // Create test table
-                co_await create_test_table();
+                auto create_result = co_await create_test_table();
+                if (create_result) {
+                    throw std::runtime_error("Failed to create test table: " + *create_result);
+                }
                 
                 // Insert test data
-                co_await insert_test_data();
+                auto insert_result = co_await insert_test_data();
+                if (insert_result) {
+                    throw std::runtime_error("Failed to insert test data: " + *insert_result);
+                }
             };
             
             // Run the setup tasks and wait for completion
-            boost::asio::co_spawn(io_context, connect_task(), boost::asio::detached);
-            io_context.run();
-            io_context.restart();
+            boost::asio::co_spawn(*io_context, connect_task(), 
+                [](std::exception_ptr e) {
+                    if (e) {
+                        std::rethrow_exception(e); // Propagate setup errors
+                    }
+                });
+            io_context->run();
         });
         
         // Wait for setup to complete
@@ -97,45 +114,104 @@ protected:
     }
     
     void TearDown() override {
-        if (conn) {
-            // Run cleanup tasks in a separate thread
-            auto cleanup_future = std::async(std::launch::async, [this]() {
-                auto cleanup_task = [this]() -> boost::asio::awaitable<void> {
-                    if (conn->is_connected()) {
-                        co_await clean_test_table();
+        // First attempt async cleanup
+        if (conn && conn->is_connected()) {
+            try {
+                // Run cleanup tasks in a separate thread
+                auto cleanup_future = std::async(std::launch::async, [this]() {
+                    auto cleanup_task = [this]() -> boost::asio::awaitable<void> {
+                        // Make sure any active transaction is rolled back
+                        if (conn->in_transaction()) {
+                            auto rollback_result = co_await conn->rollback_transaction();
+                            // Ignore rollback errors, just try to clean up
+                        }
+                        
+                        // Drop the test table
+                        try {
+                            co_await clean_test_table();
+                        } catch (const std::exception& e) {
+                            // Ignore errors during cleanup
+                        }
+                        
+                        // Explicitly disconnect the connection
                         co_await conn->disconnect();
-                    }
-                    co_return;
-                };
+                    };
+                    
+                    boost::asio::co_spawn(*io_context, cleanup_task(), 
+                        [](std::exception_ptr e) {
+                            if (e) {
+                                // Just log cleanup errors rather than propagating them
+                                try {
+                                    if (e) std::rethrow_exception(e);
+                                } catch (const std::exception& ex) {
+                                    std::cerr << "Cleanup error: " << ex.what() << std::endl;
+                                }
+                            }
+                        });
+                    io_context->run();
+                });
                 
-                boost::asio::co_spawn(io_context, cleanup_task(), boost::asio::detached);
-                io_context.run();
-                io_context.restart();
-            });
-            
-            // Wait for cleanup to complete
-            cleanup_future.get();
+                // Wait with timeout for cleanup to complete
+                auto status = cleanup_future.wait_for(std::chrono::seconds(5));
+                if (status == std::future_status::ready) {
+                    cleanup_future.get();
+                }
+                // If timeout, we'll fall back to sync cleanup
+            }
+            catch (const std::exception& e) {
+                std::cerr << "Async cleanup failed: " << e.what() << std::endl;
+                // Will fall back to sync cleanup
+            }
+        }
+        
+        // Always perform a synchronous cleanup as a fallback
+        try {
+            // Create a synchronous connection and forcibly clean up the table
+            auto sync_conn = std::make_unique<relx::PostgreSQLConnection>(conn_string);
+            auto connect_result = sync_conn->connect();
+            if (connect_result) {
+                // Drop the test table using synchronous API
+                std::string drop_sql = "DROP TABLE IF EXISTS users_async CASCADE";
+                sync_conn->execute_raw(drop_sql);
+                sync_conn->disconnect();
+            }
+        }
+        catch (const std::exception& e) {
+            std::cerr << "Synchronous fallback cleanup failed: " << e.what() << std::endl;
+        }
+        
+        // Explicitly release the connection before the io_context
+        conn.reset();
+        
+        // Reset the io_context to clean state
+        if (io_context) {
+            io_context->stop();
+            io_context.reset();
         }
     }
     
     // Helper to clean up the test table asynchronously
-    boost::asio::awaitable<void> clean_test_table() {
+    boost::asio::awaitable<bool> clean_test_table() {
         auto drop_sql = relx::drop_table(users).if_exists().cascade().build();
         auto result = co_await conn->execute_raw(drop_sql);
-        EXPECT_TRUE(result) << "Failed to drop table: " << result.error().message;
-        co_return;
+        if (!result) {
+            co_return false;
+        }
+        co_return true;
     }
     
     // Helper to create the test table asynchronously
-    boost::asio::awaitable<void> create_test_table() {
+    boost::asio::awaitable<std::optional<std::string>> create_test_table() {
         auto create_sql = relx::create_table(users);
         auto result = co_await conn->execute_raw(create_sql);
-        EXPECT_TRUE(result) << "Failed to create table: " << result.error().message;
-        co_return;
+        if (!result) {
+            co_return result.error().message;
+        }
+        co_return std::nullopt;
     }
     
     // Helper to insert test data asynchronously
-    boost::asio::awaitable<void> insert_test_data() {
+    boost::asio::awaitable<std::optional<std::string>> insert_test_data() {
         // Insert multiple rows
         auto insert_query = relx::query::insert_into(users)
             .columns(users.name, users.email, users.age, users.active, users.score)
@@ -146,17 +222,23 @@ protected:
             .values("Charlie Davis", "charlie@example.com", 25, false, 68.2);
             
         auto result = co_await conn->execute(insert_query);
-        EXPECT_TRUE(result) << "Failed to insert test data: " << result.error().message;
-        co_return;
+        if (!result) {
+            co_return result.error().message;
+        }
+        co_return std::nullopt;
     }
     
     // Run a test coroutine and return the result
     template <typename Func>
     void run_test(Func test_coro) {
         auto test_future = std::async(std::launch::async, [this, test_coro]() {
-            boost::asio::co_spawn(io_context, test_coro(), boost::asio::detached);
-            io_context.run();
-            io_context.restart();
+            boost::asio::co_spawn(*io_context, test_coro(), 
+                [](std::exception_ptr e) {
+                    if (e) {
+                        std::rethrow_exception(e);  // Propagate exceptions to io_context.run()
+                    }
+                });
+            io_context->run();
         });
         
         // Wait for test to complete
@@ -250,60 +332,81 @@ TEST_F(AsyncPgIntegrationTest, PartialDtoMapping) {
 }
 
 TEST_F(AsyncPgIntegrationTest, ConcurrentQueries) {
-    // Define concurrent test tasks
-    auto task1 = [this]() -> boost::asio::awaitable<bool> {
-        auto query = relx::query::select(users.id, users.name)
-            .from(users)
-            .where(users.id == 1);
-            
-        auto result = co_await conn->execute<PartialUserDTO>(query);
-        if (!result) {
-            co_return false;
-        }
-        EXPECT_EQ("John Doe", (*result).name);
-        co_return true;
-    };
+    // For concurrent queries, we need separate connections
+    // since libpq doesn't support concurrent queries on a single connection
     
-    auto task2 = [this]() -> boost::asio::awaitable<bool> {
-        auto query = relx::query::select(users.id, users.name)
-            .from(users)
-            .where(users.id == 2);
-            
-        auto result = co_await conn->execute<PartialUserDTO>(query);
-        if (!result) {
-            co_return false;
-        }
-        EXPECT_EQ("Jane Smith", (*result).name);
-        co_return true;
-    };
-    
-    auto task3 = [this]() -> boost::asio::awaitable<bool> {
-        auto query = relx::query::select(users.id, users.name)
-            .from(users)
-            .where(users.id == 3);
-            
-        auto result = co_await conn->execute<PartialUserDTO>(query);
-        if (!result) {
-            co_return false;
-        }
-        EXPECT_EQ("Bob Johnson", (*result).name);
-        co_return true;
-    };
-    
-    auto concurrent_test = [this, task1, task2, task3]() -> boost::asio::awaitable<void> {
-        // Start all tasks concurrently
-        auto result1 = co_await boost::asio::co_spawn(io_context, task1(), boost::asio::use_awaitable);
-        auto result2 = co_await boost::asio::co_spawn(io_context, task2(), boost::asio::use_awaitable);
-        auto result3 = co_await boost::asio::co_spawn(io_context, task3(), boost::asio::use_awaitable);
+    run_test([this]() -> boost::asio::awaitable<void> {
+        // Create separate connections for each concurrent query
+        auto conn1 = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(*io_context, conn_string);
+        auto conn2 = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(*io_context, conn_string);
+        auto conn3 = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(*io_context, conn_string);
         
-        // Wait for tasks to complete and check results
+        // Connect all connections
+        auto connect1 = co_await conn1->connect();
+        auto connect2 = co_await conn2->connect();
+        auto connect3 = co_await conn3->connect();
+        
+        if (!connect1 || !connect2 || !connect3) {
+            throw std::runtime_error("Failed to connect one or more connections");
+        }
+        
+        // Define tasks with their own connections
+        auto task1 = [conn1 = conn1.get(), this]() -> boost::asio::awaitable<bool> {
+            auto query = relx::query::select(users.id, users.name)
+                .from(users)
+                .where(users.id == 1);
+                
+            auto result = co_await conn1->execute<PartialUserDTO>(query);
+            if (!result) {
+                co_return false;
+            }
+            EXPECT_EQ("John Doe", (*result).name);
+            co_return true;
+        };
+        
+        auto task2 = [conn2 = conn2.get(), this]() -> boost::asio::awaitable<bool> {
+            auto query = relx::query::select(users.id, users.name)
+                .from(users)
+                .where(users.id == 2);
+                
+            auto result = co_await conn2->execute<PartialUserDTO>(query);
+            if (!result) {
+                co_return false;
+            }
+            EXPECT_EQ("Jane Smith", (*result).name);
+            co_return true;
+        };
+        
+        auto task3 = [conn3 = conn3.get(), this]() -> boost::asio::awaitable<bool> {
+            auto query = relx::query::select(users.id, users.name)
+                .from(users)
+                .where(users.id == 3);
+                
+            auto result = co_await conn3->execute<PartialUserDTO>(query);
+            if (!result) {
+                co_return false;
+            }
+            EXPECT_EQ("Bob Johnson", (*result).name);
+            co_return true;
+        };
+        
+        // Start all tasks concurrently and wait for them to complete
+        auto result1 = co_await boost::asio::co_spawn(*io_context, task1(), boost::asio::use_awaitable);
+        auto result2 = co_await boost::asio::co_spawn(*io_context, task2(), boost::asio::use_awaitable);
+        auto result3 = co_await boost::asio::co_spawn(*io_context, task3(), boost::asio::use_awaitable);
+        
+        // Check results
         EXPECT_TRUE(result1);
         EXPECT_TRUE(result2);
         EXPECT_TRUE(result3);
+        
+        // Disconnect the extra connections
+        co_await conn1->disconnect();
+        co_await conn2->disconnect();
+        co_await conn3->disconnect();
+        
         co_return;
-    };
-    
-    run_test(concurrent_test);
+    });
 }
 
 TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
@@ -314,6 +417,9 @@ TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
             throw std::runtime_error("Failed to begin transaction: " + begin_result.error().message);
         }
         
+        // Verify we're in a transaction
+        EXPECT_TRUE(conn->in_transaction());
+        
         // Insert a new record in the transaction
         auto insert_query = relx::query::insert_into(users)
             .columns(users.name, users.email, users.age, users.active, users.score)
@@ -321,6 +427,8 @@ TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
             
         auto insert_result = co_await conn->execute(insert_query);
         if (!insert_result) {
+            // Make sure to rollback if the insert fails
+            auto rollback_result = co_await conn->rollback_transaction();
             throw std::runtime_error("Failed to insert test data: " + insert_result.error().message);
         }
         
@@ -331,6 +439,8 @@ TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
             
         auto select_result = co_await conn->execute<UserDTO>(select_query);
         if (!select_result) {
+            // Make sure to rollback if the select fails
+            auto rollback_result = co_await conn->rollback_transaction();
             throw std::runtime_error("Failed to find test record in transaction: " + select_result.error().message);
         }
         
@@ -340,15 +450,19 @@ TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
             throw std::runtime_error("Failed to rollback transaction: " + rollback_result.error().message);
         }
         
+        // Verify we're no longer in a transaction
+        EXPECT_FALSE(conn->in_transaction());
+        
         // Verify the record doesn't exist after rollback
         auto verify_query = relx::query::select(users.id, users.name, users.email)
             .from(users)
             .where(users.name == "Transaction Test");
             
         auto verify_result = co_await conn->execute<UserDTO>(verify_query);
-        if (verify_result) {
-            throw std::runtime_error("Transaction rollback failed, record still exists");
-        }
+        
+        // The query should fail because the record doesn't exist
+        EXPECT_FALSE(verify_result.has_value());
+        
         co_return;
     });
 }

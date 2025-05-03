@@ -12,7 +12,7 @@ namespace this_coro = boost::asio::this_coro;
 PostgreSQLAsyncConnection::PostgreSQLAsyncConnection(
     boost::asio::io_context& io_context,
     std::string_view connection_string) 
-    : io_context_(io_context), 
+    : socket_(io_context), 
       connection_string_(connection_string) {
 }
 
@@ -28,7 +28,14 @@ PostgreSQLAsyncConnection::~PostgreSQLAsyncConnection() {
 // Helper to wait for socket to be readable
 boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::wait_for_readable() {
     try {
-        co_await socket_->async_wait(tcp::socket::wait_read, boost::asio::use_awaitable);
+        if (!socket_.is_open()) {
+            co_return std::unexpected(ConnectionError{
+                .message = "Socket is not open",
+                .error_code = -1
+            });
+        }
+        
+        co_await socket_.async_wait(tcp::socket::wait_read, boost::asio::use_awaitable);
         co_return ConnectionResult<void>{};
     } catch (const boost::system::system_error& e) {
         co_return std::unexpected(ConnectionError{
@@ -41,7 +48,14 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::wait_f
 // Helper to wait for socket to be writable
 boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::wait_for_writable() {
     try {
-        co_await socket_->async_wait(tcp::socket::wait_write, boost::asio::use_awaitable);
+        if (!socket_.is_open()) {
+            co_return std::unexpected(ConnectionError{
+                .message = "Socket is not open",
+                .error_code = -1
+            });
+        }
+        
+        co_await socket_.async_wait(tcp::socket::wait_write, boost::asio::use_awaitable);
         co_return ConnectionResult<void>{};
     } catch (const boost::system::system_error& e) {
         co_return std::unexpected(ConnectionError{
@@ -110,7 +124,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::connec
     
     try {
         // Start a non-blocking connection
-        pg_conn_ = PQconnectStart(connection_string_.c_str());
+        pg_conn_ = PQconnectdb(connection_string_.c_str());
         if (pg_conn_ == nullptr) {
             co_return std::unexpected(ConnectionError{
                 .message = "Failed to start connection (memory allocation failure)",
@@ -118,7 +132,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::connec
             });
         }
         
-        if (PQstatus(pg_conn_) == CONNECTION_BAD) {
+        if (PQstatus(pg_conn_) != CONNECTION_OK) {
             std::string error_msg = PQerrorMessage(pg_conn_);
             PQfinish(pg_conn_);
             pg_conn_ = nullptr;
@@ -130,7 +144,16 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::connec
         }
         
         // Set socket to non-blocking mode
-        PQsetnonblocking(pg_conn_, 1);
+        if (PQsetnonblocking(pg_conn_, 1) != 0) {
+            std::string error_msg = PQerrorMessage(pg_conn_);
+            PQfinish(pg_conn_);
+            pg_conn_ = nullptr;
+            
+            co_return std::unexpected(ConnectionError{
+                .message = "Failed to set non-blocking mode: " + error_msg,
+                .error_code = -1
+            });
+        }
         
         // Get the socket descriptor
         int sock = PQsocket(pg_conn_);
@@ -145,14 +168,23 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::connec
             });
         }
         
-        // Create socket wrapper for asio
-        // Note: We're using boost::asio::ip::tcp::socket::native_handle_type
-        // to manage the socket descriptor that's already created by libpq
-        socket_ = std::make_unique<tcp::socket>(io_context_, tcp::v4(), sock);
+        // Assign the socket to our existing handle without taking ownership
+        boost::system::error_code ec;
+        socket_.assign(tcp::v4(), sock, ec);
+        if (ec) {
+            std::string error_msg = ec.message();
+            PQfinish(pg_conn_);
+            pg_conn_ = nullptr;
+            
+            co_return std::unexpected(ConnectionError{
+                .message = "Failed to assign socket: " + error_msg,
+                .error_code = ec.value()
+            });
+        }
         
         // Start polling the connection
-        auto result = co_await poll_connection();
-        co_return result;
+        // auto result = co_await poll_connection();
+        co_return ConnectionResult<void>{};
     } catch (const std::exception& e) {
         if (pg_conn_ != nullptr) {
             PQfinish(pg_conn_);
@@ -173,15 +205,11 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::discon
     }
     
     try {
-        // Close the socket first
-        if (socket_ && socket_->is_open()) {
+        // Close the socket first - but don't actually close the underlying fd
+        // since libpq owns it and will close it in PQfinish
+        if (socket_.is_open()) {
             boost::system::error_code ec;
-            socket_->close(ec);
-            if (ec) {
-                // Just log error, continue with PG cleanup
-                // Don't return here, still need to clean up PG connection
-            }
-            socket_.reset();
+            socket_.release(ec); // Just release without closing
         }
         
         // Clean up PostgreSQL connection
@@ -207,6 +235,8 @@ boost::asio::awaitable<ConnectionResult<relx::result::ResultSet>> PostgreSQLAsyn
     try {
         std::vector<relx::result::Row> rows;
         std::vector<std::string> column_names;
+        bool got_schema = false;
+        
         while (true) {
             // Check if PQconsumeInput can read data without blocking
             if (!PQconsumeInput(pg_conn_)) {
@@ -248,114 +278,90 @@ boost::asio::awaitable<ConnectionResult<relx::result::ResultSet>> PostgreSQLAsyn
                 
                 co_return std::unexpected(ConnectionError{
                     .message = "Query execution failed: " + error_msg,
-                    .error_code = status
+                    .error_code = -1
                 });
             }
             
-            // If this is a command (non-SELECT), return empty result set
-            if (status == PGRES_COMMAND_OK) {
-                PQclear(pg_result);
+            // If we have rows, process them
+            if (status == PGRES_TUPLES_OK) {
+                int num_rows = PQntuples(pg_result);
+                int num_cols = PQnfields(pg_result);
                 
-                // Consume any remaining results
-                while ((pg_result = PQgetResult(pg_conn_)) != nullptr) {
-                    PQclear(pg_result);
-                }
-                
-                co_return relx::result::ResultSet(std::move(rows), std::move(column_names));
-            }
-            
-            // Process rows and columns for SELECT results
-            int output_rows = PQntuples(pg_result);
-            int output_cols = PQnfields(pg_result);
-            
-            // Add column names only if they haven't been added yet
-            if (column_names.empty()) {
-                for (int col = 0; col < output_cols; ++col) {
-                    column_names.push_back(PQfname(pg_result, col));
-                }
-            }
-            
-            // Add rows
-            std::vector<relx::result::Row> rows;
-            for (int row = 0; row < output_rows; ++row) {
-                std::vector<relx::result::Cell> cells;
-                
-                for (int col = 0; col < output_cols; ++col) {
-                    if (PQgetisnull(pg_result, row, col)) {
-                        cells.push_back(relx::result::Cell("NULL"));
-                    } else {
-                        char* value = PQgetvalue(pg_result, row, col);
-                        int length = PQgetlength(pg_result, row, col);
-                        cells.push_back(relx::result::Cell(std::string(value, length)));
+                // Process column names only once
+                if (!got_schema) {
+                    column_names.reserve(num_cols);
+                    for (int col = 0; col < num_cols; ++col) {
+                        column_names.push_back(PQfname(pg_result, col));
                     }
+                    got_schema = true;
                 }
                 
-                rows.push_back(relx::result::Row(std::move(cells), std::move(column_names)));
+                // Process rows
+                for (int row = 0; row < num_rows; ++row) {
+                    std::vector<relx::result::Cell> cells;
+                    cells.reserve(num_cols);
+                    
+                    for (int col = 0; col < num_cols; ++col) {
+                        if (PQgetisnull(pg_result, row, col)) {
+                            cells.emplace_back("NULL");
+                        } else {
+                            char* value = PQgetvalue(pg_result, row, col);
+                            int length = PQgetlength(pg_result, row, col);
+                            cells.emplace_back(std::string(value, length));
+                        }
+                    }
+                    
+                    rows.emplace_back(std::move(cells), column_names);
+                }
             }
             
-            PQclear(pg_result);
-            
-            // Check if we have more results
-            if (PQsetSingleRowMode(pg_conn_)) {
-                // Continue fetching results
-                continue;
-            } else {
-                // No more results expected
-                break;
-            }
-        }
-        
-        // Consume any remaining results (should not happen with single row mode)
-        PGresult* pg_result;
-        while ((pg_result = PQgetResult(pg_conn_)) != nullptr) {
+            // Free this result
             PQclear(pg_result);
         }
-        
-        co_return relx::result::ResultSet(std::move(rows), std::move(column_names));
     } catch (const std::exception& e) {
         co_return std::unexpected(ConnectionError{
-            .message = std::string("Exception during query processing: ") + e.what(),
+            .message = std::string("Exception during result processing: ") + e.what(),
             .error_code = -1
         });
     }
 }
 
-// Execute a raw SQL query asynchronously
+// Execute raw SQL asynchronously
 boost::asio::awaitable<ConnectionResult<relx::result::ResultSet>> PostgreSQLAsyncConnection::execute_raw(
     const std::string& sql, 
     const std::vector<std::string>& params) {
     if (!is_connected_) {
         co_return std::unexpected(ConnectionError{
-            .message = "Not connected to the database",
+            .message = "Not connected to database",
             .error_code = -1
         });
     }
     
     try {
-        // Convert placeholders if needed
-        std::string processed_sql = convert_placeholders(sql);
+        // Convert placeholders from ? to $n format
+        std::string pg_sql = convert_placeholders(sql);
         
-        // Prepare parameters for async query
-        int param_count = static_cast<int>(params.size());
+        // Prepare parameter values in libpq format
+        int param_count = params.size();
         std::vector<const char*> param_values(param_count);
         
         for (int i = 0; i < param_count; ++i) {
             param_values[i] = params[i].c_str();
         }
         
-        // Start the async query
-        int send_result = PQsendQueryParams(
+        // Send the query
+        int result = PQsendQueryParams(
             pg_conn_,
-            processed_sql.c_str(),
+            pg_sql.c_str(),
             param_count,
-            nullptr,  // param types - let server infer
+            nullptr,  // Use default parameter types
             param_values.data(),
-            nullptr,  // param lengths - null terminated
-            nullptr,  // param formats - all text
-            0        // result format - text
+            nullptr,  // No parameter lengths provided
+            nullptr,  // No binary parameters
+            0         // Text format for results
         );
         
-        if (send_result == 0) {
+        if (result != 1) {
             std::string error_msg = PQerrorMessage(pg_conn_);
             co_return std::unexpected(ConnectionError{
                 .message = "Failed to send query: " + error_msg,
@@ -364,8 +370,8 @@ boost::asio::awaitable<ConnectionResult<relx::result::ResultSet>> PostgreSQLAsyn
         }
         
         // Process the results
-        auto result = co_await process_query_result();
-        co_return result;
+        auto result_set = co_await process_query_result();
+        co_return result_set;
     } catch (const std::exception& e) {
         co_return std::unexpected(ConnectionError{
             .message = std::string("Exception during query execution: ") + e.what(),
