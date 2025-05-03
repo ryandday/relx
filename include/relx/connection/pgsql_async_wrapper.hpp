@@ -149,26 +149,6 @@ public:
     }
 };
 
-// Forward declarations
-class connection;
-
-// ----------------------------------------------------------------------
-// The base awaiter class for PostgreSQL operations
-// It handles watching the socket for read/write readiness
-// ----------------------------------------------------------------------
-class pg_awaiter_base {
-protected:
-    connection& conn_;
-    
-public:
-    explicit pg_awaiter_base(connection& conn) : conn_(conn) {}
-    virtual ~pg_awaiter_base() = default;
-    
-    // These are pure virtual functions that must be implemented by derived classes
-    virtual bool await_ready() = 0;
-    virtual void await_suspend(std::coroutine_handle<> handle) = 0;
-};
-
 // ----------------------------------------------------------------------
 // The connection class - main interface for PostgreSQL operations
 // ----------------------------------------------------------------------
@@ -246,8 +226,9 @@ public:
     }
     
     // Asynchronous connection using co_await
-    class connect_awaiter : public pg_awaiter_base {
+    class connect_awaiter {
     private:
+        connection& conn_;
         std::string conninfo_;
         bool poll_write_ = false;
         bool poll_read_ = false;
@@ -255,9 +236,9 @@ public:
         
     public:
         connect_awaiter(connection& conn, std::string conninfo)
-            : pg_awaiter_base(conn), conninfo_(std::move(conninfo)) {}
+            : conn_(conn), conninfo_(std::move(conninfo)) {}
         
-        bool await_ready() override {
+        bool await_ready() {
             if (conn_.conn_ != nullptr) {
                 conn_.close();
             }
@@ -300,7 +281,7 @@ public:
             return false; // Not ready, need to await
         }
         
-        void await_suspend(std::coroutine_handle<> handle) override {
+        void await_suspend(std::coroutine_handle<> handle) {
             // Create a shared pointer to the socket handler function to allow self-reference
             auto socket_handler = std::make_shared<std::function<void(const boost::system::error_code&)>>();
             
@@ -364,17 +345,18 @@ public:
     };
     
     // Query awaiter for executing SQL queries
-    class query_awaiter : public pg_awaiter_base {
+    class query_awaiter {
     private:
+        connection& conn_;
         std::string query_;
         result result_;
         bool query_sent_ = false;
         
     public:
         query_awaiter(connection& conn, std::string query)
-            : pg_awaiter_base(conn), query_(std::move(query)) {}
+            : conn_(conn), query_(std::move(query)) {}
         
-        bool await_ready() override {
+        bool await_ready() {
             if (!conn_.is_open()) {
                 throw connection_error("Connection is not open");
             }
@@ -407,7 +389,7 @@ public:
             return false; // Need to await
         }
         
-        void await_suspend(std::coroutine_handle<> handle) override {
+        void await_suspend(std::coroutine_handle<> handle) {
             conn_.socket().async_wait(
                 boost::asio::posix::descriptor_base::wait_read,
                 [this, handle](const boost::system::error_code& ec) {
@@ -456,8 +438,9 @@ public:
     };
     
     // Parameterized query awaiter
-    class param_query_awaiter : public pg_awaiter_base {
+    class param_query_awaiter {
     private:
+        connection& conn_;
         std::string query_;
         std::vector<std::string> param_values_;
         result result_;
@@ -475,9 +458,9 @@ public:
         
     public:
         param_query_awaiter(connection& conn, std::string query, std::vector<std::string> param_values)
-            : pg_awaiter_base(conn), query_(std::move(query)), param_values_(std::move(param_values)) {}
+            : conn_(conn), query_(std::move(query)), param_values_(std::move(param_values)) {}
         
-        bool await_ready() override {
+        bool await_ready() {
             if (!conn_.is_open()) {
                 throw connection_error("Connection is not open");
             }
@@ -522,7 +505,7 @@ public:
             return false; // Need to await
         }
         
-        void await_suspend(std::coroutine_handle<> handle) override {
+        void await_suspend(std::coroutine_handle<> handle) {
             conn_.socket().async_wait(
                 boost::asio::posix::descriptor_base::wait_read,
                 [this, handle](const boost::system::error_code& ec) {
