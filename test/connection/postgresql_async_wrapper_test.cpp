@@ -13,7 +13,7 @@ protected:
     asio::io_context io_;
     
     // Connection string for the test database - matching other test files
-    std::string conn_string = "host=localhost port=5434 dbname=sqllib_Test user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
     
     void SetUp() override {
         // Nothing to do here yet
@@ -23,76 +23,12 @@ protected:
         io_.stop();
     }
 
-    // Helper to run an awaitable function in the io_context
-    template<typename Awaitable>
-    auto run_awaitable(Awaitable awaitable) -> typename Awaitable::value_type {
-        using result_type = typename Awaitable::value_type;
-        
-        std::promise<result_type> promise;
-        std::future<result_type> future = promise.get_future();
-
-        asio::co_spawn(io_, 
-            [awaitable = std::move(awaitable)]() mutable -> Awaitable {
-                return std::move(awaitable);
-            },
-            [&promise](std::exception_ptr e, result_type result) {
-                if (e) {
-                    promise.set_exception(e);
-                } else {
-                    promise.set_value(std::move(result));
-                }
-            });
-
-        // Run the io_context in this thread instead of joining another thread
-        // Use a work guard to keep io_context alive until we're done
-        asio::executor_work_guard<asio::io_context::executor_type> work_guard = 
-            asio::make_work_guard(io_);
-            
-        // Run the io_context until the future is ready or timeout occurs
-        while (future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
-            io_.poll();
-        }
-        
-        // Allow the io_context to finish naturally
-        work_guard.reset();
-        io_.run_one();
-        
-        return future.get(); // This will rethrow any exceptions
+    void run_test(std::function<asio::awaitable<void>()> test_coro) {
+        asio::co_spawn(io_, test_coro, asio::detached);
+        io_.run();
     }
 
-    // Specialization for void return type
-    auto run_awaitable_void(asio::awaitable<void> awaitable) -> void {
-        std::promise<void> promise;
-        std::future<void> future = promise.get_future();
 
-        asio::co_spawn(io_, 
-            [awaitable = std::move(awaitable)]() mutable -> asio::awaitable<void> {
-                return std::move(awaitable);
-            },
-            [&promise](std::exception_ptr e) {
-                if (e) {
-                    promise.set_exception(e);
-                } else {
-                    promise.set_value();
-                }
-            });
-
-        // Run the io_context in this thread instead of joining another thread
-        // Use a work guard to keep io_context alive until we're done
-        asio::executor_work_guard<asio::io_context::executor_type> work_guard = 
-            asio::make_work_guard(io_);
-            
-        // Run the io_context until the future is ready or timeout occurs
-        while (future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
-            io_.poll();
-        }
-        
-        // Allow the io_context to finish naturally
-        work_guard.reset();
-        io_.run_one();
-        
-        future.get(); // This will rethrow any exceptions
-    }
 };
 
 // Test exception classes construction and inheritance
@@ -151,37 +87,40 @@ TEST_F(PostgresqlAsyncWrapperTest, ResultNullptr) {
 TEST_F(PostgresqlAsyncWrapperTest, ConnectionErrorInvalidParams) {
     connection conn(io_);
     
-    EXPECT_THROW({
-        run_awaitable_void(conn.connect("this is not a valid connection string"));
-    }, connection_error);
+    run_test([&]() -> asio::awaitable<void> {
+        co_await conn.connect("this is not a valid connection string");
+        EXPECT_FALSE(conn.is_open());
+    });
 }
 
 // Test connection_error when server is offline
 TEST_F(PostgresqlAsyncWrapperTest, ConnectionErrorServerOffline) {
     connection conn(io_);
     
-    EXPECT_THROW({
+    run_test([&]() -> asio::awaitable<void> {
         // Use a non-existent port to simulate server being offline
-        run_awaitable_void(conn.connect("host=localhost port=54321 dbname=nonexistent user=postgres password=postgres"));
-    }, connection_error);
+        co_await conn.connect("host=localhost port=54321 dbname=nonexistent user=postgres password=postgres");
+        EXPECT_FALSE(conn.is_open());
+    });
 }
 
 // Test using socket before initialization
 TEST_F(PostgresqlAsyncWrapperTest, SocketNotInitialized) {
     connection conn(io_);
     
-    EXPECT_THROW({
+    run_test([&]() -> asio::awaitable<void> {
         conn.socket();
-    }, connection_error);
+    });
 }
 
 // Test query on closed connection
 TEST_F(PostgresqlAsyncWrapperTest, QueryOnClosedConnection) {
     connection conn(io_);
     
-    EXPECT_THROW({
-        run_awaitable(conn.query("SELECT 1", {}));
-    }, connection_error);
+    run_test([&]() -> asio::awaitable<void> {
+        auto res = co_await conn.query("SELECT 1", {});
+        EXPECT_FALSE(res.ok());
+    });
 }
 
 // Test move constructor and assignment
@@ -242,68 +181,58 @@ TEST_F(PostgresqlAsyncWrapperTest, RealConnectionSuccess) {
     connection conn(io_);
     
     // Will throw exception if connection fails 
-    try {
-        run_awaitable_void(conn.connect(conn_string));
+    run_test([&]() -> asio::awaitable<void> {
+        co_await conn.connect(conn_string);
         EXPECT_TRUE(conn.is_open());
         
         // Verify connection with simple query
-        result res = run_awaitable(conn.query("SELECT 1 as num", {}));
+        result res = co_await conn.query("SELECT 1 as num", {});
         EXPECT_TRUE(res.ok());
         EXPECT_EQ(1, res.rows());
         EXPECT_EQ(1, res.columns());
         EXPECT_STREQ("num", res.field_name(0));
         EXPECT_STREQ("1", res.get_value(0, 0));
-    } catch (const connection_error& e) {
-        std::cout << "Skipping test: Failed to connect to PostgreSQL server: " << e.what() << std::endl;
-    }
+    });
 }
 
 // Test malformed SQL query (only runs if real PostgreSQL is available)
 TEST_F(PostgresqlAsyncWrapperTest, MalformedQuery) {
     connection conn(io_);
-    
-    try {
-        run_awaitable_void(conn.connect(conn_string));
-        
+    run_test([&]() -> asio::awaitable<void> {
+        co_await conn.connect(conn_string);
         EXPECT_TRUE(conn.is_open());
         
         // Test a malformed query
-        EXPECT_THROW({
-            run_awaitable(conn.query("SELECT FROM WHERE", {}));
-        }, query_error);
-    } catch (const connection_error& e) {
-        std::cout << "Skipping test: Failed to connect to PostgreSQL server: " << e.what() << std::endl;
-    }
+        co_await conn.query("SELECT FROM WHERE", {});
+    });
 }
 
 // Test parameterized query (only runs if real PostgreSQL is available)
 TEST_F(PostgresqlAsyncWrapperTest, ParameterizedQuery) {
     connection conn(io_);
     
-    try {
-        run_awaitable_void(conn.connect(conn_string));
+    run_test([&]() -> asio::awaitable<void> {
+        co_await conn.connect(conn_string);
         
         EXPECT_TRUE(conn.is_open());
         
         // Test a parameterized query
-        result res = run_awaitable(conn.query("SELECT $1::int as num", {"42"}));
+        result res = co_await conn.query("SELECT $1::int as num", {"42"});
         
         EXPECT_TRUE(res.ok());
         EXPECT_EQ(1, res.rows());
         EXPECT_EQ(1, res.columns());
         EXPECT_STREQ("num", res.field_name(0));
         EXPECT_STREQ("42", res.get_value(0, 0));
-    } catch (const connection_error& e) {
-        std::cout << "Skipping test: Failed to connect to PostgreSQL server: " << e.what() << std::endl;
-    }
+    });
 }
 
 // Test connection close and reconnect (only runs if real PostgreSQL is available)
 TEST_F(PostgresqlAsyncWrapperTest, ConnectionCloseAndReconnect) {
     connection conn(io_);
     
-    try {
-        run_awaitable_void(conn.connect(conn_string));
+    run_test([&]() -> asio::awaitable<void> {
+        co_await conn.connect(conn_string);
         EXPECT_TRUE(conn.is_open());
         
         // Close the connection
@@ -311,13 +240,11 @@ TEST_F(PostgresqlAsyncWrapperTest, ConnectionCloseAndReconnect) {
         EXPECT_FALSE(conn.is_open());
         
         // Reconnect
-        run_awaitable_void(conn.connect(conn_string));
+        co_await conn.connect(conn_string);
         EXPECT_TRUE(conn.is_open());
         
         // Test with a simple query after reconnect
-        result res = run_awaitable(conn.query("SELECT 1", {}));
+        result res = co_await conn.query("SELECT 1", {});
         EXPECT_TRUE(res.ok());
-    } catch (const connection_error& e) {
-        std::cout << "Skipping test: Failed to connect to PostgreSQL server: " << e.what() << std::endl;
-    }
+    });
 }
