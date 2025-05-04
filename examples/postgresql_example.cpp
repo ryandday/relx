@@ -74,19 +74,19 @@ bool create_tables(relx::Connection& conn) {
     Users users;
     // Create Users table
     auto create_users_sql = relx::create_table(users);
-    auto users_result = conn.execute_raw(create_users_sql);
+    auto users_result = conn.execute(create_users_sql);
     if (!check_result(users_result, "creating users table")) return false;
     
     // Create Posts table
     Posts posts;
-    auto create_posts_sql = relx::create_table(posts);
-    auto posts_result = conn.execute_raw(create_posts_sql);
+    auto create_posts_sql = relx::schema::create_table(posts);
+    auto posts_result = conn.execute(create_posts_sql);
     if (!check_result(posts_result, "creating posts table")) return false;
     // Create Comments table
     Comments comments;
     auto create_comments_sql = relx::create_table(comments);
     
-    auto comments_result = conn.execute_raw(create_comments_sql);
+    auto comments_result = conn.execute(create_comments_sql);
     if (!check_result(comments_result, "creating comments table")) return false;
     
     std::cout << "Tables created successfully!" << std::endl;
@@ -100,16 +100,18 @@ bool drop_tables(relx::Connection& conn) {
     Posts posts;
     Comments comments;
 
-    std::vector<std::string> drop_tables = {
-        relx::drop_table(comments).build(),
-        relx::drop_table(posts).build(),
-        relx::drop_table(users).build()
-    };
+    auto drop_comments = relx::schema::drop_table(comments);
+    auto drop_posts = relx::schema::drop_table(posts);
+    auto drop_users = relx::schema::drop_table(users);
     
-    for (const auto& sql : drop_tables) {
-        auto result = conn.execute_raw(sql);
-        if (!check_result(result, "dropping table")) return false;
-    }
+    auto drop_comments_result = conn.execute(drop_comments);
+    if (!check_result(drop_comments_result, "dropping comments table")) return false;
+
+    auto drop_posts_result = conn.execute(drop_posts);
+    if (!check_result(drop_posts_result, "dropping posts table")) return false;
+
+    auto drop_users_result = conn.execute(drop_users);
+    if (!check_result(drop_users_result, "dropping users table")) return false;
     
     std::cout << "Tables dropped successfully!" << std::endl;
     return true;
@@ -454,26 +456,23 @@ bool clean_up(relx::Connection& conn) {
     Posts posts;
     Comments comments;
 
-    std::vector<std::string> drop_tables = {
-        relx::drop_table(comments).build(),
-        relx::drop_table(posts).build(),
-        relx::drop_table(users).build()
-    };
+    auto drop_comments = relx::schema::drop_table(comments);
+    auto drop_posts = relx::schema::drop_table(posts);
+    auto drop_users = relx::schema::drop_table(users);
     
     bool success = true;
-    for (const auto& sql : drop_tables) {
-        auto result = conn.execute_raw(sql);
-        if (!result) {
-            std::cerr << "Error dropping table: " << result.error().message << std::endl;
-            success = false;
-        }
-    }
+    auto drop_comments_result = conn.execute(drop_comments);
+    if (!check_result(drop_comments_result, "dropping comments table")) return false;
+
+    auto drop_posts_result = conn.execute(drop_posts);
+    if (!check_result(drop_posts_result, "dropping posts table")) return false;
+
+    auto drop_users_result = conn.execute(drop_users);
+    if (!check_result(drop_users_result, "dropping users table")) return false;
     
-    if (success) {
-        std::cout << "Database cleaned up successfully!" << std::endl;
-    }
+    std::cout << "Database cleaned up successfully!" << std::endl;
     
-    return success;
+    return true;
 }
 
 int main() {
