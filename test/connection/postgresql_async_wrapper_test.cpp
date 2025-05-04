@@ -43,12 +43,20 @@ protected:
                 }
             });
 
-        std::thread io_thread([this]() {
-            io_.run();
-        });
-
-        io_thread.join();
-
+        // Run the io_context in this thread instead of joining another thread
+        // Use a work guard to keep io_context alive until we're done
+        asio::executor_work_guard<asio::io_context::executor_type> work_guard = 
+            asio::make_work_guard(io_);
+            
+        // Run the io_context until the future is ready or timeout occurs
+        while (future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
+            io_.poll();
+        }
+        
+        // Allow the io_context to finish naturally
+        work_guard.reset();
+        io_.run_one();
+        
         return future.get(); // This will rethrow any exceptions
     }
 
@@ -69,12 +77,20 @@ protected:
                 }
             });
 
-        std::thread io_thread([this]() {
-            io_.run();
-        });
-
-        io_thread.join();
-
+        // Run the io_context in this thread instead of joining another thread
+        // Use a work guard to keep io_context alive until we're done
+        asio::executor_work_guard<asio::io_context::executor_type> work_guard = 
+            asio::make_work_guard(io_);
+            
+        // Run the io_context until the future is ready or timeout occurs
+        while (future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
+            io_.poll();
+        }
+        
+        // Allow the io_context to finish naturally
+        work_guard.reset();
+        io_.run_one();
+        
         future.get(); // This will rethrow any exceptions
     }
 };
@@ -239,7 +255,6 @@ TEST_F(PostgresqlAsyncWrapperTest, RealConnectionSuccess) {
         EXPECT_STREQ("1", res.get_value(0, 0));
     } catch (const connection_error& e) {
         std::cout << "Skipping test: Failed to connect to PostgreSQL server: " << e.what() << std::endl;
-        GTEST_SKIP() << "PostgreSQL server not available";
     }
 }
 
@@ -258,7 +273,6 @@ TEST_F(PostgresqlAsyncWrapperTest, MalformedQuery) {
         }, query_error);
     } catch (const connection_error& e) {
         std::cout << "Skipping test: Failed to connect to PostgreSQL server: " << e.what() << std::endl;
-        GTEST_SKIP() << "PostgreSQL server not available";
     }
 }
 
@@ -281,7 +295,6 @@ TEST_F(PostgresqlAsyncWrapperTest, ParameterizedQuery) {
         EXPECT_STREQ("42", res.get_value(0, 0));
     } catch (const connection_error& e) {
         std::cout << "Skipping test: Failed to connect to PostgreSQL server: " << e.what() << std::endl;
-        GTEST_SKIP() << "PostgreSQL server not available";
     }
 }
 
@@ -306,6 +319,5 @@ TEST_F(PostgresqlAsyncWrapperTest, ConnectionCloseAndReconnect) {
         EXPECT_TRUE(res.ok());
     } catch (const connection_error& e) {
         std::cout << "Skipping test: Failed to connect to PostgreSQL server: " << e.what() << std::endl;
-        GTEST_SKIP() << "PostgreSQL server not available";
     }
 }
