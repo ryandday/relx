@@ -173,6 +173,29 @@ private:
         socket_ = std::make_unique<boost::asio::ip::tcp::socket>(io_, boost::asio::ip::tcp::v4(), sock);
     }
     
+    // Asynchronous flush of outgoing data to the PostgreSQL server
+    boost::asio::awaitable<void> flush_outgoing_data() {
+        while (true) {
+            int flush_result = PQflush(conn_);
+            if (flush_result == -1) {
+                throw query_error(conn_);
+            }
+            if (flush_result == 0) {
+                break; // All data has been flushed
+            }
+            // Flush returned 1, need to wait for socket to be writable
+            boost::system::error_code ec;
+            co_await socket().async_wait(
+                boost::asio::ip::tcp::socket::wait_write,
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+            );
+            
+            if (ec) {
+                throw boost::system::system_error(ec);
+            }
+        }
+    }
+    
 public:
     connection(boost::asio::io_context& io) : io_(io) {}
     
@@ -311,25 +334,7 @@ public:
         }
         
         // Flush the outgoing data
-        while (true) {
-            int flush_result = PQflush(conn_);
-            if (flush_result == -1) {
-                throw query_error(conn_);
-            }
-            if (flush_result == 0) {
-                break; // All data has been flushed
-            }
-            // Flush returned 1, need to wait for socket to be writable
-            boost::system::error_code ec;
-            co_await socket().async_wait(
-                boost::asio::ip::tcp::socket::wait_write,
-                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
-            );
-            
-            if (ec) {
-                throw boost::system::system_error(ec);
-            }
-        }
+        co_await flush_outgoing_data();
         
         // Process input and wait for results
         while (true) {
@@ -392,25 +397,7 @@ public:
         }
         
         // Flush the outgoing data
-        while (true) {
-            int flush_result = PQflush(conn_);
-            if (flush_result == -1) {
-                throw query_error(conn_);
-            }
-            if (flush_result == 0) {
-                break; // All data has been flushed
-            }
-            // Flush returned 1, need to wait for socket to be writable
-            boost::system::error_code ec;
-            co_await socket().async_wait(
-                boost::asio::ip::tcp::socket::wait_write,
-                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
-            );
-            
-            if (ec) {
-                throw boost::system::system_error(ec);
-            }
-        }
+        co_await flush_outgoing_data();
         
         // Process input and wait for results
         while (true) {
