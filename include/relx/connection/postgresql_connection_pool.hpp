@@ -47,12 +47,31 @@ struct ConnectionPoolError {
 template <typename T>
 using ConnectionPoolResult = std::expected<T, ConnectionPoolError>;
 
+// Forward declaration for PooledConnection
+class PostgreSQLConnectionPool;
+
 /// @brief PostgreSQL connection pool that manages a collection of PostgreSQL connections
-class PostgreSQLConnectionPool {
-public:
+class PostgreSQLConnectionPool : public std::enable_shared_from_this<PostgreSQLConnectionPool> {
+private:
+    struct PooledConnection {
+        std::shared_ptr<PostgreSQLConnection> connection;
+        std::chrono::steady_clock::time_point last_used;
+    };
+    
     /// @brief Constructor with pool configuration
     /// @param config Configuration for the connection pool
     explicit PostgreSQLConnectionPool(PostgreSQLConnectionPoolConfig config);
+
+public:
+    /// @brief Create a new connection pool
+    /// @note The pool needs to be a shared_ptr to help with pool worker lifetime management, 
+    ///       so we only allow creation via the create() function.
+    /// @param config Configuration for the pool
+    /// @return Shared pointer to the new pool
+    static std::shared_ptr<PostgreSQLConnectionPool> create(PostgreSQLConnectionPoolConfig config) {
+        // Use new directly instead of make_shared to access the private constructor
+        return std::shared_ptr<PostgreSQLConnectionPool>(new PostgreSQLConnectionPool(std::move(config)));
+    }
     
     /// @brief Destructor that cleans up all connections
     ~PostgreSQLConnectionPool();
@@ -67,9 +86,16 @@ public:
     /// @return Result indicating success or failure
     ConnectionPoolResult<void> initialize();
     
-    /// @brief Get a connection from the pool
+    // Forward declaration of the wrapper class
+    class PooledConnectionWrapper;
+    
+    /// @brief Get a connection from the pool with automatic return when out of scope
+    /// @return Result containing a PooledConnectionWrapper or an error
+    ConnectionPoolResult<PooledConnectionWrapper> get_connection();
+    
+    /// @brief Get a raw connection from the pool (prefer using get_connection() instead)
     /// @return Result containing a connection pointer or an error
-    ConnectionPoolResult<std::shared_ptr<PostgreSQLConnection>> get_connection();
+    ConnectionPoolResult<std::shared_ptr<PostgreSQLConnection>> get_raw_connection();
     
     /// @brief Return a connection to the pool
     /// @param connection The connection to return
@@ -89,9 +115,9 @@ public:
     /// @return Result of the function execution
     template <typename Func>
     auto with_connection(Func&& func) 
-        -> ConnectionPoolResult<std::invoke_result_t<Func, std::shared_ptr<PostgreSQLConnection>>> {
+        -> ConnectionPoolResult<std::invoke_result_t<Func, PooledConnectionWrapper&>> {
         
-        using ResultType = std::invoke_result_t<Func, std::shared_ptr<PostgreSQLConnection>>;
+        using ResultType = std::invoke_result_t<Func, PooledConnectionWrapper&>;
         
         auto conn_result = get_connection();
         if (!conn_result) {
@@ -103,32 +129,80 @@ public:
             }
         }
         
-        auto connection = *conn_result;
-        
         try {
-            // Execute the function with the connection
+            // Execute the function with the connection by reference
             if constexpr (std::is_same_v<ResultType, void>) {
-                func(connection);
-                return_connection(std::move(connection));
+                func(*conn_result);
                 return {};
             } else {
-                auto result = func(connection);
-                return_connection(std::move(connection));
-                return result;
+                return func(*conn_result);
             }
         } catch (...) {
-            // Return the connection to the pool even if an exception occurs
-            return_connection(std::move(connection));
+            // Connection will be returned automatically by PooledConnectionWrapper's destructor
             throw; // Re-throw the exception
         }
     }
     
-private:
-    struct PooledConnection {
-        std::shared_ptr<PostgreSQLConnection> connection;
-        std::chrono::steady_clock::time_point last_used;
+    /// @brief A wrapper for a connection that automatically returns it to the pool
+    class PooledConnectionWrapper {
+    private:
+        std::shared_ptr<PostgreSQLConnection> connection_;
+        std::weak_ptr<PostgreSQLConnectionPool> pool_;
+    
+    public:
+        /// @brief Constructor takes a connection and its parent pool
+        /// @param connection The database connection
+        /// @param pool The connection pool that owns this connection
+        PooledConnectionWrapper(std::shared_ptr<PostgreSQLConnection> connection, 
+                       std::shared_ptr<PostgreSQLConnectionPool> pool)
+            : connection_(std::move(connection)), pool_(pool) {}
+        
+        /// @brief Destructor automatically returns connection to pool if available
+        ~PooledConnectionWrapper() {
+            if (connection_) {
+                // Check if pool still exists
+                if (auto pool = pool_.lock()) {
+                    pool->return_connection(std::move(connection_));
+                }
+                // If pool no longer exists, connection will simply be destroyed
+            }
+        }
+        
+        // Delete copy operations
+        PooledConnectionWrapper(const PooledConnectionWrapper&) = delete;
+        PooledConnectionWrapper& operator=(const PooledConnectionWrapper&) = delete;
+        
+        // Allow move operations
+        PooledConnectionWrapper(PooledConnectionWrapper&&) = default;
+        PooledConnectionWrapper& operator=(PooledConnectionWrapper&&) = default;
+        
+        /// @brief Forward -> operator to the underlying connection
+        PostgreSQLConnection* operator->() { return connection_.get(); }
+        
+        /// @brief Forward const -> operator to the underlying connection
+        const PostgreSQLConnection* operator->() const { return connection_.get(); }
+        
+        /// @brief Allow checking if connection is valid
+        explicit operator bool() const { return connection_ != nullptr; }
+        
+        /// @brief Explicit conversion to the underlying shared_ptr
+        /// @note This allows backward compatibility with code that expects a shared_ptr
+        std::shared_ptr<PostgreSQLConnection>& get_connection() { return connection_; }
+        
+        /// @brief Explicit conversion to the underlying shared_ptr (const version)
+        /// @note This allows backward compatibility with code that expects a shared_ptr
+        const std::shared_ptr<PostgreSQLConnection>& get_connection() const { return connection_; }
+        
+        /// @brief Implicit conversion to shared_ptr<PostgreSQLConnection>
+        /// @note This allows backward compatibility with existing code
+        operator std::shared_ptr<PostgreSQLConnection>&() { return connection_; }
+        
+        /// @brief Implicit conversion to const shared_ptr<PostgreSQLConnection>
+        /// @note This allows backward compatibility with existing code
+        operator const std::shared_ptr<PostgreSQLConnection>&() const { return connection_; }
     };
     
+private:
     PostgreSQLConnectionPoolConfig config_;
     std::atomic<size_t> active_connections_{0};
     std::atomic<size_t> total_connections_{0};
@@ -149,6 +223,9 @@ private:
     /// @brief Clean up idle connections that have been idle for too long
     void cleanup_idle_connections();
 };
+
+/// @brief Type alias for the connection wrapper for backward compatibility
+using PooledConnection = PostgreSQLConnectionPool::PooledConnectionWrapper;
 
 } // namespace connection
 } // namespace relx 

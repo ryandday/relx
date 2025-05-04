@@ -38,7 +38,16 @@ ConnectionPoolResult<void> PostgreSQLConnectionPool::initialize() {
     return {};
 }
 
-ConnectionPoolResult<std::shared_ptr<PostgreSQLConnection>> PostgreSQLConnectionPool::get_connection() {
+ConnectionPoolResult<PostgreSQLConnectionPool::PooledConnectionWrapper> PostgreSQLConnectionPool::get_connection() {
+    auto conn_result = get_raw_connection();
+    if (!conn_result) {
+        return std::unexpected(conn_result.error());
+    }
+    
+    return PooledConnectionWrapper(*conn_result, shared_from_this());
+}
+
+ConnectionPoolResult<std::shared_ptr<PostgreSQLConnection>> PostgreSQLConnectionPool::get_raw_connection() {
     using namespace std::chrono;
     
     // Cleanup old connections first

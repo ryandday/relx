@@ -37,6 +37,19 @@ protected:
     }
     
     // Helper to create the test table
+    void create_test_table(relx::connection::PostgreSQLConnectionPool::PooledConnectionWrapper& conn_wrapper) {
+        std::string create_table_sql = R"(
+            CREATE TABLE IF NOT EXISTS connection_pool_test (
+                id SERIAL PRIMARY KEY,
+                thread_id INTEGER NOT NULL,
+                value INTEGER NOT NULL
+            )
+        )";
+        auto result = conn_wrapper->execute_raw(create_table_sql);
+        ASSERT_TRUE(result) << "Failed to create table: " << result.error().message;
+    }
+    
+    // Helper to create the test table
     void create_test_table(relx::connection::PostgreSQLConnection& conn) {
         std::string create_table_sql = R"(
             CREATE TABLE IF NOT EXISTS connection_pool_test (
@@ -56,29 +69,29 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolInitialization) {
     config.initial_size = 3;
     config.max_size = 5;
     
-    relx::connection::PostgreSQLConnectionPool pool(config);
-    auto init_result = pool.initialize();
+    auto pool = relx::connection::PostgreSQLConnectionPool::create(config);
+    auto init_result = pool->initialize();
     
     ASSERT_TRUE(init_result) << "Failed to initialize pool: " << init_result.error().message;
     
     // Check initial pool state
-    EXPECT_EQ(0, pool.active_connections());
-    EXPECT_EQ(3, pool.idle_connections());
+    EXPECT_EQ(0, pool->active_connections());
+    EXPECT_EQ(3, pool->idle_connections());
     
     // Get a connection
-    auto conn_result = pool.get_connection();
+    auto conn_result = pool->get_connection();
     ASSERT_TRUE(conn_result) << "Failed to get connection: " << conn_result.error().message;
     
     // Check pool state after getting a connection
-    EXPECT_EQ(1, pool.active_connections());
-    EXPECT_EQ(2, pool.idle_connections());
+    EXPECT_EQ(1, pool->active_connections());
+    EXPECT_EQ(2, pool->idle_connections());
     
     // Return the connection
-    pool.return_connection(*conn_result);
+    pool->return_connection(*conn_result);
     
     // Check pool state after returning the connection
-    EXPECT_EQ(0, pool.active_connections());
-    EXPECT_EQ(3, pool.idle_connections());
+    EXPECT_EQ(0, pool->active_connections());
+    EXPECT_EQ(3, pool->idle_connections());
 }
 
 TEST_F(PostgreSQLConnectionPoolTest, TestPoolMaxConnections) {
@@ -88,40 +101,36 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMaxConnections) {
     config.max_size = 4;
     config.connection_timeout = std::chrono::milliseconds(500); // Short timeout for testing
     
-    relx::connection::PostgreSQLConnectionPool pool(config);
-    ASSERT_TRUE(pool.initialize());
+    auto pool = relx::connection::PostgreSQLConnectionPool::create(config);
+    ASSERT_TRUE(pool->initialize());
     
     // Get all connections from the pool
-    std::vector<std::shared_ptr<relx::connection::PostgreSQLConnection>> connections;
+    std::vector<relx::connection::PostgreSQLConnectionPool::PooledConnectionWrapper> connections;
     
     for (int i = 0; i < 4; ++i) {
-        auto conn_result = pool.get_connection();
+        auto conn_result = pool->get_connection();
         ASSERT_TRUE(conn_result) << "Failed to get connection " << i << ": " << conn_result.error().message;
-        connections.push_back(*conn_result);
+        connections.push_back(std::move(*conn_result));
     }
     
     // Pool should now be at max capacity
-    EXPECT_EQ(4, pool.active_connections());
-    EXPECT_EQ(0, pool.idle_connections());
+    EXPECT_EQ(4, pool->active_connections());
+    EXPECT_EQ(0, pool->idle_connections());
     
     // Trying to get another connection should fail with timeout
-    auto conn_result = pool.get_connection();
+    auto conn_result = pool->get_connection();
     EXPECT_FALSE(conn_result);
     EXPECT_NE("", conn_result.error().message);
     
     // Return one connection
-    pool.return_connection(connections.back());
-    connections.pop_back();
+    connections.pop_back(); // This will trigger auto-return via destructor
     
     // Now we should be able to get a connection again
-    conn_result = pool.get_connection();
+    conn_result = pool->get_connection();
     ASSERT_TRUE(conn_result) << "Failed to get connection after returning one: " << conn_result.error().message;
-    connections.push_back(*conn_result);
+    connections.push_back(std::move(*conn_result));
     
-    // Return all connections
-    for (auto& conn : connections) {
-        pool.return_connection(conn);
-    }
+    // Connections will be automatically returned when they go out of scope
 }
 
 TEST_F(PostgreSQLConnectionPoolTest, TestPoolWithConnection) {
@@ -130,19 +139,19 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolWithConnection) {
     config.initial_size = 2;
     config.max_size = 5;
     
-    relx::connection::PostgreSQLConnectionPool pool(config);
-    ASSERT_TRUE(pool.initialize());
+    auto pool = relx::connection::PostgreSQLConnectionPool::create(config);
+    ASSERT_TRUE(pool->initialize());
     
     // Create test table using the pool
-    auto create_result = pool.with_connection([this](auto conn) -> relx::connection::ConnectionResult<void> {
-        create_test_table(*conn);
+    auto create_result = pool->with_connection([this](auto& conn) -> relx::connection::ConnectionResult<void> {
+        create_test_table(conn);
         return {};
     });
     
     ASSERT_TRUE(create_result) << "Failed to create table: " << create_result.error().message;
     
     // Insert some data using the pool
-    auto insert_result = pool.with_connection([](auto conn) -> relx::connection::ConnectionResult<int> {
+    auto insert_result = pool->with_connection([](auto& conn) -> relx::connection::ConnectionResult<int> {
         auto result = conn->execute_raw(
             "INSERT INTO connection_pool_test (thread_id, value) VALUES ($1, $2) RETURNING id",
             {"0", "42"}
@@ -170,7 +179,7 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolWithConnection) {
     EXPECT_GT(result, 0);
     
     // Check that the data was inserted
-    auto check_result = pool.with_connection([](auto conn) -> relx::connection::ConnectionResult<int> {
+    auto check_result = pool->with_connection([](auto& conn) -> relx::connection::ConnectionResult<int> {
         auto result = conn->execute_raw("SELECT COUNT(*) FROM connection_pool_test");
         
         if (!result) {
@@ -199,12 +208,12 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMultithreaded) {
     config.initial_size = 3;
     config.max_size = 10;
     
-    relx::connection::PostgreSQLConnectionPool pool(config);
-    ASSERT_TRUE(pool.initialize());
+    auto pool = relx::connection::PostgreSQLConnectionPool::create(config);
+    ASSERT_TRUE(pool->initialize());
     
     // Create test table
-    auto create_result = pool.with_connection([this](auto conn) {
-        create_test_table(*conn);
+    auto create_result = pool->with_connection([this](auto& conn) {
+        create_test_table(conn);
         return true;
     });
     ASSERT_TRUE(create_result) << "Failed to create table";
@@ -216,7 +225,7 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMultithreaded) {
     
     auto thread_func = [&pool, &success_count](int thread_id) {
         for (int i = 0; i < operations_per_thread; ++i) {
-            auto result = pool.with_connection([thread_id, i](auto conn) -> relx::connection::ConnectionResult<void> {
+            auto result = pool->with_connection([thread_id, i](auto& conn) -> relx::connection::ConnectionResult<void> {
                 auto insert_result = conn->execute_raw(
                     "INSERT INTO connection_pool_test (thread_id, value) VALUES ($1, $2)",
                     {std::to_string(thread_id), std::to_string(i)}
@@ -253,7 +262,7 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMultithreaded) {
     EXPECT_EQ(num_threads * operations_per_thread, success_count);
     
     // Verify the data
-    auto count_result = pool.with_connection([](auto conn) -> relx::connection::ConnectionResult<int> {
+    auto count_result = pool->with_connection([](auto& conn) -> relx::connection::ConnectionResult<int> {
         auto result = conn->execute_raw("SELECT COUNT(*) FROM connection_pool_test");
         
         if (!result) {
@@ -283,30 +292,30 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolConnectionValidation) {
     config.max_size = 4;
     config.validate_connections = true;
     
-    relx::connection::PostgreSQLConnectionPool pool(config);
-    ASSERT_TRUE(pool.initialize());
+    auto pool = relx::connection::PostgreSQLConnectionPool::create(config);
+    ASSERT_TRUE(pool->initialize());
     
     // Get a connection
-    auto conn_result1 = pool.get_connection();
+    auto conn_result1 = pool->get_connection();
     ASSERT_TRUE(conn_result1) << "Failed to get connection: " << conn_result1.error().message;
     
     // Manually disconnect this connection to make it invalid
     (*conn_result1)->disconnect();
     
     // Return the invalid connection
-    pool.return_connection(*conn_result1);
+    pool->return_connection(*conn_result1);
     
     // The connection should be discarded from the pool
-    EXPECT_EQ(0, pool.active_connections());
-    EXPECT_EQ(1, pool.idle_connections());  // Only one valid connection remains
+    EXPECT_EQ(0, pool->active_connections());
+    EXPECT_EQ(1, pool->idle_connections());  // Only one valid connection remains
     
     // Get another connection - should still work
-    auto conn_result2 = pool.get_connection();
+    auto conn_result2 = pool->get_connection();
     ASSERT_TRUE(conn_result2) << "Failed to get replacement connection: " << conn_result2.error().message;
     EXPECT_TRUE((*conn_result2)->is_connected());
     
     // Return the valid connection
-    pool.return_connection(*conn_result2);
+    pool->return_connection(*conn_result2);
 }
 
 } // namespace 
