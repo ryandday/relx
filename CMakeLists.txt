@@ -45,7 +45,7 @@ add_library(${PROJECT_NAME}
   src/connection/postgresql_connection_pool.cpp
   src/connection/postgresql_errors.cpp
   src/connection/postgresql_statement.cpp
-  src/connection/postgresql_async_connection.cpp
+  src/connection/pgsql_async_wrapper.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE include/relx)
 target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost PostgreSQL::PostgreSQL)
@@ -109,7 +109,7 @@ add_executable(relx_tests
   # test/postgres_integration/connection_pool_integration_test.cpp
   test/postgres_integration/query_integration_test.cpp
   test/postgres_integration/dto_mapping_integration_test.cpp
-  # test/postgres_integration/async_dto_mapping_test.cpp
+  test/postgres_integration/async_dto_mapping_test.cpp
   # Additional comprehensive tests
   test/query/edge_case_test.cpp
   test/query/data_type_test.cpp

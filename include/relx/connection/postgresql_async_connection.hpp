@@ -19,6 +19,7 @@
 #include "connection.hpp"
 #include "../results/result.hpp"
 #include "../query/core.hpp"
+#include "pgsql_async_wrapper.hpp"
 
 // Forward declarations to avoid including libpq headers in our public API
 struct pg_conn;
@@ -37,28 +38,57 @@ public:
     /// @param connection_string PostgreSQL connection string
     explicit PostgreSQLAsyncConnection(
         boost::asio::io_context& io_context,
-        std::string_view connection_string);
+        std::string_view connection_string)
+        : io_context_(io_context), 
+          connection_string_(connection_string),
+          pg_wrapper_(io_context) {
+    }
     
     /// @brief Destructor that ensures proper cleanup
-    ~PostgreSQLAsyncConnection();
+    ~PostgreSQLAsyncConnection() = default;
     
     // Delete copy constructor and assignment operator
     PostgreSQLAsyncConnection(const PostgreSQLAsyncConnection&) = delete;
     PostgreSQLAsyncConnection& operator=(const PostgreSQLAsyncConnection&) = delete;
 
     /// @brief Move constructor
-    PostgreSQLAsyncConnection(PostgreSQLAsyncConnection&& other) = delete;;
+    PostgreSQLAsyncConnection(PostgreSQLAsyncConnection&& other) = delete;
 
     /// @brief Move assignment operator
     PostgreSQLAsyncConnection& operator=(PostgreSQLAsyncConnection&& other) = delete;
 
     /// @brief Connect to the PostgreSQL database asynchronously
     /// @return Awaitable for the async operation
-    boost::asio::awaitable<ConnectionResult<void>> connect();
+    boost::asio::awaitable<ConnectionResult<void>> connect() {
+        try {
+            co_await pg_wrapper_.connect(connection_string_);
+            co_return ConnectionResult<void>{};
+        } catch (const relx::pgsql_async_wrapper::connection_error& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        } catch (const std::exception& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        }
+    }
 
     /// @brief Disconnect from the PostgreSQL database asynchronously
     /// @return Awaitable for the async operation
-    boost::asio::awaitable<ConnectionResult<void>> disconnect();
+    boost::asio::awaitable<ConnectionResult<void>> disconnect() {
+        try {
+            pg_wrapper_.close();
+            co_return ConnectionResult<void>{};
+        } catch (const std::exception& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        }
+    }
 
     /// @brief Execute a raw SQL query with parameters asynchronously
     /// @param sql The SQL query string
@@ -66,7 +96,62 @@ public:
     /// @return Awaitable containing the query results or an error
     boost::asio::awaitable<ConnectionResult<result::ResultSet>> execute_raw(
         const std::string& sql, 
-        const std::vector<std::string>& params = {});
+        const std::vector<std::string>& params = {}) {
+        try {
+            auto pg_result = co_await pg_wrapper_.query(sql, params);
+            if (!pg_result) {
+                co_return std::unexpected(ConnectionError{
+                    .message = pg_result.error_message(),
+                    .error_code = -1
+                });
+            }
+            
+            // Get column names and prepare for rows
+            std::vector<std::string> column_names;
+            std::vector<result::Row> rows;
+            int row_count = pg_result.rows();
+            int col_count = pg_result.columns();
+            
+            // Get column names
+            for (int i = 0; i < col_count; ++i) {
+                column_names.push_back(pg_result.field_name(i));
+            }
+            
+            // Process each row
+            for (int row = 0; row < row_count; ++row) {
+                // Create cells for this row
+                std::vector<result::Cell> cells;
+                cells.reserve(col_count);
+                
+                for (int col = 0; col < col_count; ++col) {
+                    if (pg_result.is_null(row, col)) {
+                        // Add a null cell (using string "NULL" as null marker)
+                        cells.emplace_back("NULL");
+                    } else {
+                        const char* value = pg_result.get_value(row, col);
+                        cells.emplace_back(std::string(value));
+                    }
+                }
+                
+                // Add row with cells and column names
+                rows.emplace_back(std::move(cells), column_names);
+            }
+            
+            // Create the result set with all rows
+            result::ResultSet result_set(std::move(rows), std::move(column_names));
+            co_return result_set;
+        } catch (const relx::pgsql_async_wrapper::pg_error& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        } catch (const std::exception& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        }
+    }
 
     /// @brief Execute a query expression asynchronously
     /// @param query The query expression to execute
@@ -203,70 +288,109 @@ public:
 
     /// @brief Check if the connection is open
     /// @return True if connected, false otherwise
-    bool is_connected() const;
+    bool is_connected() const {
+        return pg_wrapper_.is_open();
+    }
     
     /// @brief Begin a new transaction asynchronously
     /// @param isolation_level The isolation level for the transaction
     /// @return Awaitable indicating success or failure
     boost::asio::awaitable<ConnectionResult<void>> begin_transaction(
-        IsolationLevel isolation_level = IsolationLevel::ReadCommitted);
+        IsolationLevel isolation_level = IsolationLevel::ReadCommitted) {
+        try {
+            relx::pgsql_async_wrapper::IsolationLevel wrapper_isolation;
+            
+            switch (isolation_level) {
+                case IsolationLevel::ReadUncommitted:
+                    wrapper_isolation = relx::pgsql_async_wrapper::IsolationLevel::ReadUncommitted;
+                    break;
+                case IsolationLevel::ReadCommitted:
+                    wrapper_isolation = relx::pgsql_async_wrapper::IsolationLevel::ReadCommitted;
+                    break;
+                case IsolationLevel::RepeatableRead:
+                    wrapper_isolation = relx::pgsql_async_wrapper::IsolationLevel::RepeatableRead;
+                    break;
+                case IsolationLevel::Serializable:
+                    wrapper_isolation = relx::pgsql_async_wrapper::IsolationLevel::Serializable;
+                    break;
+            }
+            
+            co_await pg_wrapper_.begin_transaction(wrapper_isolation);
+            co_return ConnectionResult<void>{};
+        } catch (const relx::pgsql_async_wrapper::transaction_error& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        } catch (const std::exception& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        }
+    }
     
     /// @brief Commit the current transaction asynchronously
     /// @return Awaitable indicating success or failure
-    boost::asio::awaitable<ConnectionResult<void>> commit_transaction();
+    boost::asio::awaitable<ConnectionResult<void>> commit_transaction() {
+        try {
+            co_await pg_wrapper_.commit();
+            co_return ConnectionResult<void>{};
+        } catch (const relx::pgsql_async_wrapper::transaction_error& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        } catch (const std::exception& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        }
+    }
     
     /// @brief Rollback the current transaction asynchronously
     /// @return Awaitable indicating success or failure
-    boost::asio::awaitable<ConnectionResult<void>> rollback_transaction();
+    boost::asio::awaitable<ConnectionResult<void>> rollback_transaction() {
+        try {
+            co_await pg_wrapper_.rollback();
+            co_return ConnectionResult<void>{};
+        } catch (const relx::pgsql_async_wrapper::transaction_error& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        } catch (const std::exception& e) {
+            co_return std::unexpected(ConnectionError{
+                .message = e.what(),
+                .error_code = -1
+            });
+        }
+    }
     
     /// @brief Check if a transaction is currently active
     /// @return True if a transaction is active, false otherwise
-    bool in_transaction() const;
+    bool in_transaction() const {
+        return pg_wrapper_.in_transaction();
+    }
 
     /// @brief Get direct access to the PostgreSQL connection
     /// @return The PGconn pointer
-    PGconn* get_pg_conn() const { return pg_conn_; }
+    PGconn* get_pg_conn() { 
+        return pg_wrapper_.native_handle();
+    }
 
     /// @brief Get a reference to the socket
     /// @return Reference to the socket
-    boost::asio::ip::tcp::socket& get_socket() { return socket_; }
+    boost::asio::ip::tcp::socket& get_socket() { 
+        return pg_wrapper_.socket();
+    }
 
 private:
+    boost::asio::io_context& io_context_;
     std::string connection_string_;
-    PGconn* pg_conn_ = nullptr;
-    bool is_connected_ = false;
-    bool in_transaction_ = false;
+    relx::pgsql_async_wrapper::connection pg_wrapper_;
     
-    // Socket for async operations
-    boost::asio::ip::tcp::socket socket_;
-
-    /// @brief Helper method to handle PGresult and convert to ConnectionResult
-    /// @param result PGresult pointer to process
-    /// @param expected_status Expected status code (or -1 to ignore)
-    /// @return ConnectionResult with error or success
-    ConnectionResult<PGresult*> handle_pg_result(PGresult* result, int expected_status = -1);
-    
-    /// @brief Convert SQL with ? placeholders to PostgreSQL's $n format
-    /// @param sql SQL query with ? placeholders
-    /// @return Converted SQL with $1, $2, etc. placeholders
-    std::string convert_placeholders(const std::string& sql);
-
-    /// @brief Helper to wait for a PostgreSQL socket to be readable
-    /// @return Awaitable for the async operation
-    boost::asio::awaitable<ConnectionResult<void>> wait_for_readable();
-
-    /// @brief Helper to wait for a PostgreSQL socket to be writable
-    /// @return Awaitable for the async operation
-    boost::asio::awaitable<ConnectionResult<void>> wait_for_writable();
-    
-    /// @brief Helper to poll a PostgreSQL connection during connect
-    /// @return Awaitable for the connect operation
-    boost::asio::awaitable<ConnectionResult<void>> poll_connection();
-    
-    /// @brief Helper to process PostgreSQL query results asynchronously
-    /// @return Awaitable containing the query results
-    boost::asio::awaitable<ConnectionResult<result::ResultSet>> process_query_result();
-
     /// @brief Helper function to map a result row to a tuple (and thus to a struct)
     /// @tparam Tuple The tuple type that corresponds to the struct fields
     /// @param tuple The tuple to fill with values
