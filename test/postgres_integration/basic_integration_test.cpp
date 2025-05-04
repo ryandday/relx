@@ -41,8 +41,9 @@ protected:
         auto connect_result = conn.connect();
         if (connect_result) {
             Users u;
-            auto raw_sql = relx::drop_table(u).cascade().build();
-            conn.execute_raw(raw_sql);
+            auto raw_sql = relx::drop_table(u).cascade();
+            auto result = conn.execute(raw_sql);
+            ASSERT_TRUE(result) << "Failed to drop table: " << result.error().message;
             conn.disconnect();
         }
     }
@@ -52,7 +53,7 @@ protected:
         Users u;
         auto create_query = relx::create_table(u);
             
-        auto result = conn.execute_raw(create_query);
+        auto result = conn.execute(create_query);
         ASSERT_TRUE(result) << "Failed to create table: " << result.error().message;
     }
     

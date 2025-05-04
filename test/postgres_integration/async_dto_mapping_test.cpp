@@ -192,8 +192,8 @@ protected:
     
     // Helper to clean up the test table asynchronously
     boost::asio::awaitable<bool> clean_test_table() {
-        auto drop_sql = relx::drop_table(users).if_exists().cascade().build();
-        auto result = co_await conn->execute_raw(drop_sql);
+        auto drop_sql = relx::drop_table(users).if_exists().cascade();
+        auto result = co_await conn->execute(drop_sql);
         if (!result) {
             co_return false;
         }
@@ -202,8 +202,8 @@ protected:
     
     // Helper to create the test table asynchronously
     boost::asio::awaitable<std::optional<std::string>> create_test_table() {
-        auto create_sql = relx::create_table(users);
-        auto result = co_await conn->execute_raw(create_sql);
+        auto create_sql = relx::schema::create_table(users);
+        auto result = co_await conn->execute(create_sql);
         if (!result) {
             co_return result.error().message;
         }

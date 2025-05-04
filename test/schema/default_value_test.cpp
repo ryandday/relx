@@ -75,7 +75,7 @@ TEST(DefaultValueTest, TableWithDefaults) {
     Product p;
     
     // Generate CREATE TABLE SQL with default values
-    std::string create_sql = create_table(p);
+    std::string create_sql = create_table(p).to_sql();
     
     // Validate SQL contains default values
     EXPECT_TRUE(create_sql.find("price REAL NOT NULL DEFAULT 0") != std::string::npos);

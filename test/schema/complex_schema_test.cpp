@@ -200,20 +200,14 @@ TEST(ComplexSchemaTest, EnhancedECommerceSchema) {
     CustomerReviews reviews;
     
     // Generate SQL for each table
-    std::string users_sql = create_table(users);
-    std::string categories_sql = create_table(categories);
-    std::string products_sql = create_table(products);
-    std::string orders_sql = create_table(orders);
-    std::string order_items_sql = create_table(orderItems);
-    std::string reviews_sql = create_table(reviews);
+    std::string users_sql = create_table(users).if_not_exists().to_sql();
+    std::string categories_sql = create_table(categories).if_not_exists().to_sql();
+    std::string products_sql = create_table(products).if_not_exists().to_sql();
+    std::string orders_sql = create_table(orders).if_not_exists().to_sql();
+    std::string order_items_sql = create_table(orderItems).if_not_exists().to_sql();
+    std::string reviews_sql = create_table(reviews).if_not_exists().to_sql();
     
     // Print the SQL statements for debugging
-    // std::cout << "Users table SQL:\n" << users_sql << std::endl;
-    // std::cout << "Categories table SQL:\n" << categories_sql << std::endl;
-    // std::cout << "Products table SQL:\n" << products_sql << std::endl;
-    // std::cout << "Orders table SQL:\n" << orders_sql << std::endl;
-    // std::cout << "Order Items table SQL:\n" << order_items_sql << std::endl;
-    // std::cout << "Customer Reviews table SQL:\n" << reviews_sql << std::endl;
     
     // Assertions to verify basic structure
     EXPECT_TRUE(users_sql.find("CREATE TABLE IF NOT EXISTS users") != std::string::npos);

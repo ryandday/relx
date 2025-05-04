@@ -84,15 +84,15 @@ protected:
     
     // Helper to clean up the test table
     void clean_test_table() {
-        auto drop_sql = relx::drop_table(users).if_exists().cascade().build();
-        auto result = conn->execute_raw(drop_sql);
+        auto drop_sql = relx::drop_table(users).if_exists().cascade();
+        auto result = conn->execute(drop_sql);
         ASSERT_TRUE(result) << "Failed to drop table: " << result.error().message;
     }
     
     // Helper to create the test table
     void create_test_table() {
         auto create_sql = relx::create_table(users);
-        auto result = conn->execute_raw(create_sql);
+        auto result = conn->execute(create_sql);
         ASSERT_TRUE(result) << "Failed to create table: " << result.error().message;
     }
     

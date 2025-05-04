@@ -167,28 +167,28 @@ TEST_F(SchemaIntegrationTest, CreateTables) {
     
     // Generate and execute create table statements in the correct order
     // 1. Create categories table
-    std::string sql = relx::schema::create_table(category);
-    auto result = conn->execute_raw(sql);
+    auto create_category_sql = relx::schema::create_table(category);
+    auto result = conn->execute(create_category_sql);
     ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
     
     // 2. Create products table
-    sql = relx::schema::create_table(product);
-    result = conn->execute_raw(sql);
+    auto create_product_sql = relx::schema::create_table(product);
+    result = conn->execute(create_product_sql);
     ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
     
     // 3. Create customers table
-    sql = relx::schema::create_table(customer);
-    result = conn->execute_raw(sql);
+    auto create_customer_sql = relx::schema::create_table(customer);
+    result = conn->execute(create_customer_sql);
     ASSERT_TRUE(result) << "Failed to create customers table: " << result.error().message;
     
     // 4. Create orders table
-    sql = relx::schema::create_table(order);
-    result = conn->execute_raw(sql);
+    auto create_order_sql = relx::schema::create_table(order);
+    result = conn->execute(create_order_sql);
     ASSERT_TRUE(result) << "Failed to create orders table: " << result.error().message;
     
     // 5. Create inventory table
-    sql = relx::schema::create_table(inventory);
-    result = conn->execute_raw(sql);
+    auto create_inventory_sql = relx::schema::create_table(inventory);
+    result = conn->execute(create_inventory_sql);
     ASSERT_TRUE(result) << "Failed to create inventory table: " << result.error().message;
     
     // Verify tables exist by querying the database
@@ -219,24 +219,24 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
     schema::Inventory inventory;
     
     // Create all tables first
-    std::string sql = relx::schema::create_table(category);
-    auto result = conn->execute_raw(sql);
+    auto create_category_sql = relx::schema::create_table(category);
+    auto result = conn->execute(create_category_sql);
     ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
     
-    sql = relx::schema::create_table(product);
-    result = conn->execute_raw(sql);
+    auto create_product_sql = relx::schema::create_table(product);
+    result = conn->execute(create_product_sql);
     ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
     
-    sql = relx::schema::create_table(customer);
-    result = conn->execute_raw(sql);
+    auto create_customer_sql = relx::schema::create_table(customer);
+    result = conn->execute(create_customer_sql);
     ASSERT_TRUE(result) << "Failed to create customers table: " << result.error().message;
     
-    sql = relx::schema::create_table(order);
-    result = conn->execute_raw(sql);
+    auto create_order_sql = relx::schema::create_table(order);
+    result = conn->execute(create_order_sql);
     ASSERT_TRUE(result) << "Failed to create orders table: " << result.error().message;
     
-    sql = relx::schema::create_table(inventory);
-    result = conn->execute_raw(sql);
+    auto create_inventory_sql = relx::schema::create_table(inventory);
+    result = conn->execute(create_inventory_sql);
     ASSERT_TRUE(result) << "Failed to create inventory table: " << result.error().message;
     
     // Now query the constraints from information_schema
@@ -325,8 +325,8 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
 TEST_F(SchemaIntegrationTest, DefaultValues) {
     // First create the categories table
     schema::Category category;
-    auto sql = relx::schema::create_table(category);
-    auto result = conn->execute_raw(sql);
+    auto create_category_sql = relx::schema::create_table(category);
+    auto result = conn->execute(create_category_sql);
     ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
     
     // Insert a category
@@ -339,8 +339,8 @@ TEST_F(SchemaIntegrationTest, DefaultValues) {
     
     // Create product table that references category table
     schema::Product product;
-    sql = relx::schema::create_table(product);
-    result = conn->execute_raw(sql);
+    auto create_product_sql = relx::schema::create_table(product);
+    result = conn->execute(create_product_sql);
     ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
     
     // Insert a product with minimum fields (omitting columns with defaults)
@@ -376,14 +376,14 @@ TEST_F(SchemaIntegrationTest, DefaultValues) {
 TEST_F(SchemaIntegrationTest, ConstraintViolation) {
     // Create categories table
     schema::Category category;
-    auto sql = relx::schema::create_table(category);
-    auto result = conn->execute_raw(sql);
+    auto create_category_sql = relx::schema::create_table(category);
+    auto result = conn->execute(create_category_sql);
     ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
     
     // Create product table
     schema::Product product;
-    sql = relx::schema::create_table(product);
-    result = conn->execute_raw(sql);
+    auto create_product_sql = relx::schema::create_table(product);
+    result = conn->execute(create_product_sql);
     ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
     
     // Insert a category
@@ -436,18 +436,18 @@ TEST_F(SchemaIntegrationTest, CreateTableHelper) {
     schema::Product product;
     
     // Use the helper function to create a category table
-    auto sql = relx::schema::create_table(category);
-    auto result = conn->execute_raw(sql);
+    auto create_category_sql = relx::schema::create_table(category);
+    auto result = conn->execute(create_category_sql);
     EXPECT_TRUE(result) << "Failed to create category table with helper: " << result.error().message;
     
     // Try to create it again, which should fail
-    auto sql2 = relx::schema::create_table(category, false);
-    result = conn->execute_raw(sql2);
+    auto create_category_sql2 = relx::schema::create_table(category);
+    result = conn->execute(create_category_sql2);
     EXPECT_FALSE(result) << "Should fail to create duplicate table";
     
     // Use if_not_exists flag to avoid errors on duplicate creation
-    auto sql3 = relx::schema::create_table(category, true);
-    result = conn->execute_raw(sql3);
+    auto create_category_sql3 = relx::schema::create_table(category).if_not_exists();
+    result = conn->execute(create_category_sql3);
     EXPECT_TRUE(result) << "Should succeed with if_not_exists flag: " << result.error().message;
     
     // Verify the table exists by inserting data
@@ -461,21 +461,21 @@ TEST_F(SchemaIntegrationTest, CreateTableHelper) {
     EXPECT_TRUE(result) << "Failed to insert into category table: " << result.error().message;
     
     // Now create the product table with a dependency
-    auto sql4 = relx::schema::create_table(product, false);
-    result = conn->execute_raw(sql4);
+    auto create_product_sql4 = relx::schema::create_table(product).if_not_exists();
+    result = conn->execute(create_product_sql4);
     EXPECT_TRUE(result) << "Failed to create product table with helper: " << result.error().message;
     
     // Try to drop the category table (should fail due to foreign key)
-    auto raw_sql = relx::schema::drop_table(category).build();
-    result = conn->execute_raw(raw_sql);
+    auto drop_category_sql = relx::schema::drop_table(category);
+    result = conn->execute(drop_category_sql);
     EXPECT_FALSE(result) << "Should fail to drop table with dependencies";
     
     // First drop the product table, then drop the category table
-    auto raw_sql2 = relx::schema::drop_table(product).build();
-    result = conn->execute_raw(raw_sql2);
+    auto drop_product_sql = relx::schema::drop_table(product);
+    result = conn->execute(drop_product_sql);
     EXPECT_TRUE(result) << "Failed to drop products table: " << result.error().message;
     
-    result = conn->execute_raw(raw_sql);
+    result = conn->execute(drop_category_sql);
     EXPECT_TRUE(result) << "Failed to drop categories table: " << result.error().message;
     
     // Verify both tables are gone by checking if they exist in information_schema

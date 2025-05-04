@@ -38,7 +38,7 @@ TEST(PrimaryKeyTest, BasicPrimaryKey) {
     EXPECT_TRUE(constraints.find("PRIMARY KEY (id)") != std::string::npos);
     
     // Test that the primary key appears in the CREATE TABLE statement
-    std::string sql = create_table(user);
+    std::string sql = create_table(user).to_sql();
     EXPECT_TRUE(sql.find("PRIMARY KEY (id)") != std::string::npos);
 }
 
@@ -53,6 +53,6 @@ TEST(PrimaryKeyTest, CompositePrimaryKey) {
     EXPECT_TRUE(constraints.find("PRIMARY KEY (user_id, session_id, key)") != std::string::npos);
     
     // Test that the composite primary key appears in the CREATE TABLE statement
-    std::string sql = create_table(session);
+    std::string sql = create_table(session).to_sql();
     EXPECT_TRUE(sql.find("PRIMARY KEY (user_id, session_id, key)") != std::string::npos);
 } 

@@ -63,20 +63,20 @@ protected:
     
     void setup_schema() {
         // Create tables in dependency order
-        auto sql = relx::schema::create_table(category);
-        auto result = conn->execute_raw(sql);
+        auto create_category_sql = relx::schema::create_table(category);
+        auto result = conn->execute(create_category_sql);
         ASSERT_TRUE(result) << "Failed to create category table: " << result.error().message;
         
-        sql = relx::schema::create_table(product);
-        result = conn->execute_raw(sql);
+        auto create_product_sql = relx::schema::create_table(product);
+        result = conn->execute(create_product_sql);
         ASSERT_TRUE(result) << "Failed to create product table: " << result.error().message;
         
-        sql = relx::schema::create_table(customer);
-        result = conn->execute_raw(sql);
+        auto create_customer_sql = relx::schema::create_table(customer);
+        result = conn->execute(create_customer_sql);
         ASSERT_TRUE(result) << "Failed to create customer table: " << result.error().message;
         
-        sql = relx::schema::create_table(order);
-        result = conn->execute_raw(sql);
+        auto create_order_sql = relx::schema::create_table(order);
+        result = conn->execute(create_order_sql);
         ASSERT_TRUE(result) << "Failed to create order table: " << result.error().message;
     }
 };

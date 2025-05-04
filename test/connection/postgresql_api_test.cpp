@@ -45,8 +45,8 @@ protected:
         if (connect_result) {
             // Use the schema's drop_table function
             Products p;
-            auto raw_sql = relx::schema::drop_table(p).cascade().build();
-            auto drop_result = conn.execute_raw(raw_sql);
+            auto raw_sql = relx::schema::drop_table(p).cascade();
+            auto drop_result = conn.execute(raw_sql);
             conn.disconnect();
         }
     }
@@ -54,12 +54,10 @@ protected:
     // Helper to create the test table using schema
     void create_test_table(relx::Connection& conn) {
         Products p;
-        // Generate CREATE TABLE SQL from the schema
-        std::string create_sql = relx::schema::create_table(p);
         
         // For PostgreSQL, we need SERIAL for auto-incrementing primary keys
         // Since our schema doesn't generate this automatically, we need to modify the SQL
-        create_sql = "CREATE TABLE IF NOT EXISTS " + std::string(Products::table_name) + " (\n"
+        auto create_sql = "CREATE TABLE IF NOT EXISTS " + std::string(Products::table_name) + " (\n"
             "id SERIAL PRIMARY KEY,\n"
             "name TEXT NOT NULL,\n"
             "description TEXT NOT NULL,\n"

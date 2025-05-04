@@ -51,7 +51,7 @@ TEST(ForeignKeyTest, BasicForeignKey) {
     EXPECT_TRUE(constraints.find("FOREIGN KEY (user_id) REFERENCES users(id)") != std::string::npos);
     
     // Test that the foreign key appears in the CREATE TABLE statement
-    std::string sql = create_table(post);
+    std::string sql = create_table(post).to_sql();
     EXPECT_TRUE(sql.find("FOREIGN KEY (user_id) REFERENCES users(id)") != std::string::npos);
 }
 
@@ -63,7 +63,7 @@ TEST(ForeignKeyTest, ForeignKeyWithActions) {
               "FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE");
     
     // Test that the actions appear in the CREATE TABLE statement
-    std::string sql = create_table(post);
+    std::string sql = create_table(post).to_sql();
     EXPECT_TRUE(sql.find("FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE") 
                 != std::string::npos);
 }
@@ -77,7 +77,7 @@ TEST(ForeignKeyTest, MultipleForeignKeys) {
     EXPECT_TRUE(constraints.find("FOREIGN KEY (category_id) REFERENCES categories(id)") != std::string::npos);
     
     // Test that both foreign keys appear in the CREATE TABLE statement
-    std::string sql = create_table(post);
+    std::string sql = create_table(post).to_sql();
     EXPECT_TRUE(sql.find("FOREIGN KEY (user_id) REFERENCES users(id)") != std::string::npos);
     EXPECT_TRUE(sql.find("FOREIGN KEY (category_id) REFERENCES categories(id)") != std::string::npos);
 }
