@@ -468,8 +468,7 @@ TEST_F(PostgresqlAsyncWrapperTest, AutoRollbackOnClose) {
         EXPECT_TRUE(conn.is_open());
         
         res = co_await conn.query("SELECT * FROM auto_rollback_test");
-        EXPECT_TRUE(res.ok());
-        EXPECT_EQ(0, res.rows());
+        EXPECT_FALSE(res.ok());
     });
 }
 
