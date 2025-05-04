@@ -158,7 +158,7 @@ class connection {
 private:
     boost::asio::io_context& io_;
     PGconn* conn_ = nullptr;
-    std::unique_ptr<boost::asio::posix::stream_descriptor> socket_;
+    std::unique_ptr<boost::asio::ip::tcp::socket> socket_;
     
     void create_socket() {
         if (conn_ == nullptr) {
@@ -170,7 +170,7 @@ private:
             throw connection_error("Invalid socket");
         }
         
-        socket_ = std::make_unique<boost::asio::posix::stream_descriptor>(io_, sock);
+        socket_ = std::make_unique<boost::asio::ip::tcp::socket>(io_, boost::asio::ip::tcp::v4(), sock);
     }
     
 public:
@@ -220,496 +220,229 @@ public:
         return conn_;
     }
     
-    boost::asio::posix::stream_descriptor& socket() {
+    boost::asio::ip::tcp::socket& socket() {
         if (!socket_) {
             throw connection_error("Socket not initialized");
         }
         return *socket_;
     }
     
-    // Forward declare the pg_connect_state class
-    class pg_connect_state;
-    
-    // Asynchronous connection using co_await
-    class connect_awaiter {
-    private:
-        connection& conn_;
-        std::string conninfo_;
-        bool poll_write_ = false;
-        bool poll_read_ = false;
-        bool complete_ = false;
-        std::shared_ptr<pg_connect_state> state_;
+    // Asynchronous connection using boost::asio::awaitable
+    boost::asio::awaitable<void> connect(const std::string& conninfo) {
+        if (conn_ != nullptr) {
+            close();
+        }
         
-    public:
-        connect_awaiter(connection& conn, std::string conninfo)
-            : conn_(conn), conninfo_(std::move(conninfo)) {}
+        // Start the connection process
+        conn_ = PQconnectStart(conninfo.c_str());
+        if (conn_ == nullptr) {
+            throw connection_error("Out of memory");
+        }
         
-        bool await_ready() {
-            if (conn_.conn_ != nullptr) {
-                conn_.close();
-            }
-            
-            // Start the connection process
-            conn_.conn_ = PQconnectStart(conninfo_.c_str());
-            if (conn_.conn_ == nullptr) {
-                throw connection_error("Out of memory");
-            }
-            
-            // Check if connection immediately failed
-            if (PQstatus(conn_.conn_) == CONNECTION_BAD) {
-                throw connection_error(conn_.conn_);
-            }
-            
-            // Set the connection to non-blocking
-            if (PQsetnonblocking(conn_.conn_, 1) != 0) {
-                throw connection_error(conn_.conn_);
-            }
-            
-            // Create the socket
-            conn_.create_socket();
-            
-            // Check if we need to poll
-            PostgresPollingStatusType poll_status = PQconnectPoll(conn_.conn_);
+        // Check if connection immediately failed
+        if (PQstatus(conn_) == CONNECTION_BAD) {
+            throw connection_error(conn_);
+        }
+        
+        // Set the connection to non-blocking
+        if (PQsetnonblocking(conn_, 1) != 0) {
+            throw connection_error(conn_);
+        }
+        
+        // Create the socket
+        create_socket();
+        
+        // Connection polling loop
+        while (true) {
+            PostgresPollingStatusType poll_status = PQconnectPoll(conn_);
             
             if (poll_status == PGRES_POLLING_FAILED) {
-                throw connection_error(conn_.conn_);
+                throw connection_error(conn_);
             }
             
             if (poll_status == PGRES_POLLING_OK) {
-                complete_ = true;
-                return true; // Connection immediately successful
+                // Connection successful
+                break;
             }
             
             // Need to poll
-            poll_write_ = (poll_status == PGRES_POLLING_WRITING);
-            poll_read_ = (poll_status == PGRES_POLLING_READING);
-            
-            return false; // Not ready, need to await
-        }
-        
-        void await_suspend(std::coroutine_handle<> handle) {
-            // Create a state object that will manage the lifetime of the operation
-            state_ = std::make_shared<pg_connect_state>(conn_, handle, *this);
-            
-            // Start the connection process
-            state_->start_connecting();
-        }
-        
-        void await_resume() {
-            if (!complete_) {
-                throw connection_error("Connection failed");
-            }
-            
-            if (PQstatus(conn_.conn_) != CONNECTION_OK) {
-                throw connection_error(conn_.conn_);
-            }
-        }
-        
-        // Methods to be called by the state object
-        void set_complete(bool complete) {
-            complete_ = complete;
-        }
-        
-        bool is_poll_read() const {
-            return poll_read_;
-        }
-        
-        bool is_poll_write() const {
-            return poll_write_;
-        }
-        
-        void set_poll_status(bool read, bool write) {
-            poll_read_ = read;
-            poll_write_ = write;
-        }
-    };
-    
-    // State object for asynchronous PostgreSQL connection operations
-    class pg_connect_state : public std::enable_shared_from_this<pg_connect_state> {
-    private:
-        connection& conn_;
-        std::coroutine_handle<> handle_;
-        connect_awaiter& awaiter_;
-        
-    public:
-        pg_connect_state(connection& conn, std::coroutine_handle<> handle, connect_awaiter& awaiter)
-            : conn_(conn), handle_(handle), awaiter_(awaiter) {}
-        
-        void start_connecting() {
-            if (awaiter_.is_poll_read()) {
-                conn_.socket().async_wait(
-                    boost::asio::posix::stream_descriptor::wait_read,
-                    [self = shared_from_this()](const boost::system::error_code& ec) {
-                        self->on_socket_ready(ec);
-                    }
+            if (poll_status == PGRES_POLLING_READING) {
+                // Wait until socket is readable
+                boost::system::error_code ec;
+                co_await socket().async_wait(
+                    boost::asio::ip::tcp::socket::wait_read, 
+                    boost::asio::redirect_error(boost::asio::use_awaitable, ec)
                 );
-            } else if (awaiter_.is_poll_write()) {
-                conn_.socket().async_wait(
-                    boost::asio::posix::stream_descriptor::wait_write,
-                    [self = shared_from_this()](const boost::system::error_code& ec) {
-                        self->on_socket_ready(ec);
-                    }
-                );
-            }
-        }
-        
-        void on_socket_ready(const boost::system::error_code& ec) {
-            try {
+                
                 if (ec) {
                     throw boost::system::system_error(ec);
                 }
-                
-                PostgresPollingStatusType poll_status = PQconnectPoll(conn_.conn_);
-                
-                if (poll_status == PGRES_POLLING_FAILED) {
-                    throw connection_error(conn_.conn_);
-                }
-                
-                if (poll_status == PGRES_POLLING_OK) {
-                    awaiter_.set_complete(true);
-                    handle_.resume();
-                    return;
-                }
-                
-                // If we need more polling, re-register for the appropriate event
-                bool poll_read = (poll_status == PGRES_POLLING_READING);
-                bool poll_write = (poll_status == PGRES_POLLING_WRITING);
-                awaiter_.set_poll_status(poll_read, poll_write);
-                
-                if (poll_read) {
-                    conn_.socket().async_wait(
-                        boost::asio::posix::stream_descriptor::wait_read,
-                        [self = shared_from_this()](const boost::system::error_code& ec) {
-                            self->on_socket_ready(ec);
-                        }
-                    );
-                } else if (poll_write) {
-                    conn_.socket().async_wait(
-                        boost::asio::posix::stream_descriptor::wait_write,
-                        [self = shared_from_this()](const boost::system::error_code& ec) {
-                            self->on_socket_ready(ec);
-                        }
-                    );
-                }
             }
-            catch (const std::exception& e) {
-                // Set complete to false to indicate failure
-                awaiter_.set_complete(false);
+            else if (poll_status == PGRES_POLLING_WRITING) {
+                // Wait until socket is writable
+                boost::system::error_code ec;
+                co_await socket().async_wait(
+                    boost::asio::ip::tcp::socket::wait_write, 
+                    boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+                );
                 
-                // Resume the coroutine, which will throw in await_resume
-                handle_.resume();
+                if (ec) {
+                    throw boost::system::system_error(ec);
+                }
             }
         }
-    };
-    
-    // Forward declare the pg_query_state class
-    class pg_query_state;
-    
-    // Query awaiter for executing SQL queries
-    class query_awaiter {
-    private:
-        connection& conn_;
-        std::string query_;
-        result result_;
-        bool query_sent_ = false;
-        std::shared_ptr<pg_query_state> state_;
         
-    public:
-        query_awaiter(connection& conn, std::string query)
-            : conn_(conn), query_(std::move(query)) {}
+        if (PQstatus(conn_) != CONNECTION_OK) {
+            throw connection_error(conn_);
+        }
         
-        bool await_ready() {
-            if (!conn_.is_open()) {
-                throw connection_error("Connection is not open");
+        co_return;
+    }
+    
+    // Asynchronous query execution using boost::asio::awaitable
+    boost::asio::awaitable<result> query(const std::string& query_text) {
+        if (!is_open()) {
+            throw connection_error("Connection is not open");
+        }
+        
+        // Send the query
+        if (!PQsendQuery(conn_, query_text.c_str())) {
+            throw query_error(conn_);
+        }
+        
+        // Flush the outgoing data
+        while (true) {
+            int flush_result = PQflush(conn_);
+            if (flush_result == -1) {
+                throw query_error(conn_);
             }
-            
-            // Send the query
-            if (!PQsendQuery(conn_.conn_, query_.c_str())) {
-                throw query_error(conn_.conn_);
+            if (flush_result == 0) {
+                break; // All data has been flushed
             }
+            // Flush returned 1, need to wait for socket to be writable
+            boost::system::error_code ec;
+            co_await socket().async_wait(
+                boost::asio::ip::tcp::socket::wait_write,
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+            );
             
-            query_sent_ = true;
-            
+            if (ec) {
+                throw boost::system::system_error(ec);
+            }
+        }
+        
+        // Process input and wait for results
+        while (true) {
             // Check if we can consume input without blocking
-            if (PQconsumeInput(conn_.conn_) == 0) {
-                throw query_error(conn_.conn_);
+            if (PQconsumeInput(conn_) == 0) {
+                throw query_error(conn_);
             }
             
             // Check if we can get a result without blocking
-            if (!PQisBusy(conn_.conn_)) {
-                PGresult* res = PQgetResult(conn_.conn_);
-                result_ = result(res);
+            if (!PQisBusy(conn_)) {
+                PGresult* res = PQgetResult(conn_);
+                result result_obj(res);
                 
-                // Flush all remaining results (normally there should be none for a single query)
-                while ((res = PQgetResult(conn_.conn_)) != nullptr) {
+                // Clear all remaining results (normally there should be none for a single query)
+                while ((res = PQgetResult(conn_)) != nullptr) {
                     PQclear(res);
                 }
                 
-                return true; // Query completed synchronously
+                co_return result_obj;
             }
             
-            return false; // Need to await
-        }
-        
-        void await_suspend(std::coroutine_handle<> handle) {
-            // Create a state object that will manage the lifetime of the operation
-            state_ = std::make_shared<pg_query_state>(conn_, handle, *this);
-            
-            // Start waiting for the query result
-            state_->start_waiting();
-        }
-        
-        result await_resume() {
-            if (!result_) {
-                throw query_error("Query failed");
-            }
-            
-            return std::move(result_);
-        }
-        
-        // Set the result from state
-        void set_result(result&& res) {
-            result_ = std::move(res);
-        }
-    };
-    
-    // State object for asynchronous PostgreSQL operations
-    class pg_query_state : public std::enable_shared_from_this<pg_query_state> {
-    private:
-        connection& conn_;
-        std::coroutine_handle<> handle_;
-        query_awaiter& awaiter_;
-        
-    public:
-        pg_query_state(connection& conn, std::coroutine_handle<> handle, query_awaiter& awaiter)
-            : conn_(conn), handle_(handle), awaiter_(awaiter) {}
-        
-        void start_waiting() {
-            wait_for_result();
-        }
-        
-        void wait_for_result() {
-            conn_.socket().async_wait(
-                boost::asio::posix::stream_descriptor::wait_read,
-                [self = shared_from_this()](const boost::system::error_code& ec) {
-                    self->on_socket_ready(ec);
-                }
+            // Still busy, wait for the socket to be readable
+            boost::system::error_code ec;
+            co_await socket().async_wait(
+                boost::asio::ip::tcp::socket::wait_read,
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
             );
-        }
-        
-        void on_socket_ready(const boost::system::error_code& ec) {
-            try {
-                if (ec) {
-                    throw boost::system::system_error(ec);
-                }
-                
-                // Process available input
-                if (PQconsumeInput(conn_.conn_) == 0) {
-                    throw query_error(conn_.conn_);
-                }
-                
-                // Check if we can get a result
-                if (!PQisBusy(conn_.conn_)) {
-                    PGresult* res = PQgetResult(conn_.conn_);
-                    result result_obj(res);
-                    
-                    // Flush all remaining results
-                    while ((res = PQgetResult(conn_.conn_)) != nullptr) {
-                        PQclear(res);
-                    }
-                    
-                    // Set the result in the awaiter
-                    awaiter_.set_result(std::move(result_obj));
-                    
-                    // Resume the coroutine
-                    handle_.resume();
-                } else {
-                    // Still busy, continue waiting
-                    wait_for_result();
-                }
-            }
-            catch (const std::exception& e) {
-                // Set an empty result to indicate error
-                awaiter_.set_result(result());
-                
-                // Resume the coroutine, which will throw an exception in await_resume
-                handle_.resume();
+            
+            if (ec) {
+                throw boost::system::system_error(ec);
             }
         }
-    };
+    }
     
-    // Forward declare the pg_param_query_state class
-    class pg_param_query_state;
-    
-    // Parameterized query awaiter
-    class param_query_awaiter {
-    private:
-        connection& conn_;
-        std::string query_;
-        std::vector<std::string> param_values_;
-        result result_;
-        bool query_sent_ = false;
-        std::shared_ptr<pg_param_query_state> state_;
-        
-        // Convert vector of std::string to const char* array for libpq
-        std::vector<const char*> get_param_values() const {
-            std::vector<const char*> values;
-            values.reserve(param_values_.size());
-            for (const auto& param : param_values_) {
-                values.push_back(param.c_str());
-            }
-            return values;
+    // Asynchronous parameterized query execution using boost::asio::awaitable
+    boost::asio::awaitable<result> query_params(const std::string& query_text, const std::vector<std::string>& params) {
+        if (!is_open()) {
+            throw connection_error("Connection is not open");
         }
         
-    public:
-        param_query_awaiter(connection& conn, std::string query, std::vector<std::string> param_values)
-            : conn_(conn), query_(std::move(query)), param_values_(std::move(param_values)) {}
+        // Convert parameters
+        std::vector<const char*> values;
+        values.reserve(params.size());
+        for (const auto& param : params) {
+            values.push_back(param.c_str());
+        }
         
-        bool await_ready() {
-            if (!conn_.is_open()) {
-                throw connection_error("Connection is not open");
+        // Send the parameterized query
+        if (!PQsendQueryParams(
+                conn_,
+                query_text.c_str(),
+                static_cast<int>(values.size()),
+                nullptr, // param types - inferred
+                values.data(),
+                nullptr, // param lengths - null-terminated strings
+                nullptr, // param formats - text format
+                0 // result format - text format
+            )) {
+            throw query_error(conn_);
+        }
+        
+        // Flush the outgoing data
+        while (true) {
+            int flush_result = PQflush(conn_);
+            if (flush_result == -1) {
+                throw query_error(conn_);
             }
-            
-            // Convert parameters
-            auto values = get_param_values();
-            
-            // Send the parameterized query
-            if (!PQsendQueryParams(
-                    conn_.conn_,
-                    query_.c_str(),
-                    static_cast<int>(values.size()),
-                    nullptr, // param types - inferred
-                    values.data(),
-                    nullptr, // param lengths - null-terminated strings
-                    nullptr, // param formats - text format
-                    0 // result format - text format
-                )) {
-                throw query_error(conn_.conn_);
+            if (flush_result == 0) {
+                break; // All data has been flushed
             }
+            // Flush returned 1, need to wait for socket to be writable
+            boost::system::error_code ec;
+            co_await socket().async_wait(
+                boost::asio::ip::tcp::socket::wait_write,
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+            );
             
-            query_sent_ = true;
-            
+            if (ec) {
+                throw boost::system::system_error(ec);
+            }
+        }
+        
+        // Process input and wait for results
+        while (true) {
             // Check if we can consume input without blocking
-            if (PQconsumeInput(conn_.conn_) == 0) {
-                throw query_error(conn_.conn_);
+            if (PQconsumeInput(conn_) == 0) {
+                throw query_error(conn_);
             }
             
             // Check if we can get a result without blocking
-            if (!PQisBusy(conn_.conn_)) {
-                PGresult* res = PQgetResult(conn_.conn_);
-                result_ = result(res);
+            if (!PQisBusy(conn_)) {
+                PGresult* res = PQgetResult(conn_);
+                result result_obj(res);
                 
                 // Flush all remaining results (normally there should be none for a single query)
-                while ((res = PQgetResult(conn_.conn_)) != nullptr) {
+                while ((res = PQgetResult(conn_)) != nullptr) {
                     PQclear(res);
                 }
                 
-                return true; // Query completed synchronously
+                co_return result_obj;
             }
             
-            return false; // Need to await
-        }
-        
-        void await_suspend(std::coroutine_handle<> handle) {
-            // Create a state object that will manage the lifetime of the operation
-            state_ = std::make_shared<pg_param_query_state>(conn_, handle, *this);
-            
-            // Start waiting for the query result
-            state_->start_waiting();
-        }
-        
-        result await_resume() {
-            if (!result_) {
-                throw query_error("Query failed");
-            }
-            
-            return std::move(result_);
-        }
-        
-        // Set the result from state
-        void set_result(result&& res) {
-            result_ = std::move(res);
-        }
-    };
-    
-    // State object for asynchronous PostgreSQL parameterized operations
-    class pg_param_query_state : public std::enable_shared_from_this<pg_param_query_state> {
-    private:
-        connection& conn_;
-        std::coroutine_handle<> handle_;
-        param_query_awaiter& awaiter_;
-        
-    public:
-        pg_param_query_state(connection& conn, std::coroutine_handle<> handle, param_query_awaiter& awaiter)
-            : conn_(conn), handle_(handle), awaiter_(awaiter) {}
-        
-        void start_waiting() {
-            wait_for_result();
-        }
-        
-        void wait_for_result() {
-            conn_.socket().async_wait(
-                boost::asio::posix::stream_descriptor::wait_read,
-                [self = shared_from_this()](const boost::system::error_code& ec) {
-                    self->on_socket_ready(ec);
-                }
+            // Still busy, wait for the socket to be readable
+            boost::system::error_code ec;
+            co_await socket().async_wait(
+                boost::asio::ip::tcp::socket::wait_read,
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
             );
-        }
-        
-        void on_socket_ready(const boost::system::error_code& ec) {
-            try {
-                if (ec) {
-                    throw boost::system::system_error(ec);
-                }
-                
-                // Process available input
-                if (PQconsumeInput(conn_.conn_) == 0) {
-                    throw query_error(conn_.conn_);
-                }
-                
-                // Check if we can get a result
-                if (!PQisBusy(conn_.conn_)) {
-                    PGresult* res = PQgetResult(conn_.conn_);
-                    result result_obj(res);
-                    
-                    // Flush all remaining results
-                    while ((res = PQgetResult(conn_.conn_)) != nullptr) {
-                        PQclear(res);
-                    }
-                    
-                    // Set the result in the awaiter
-                    awaiter_.set_result(std::move(result_obj));
-                    
-                    // Resume the coroutine
-                    handle_.resume();
-                } else {
-                    // Still busy, continue waiting
-                    wait_for_result();
-                }
-            }
-            catch (const std::exception& e) {
-                // Set an empty result to indicate error
-                awaiter_.set_result(result());
-                
-                // Resume the coroutine, which will throw an exception in await_resume
-                handle_.resume();
+            
+            if (ec) {
+                throw boost::system::system_error(ec);
             }
         }
-    };
-    
-    // Co_await-able connect method
-    auto connect(const std::string& conninfo) {
-        return connect_awaiter(*this, conninfo);
-    }
-    
-    // Co_await-able query method
-    auto query(const std::string& query_text) {
-        return query_awaiter(*this, query_text);
-    }
-    
-    // Co_await-able parameterized query method
-    auto query_params(const std::string& query_text, const std::vector<std::string>& params) {
-        return param_query_awaiter(*this, query_text, params);
     }
 };
 
