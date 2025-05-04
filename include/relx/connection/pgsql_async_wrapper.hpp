@@ -24,6 +24,7 @@
 #include <functional>
 #include <iostream>
 #include <chrono>
+#include <unordered_map>
 
 namespace relx::pgsql_async_wrapper {
 
@@ -50,6 +51,22 @@ public:
         : pg_error(PQresultErrorMessage(result) ? PQresultErrorMessage(result) : "Unknown PostgreSQL query error") {}
     explicit query_error(PGconn* conn) 
         : pg_error(PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown PostgreSQL query error") {}
+};
+
+class transaction_error : public pg_error {
+public:
+    explicit transaction_error(const std::string& msg) : pg_error(msg) {}
+    explicit transaction_error(const char* msg) : pg_error(msg) {}
+    explicit transaction_error(PGconn* conn) 
+        : pg_error(PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown PostgreSQL transaction error") {}
+};
+
+class statement_error : public pg_error {
+public:
+    explicit statement_error(const std::string& msg) : pg_error(msg) {}
+    explicit statement_error(const char* msg) : pg_error(msg) {}
+    explicit statement_error(PGconn* conn) 
+        : pg_error(PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown PostgreSQL statement error") {}
 };
 
 // Result class to handle PGresult
@@ -148,6 +165,64 @@ public:
     }
 };
 
+// Transaction isolation level
+enum class IsolationLevel {
+    ReadUncommitted,
+    ReadCommitted,
+    RepeatableRead,
+    Serializable
+};
+
+// Forward declaration
+class connection;
+
+// Prepared statement class
+class prepared_statement {
+private:
+    connection& conn_;
+    std::string name_;
+    std::string query_;
+    bool prepared_ = false;
+
+public:
+    prepared_statement(connection& conn, std::string name, std::string query)
+        : conn_(conn), name_(std::move(name)), query_(std::move(query)) {}
+
+    ~prepared_statement() = default;
+
+    // Non-copyable
+    prepared_statement(const prepared_statement&) = delete;
+    prepared_statement& operator=(const prepared_statement&) = delete;
+
+    // Move constructible/assignable
+    prepared_statement(prepared_statement&& other) noexcept
+        : conn_(other.conn_), name_(std::move(other.name_)), 
+          query_(std::move(other.query_)), prepared_(other.prepared_) {
+        other.prepared_ = false;
+    }
+
+    prepared_statement& operator=(prepared_statement&& other) noexcept {
+        if (this != &other) {
+            name_ = std::move(other.name_);
+            query_ = std::move(other.query_);
+            prepared_ = other.prepared_;
+            other.prepared_ = false;
+        }
+        return *this;
+    }
+
+    const std::string& name() const { return name_; }
+    const std::string& query() const { return query_; }
+    bool is_prepared() const { return prepared_; }
+
+    // The implementation of prepare and execute will be defined after connection class
+    boost::asio::awaitable<void> prepare();
+    boost::asio::awaitable<result> execute(const std::vector<std::string>& params);
+    boost::asio::awaitable<void> deallocate();
+
+    friend class connection;
+};
+
 // ----------------------------------------------------------------------
 // The connection class - main interface for PostgreSQL operations
 // ----------------------------------------------------------------------
@@ -156,6 +231,8 @@ private:
     boost::asio::io_context& io_;
     PGconn* conn_ = nullptr;
     std::unique_ptr<boost::asio::ip::tcp::socket> socket_;
+    std::unordered_map<std::string, std::shared_ptr<prepared_statement>> statements_;
+    bool in_transaction_ = false;
     
     void create_socket() {
         if (conn_ == nullptr) {
@@ -193,6 +270,40 @@ private:
         }
     }
     
+    // Helper method to wait for and get a query result
+    boost::asio::awaitable<result> get_query_result() {
+        while (true) {
+            // Check if we can consume input without blocking
+            if (PQconsumeInput(conn_) == 0) {
+                throw query_error(conn_);
+            }
+            
+            // Check if we can get a result without blocking
+            if (!PQisBusy(conn_)) {
+                PGresult* res = PQgetResult(conn_);
+                result result_obj(res);
+                
+                // Flush all remaining results (normally there should be none for a single query)
+                while ((res = PQgetResult(conn_)) != nullptr) {
+                    PQclear(res);
+                }
+                
+                co_return result_obj;
+            }
+            
+            // Still busy, wait for the socket to be readable
+            boost::system::error_code ec;
+            co_await socket().async_wait(
+                boost::asio::ip::tcp::socket::wait_read,
+                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
+            );
+            
+            if (ec) {
+                throw boost::system::system_error(ec);
+            }
+        }
+    }
+    
 public:
     connection(boost::asio::io_context& io) : io_(io) {}
     
@@ -206,8 +317,10 @@ public:
     
     // Move constructible/assignable
     connection(connection&& other) noexcept
-        : io_(other.io_), conn_(other.conn_), socket_(std::move(other.socket_)) {
+        : io_(other.io_), conn_(other.conn_), socket_(std::move(other.socket_)),
+          statements_(std::move(other.statements_)), in_transaction_(other.in_transaction_) {
         other.conn_ = nullptr;
+        other.in_transaction_ = false;
     }
     
     connection& operator=(connection&& other) noexcept {
@@ -215,12 +328,17 @@ public:
             close();
             conn_ = other.conn_;
             socket_ = std::move(other.socket_);
+            statements_ = std::move(other.statements_);
+            in_transaction_ = other.in_transaction_;
             other.conn_ = nullptr;
+            other.in_transaction_ = false;
         }
         return *this;
     }
     
     void close() {
+        statements_.clear();
+        
         if (socket_) {
             socket_->close();
             socket_.reset();
@@ -230,10 +348,16 @@ public:
             PQfinish(conn_);
             conn_ = nullptr;
         }
+        
+        in_transaction_ = false;
     }
     
     bool is_open() const {
         return conn_ != nullptr && PQstatus(conn_) == CONNECTION_OK;
+    }
+    
+    bool in_transaction() const {
+        return in_transaction_;
     }
     
     PGconn* native_handle() {
@@ -320,7 +444,7 @@ public:
     }
     
     // Asynchronous parameterized query execution using boost::asio::awaitable
-    boost::asio::awaitable<result> query(const std::string& query_text, const std::vector<std::string>& params) {
+    boost::asio::awaitable<result> query(const std::string& query_text, const std::vector<std::string>& params = {}) {
         if (!is_open()) {
             throw connection_error("Connection is not open");
         }
@@ -350,38 +474,223 @@ public:
         // Flush the outgoing data
         co_await flush_outgoing_data();
         
-        // Process input and wait for results
-        while (true) {
-            // Check if we can consume input without blocking
-            if (PQconsumeInput(conn_) == 0) {
-                throw query_error(conn_);
-            }
-            
-            // Check if we can get a result without blocking
-            if (!PQisBusy(conn_)) {
-                PGresult* res = PQgetResult(conn_);
-                result result_obj(res);
-                
-                // Flush all remaining results (normally there should be none for a single query)
-                while ((res = PQgetResult(conn_)) != nullptr) {
-                    PQclear(res);
-                }
-                
-                co_return result_obj;
-            }
-            
-            // Still busy, wait for the socket to be readable
-            boost::system::error_code ec;
-            co_await socket().async_wait(
-                boost::asio::ip::tcp::socket::wait_read,
-                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
-            );
-            
-            if (ec) {
-                throw boost::system::system_error(ec);
+        // Get and return the result
+        co_return co_await get_query_result();
+    }
+    
+    // Transaction support
+    // ------------------
+    
+    // Begin transaction with specified isolation level
+    boost::asio::awaitable<void> begin_transaction(IsolationLevel isolation = IsolationLevel::ReadCommitted) {
+        if (in_transaction_) {
+            throw transaction_error("Already in a transaction");
+        }
+        
+        std::string isolation_str;
+        switch (isolation) {
+            case IsolationLevel::ReadUncommitted:
+                isolation_str = "READ UNCOMMITTED";
+                break;
+            case IsolationLevel::ReadCommitted:
+                isolation_str = "READ COMMITTED";
+                break;
+            case IsolationLevel::RepeatableRead:
+                isolation_str = "REPEATABLE READ";
+                break;
+            case IsolationLevel::Serializable:
+                isolation_str = "SERIALIZABLE";
+                break;
+        }
+        
+        std::string begin_cmd = "BEGIN ISOLATION LEVEL " + isolation_str;
+        result res = co_await query(begin_cmd);
+        
+        if (!res) {
+            throw transaction_error(res.error_message());
+        }
+        
+        in_transaction_ = true;
+        co_return;
+    }
+    
+    // Commit the current transaction
+    boost::asio::awaitable<void> commit() {
+        if (!in_transaction_) {
+            throw transaction_error("Not in a transaction");
+        }
+        
+        result res = co_await query("COMMIT");
+        
+        if (!res) {
+            throw transaction_error(res.error_message());
+        }
+        
+        in_transaction_ = false;
+        co_return;
+    }
+    
+    // Rollback the current transaction
+    boost::asio::awaitable<void> rollback() {
+        if (!in_transaction_) {
+            throw transaction_error("Not in a transaction");
+        }
+        
+        result res = co_await query("ROLLBACK");
+        
+        if (!res) {
+            throw transaction_error(res.error_message());
+        }
+        
+        in_transaction_ = false;
+        co_return;
+    }
+    
+    // Prepared statement support
+    // -------------------------
+    
+    // Create a prepared statement
+    boost::asio::awaitable<std::shared_ptr<prepared_statement>> prepare_statement(const std::string& name, const std::string& query_text) {
+        if (!is_open()) {
+            throw connection_error("Connection is not open");
+        }
+        
+        auto it = statements_.find(name);
+        if (it != statements_.end()) {
+            // Statement with this name already exists
+            if (it->second->query() != query_text) {
+                // Deallocate the old statement since the query is different
+                co_await it->second->deallocate();
+                statements_.erase(it);
+            } else {
+                // Return the existing statement if it has the same query
+                co_return it->second;
             }
         }
+        
+        // Create a new prepared statement
+        auto stmt = std::make_shared<prepared_statement>(*this, name, query_text);
+        statements_[name] = stmt;
+        
+        // Prepare it
+        co_await stmt->prepare();
+        
+        co_return stmt;
     }
+    
+    // Get a prepared statement by name
+    std::shared_ptr<prepared_statement> get_prepared_statement(const std::string& name) {
+        auto it = statements_.find(name);
+        if (it != statements_.end()) {
+            return it->second;
+        }
+        return nullptr;
+    }
+    
+    // Execute a prepared statement by name
+    boost::asio::awaitable<result> execute_prepared(const std::string& name, const std::vector<std::string>& params = {}) {
+        auto stmt = get_prepared_statement(name);
+        if (!stmt) {
+            throw statement_error("Prepared statement not found: " + name);
+        }
+        
+        co_return co_await stmt->execute(params);
+    }
+    
+    // Deallocate a prepared statement by name
+    boost::asio::awaitable<void> deallocate_prepared(const std::string& name) {
+        auto stmt = get_prepared_statement(name);
+        if (!stmt) {
+            throw statement_error("Prepared statement not found: " + name);
+        }
+        
+        co_await stmt->deallocate();
+        statements_.erase(name);
+        co_return;
+    }
+    
+    // Deallocate all prepared statements
+    boost::asio::awaitable<void> deallocate_all_prepared() {
+        std::vector<std::string> names;
+        names.reserve(statements_.size());
+        
+        for (auto& [name, _] : statements_) {
+            names.push_back(name);
+        }
+        
+        for (const auto& name : names) {
+            co_await deallocate_prepared(name);
+        }
+        
+        co_return;
+    }
+    
+    friend class prepared_statement;
 };
+
+// Implementation of prepared_statement methods
+boost::asio::awaitable<void> prepared_statement::prepare() {
+    if (prepared_) {
+        co_return;
+    }
+    
+    if (!PQsendPrepare(conn_.native_handle(), name_.c_str(), query_.c_str(), 0, nullptr)) {
+        throw statement_error(conn_.native_handle());
+    }
+    
+    co_await conn_.flush_outgoing_data();
+    result res = co_await conn_.get_query_result();
+    
+    if (!res) {
+        throw statement_error(res.error_message());
+    }
+    
+    prepared_ = true;
+    co_return;
+}
+
+boost::asio::awaitable<result> prepared_statement::execute(const std::vector<std::string>& params) {
+    if (!prepared_) {
+        co_await prepare();
+    }
+    
+    // Convert parameters
+    std::vector<const char*> values;
+    values.reserve(params.size());
+    for (const auto& param : params) {
+        values.push_back(param.c_str());
+    }
+    
+    if (!PQsendQueryPrepared(
+            conn_.native_handle(),
+            name_.c_str(),
+            static_cast<int>(values.size()),
+            values.data(),
+            nullptr, // param lengths - null-terminated strings
+            nullptr, // param formats - text format
+            0 // result format - text format
+        )) {
+        throw statement_error(conn_.native_handle());
+    }
+    
+    co_await conn_.flush_outgoing_data();
+    co_return co_await conn_.get_query_result();
+}
+
+boost::asio::awaitable<void> prepared_statement::deallocate() {
+    if (!prepared_) {
+        co_return;
+    }
+    
+    std::string deallocate_cmd = "DEALLOCATE " + name_;
+    result res = co_await conn_.query(deallocate_cmd);
+    
+    if (!res) {
+        throw statement_error(res.error_message());
+    }
+    
+    prepared_ = false;
+    co_return;
+}
 
 } // namespace relx::pgsql_async_wrapper
