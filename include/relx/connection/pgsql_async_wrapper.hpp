@@ -148,9 +148,6 @@ public:
     }
 };
 
-// Forward declarations
-class connection;
-
 // ----------------------------------------------------------------------
 // The connection class - main interface for PostgreSQL operations
 // ----------------------------------------------------------------------
@@ -322,55 +319,8 @@ public:
         co_return;
     }
     
-    // Asynchronous query execution using boost::asio::awaitable
-    boost::asio::awaitable<result> query(const std::string& query_text) {
-        if (!is_open()) {
-            throw connection_error("Connection is not open");
-        }
-        
-        // Send the query
-        if (!PQsendQuery(conn_, query_text.c_str())) {
-            throw query_error(conn_);
-        }
-        
-        // Flush the outgoing data
-        co_await flush_outgoing_data();
-        
-        // Process input and wait for results
-        while (true) {
-            // Check if we can consume input without blocking
-            if (PQconsumeInput(conn_) == 0) {
-                throw query_error(conn_);
-            }
-            
-            // Check if we can get a result without blocking
-            if (!PQisBusy(conn_)) {
-                PGresult* res = PQgetResult(conn_);
-                result result_obj(res);
-                
-                // Clear all remaining results (normally there should be none for a single query)
-                while ((res = PQgetResult(conn_)) != nullptr) {
-                    PQclear(res);
-                }
-                
-                co_return result_obj;
-            }
-            
-            // Still busy, wait for the socket to be readable
-            boost::system::error_code ec;
-            co_await socket().async_wait(
-                boost::asio::ip::tcp::socket::wait_read,
-                boost::asio::redirect_error(boost::asio::use_awaitable, ec)
-            );
-            
-            if (ec) {
-                throw boost::system::system_error(ec);
-            }
-        }
-    }
-    
     // Asynchronous parameterized query execution using boost::asio::awaitable
-    boost::asio::awaitable<result> query_params(const std::string& query_text, const std::vector<std::string>& params) {
+    boost::asio::awaitable<result> query(const std::string& query_text, const std::vector<std::string>& params) {
         if (!is_open()) {
             throw connection_error("Connection is not open");
         }
@@ -387,6 +337,7 @@ public:
                 conn_,
                 query_text.c_str(),
                 static_cast<int>(values.size()),
+                // TODO allow user to customize fields with nullptr values
                 nullptr, // param types - inferred
                 values.data(),
                 nullptr, // param lengths - null-terminated strings
