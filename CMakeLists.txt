@@ -100,6 +100,7 @@ add_executable(relx_tests
   test/connection/postgresql_statement_test.cpp
   test/connection/postgresql_connection_pool_test.cpp
   test/connection/dto_mapping_test.cpp
+  # test/connection/postgresql_async_wrapper_test.cpp
   # PostgreSQL Integration tests
   test/postgres_integration/basic_integration_test.cpp
   test/postgres_integration/schema_integration_test.cpp

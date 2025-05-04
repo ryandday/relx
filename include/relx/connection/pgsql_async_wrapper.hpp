@@ -25,7 +25,7 @@
 #include <iostream>
 #include <chrono>
 
-namespace relx::connection::pgsql_async {
+namespace relx::pgsql_async_wrapper {
 
 // Exception classes
 class pg_error : public std::runtime_error {
@@ -48,7 +48,6 @@ public:
     explicit query_error(const char* msg) : pg_error(msg) {}
     explicit query_error(PGresult* result) 
         : pg_error(PQresultErrorMessage(result) ? PQresultErrorMessage(result) : "Unknown PostgreSQL query error") {}
-    
     explicit query_error(PGconn* conn) 
         : pg_error(PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown PostgreSQL query error") {}
 };
@@ -149,70 +148,8 @@ public:
     }
 };
 
-// Forward declaration of connection class
+// Forward declarations
 class connection;
-
-// State objects for handling async operations with proper lifetime management
-
-// Connect state object
-struct pg_connect_state : std::enable_shared_from_this<pg_connect_state> {
-    connection& conn_;
-    std::string conninfo_;
-    std::coroutine_handle<> handle_;
-    bool poll_write_ = false;
-    bool poll_read_ = false;
-    bool complete_ = false;
-    
-    pg_connect_state(connection& conn, std::string conninfo, std::coroutine_handle<> handle)
-        : conn_(conn), conninfo_(std::move(conninfo)), handle_(handle) {}
-    
-    void start();
-    void poll_connection();
-    void on_socket_ready(const boost::system::error_code& ec);
-};
-
-// Query state object
-struct pg_query_state : std::enable_shared_from_this<pg_query_state> {
-    connection& conn_;
-    std::string query_;
-    std::coroutine_handle<> handle_;
-    result result_;
-    bool query_sent_ = false;
-    
-    pg_query_state(connection& conn, std::string query, std::coroutine_handle<> handle)
-        : conn_(conn), query_(std::move(query)), handle_(handle) {}
-    
-    void start();
-    void wait_for_result();
-    void on_socket_ready(const boost::system::error_code& ec);
-};
-
-// Parameterized query state object
-struct pg_param_query_state : std::enable_shared_from_this<pg_param_query_state> {
-    connection& conn_;
-    std::string query_;
-    std::vector<std::string> param_values_;
-    std::coroutine_handle<> handle_;
-    result result_;
-    bool query_sent_ = false;
-    
-    // Convert vector of std::string to const char* array for libpq
-    std::vector<const char*> get_param_values() const {
-        std::vector<const char*> values;
-        values.reserve(param_values_.size());
-        for (const auto& param : param_values_) {
-            values.push_back(param.c_str());
-        }
-        return values;
-    }
-    
-    pg_param_query_state(connection& conn, std::string query, std::vector<std::string> param_values, std::coroutine_handle<> handle)
-        : conn_(conn), query_(std::move(query)), param_values_(std::move(param_values)), handle_(handle) {}
-    
-    void start();
-    void wait_for_result();
-    void on_socket_ready(const boost::system::error_code& ec);
-};
 
 // ----------------------------------------------------------------------
 // The connection class - main interface for PostgreSQL operations
@@ -290,11 +227,17 @@ public:
         return *socket_;
     }
     
+    // Forward declare the pg_connect_state class
+    class pg_connect_state;
+    
     // Asynchronous connection using co_await
     class connect_awaiter {
     private:
         connection& conn_;
         std::string conninfo_;
+        bool poll_write_ = false;
+        bool poll_read_ = false;
+        bool complete_ = false;
         std::shared_ptr<pg_connect_state> state_;
         
     public:
@@ -333,20 +276,27 @@ public:
             }
             
             if (poll_status == PGRES_POLLING_OK) {
+                complete_ = true;
                 return true; // Connection immediately successful
             }
+            
+            // Need to poll
+            poll_write_ = (poll_status == PGRES_POLLING_WRITING);
+            poll_read_ = (poll_status == PGRES_POLLING_READING);
             
             return false; // Not ready, need to await
         }
         
         void await_suspend(std::coroutine_handle<> handle) {
-            // Create and start the connection state object
-            state_ = std::make_shared<pg_connect_state>(conn_, conninfo_, handle);
-            state_->start();
+            // Create a state object that will manage the lifetime of the operation
+            state_ = std::make_shared<pg_connect_state>(conn_, handle, *this);
+            
+            // Start the connection process
+            state_->start_connecting();
         }
         
         void await_resume() {
-            if (!state_->complete_) {
+            if (!complete_) {
                 throw connection_error("Connection failed");
             }
             
@@ -354,13 +304,114 @@ public:
                 throw connection_error(conn_.conn_);
             }
         }
+        
+        // Methods to be called by the state object
+        void set_complete(bool complete) {
+            complete_ = complete;
+        }
+        
+        bool is_poll_read() const {
+            return poll_read_;
+        }
+        
+        bool is_poll_write() const {
+            return poll_write_;
+        }
+        
+        void set_poll_status(bool read, bool write) {
+            poll_read_ = read;
+            poll_write_ = write;
+        }
     };
+    
+    // State object for asynchronous PostgreSQL connection operations
+    class pg_connect_state : public std::enable_shared_from_this<pg_connect_state> {
+    private:
+        connection& conn_;
+        std::coroutine_handle<> handle_;
+        connect_awaiter& awaiter_;
+        
+    public:
+        pg_connect_state(connection& conn, std::coroutine_handle<> handle, connect_awaiter& awaiter)
+            : conn_(conn), handle_(handle), awaiter_(awaiter) {}
+        
+        void start_connecting() {
+            if (awaiter_.is_poll_read()) {
+                conn_.socket().async_wait(
+                    boost::asio::posix::stream_descriptor::wait_read,
+                    [self = shared_from_this()](const boost::system::error_code& ec) {
+                        self->on_socket_ready(ec);
+                    }
+                );
+            } else if (awaiter_.is_poll_write()) {
+                conn_.socket().async_wait(
+                    boost::asio::posix::stream_descriptor::wait_write,
+                    [self = shared_from_this()](const boost::system::error_code& ec) {
+                        self->on_socket_ready(ec);
+                    }
+                );
+            }
+        }
+        
+        void on_socket_ready(const boost::system::error_code& ec) {
+            try {
+                if (ec) {
+                    throw boost::system::system_error(ec);
+                }
+                
+                PostgresPollingStatusType poll_status = PQconnectPoll(conn_.conn_);
+                
+                if (poll_status == PGRES_POLLING_FAILED) {
+                    throw connection_error(conn_.conn_);
+                }
+                
+                if (poll_status == PGRES_POLLING_OK) {
+                    awaiter_.set_complete(true);
+                    handle_.resume();
+                    return;
+                }
+                
+                // If we need more polling, re-register for the appropriate event
+                bool poll_read = (poll_status == PGRES_POLLING_READING);
+                bool poll_write = (poll_status == PGRES_POLLING_WRITING);
+                awaiter_.set_poll_status(poll_read, poll_write);
+                
+                if (poll_read) {
+                    conn_.socket().async_wait(
+                        boost::asio::posix::stream_descriptor::wait_read,
+                        [self = shared_from_this()](const boost::system::error_code& ec) {
+                            self->on_socket_ready(ec);
+                        }
+                    );
+                } else if (poll_write) {
+                    conn_.socket().async_wait(
+                        boost::asio::posix::stream_descriptor::wait_write,
+                        [self = shared_from_this()](const boost::system::error_code& ec) {
+                            self->on_socket_ready(ec);
+                        }
+                    );
+                }
+            }
+            catch (const std::exception& e) {
+                // Set complete to false to indicate failure
+                awaiter_.set_complete(false);
+                
+                // Resume the coroutine, which will throw in await_resume
+                handle_.resume();
+            }
+        }
+    };
+    
+    // Forward declare the pg_query_state class
+    class pg_query_state;
     
     // Query awaiter for executing SQL queries
     class query_awaiter {
     private:
         connection& conn_;
         std::string query_;
+        result result_;
+        bool query_sent_ = false;
         std::shared_ptr<pg_query_state> state_;
         
     public:
@@ -377,6 +428,8 @@ public:
                 throw query_error(conn_.conn_);
             }
             
+            query_sent_ = true;
+            
             // Check if we can consume input without blocking
             if (PQconsumeInput(conn_.conn_) == 0) {
                 throw query_error(conn_.conn_);
@@ -385,7 +438,7 @@ public:
             // Check if we can get a result without blocking
             if (!PQisBusy(conn_.conn_)) {
                 PGresult* res = PQgetResult(conn_.conn_);
-                result result_obj(res);
+                result_ = result(res);
                 
                 // Flush all remaining results (normally there should be none for a single query)
                 while ((res = PQgetResult(conn_.conn_)) != nullptr) {
@@ -399,19 +452,94 @@ public:
         }
         
         void await_suspend(std::coroutine_handle<> handle) {
-            // Create and start the query state object
-            state_ = std::make_shared<pg_query_state>(conn_, query_, handle);
-            state_->start();
+            // Create a state object that will manage the lifetime of the operation
+            state_ = std::make_shared<pg_query_state>(conn_, handle, *this);
+            
+            // Start waiting for the query result
+            state_->start_waiting();
         }
         
         result await_resume() {
-            if (!state_ || !state_->result_) {
+            if (!result_) {
                 throw query_error("Query failed");
             }
             
-            return std::move(state_->result_);
+            return std::move(result_);
+        }
+        
+        // Set the result from state
+        void set_result(result&& res) {
+            result_ = std::move(res);
         }
     };
+    
+    // State object for asynchronous PostgreSQL operations
+    class pg_query_state : public std::enable_shared_from_this<pg_query_state> {
+    private:
+        connection& conn_;
+        std::coroutine_handle<> handle_;
+        query_awaiter& awaiter_;
+        
+    public:
+        pg_query_state(connection& conn, std::coroutine_handle<> handle, query_awaiter& awaiter)
+            : conn_(conn), handle_(handle), awaiter_(awaiter) {}
+        
+        void start_waiting() {
+            wait_for_result();
+        }
+        
+        void wait_for_result() {
+            conn_.socket().async_wait(
+                boost::asio::posix::stream_descriptor::wait_read,
+                [self = shared_from_this()](const boost::system::error_code& ec) {
+                    self->on_socket_ready(ec);
+                }
+            );
+        }
+        
+        void on_socket_ready(const boost::system::error_code& ec) {
+            try {
+                if (ec) {
+                    throw boost::system::system_error(ec);
+                }
+                
+                // Process available input
+                if (PQconsumeInput(conn_.conn_) == 0) {
+                    throw query_error(conn_.conn_);
+                }
+                
+                // Check if we can get a result
+                if (!PQisBusy(conn_.conn_)) {
+                    PGresult* res = PQgetResult(conn_.conn_);
+                    result result_obj(res);
+                    
+                    // Flush all remaining results
+                    while ((res = PQgetResult(conn_.conn_)) != nullptr) {
+                        PQclear(res);
+                    }
+                    
+                    // Set the result in the awaiter
+                    awaiter_.set_result(std::move(result_obj));
+                    
+                    // Resume the coroutine
+                    handle_.resume();
+                } else {
+                    // Still busy, continue waiting
+                    wait_for_result();
+                }
+            }
+            catch (const std::exception& e) {
+                // Set an empty result to indicate error
+                awaiter_.set_result(result());
+                
+                // Resume the coroutine, which will throw an exception in await_resume
+                handle_.resume();
+            }
+        }
+    };
+    
+    // Forward declare the pg_param_query_state class
+    class pg_param_query_state;
     
     // Parameterized query awaiter
     class param_query_awaiter {
@@ -419,7 +547,19 @@ public:
         connection& conn_;
         std::string query_;
         std::vector<std::string> param_values_;
+        result result_;
+        bool query_sent_ = false;
         std::shared_ptr<pg_param_query_state> state_;
+        
+        // Convert vector of std::string to const char* array for libpq
+        std::vector<const char*> get_param_values() const {
+            std::vector<const char*> values;
+            values.reserve(param_values_.size());
+            for (const auto& param : param_values_) {
+                values.push_back(param.c_str());
+            }
+            return values;
+        }
         
     public:
         param_query_awaiter(connection& conn, std::string query, std::vector<std::string> param_values)
@@ -447,6 +587,8 @@ public:
                 throw query_error(conn_.conn_);
             }
             
+            query_sent_ = true;
+            
             // Check if we can consume input without blocking
             if (PQconsumeInput(conn_.conn_) == 0) {
                 throw query_error(conn_.conn_);
@@ -455,7 +597,7 @@ public:
             // Check if we can get a result without blocking
             if (!PQisBusy(conn_.conn_)) {
                 PGresult* res = PQgetResult(conn_.conn_);
-                result result_obj(res);
+                result_ = result(res);
                 
                 // Flush all remaining results (normally there should be none for a single query)
                 while ((res = PQgetResult(conn_.conn_)) != nullptr) {
@@ -469,28 +611,89 @@ public:
         }
         
         void await_suspend(std::coroutine_handle<> handle) {
-            // Create and start the parameterized query state object
-            state_ = std::make_shared<pg_param_query_state>(conn_, query_, param_values_, handle);
-            state_->start();
+            // Create a state object that will manage the lifetime of the operation
+            state_ = std::make_shared<pg_param_query_state>(conn_, handle, *this);
+            
+            // Start waiting for the query result
+            state_->start_waiting();
         }
         
         result await_resume() {
-            if (!state_ || !state_->result_) {
+            if (!result_) {
                 throw query_error("Query failed");
             }
             
-            return std::move(state_->result_);
+            return std::move(result_);
         }
         
+        // Set the result from state
+        void set_result(result&& res) {
+            result_ = std::move(res);
+        }
+    };
+    
+    // State object for asynchronous PostgreSQL parameterized operations
+    class pg_param_query_state : public std::enable_shared_from_this<pg_param_query_state> {
     private:
-        // Convert vector of std::string to const char* array for libpq
-        std::vector<const char*> get_param_values() const {
-            std::vector<const char*> values;
-            values.reserve(param_values_.size());
-            for (const auto& param : param_values_) {
-                values.push_back(param.c_str());
+        connection& conn_;
+        std::coroutine_handle<> handle_;
+        param_query_awaiter& awaiter_;
+        
+    public:
+        pg_param_query_state(connection& conn, std::coroutine_handle<> handle, param_query_awaiter& awaiter)
+            : conn_(conn), handle_(handle), awaiter_(awaiter) {}
+        
+        void start_waiting() {
+            wait_for_result();
+        }
+        
+        void wait_for_result() {
+            conn_.socket().async_wait(
+                boost::asio::posix::stream_descriptor::wait_read,
+                [self = shared_from_this()](const boost::system::error_code& ec) {
+                    self->on_socket_ready(ec);
+                }
+            );
+        }
+        
+        void on_socket_ready(const boost::system::error_code& ec) {
+            try {
+                if (ec) {
+                    throw boost::system::system_error(ec);
+                }
+                
+                // Process available input
+                if (PQconsumeInput(conn_.conn_) == 0) {
+                    throw query_error(conn_.conn_);
+                }
+                
+                // Check if we can get a result
+                if (!PQisBusy(conn_.conn_)) {
+                    PGresult* res = PQgetResult(conn_.conn_);
+                    result result_obj(res);
+                    
+                    // Flush all remaining results
+                    while ((res = PQgetResult(conn_.conn_)) != nullptr) {
+                        PQclear(res);
+                    }
+                    
+                    // Set the result in the awaiter
+                    awaiter_.set_result(std::move(result_obj));
+                    
+                    // Resume the coroutine
+                    handle_.resume();
+                } else {
+                    // Still busy, continue waiting
+                    wait_for_result();
+                }
             }
-            return values;
+            catch (const std::exception& e) {
+                // Set an empty result to indicate error
+                awaiter_.set_result(result());
+                
+                // Resume the coroutine, which will throw an exception in await_resume
+                handle_.resume();
+            }
         }
     };
     
@@ -508,269 +711,6 @@ public:
     auto query_params(const std::string& query_text, const std::vector<std::string>& params) {
         return param_query_awaiter(*this, query_text, params);
     }
-    
-    // Static method that implements async_compose pattern
-    template <typename CompletionToken>
-    static auto async_connect(
-        boost::asio::io_context& io,
-        const std::string& conninfo,
-        CompletionToken&& token) {
-            
-        return boost::asio::async_compose<CompletionToken, void(std::exception_ptr, std::shared_ptr<connection>)>(
-            [io_ptr = &io, conninfo](auto& self) {
-                boost::asio::co_spawn(*io_ptr, [io_ptr, conninfo, &self]() -> boost::asio::awaitable<void> {
-                    try {
-                        // Create a connection object
-                        auto conn = std::make_shared<connection>(*io_ptr);
-                        
-                        // Connect to the database
-                        co_await conn->connect(conninfo);
-                        
-                        // Call the completion handler with success
-                        self.complete(std::exception_ptr(), conn);
-                    } catch (...) {
-                        // Call the completion handler with the exception
-                        self.complete(std::current_exception(), nullptr);
-                    }
-                    
-                    co_return;
-                }, boost::asio::detached);
-            },
-            token,
-            io
-        );
-    }
-    
-    // Static method that implements async_compose pattern for query execution
-    template <typename CompletionToken>
-    static auto async_query(
-        std::shared_ptr<connection> conn,
-        const std::string& query_text,
-        CompletionToken&& token) {
-            
-        return boost::asio::async_compose<CompletionToken, void(std::exception_ptr, result)>(
-            [conn, query_text](auto& self) {
-                boost::asio::co_spawn(conn->io_, [conn, query_text, &self]() -> boost::asio::awaitable<void> {
-                    try {
-                        // Execute the query
-                        auto res = co_await conn->query(query_text);
-                        
-                        // Call the completion handler with success
-                        self.complete(std::exception_ptr(), std::move(res));
-                    } catch (...) {
-                        // Call the completion handler with the exception
-                        self.complete(std::current_exception(), result());
-                    }
-                    
-                    co_return;
-                }, boost::asio::detached);
-            },
-            token,
-            conn->io_
-        );
-    }
-    
-    // Static method that implements async_compose pattern for parameterized query execution
-    template <typename CompletionToken>
-    static auto async_query_params(
-        std::shared_ptr<connection> conn,
-        const std::string& query_text,
-        const std::vector<std::string>& params,
-        CompletionToken&& token) {
-            
-        return boost::asio::async_compose<CompletionToken, void(std::exception_ptr, result)>(
-            [conn, query_text, params](auto& self) {
-                boost::asio::co_spawn(conn->io_, [conn, query_text, params, &self]() -> boost::asio::awaitable<void> {
-                    try {
-                        // Execute the parameterized query
-                        auto res = co_await conn->query_params(query_text, params);
-                        
-                        // Call the completion handler with success
-                        self.complete(std::exception_ptr(), std::move(res));
-                    } catch (...) {
-                        // Call the completion handler with the exception
-                        self.complete(std::current_exception(), result());
-                    }
-                    
-                    co_return;
-                }, boost::asio::detached);
-            },
-            token,
-            conn->io_
-        );
-    }
 };
 
-// Implementation of state objects
-
-// Connect state implementation
-void pg_connect_state::start() {
-    poll_connection();
-}
-
-void pg_connect_state::poll_connection() {
-    PostgresPollingStatusType poll_status = PQconnectPoll(conn_.native_handle());
-    
-    if (poll_status == PGRES_POLLING_FAILED) {
-        complete_ = false;
-        handle_.resume();
-        return;
-    }
-    
-    if (poll_status == PGRES_POLLING_OK) {
-        complete_ = true;
-        handle_.resume();
-        return;
-    }
-    
-    // Need more polling
-    poll_write_ = (poll_status == PGRES_POLLING_WRITING);
-    poll_read_ = (poll_status == PGRES_POLLING_READING);
-    
-    if (poll_read_) {
-        conn_.socket().async_wait(
-            boost::asio::posix::descriptor_base::wait_read,
-            [self = shared_from_this()](const boost::system::error_code& ec) {
-                self->on_socket_ready(ec);
-            }
-        );
-    } else if (poll_write_) {
-        conn_.socket().async_wait(
-            boost::asio::posix::descriptor_base::wait_write,
-            [self = shared_from_this()](const boost::system::error_code& ec) {
-                self->on_socket_ready(ec);
-            }
-        );
-    }
-}
-
-void pg_connect_state::on_socket_ready(const boost::system::error_code& ec) {
-    if (ec) {
-        complete_ = false;
-        handle_.resume();
-        return;
-    }
-    
-    poll_connection();
-}
-
-// Query state implementation
-void pg_query_state::start() {
-    wait_for_result();
-}
-
-void pg_query_state::wait_for_result() {
-    conn_.socket().async_wait(
-        boost::asio::posix::descriptor_base::wait_read,
-        [self = shared_from_this()](const boost::system::error_code& ec) {
-            self->on_socket_ready(ec);
-        }
-    );
-}
-
-void pg_query_state::on_socket_ready(const boost::system::error_code& ec) {
-    if (ec) {
-        handle_.resume();
-        return;
-    }
-    
-    // Process available input
-    if (PQconsumeInput(conn_.native_handle()) == 0) {
-        handle_.resume();
-        return;
-    }
-    
-    // Check if we can get a result
-    if (!PQisBusy(conn_.native_handle())) {
-        PGresult* res = PQgetResult(conn_.native_handle());
-        result_ = result(res);
-        
-        // Flush all remaining results
-        while ((res = PQgetResult(conn_.native_handle())) != nullptr) {
-            PQclear(res);
-        }
-        
-        handle_.resume();
-    } else {
-        // Still busy, continue waiting
-        wait_for_result();
-    }
-}
-
-// Parameterized query state implementation
-void pg_param_query_state::start() {
-    wait_for_result();
-}
-
-void pg_param_query_state::wait_for_result() {
-    conn_.socket().async_wait(
-        boost::asio::posix::descriptor_base::wait_read,
-        [self = shared_from_this()](const boost::system::error_code& ec) {
-            self->on_socket_ready(ec);
-        }
-    );
-}
-
-void pg_param_query_state::on_socket_ready(const boost::system::error_code& ec) {
-    if (ec) {
-        handle_.resume();
-        return;
-    }
-    
-    // Process available input
-    if (PQconsumeInput(conn_.native_handle()) == 0) {
-        handle_.resume();
-        return;
-    }
-    
-    // Check if we can get a result
-    if (!PQisBusy(conn_.native_handle())) {
-        PGresult* res = PQgetResult(conn_.native_handle());
-        result_ = result(res);
-        
-        // Flush all remaining results
-        while ((res = PQgetResult(conn_.native_handle())) != nullptr) {
-            PQclear(res);
-        }
-        
-        handle_.resume();
-    } else {
-        // Still busy, continue waiting
-        wait_for_result();
-    }
-}
-
-// Convenience functions that use the async_compose pattern
-
-// Connect to a PostgreSQL database
-template <typename CompletionToken>
-auto async_connect(
-    boost::asio::io_context& io,
-    const std::string& conninfo,
-    CompletionToken&& token) {
-    
-    return connection::async_connect(io, conninfo, std::forward<CompletionToken>(token));
-}
-
-// Execute a SQL query
-template <typename CompletionToken>
-auto async_query(
-    std::shared_ptr<connection> conn,
-    const std::string& query_text,
-    CompletionToken&& token) {
-    
-    return connection::async_query(conn, query_text, std::forward<CompletionToken>(token));
-}
-
-// Execute a parameterized SQL query
-template <typename CompletionToken>
-auto async_query_params(
-    std::shared_ptr<connection> conn,
-    const std::string& query_text,
-    const std::vector<std::string>& params,
-    CompletionToken&& token) {
-    
-    return connection::async_query_params(conn, query_text, params, std::forward<CompletionToken>(token));
-}
-
-} // namespace pg_async
+} // namespace relx::pgsql_async_wrapper
