@@ -1,4 +1,4 @@
-#include "connection/postgresql_connection_pool.hpp"
+#include "relx/connection/postgresql_connection_pool.hpp"
 
 namespace relx {
 namespace connection {
@@ -38,13 +38,13 @@ ConnectionPoolResult<void> PostgreSQLConnectionPool::initialize() {
     return {};
 }
 
-ConnectionPoolResult<PostgreSQLConnectionPool::PooledConnectionWrapper> PostgreSQLConnectionPool::get_connection() {
+ConnectionPoolResult<PostgreSQLConnectionPool::PooledConnection> PostgreSQLConnectionPool::get_connection() {
     auto conn_result = get_raw_connection();
     if (!conn_result) {
         return std::unexpected(conn_result.error());
     }
     
-    return PooledConnectionWrapper(*conn_result, shared_from_this());
+    return PooledConnection(*conn_result, shared_from_this());
 }
 
 ConnectionPoolResult<std::shared_ptr<PostgreSQLConnection>> PostgreSQLConnectionPool::get_raw_connection() {
@@ -199,7 +199,7 @@ void PostgreSQLConnectionPool::cleanup_idle_connections() {
     auto now = steady_clock::now();
     
     // Create a temporary queue to hold connections we want to keep
-    std::queue<PooledConnection> keep_connections;
+    std::queue<PoolEntry> keep_connections;
     
     size_t closed = 0;
     

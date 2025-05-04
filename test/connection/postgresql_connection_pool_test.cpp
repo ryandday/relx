@@ -36,8 +36,8 @@ protected:
         }
     }
     
-    // Helper to create the test table
-    void create_test_table(relx::connection::PostgreSQLConnectionPool::PooledConnectionWrapper& conn_wrapper) {
+    // Helper to create the test table using a connection from the pool
+    void create_test_table(relx::connection::PostgreSQLConnectionPool::PooledConnection& conn) {
         std::string create_table_sql = R"(
             CREATE TABLE IF NOT EXISTS connection_pool_test (
                 id SERIAL PRIMARY KEY,
@@ -45,11 +45,11 @@ protected:
                 value INTEGER NOT NULL
             )
         )";
-        auto result = conn_wrapper->execute_raw(create_table_sql);
+        auto result = conn->execute_raw(create_table_sql);
         ASSERT_TRUE(result) << "Failed to create table: " << result.error().message;
     }
     
-    // Helper to create the test table
+    // Helper to create the test table with a direct connection
     void create_test_table(relx::connection::PostgreSQLConnection& conn) {
         std::string create_table_sql = R"(
             CREATE TABLE IF NOT EXISTS connection_pool_test (
@@ -78,18 +78,19 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolInitialization) {
     EXPECT_EQ(0, pool->active_connections());
     EXPECT_EQ(3, pool->idle_connections());
     
-    // Get a connection
-    auto conn_result = pool->get_connection();
-    ASSERT_TRUE(conn_result) << "Failed to get connection: " << conn_result.error().message;
+    {
+        // Get a connection in a new scope so it's returned when the scope ends
+        auto conn_result = pool->get_connection();
+        ASSERT_TRUE(conn_result) << "Failed to get connection: " << conn_result.error().message;
+        
+        // Check pool state after getting a connection
+        EXPECT_EQ(1, pool->active_connections());
+        EXPECT_EQ(2, pool->idle_connections());
+        
+        // Connection will be automatically returned when it goes out of scope
+    }
     
-    // Check pool state after getting a connection
-    EXPECT_EQ(1, pool->active_connections());
-    EXPECT_EQ(2, pool->idle_connections());
-    
-    // Return the connection
-    pool->return_connection(*conn_result);
-    
-    // Check pool state after returning the connection
+    // Check pool state after connection is returned via destructor
     EXPECT_EQ(0, pool->active_connections());
     EXPECT_EQ(3, pool->idle_connections());
 }
@@ -105,12 +106,13 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMaxConnections) {
     ASSERT_TRUE(pool->initialize());
     
     // Get all connections from the pool
-    std::vector<relx::connection::PostgreSQLConnectionPool::PooledConnectionWrapper> connections;
+    std::vector<std::optional<relx::connection::PostgreSQLConnectionPool::PooledConnection>> connections;
+    connections.reserve(4);
     
     for (int i = 0; i < 4; ++i) {
         auto conn_result = pool->get_connection();
         ASSERT_TRUE(conn_result) << "Failed to get connection " << i << ": " << conn_result.error().message;
-        connections.push_back(std::move(*conn_result));
+        connections.emplace_back(std::move(*conn_result));
     }
     
     // Pool should now be at max capacity
@@ -123,12 +125,12 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMaxConnections) {
     EXPECT_NE("", conn_result.error().message);
     
     // Return one connection
-    connections.pop_back(); // This will trigger auto-return via destructor
+    connections[3].reset(); // This will trigger auto-return via destructor
     
     // Now we should be able to get a connection again
     conn_result = pool->get_connection();
     ASSERT_TRUE(conn_result) << "Failed to get connection after returning one: " << conn_result.error().message;
-    connections.push_back(std::move(*conn_result));
+    connections[3].emplace(std::move(*conn_result));
     
     // Connections will be automatically returned when they go out of scope
 }
@@ -295,27 +297,37 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolConnectionValidation) {
     auto pool = relx::connection::PostgreSQLConnectionPool::create(config);
     ASSERT_TRUE(pool->initialize());
     
-    // Get a connection
-    auto conn_result1 = pool->get_connection();
-    ASSERT_TRUE(conn_result1) << "Failed to get connection: " << conn_result1.error().message;
+    // Check initial state
+    EXPECT_EQ(0, pool->active_connections());
+    EXPECT_EQ(2, pool->idle_connections());
     
-    // Manually disconnect this connection to make it invalid
-    (*conn_result1)->disconnect();
+    {
+        // Get a connection and manually disconnect it to make it invalid
+        auto conn_result = pool->get_connection();
+        ASSERT_TRUE(conn_result) << "Failed to get connection: " << conn_result.error().message;
+        
+        // Manually disconnect this connection to make it invalid
+        (*conn_result)->disconnect();
+        
+        // Connection will be automatically returned when it goes out of scope
+    }
     
-    // Return the invalid connection
-    pool->return_connection(*conn_result1);
-    
-    // The connection should be discarded from the pool
+    // The invalid connection should be discarded from the pool when it's returned
     EXPECT_EQ(0, pool->active_connections());
     EXPECT_EQ(1, pool->idle_connections());  // Only one valid connection remains
     
-    // Get another connection - should still work
-    auto conn_result2 = pool->get_connection();
-    ASSERT_TRUE(conn_result2) << "Failed to get replacement connection: " << conn_result2.error().message;
-    EXPECT_TRUE((*conn_result2)->is_connected());
+    {
+        // Get another connection - should still work
+        auto conn_result = pool->get_connection();
+        ASSERT_TRUE(conn_result) << "Failed to get replacement connection: " << conn_result.error().message;
+        EXPECT_TRUE((*conn_result)->is_connected());
+        
+        // Connection will be automatically returned when it goes out of scope
+    }
     
-    // Return the valid connection
-    pool->return_connection(*conn_result2);
+    // Connection should be back in the pool
+    EXPECT_EQ(0, pool->active_connections());
+    EXPECT_EQ(1, pool->idle_connections());
 }
 
 } // namespace 
