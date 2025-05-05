@@ -118,6 +118,7 @@ private:
     bool cascade_ = false;
     bool restrict_ = false;
 
+    std::vector<std::string> bind_params_;
 public:
     create_table(const Table& table_instance) : table_instance_(table_instance) {}
 
@@ -170,8 +171,8 @@ public:
         return sql;
     }
 
-    std::vector<std::string> bind_params() const {
-        return {};
+    const std::vector<std::string>& bind_params() const {
+        return bind_params_;
     }
 };
 
@@ -223,11 +224,12 @@ public:
         return sql;
     }
 
-    std::vector<std::string> bind_params() const {
-        return {};
+    const std::vector<std::string>& bind_params() const {
+        return bind_params_;
     }
 
 private:
+    std::vector<std::string> bind_params_;
     const Table& table_instance_;
     bool if_exists_ = true;
     bool cascade_ = false;

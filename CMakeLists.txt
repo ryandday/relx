@@ -46,6 +46,7 @@ add_library(${PROJECT_NAME}
   src/connection/postgresql_errors.cpp
   src/connection/postgresql_statement.cpp
   src/connection/pgsql_async_wrapper.cpp
+  src/connection/postgresql_async_connection.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE include/relx)
 target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost PostgreSQL::PostgreSQL)

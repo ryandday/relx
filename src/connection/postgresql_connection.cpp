@@ -1,5 +1,6 @@
 #include "relx/connection/postgresql_connection.hpp"
 #include "relx/connection/postgresql_statement.hpp"
+#include "relx/connection/meta.hpp"
 
 #include <libpq-fe.h>
 #include <stdexcept>

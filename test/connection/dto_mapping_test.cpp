@@ -210,7 +210,8 @@ TEST_F(DtoMappingTest, FieldCountMismatch) {
     
     // This should fail
     ASSERT_FALSE(result);
-    EXPECT_EQ("Column count does not match struct field count", result.error().message);
+    // Find the string in the error message
+    EXPECT_TRUE(result.error().message.find("Column count does not match struct field count, 3 != 2") != std::string::npos);
 }
 
 // Test empty result set
@@ -257,7 +258,8 @@ TEST_F(DtoMappingTest, ExtraColumnsInResultSet) {
     // This should fail because we have too many columns
     auto result = conn.execute<UserDTO>(query);
     ASSERT_FALSE(result);
-    EXPECT_EQ("Column count does not match struct field count", result.error().message);
+    // Find the string in the error message
+    EXPECT_TRUE(result.error().message.find("Column count does not match struct field count, 5 != 3") != std::string::npos);
 }
 
 // Test type conversion errors

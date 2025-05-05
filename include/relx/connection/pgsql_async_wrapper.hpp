@@ -463,7 +463,7 @@ public:
                 static_cast<int>(values.size()),
                 // TODO allow user to customize fields with nullptr values
                 nullptr, // param types - inferred
-                values.data(),
+                values.size() == 0 ? nullptr: values.data(),
                 nullptr, // param lengths - null-terminated strings
                 nullptr, // param formats - text format
                 0 // result format - text format
