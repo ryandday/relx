@@ -88,16 +88,17 @@ public:
 
     /// @brief Connect to the database
     /// @return Result indicating success or failure
-    virtual ConnectionResult<void> connect() = 0;
+    [[nodiscard]] virtual ConnectionResult<void> connect() = 0;
 
     /// @brief Disconnect from the database
     /// @return Result indicating success or failure
-    virtual ConnectionResult<void> disconnect() = 0;
+    [[nodiscard]] virtual ConnectionResult<void> disconnect() = 0;
 
     /// @brief Execute a raw SQL query with parameters
     /// @param sql The SQL query string
     /// @param params Vector of parameter values
     /// @return Result containing the query results or an error
+    [[nodiscard]]
     virtual ConnectionResult<result::ResultSet> execute_raw(
         const std::string& sql, 
         const std::vector<std::string>& params = {}) = 0;
@@ -106,6 +107,7 @@ public:
     /// @param query The query expression to execute
     /// @return Result containing the query results or an error
     template <query::SqlExpr Query>
+    [[nodiscard]]
     ConnectionResult<result::ResultSet> execute(const Query& query) {
         std::string sql = query.to_sql();
         std::vector<std::string> params = query.bind_params();
@@ -120,6 +122,7 @@ public:
     /// @param query The query expression to execute
     /// @return Result containing the mapped user-defined type or an error
     template <typename T, query::SqlExpr Query>
+    [[nodiscard]]
     ConnectionResult<T> execute(const Query& query) {
         auto result = execute(query);
         if (!result) {
@@ -187,6 +190,7 @@ public:
     /// @param query The query expression to execute
     /// @return Result containing a vector of mapped user-defined types or an error
     template <typename T, query::SqlExpr Query>
+    [[nodiscard]]
     ConnectionResult<std::vector<T>> execute_many(const Query& query) {
         auto result = execute(query);
         if (!result) {
@@ -256,15 +260,18 @@ public:
     /// @brief Begin a new transaction
     /// @param isolation_level The isolation level for the transaction
     /// @return Result indicating success or failure
+    [[nodiscard]]
     virtual ConnectionResult<void> begin_transaction(
         IsolationLevel isolation_level = IsolationLevel::ReadCommitted) = 0;
     
     /// @brief Commit the current transaction
     /// @return Result indicating success or failure
+    [[nodiscard]]
     virtual ConnectionResult<void> commit_transaction() = 0;
     
     /// @brief Rollback the current transaction
     /// @return Result indicating success or failure
+    [[nodiscard]]
     virtual ConnectionResult<void> rollback_transaction() = 0;
     
     /// @brief Check if a transaction is currently active

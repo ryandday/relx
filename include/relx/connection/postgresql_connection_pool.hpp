@@ -91,11 +91,11 @@ public:
     
     /// @brief Initialize the connection pool
     /// @return Result indicating success or failure
-    ConnectionPoolResult<void> initialize();
+    [[nodiscard]] ConnectionPoolResult<void> initialize();
     
     /// @brief Get a connection from the pool with automatic return when out of scope
     /// @return Result containing a PooledConnection or an error
-    ConnectionPoolResult<PooledConnection> get_connection();
+    [[nodiscard]] ConnectionPoolResult<PooledConnection> get_connection();
 
 
     /// @brief Get the current number of active connections
@@ -111,7 +111,7 @@ public:
     /// @param func Function to execute with a connection
     /// @return Result of the function execution
     template <typename Func>
-    auto with_connection(Func&& func) 
+    [[nodiscard]] auto with_connection(Func&& func) 
         -> ConnectionPoolResult<std::invoke_result_t<Func, PooledConnection&>> {
 
         using ResultType = std::invoke_result_t<Func, PooledConnection&>;
@@ -190,7 +190,7 @@ private:
     
     /// @brief Get a raw connection from the pool 
     /// @return Result containing a connection pointer or an error
-    ConnectionPoolResult<std::shared_ptr<PostgreSQLConnection>> get_raw_connection();
+    [[nodiscard]] ConnectionPoolResult<std::shared_ptr<PostgreSQLConnection>> get_raw_connection();
     
     /// @brief Return a connection to the pool
     /// @param connection The connection to return
