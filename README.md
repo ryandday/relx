@@ -50,39 +50,27 @@ make test
 
 ```cpp
 #include <relx/schema.hpp>
-#include <relx/postgresql.hpp>  // For PostgreSQLConnection
-#include <relx/query.hpp>       // For select, insert_into, create_table, etc.
-#include <relx/utility/error_handling.hpp>   // For RelxException
-#include <print>                // For std::println (C++23)
-#include <string>               // For std::string
+#include <iostream>
 
 // Define a schema
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<Users, "id", int> id;
+    relx::column<Users, "id", int, relx::primary_key> id;
     relx::column<Users, "username", std::string> username;
     relx::column<Users, "email", std::string> email;
     
-    // Primary key
-    relx::primary_key<&Users::id> pk;
-    
-    // Unique constraints
     relx::unique_constraint<&Users::email> unique_email;
 };
 
 struct Posts {
     static constexpr auto table_name = "posts";
     
-    relx::column<Posts, "id", int> id;
+    relx::column<Posts, "id", int, relx::primary_key> id;
     relx::column<Posts, "user_id", int> user_id;
     relx::column<Posts, "title", std::string> title;
     relx::column<Posts, "content", std::string> content;
     
-    // Primary key
-    relx::primary_key<&Posts::id> pk;
-    
-    // Foreign key
     relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
 };
 
@@ -98,20 +86,21 @@ int main() {
             .application_name = "myapp"
         });
         
-        conn.connect();
+        auto connect_result = conn.connect();
+        relx::throw_if_failed(connect_result);
 
         const Users users;
 
-        // Create users table
-        conn.execute(relx::create_table(users).if_not_exists());
+        auto create_table_result = conn.execute(relx::create_table(users).if_not_exists());
+        relx::throw_if_failed(create_table_result);
 
-        // Insert sample users
         auto insert_statement = relx::insert_into(users)
             .columns(users.username, users.email)
             .values("Jane Smith", "jane@example.com")
             .values("Bob Johnson", "bob@example.com");
         
-        conn.execute(insert_statement);
+        auto insert_result = conn.execute(insert_statement);
+        relx::throw_if_failed(insert_result);
 
         // Building a simple SELECT query
         auto query = relx::select(users.id, users.username)
@@ -133,20 +122,22 @@ int main() {
         };
         
         // Execute the query
-        auto rows = conn.execute<UserDTO>(query);
+        auto query_result = conn.execute<UserDTO>(query);
+        const auto& rows = relx::value_or_throw(query_result);
 
         // Process results - automatically mapped to UserDTO objects
         for (const auto& user : rows) {
             std::println("User: {} - {}", user.id, user.username);
         }
         
-        conn.execute(relx::drop_table(users));
+        auto drop_result = conn.execute(relx::drop_table(users));
+        relx::throw_if_failed(drop_result);
         return 0;
     } catch (const relx::RelxException& e) {
-        std::cerr << "Query error: " << e.message << std::endl;
-        return 1;
+        std::println("{}", e.what());
     }
 }
+```
 
 ### Creating and Dropping Table Examples
 
