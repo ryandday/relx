@@ -53,7 +53,7 @@ relx automatically maps C++ types to SQL types:
 | `int` | `INTEGER` |
 | `double` | `REAL` |
 | `std::string` | `TEXT` |
-| `bool` | `INTEGER` (0 or 1) |
+| `bool` | `BOOLEAN` (0 or 1) |
 | `std::optional<T>` | SQL type of T, but allows NULL |
 
 Example:
@@ -272,10 +272,10 @@ std::string create_table_sql = relx::schema::create_table(users);
 You can use this to automatically create tables in your database:
 
 ```cpp
-relx::SQLiteConnection conn("database.db");
-conn.connect();
-
 // Create tables
-conn.execute_raw(relx::schema::create_table(users));
-conn.execute_raw(relx::schema::create_table(posts));
+auto create_users_table = relx::schema::create_table(users);
+conn.execute(create_users_table);
+
+auto create_posts_table = relx::schema::create_table(posts);
+conn.execute(create_posts_table);
 ``` 

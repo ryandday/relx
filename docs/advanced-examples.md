@@ -343,57 +343,6 @@ auto query = relx::select_expr(
 //   END
 ```
 
-## Working with Results
-
-### Mapping Query Results to Structs
-
-Define a struct and map result rows to it:
-
-```cpp
-Users u;
-Posts p;
-
-// Define a struct for the joined data
-struct UserPost {
-    int user_id;
-    std::string user_name;
-    int post_id;
-    std::string post_title;
-};
-
-// Create a query
-auto query = relx::select(
-    u.id, u.name, p.id, p.title
-).from(u)
- .join(p, relx::on(u.id == p.user_id));
-
-// Execute the query
-auto result = conn.execute(query);
-if (!result) {
-    std::print("Error: {}", result.error().message);
-    return;
-}
-
-// Transform results into structs
-auto user_posts = result->transform<UserPost>([](const relx::result::Row& row) -> relx::result::ResultProcessingResult<UserPost> {
-    auto user_id = row.get<int>(0);
-    auto user_name = row.get<std::string>(1);
-    auto post_id = row.get<int>(2);
-    auto post_title = row.get<std::string>(3);
-    
-    if (!user_id || !user_name || !post_id || !post_title) {
-        return std::unexpected(relx::result::ResultError{"Failed to extract user post data"});
-    }
-    
-    return UserPost{*user_id, *user_name, *post_id, *post_title};
-});
-
-// Use the transformed data
-for (const auto& user_post : user_posts) {
-    std::println("User: {} - Post: {}", user_post.user_name, user_post.post_title);
-}
-```
-
 ### Handling NULL Values
 
 Working with optional columns:

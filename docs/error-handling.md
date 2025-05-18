@@ -334,30 +334,3 @@ if (!result) {
     std::print("Query: {}", error.query_string);
 }
 ```
-
-### Custom Error Handling
-
-You can define custom error handlers:
-
-```cpp
-// Define a custom error logger
-class ErrorLogger {
-public:
-    void log_connection_error(const ConnectionError& error) {
-        // Log to file, send to monitoring system, etc.
-        std::print("[CONNECTION ERROR] {} (Code: {} Source: {})", error.message, error.error_code, error.source);
-    }
-    
-    void log_query_error(const QueryError& error) {
-        std::print("[QUERY ERROR] {} (Code: {} Query: {})", error.message, error.error_code, error.query_string);
-    }
-};
-
-// Use the custom logger
-ErrorLogger logger;
-
-auto result = conn.execute(query);
-if (!result) {
-    logger.log_query_error(result.error());
-}
-``` 

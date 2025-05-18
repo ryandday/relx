@@ -4,13 +4,10 @@ Welcome to the relx (Relational X) documentation. This documentation provides co
 
 ## Table of Contents
 
-- [Getting Started](getting-started.md): Basic introduction and setup
 - [Schema Definition](schema-definition.md): How to define tables and columns
 - [Query Building](query-building.md): Building SQL queries with the fluent API
-- [Query Execution](query-execution.md): Executing queries and processing results
 - [Advanced Examples](advanced-examples.md): Complex query patterns and examples
 - [Error Handling](error-handling.md): Working with errors and expected results
-- [Transactions](transactions.md): Transaction management
 
 ## Library Overview
 
@@ -53,7 +50,8 @@ int main() {
     
     // Create table
     Users users;
-    conn.execute_raw(relx::create_table(users));
+    auto create_table_query = relx::create_table(users);
+    conn.execute(create_table_query);
     
     // Insert data
     auto insert = relx::insert_into(users)
@@ -89,7 +87,8 @@ int main() {
     }
     
     // Clean up
-    conn.execute_raw(relx::drop_table(users));
+    auto drop_table_query = relx::drop_table(users);
+    conn.execute(drop_table_query);
     
     // Disconnect
     conn.disconnect();
@@ -97,9 +96,3 @@ int main() {
     return 0;
 }
 ```
-
-## Additional Resources
-
-- [GitHub Repository](https://github.com/yourusername/relx)
-- [API Reference](api-reference.md)
-- [Contributing Guidelines](contributing.md) 

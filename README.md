@@ -468,10 +468,6 @@ For more detailed documentation, check the following:
 - `test/`: Unit and integration tests
 - `build/`: Build output (created during build)
 
-## Contributing
-
-Contributions are welcome! Please follow our [Coding Standards](CODING_STANDARDS.md) when making changes.
-
 ## License
 
 [MIT License](LICENSE)
