@@ -37,9 +37,24 @@ struct Users {
     relx::primary_key<&Users::id> pk;
 };
 
+// Define a DTO (Data Transfer Object) for User data
+struct UserDTO {
+    int id;
+    std::string name;
+    std::string email;
+};
+
 int main() {
-    // Create connection
-    relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=example user=postgres password=postgres");
+    // Create connection using a struct
+    relx::ConnectionParams params{
+        .host = "localhost",
+        .port = 5432,
+        .dbname = "example",
+        .user = "postgres",
+        .password = "postgres"
+    };
+    
+    relx::PostgreSQLConnection conn(params);
     
     // Connect to the database
     auto connect_result = conn.connect();
@@ -71,18 +86,14 @@ int main() {
     std::println("Inserted user with ID: {}", user_id);
     
     // Query data
-    auto query = relx::select(users.id, users.name)
+    auto query = relx::select(users.id, users.name, users.email)
         .from(users)
         .where(users.id == user_id);
     
-    auto result = conn.execute(query);
+    auto result = conn.execute<UserDTO>(query);
     if (result) {
-        for (const auto& row : *result) {
-            auto id = row.get<int>("id");
-            auto name = row.get<std::string>("name");
-            if (id && name) {
-                std::println("User: {} - {}", *id, *name);
-            }
+        for (const auto& user : *result) {
+            std::println("User: {} - {} ({})", user.id, user.name, user.email);
         }
     }
     

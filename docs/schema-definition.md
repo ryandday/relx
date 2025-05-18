@@ -256,7 +256,7 @@ relx can automatically generate SQL DDL (Data Definition Language) statements fo
 Users users;
 
 // Generate CREATE TABLE statement
-std::string create_table_sql = relx::schema::create_table(users);
+std::string create_table_sql = relx::create_table(users);
 
 // Output:
 // CREATE TABLE users (
@@ -273,9 +273,9 @@ You can use this to automatically create tables in your database:
 
 ```cpp
 // Create tables
-auto create_users_table = relx::schema::create_table(users);
+auto create_users_table = relx::create_table(users);
 conn.execute(create_users_table);
 
-auto create_posts_table = relx::schema::create_table(posts);
+auto create_posts_table = relx::create_table(posts);
 conn.execute(create_posts_table);
 ``` 

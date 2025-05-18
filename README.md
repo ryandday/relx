@@ -10,7 +10,7 @@ relx is a modern C++23 library designed to solve these problems by constructing 
 - **Fluent Interface**: Build SQL using intuitive, chainable method calls
 - **Schema Definition**: Strongly typed table and column definitions
 - **Query Building**: Type-safe SELECT, INSERT, UPDATE, and DELETE operations
-- **Macro Free**: Leverages Boost::pfr for boilerplate free schema definitions and automatic result parsing.
+- **Boilerplate/Macro Free**: Leverages Boost::pfr for simple schema definitions and automatic result parsing.
 
 ## Requirements
 
@@ -247,8 +247,6 @@ relx provides a rich set of schema definition features:
 
 ## Advanced Features
 
-- **Compile-time SQL Generation**: SQL strings generated at compile time where possible
-- **Type-safe Parameter Binding**: Automatic parameter binding with correct types
 - **Transaction Support**: RAII-based transaction management
 - **Connection Pooling**: Efficient database connection management
 - **Result Set Processing**: Strongly typed result access
@@ -369,7 +367,7 @@ if (conn_result) {
     auto query_result = conn->execute<CountDTO>(query);
     
     if (query_result) {
-        std::println("User count: {}", (*query_result)[0].count);
+        std::println("User count: {}", (*query_result).at(0).count);
     }
     
     // Connection automatically returned to pool when conn goes out of scope
@@ -390,7 +388,7 @@ auto user_count = pool->with_connection([](auto& conn) -> relx::ConnectionResult
         return std::unexpected(result.error());
     }
     
-    return (*result)[0].count;
+    return (*result).at(0).count;
 });
 
 if (user_count) {

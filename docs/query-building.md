@@ -195,24 +195,6 @@ auto query = relx::update(u)
 // Parameters: ["New Name", "new@example.com", "1"]
 ```
 
-### UPDATE with Expressions
-
-Using expressions in updates:
-
-```cpp
-Posts p;
-
-auto query = relx::update(p)
-    .set(
-        relx::set(p.title, "Updated Title"),
-        relx::set_expr(p.views, p.views + 1)
-    )
-    .where(p.id == 1);
-
-// SQL: UPDATE posts SET title = ?, views = views + ? WHERE (id = ?)
-// Parameters: ["Updated Title", "1", "1"]
-```
-
 ## DELETE Queries
 
 ### Basic DELETE
