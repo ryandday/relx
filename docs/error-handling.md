@@ -24,7 +24,7 @@ Here's a simple example:
 
 ```cpp
 // Connect to a database
-relx::SQLiteConnection conn("my_database.db");
+relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=mydb user=postgres password=postgres");
 auto conn_result = conn.connect();
 
 if (!conn_result) {
@@ -165,7 +165,7 @@ auto result = conn.execute(query)
 ```cpp
 auto result = conn.execute(query)
     .or_else([](const QueryError& error) -> std::expected<ResultSet, QueryError> {
-        if (error.error_code == SQLITE_BUSY) {
+        if (error.error_code == PQERR_BUSY) {  // PostgreSQL error code
             // Retry the query or return a default result
             return ResultSet{};  // Empty result set
         }
@@ -223,7 +223,7 @@ Here's how to handle these cases:
 ```cpp
 try {
     // Connect to the database
-    relx::SQLiteConnection conn("my_database.db");
+    relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=mydb user=postgres password=postgres");
     auto conn_result = conn.connect();
     
     if (!conn_result) {
@@ -316,7 +316,9 @@ std::print("SQL: {}", sql);
 
 // Get the parameters
 auto params = query.bind_params();
-std::print("Parameters: {}", fmt::join(params, ", "));
+for (const auto& param: params) {
+    std::println("Param:{}", param)
+}
 ```
 
 ### Error Inspection

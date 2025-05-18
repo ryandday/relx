@@ -22,7 +22,6 @@ relx is a modern C++23 library for constructing and executing SQL queries with c
 ## Dependencies
 
 - Boost (header-only)
-- fmt
 - Google Test (for testing)
 
 ## Getting Started
@@ -97,7 +96,7 @@ int main() {
     // params[0] = "10"
     
     // Connect to a database
-    relx::SQLiteConnection conn("my_database.db");
+    relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=mydb user=postgres password=postgres");
     conn.connect();
     
     // Execute the query
@@ -231,18 +230,25 @@ relx provides a rich set of schema definition features:
 
 ## Supported Databases
 
-### SQLite
+### PostgreSQL
 
-relx provides native support for SQLite databases through the `relx::SQLiteConnection` class.
+relx provides robust support for PostgreSQL through several connection types to meet different requirements:
 
-Example:
+#### Standard Connection
+
+The `PostgreSQLConnection` class provides a synchronous interface for PostgreSQL:
 
 ```cpp
-#include <relx/sqlite.hpp>
+#include <relx/postgresql.hpp>
 
-// Create a connection to an SQLite database
-relx::SQLiteConnection conn("my_database.db");
-conn.connect();
+// Create a connection to a PostgreSQL database
+relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=my_database user=postgres password=postgres");
+auto conn_result = conn.connect();
+
+if (!conn_result) {
+    std::println("Connection error: {}", conn_result.error().message);
+    return 1;
+}
 
 // Execute a query
 auto result = conn.execute_raw("SELECT * FROM users");
@@ -260,33 +266,108 @@ if (result) {
 conn.disconnect();
 ```
 
-### PostgreSQL
+#### Connection Pool
 
-relx also provides support for PostgreSQL databases through the `relx::PostgreSQLConnection` class.
+For applications requiring higher concurrency and performance, use the `PostgreSQLConnectionPool`:
 
-Example:
+```cpp
+#include <relx/connection.hpp>
+
+// Configure the connection pool
+relx::PostgreSQLConnectionPoolConfig config{
+    .connection_string = "host=localhost port=5432 dbname=my_database user=postgres password=postgres",
+    .initial_size = 5,      // Start with 5 connections
+    .max_size = 20,         // Allow up to 20 connections
+    .connection_timeout = std::chrono::milliseconds(3000),
+    .validate_connections = true,
+    .max_idle_time = std::chrono::milliseconds(60000)
+};
+
+// Create the pool
+auto pool = relx::PostgreSQLConnectionPool::create(config);
+auto init_result = pool->initialize();
+
+if (!init_result) {
+    std::println("Pool initialization failed: {}", init_result.error().message);
+    return 1;
+}
+
+// Method 1: Get a connection from the pool
+auto conn_result = pool->get_connection();
+if (conn_result) {
+    auto& conn = *conn_result;
+    auto query_result = conn->execute_raw("SELECT COUNT(*) FROM users");
+    // Connection automatically returned to pool when conn goes out of scope
+}
+
+// Method 2: Use the with_connection pattern
+auto user_count = pool->with_connection([](auto& conn) -> relx::ConnectionResult<int> {
+    Users users;
+    auto query = relx::select_expr(relx::count_all()).from(users);
+    auto result = conn->execute(query);
+    
+    if (!result) {
+        return std::unexpected(result.error());
+    }
+    
+    return (*result)[0].get<int>(0).value_or(0);
+});
+
+if (user_count) {
+    std::println("User count: {}", *user_count);
+}
+```
+
+#### Asynchronous Connection
+
+For non-blocking I/O, use the `PostgreSQLAsyncConnection` with Boost.Asio:
 
 ```cpp
 #include <relx/postgresql.hpp>
+#include <boost/asio.hpp>
 
-// Create a connection to a PostgreSQL database
-relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=my_database user=postgres password=postgres");
-conn.connect();
+boost::asio::io_context io_context;
 
-// Execute a query
-auto result = conn.execute_raw("SELECT * FROM users");
-if (result) {
-    // Process results
-    for (const auto& row : *result) {
-        auto name = row.get<std::string>("name");
-        if (name) {
-            std::println("Name: {}", *name);
+// Create async connection
+relx::PostgreSQLAsyncConnection conn(
+    io_context, 
+    "host=localhost port=5432 dbname=my_database user=postgres password=postgres"
+);
+
+// Define a coroutine to connect and run queries
+boost::asio::awaitable<void> run_async_queries() {
+    // Connect
+    auto connect_result = co_await conn.connect();
+    if (!connect_result) {
+        std::println("Connect error: {}", connect_result.error().message);
+        co_return;
+    }
+    
+    // Define schema
+    Users users;
+    
+    // Simple query
+    auto query = relx::select(users.id, users.username)
+        .from(users)
+        .where(users.id > 10);
+    
+    // Execute asynchronously
+    auto result = co_await conn.execute(query);
+    if (result) {
+        for (const auto& row : *result) {
+            auto id = row.get<int>("id");
+            auto username = row.get<std::string>("username");
+            std::println("User: {} - {}", *id, *username);
         }
     }
+    
+    // Disconnect
+    co_await conn.disconnect();
 }
 
-// Disconnect when done
-conn.disconnect();
+// Start the asynchronous operation
+boost::asio::co_spawn(io_context, run_async_queries(), boost::asio::detached);
+io_context.run();
 ```
 
 ## Docker Development Environment

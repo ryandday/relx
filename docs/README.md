@@ -18,7 +18,7 @@ relx is a modern C++23 library for building and executing SQL queries with compi
 
 1. Define database schemas as C++ structures
 2. Build SQL queries with a fluent, type-safe API
-3. Execute queries against various database engines (SQLite, PostgreSQL)
+3. Execute queries against PostgreSQL databases
 4. Process results in a type-safe manner
 
 ## Example
@@ -26,7 +26,7 @@ relx is a modern C++23 library for building and executing SQL queries with compi
 ```cpp
 #include <relx/schema.hpp>
 #include <relx/query.hpp>
-#include <relx/sqlite.hpp>
+#include <relx/postgresql.hpp>
 #include <iostream>
 
 // Define a schema
@@ -42,26 +42,40 @@ struct Users {
 
 int main() {
     // Create connection
-    relx::SQLiteConnection conn(":memory:");
-    conn.connect();
+    relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=example user=postgres password=postgres");
+    
+    // Connect to the database
+    auto connect_result = conn.connect();
+    if (!connect_result) {
+        std::println("Connection error: {}", connect_result.error().message);
+        return 1;
+    }
     
     // Create table
     Users users;
-    conn.execute_raw("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL)");
+    conn.execute_raw(relx::create_table(users));
     
     // Insert data
     auto insert = relx::insert_into(users)
         .values(
-            relx::set(users.id, 1),
             relx::set(users.name, "John Doe"),
             relx::set(users.email, "john@example.com")
-        );
-    conn.execute(insert);
+        )
+        .returning(users.id);  // PostgreSQL supports RETURNING clause
+        
+    auto insert_result = conn.execute(insert);
+    if (!insert_result) {
+        std::println("Insert error: {}", insert_result.error().message);
+        return 1;
+    }
+    
+    int user_id = (*insert_result)[0].get<int>("id").value_or(0);
+    std::println("Inserted user with ID: {}", user_id);
     
     // Query data
     auto query = relx::select(users.id, users.name)
         .from(users)
-        .where(users.id == 1);
+        .where(users.id == user_id);
     
     auto result = conn.execute(query);
     if (result) {
@@ -73,6 +87,12 @@ int main() {
             }
         }
     }
+    
+    // Clean up
+    conn.execute_raw(relx::drop_table(users));
+    
+    // Disconnect
+    conn.disconnect();
     
     return 0;
 }

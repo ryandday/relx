@@ -1,7 +1,5 @@
 [requires]
-fmt/10.0.0
 boost/1.87.0
-sqlite3/3.49.1
 libpq/15.4
 
 [generators]
@@ -13,6 +11,4 @@ cmake_layout
 
 [options]
 boost/*:header_only=True
-sqlite3/*:build_testing=False
-sqlite3/*:build_examples=False
 libpq/*:with_openssl=True

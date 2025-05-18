@@ -13,6 +13,7 @@ relx provides a fluent API for building SQL queries in a type-safe manner. This 
 - [Aggregation Functions](#aggregation-functions)
 - [Subqueries](#subqueries)
 - [Case Expressions](#case-expressions)
+- [PostgreSQL-Specific Features](#postgresql-specific-features)
 
 ## Setup
 
@@ -656,4 +657,55 @@ auto query = relx::select_expr(
 //      LEFT JOIN posts ON (id = user_id) 
 //      GROUP BY id, name
 // Parameters: ["0", "No posts", "5", "Few posts", "Many posts"]
-``` 
+```
+
+## PostgreSQL-Specific Features
+
+relx provides support for several PostgreSQL-specific features that enhance your SQL capabilities:
+
+### RETURNING Clause
+
+PostgreSQL allows getting back data from modified rows using the RETURNING clause:
+
+```cpp
+struct Users {
+    static constexpr auto table_name = "users";
+    relx::column<"id", int> id;
+    relx::column<"name", std::string> name;
+    relx::column<"email", std::string> email;
+    
+    relx::primary_key<&Users::id> pk;
+};
+
+Users u;
+
+// INSERT with RETURNING
+auto insert_query = relx::insert_into(u)
+    .values(
+        relx::set(u.name, "John Doe"),
+        relx::set(u.email, "john@example.com")
+    )
+    .returning(u.id);  // Get the assigned ID
+
+// SQL: INSERT INTO users (name, email) VALUES (?, ?) RETURNING id
+// Parameters: ["John Doe", "john@example.com"]
+
+// UPDATE with RETURNING
+auto update_query = relx::update(u)
+    .set(
+        relx::set(u.name, "Updated Name")
+    )
+    .where(u.id == 1)
+    .returning(u.id, u.name);  // Get the updated rows
+
+// SQL: UPDATE users SET name = ? WHERE (id = ?) RETURNING id, name
+// Parameters: ["Updated Name", "1"]
+
+// DELETE with RETURNING
+auto delete_query = relx::delete_from(u)
+    .where(u.id == 1)
+    .returning(u.id, u.name);  // Get the deleted rows
+
+// SQL: DELETE FROM users WHERE (id = ?) RETURNING id, name
+// Parameters: ["1"]
+```
