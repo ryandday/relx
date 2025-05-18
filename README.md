@@ -419,7 +419,7 @@ For non-blocking I/O, use the `PostgreSQLAsyncConnection` with Boost.Asio:
 #include <boost/asio.hpp>
 
 // Define a coroutine to connect and run queries
-boost::asio::awaitable<void> run_async_queries(auto& connection) {
+boost::asio::awaitable<void> run_async_queries(boost::asio::io_context& io_context) {
 
     // Create async connection
     relx::PostgreSQLConnectionParams conn_params;
@@ -469,11 +469,11 @@ boost::asio::awaitable<void> run_async_queries(auto& connection) {
     co_await conn.disconnect();
 }
 
-int main {
+int main() {
     boost::asio::io_context io_context;
 
     // Start the asynchronous operation
-    boost::asio::co_spawn(io_context, run_async_queries(), boost::asio::detached);
+    boost::asio::co_spawn(io_context, run_async_queries(io_context), boost::asio::detached);
     io_context.run();
 }
 ```
