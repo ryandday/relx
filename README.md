@@ -452,22 +452,6 @@ make postgres-clean
 
 The tests automatically start the necessary database containers.
 
-## Documentation
-
-For more detailed documentation, check the following:
-
-- [Schema Example](examples/schema_example.cpp): Complete example of schema definition
-- [DB Connection API](DB_CONNECTION_API.md): Database connection API documentation
-- [Coding Standards](CODING_STANDARDS.md): C++ coding standards for this project
-
-## Project Structure
-
-- `include/relx/`: Header files
-- `src/`: Implementation files
-- `examples/`: Usage examples
-- `test/`: Unit and integration tests
-- `build/`: Build output (created during build)
-
 ## License
 
 [MIT License](LICENSE)

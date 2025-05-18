@@ -128,10 +128,3 @@ add_test(NAME relx_tests COMMAND relx_tests)
 # Add static_assert tests executable
 add_executable(static_assert_tests test/static_assert_tests.cpp)
 target_link_libraries(static_assert_tests PRIVATE ${PROJECT_NAME})
-
-# Add examples
-option(BUILD_EXAMPLES "Build example programs" ON)
-if(BUILD_EXAMPLES)
-  add_subdirectory(examples)
-  message(STATUS "Building examples")
-endif()
