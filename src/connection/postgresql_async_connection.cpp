@@ -53,9 +53,9 @@ bool PostgreSQLAsyncConnection::in_transaction() const {
 }
 
 
-boost::asio::awaitable<void> PostgreSQLAsyncConnection::connect() {
+boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::connect() {
     if (is_connected()) {
-        co_return; // Already connected
+        co_return ConnectionResult<void>{}; // Already connected
     }
     
     // Make sure the connection object exists
@@ -65,13 +65,22 @@ boost::asio::awaitable<void> PostgreSQLAsyncConnection::connect() {
     
     // Connect with a copy of the connection string
     std::string conn_str_copy = connection_string_;
-    co_await async_conn_->connect(conn_str_copy);
+    auto connect_result = co_await async_conn_->connect(conn_str_copy);
+    
+    if (!connect_result) {
+        co_return std::unexpected(ConnectionError{
+            .message = "Failed to connect to database: " + connect_result.error().message,
+            .error_code = connect_result.error().error_code
+        });
+    }
+    
     is_connected_ = true;
+    co_return ConnectionResult<void>{};
 }
 
-boost::asio::awaitable<void> PostgreSQLAsyncConnection::disconnect() {
+boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::disconnect() {
     if (!is_connected()) {
-        co_return; // Already disconnected
+        co_return ConnectionResult<void>{}; // Already disconnected
     }
     
     if (async_conn_) {
@@ -79,14 +88,18 @@ boost::asio::awaitable<void> PostgreSQLAsyncConnection::disconnect() {
     }
     
     is_connected_ = false;
+    co_return ConnectionResult<void>{};
 }
 
-boost::asio::awaitable<result::ResultSet> PostgreSQLAsyncConnection::execute_raw(
+boost::asio::awaitable<ConnectionResult<result::ResultSet>> PostgreSQLAsyncConnection::execute_raw(
     std::string sql, 
     std::vector<std::string> params) {
     
     if (!is_connected()) {
-        throw pgsql_async_wrapper::connection_error("Not connected");
+        co_return std::unexpected(ConnectionError{
+            .message = "Not connected to database",
+            .error_code = -1
+        });
     }
     
     // Convert ? placeholders to $1, $2, etc. if params exist
@@ -98,15 +111,30 @@ boost::asio::awaitable<result::ResultSet> PostgreSQLAsyncConnection::execute_raw
     std::string sql_copy = sql;
     std::vector<std::string> params_copy = params;
     
-    pgsql_async_wrapper::result pg_result = co_await async_conn_->query(sql_copy, params_copy);
+    auto pg_result = co_await async_conn_->query(sql_copy, params_copy);
+    
+    if (!pg_result) {
+        co_return std::unexpected(ConnectionError{
+            .message = "Query execution failed: " + pg_result.error().message,
+            .error_code = pg_result.error().error_code
+        });
+    }
     
     // Convert the result to our ResultSet type
-    co_return convert_result(pg_result);
+    auto resultSet = convert_result(*pg_result);
+    if (!resultSet) {
+        co_return std::unexpected(resultSet.error());
+    }
+    
+    co_return *resultSet;
 }
 
-boost::asio::awaitable<void> PostgreSQLAsyncConnection::begin_transaction(IsolationLevel isolation_level) {
+boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::begin_transaction(IsolationLevel isolation_level) {
     if (!is_connected()) {
-        throw pgsql_async_wrapper::connection_error("Not connected");
+        co_return std::unexpected(ConnectionError{
+            .message = "Not connected to database",
+            .error_code = -1
+        });
     }
     
     pgsql_async_wrapper::IsolationLevel pg_isolation;
@@ -131,31 +159,70 @@ boost::asio::awaitable<void> PostgreSQLAsyncConnection::begin_transaction(Isolat
     }
     
     // Begin the transaction
-    co_await async_conn_->begin_transaction(pg_isolation);
+    auto begin_result = co_await async_conn_->begin_transaction(pg_isolation);
+    
+    if (!begin_result) {
+        co_return std::unexpected(ConnectionError{
+            .message = "Failed to begin transaction: " + begin_result.error().message,
+            .error_code = begin_result.error().error_code
+        });
+    }
+    
+    co_return ConnectionResult<void>{};
 }
 
-boost::asio::awaitable<void> PostgreSQLAsyncConnection::commit_transaction() {
+boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::commit_transaction() {
     if (!is_connected()) {
-        throw pgsql_async_wrapper::connection_error("Not connected");
+        co_return std::unexpected(ConnectionError{
+            .message = "Not connected to database",
+            .error_code = -1
+        });
     }
     
     if (!in_transaction()) {
-        throw pgsql_async_wrapper::transaction_error("No active transaction");
+        co_return std::unexpected(ConnectionError{
+            .message = "No active transaction",
+            .error_code = -1
+        });
     }
     
-    co_await async_conn_->commit();
+    auto commit_result = co_await async_conn_->commit();
+    
+    if (!commit_result) {
+        co_return std::unexpected(ConnectionError{
+            .message = "Failed to commit transaction: " + commit_result.error().message,
+            .error_code = commit_result.error().error_code
+        });
+    }
+    
+    co_return ConnectionResult<void>{};
 }
 
-boost::asio::awaitable<void> PostgreSQLAsyncConnection::rollback_transaction() {
+boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::rollback_transaction() {
     if (!is_connected()) {
-        throw pgsql_async_wrapper::connection_error("Not connected");
+        co_return std::unexpected(ConnectionError{
+            .message = "Not connected to database",
+            .error_code = -1
+        });
     }
     
     if (!in_transaction()) {
-        throw pgsql_async_wrapper::transaction_error("No active transaction");
+        co_return std::unexpected(ConnectionError{
+            .message = "No active transaction",
+            .error_code = -1
+        });
     }
     
-    co_await async_conn_->rollback();
+    auto rollback_result = co_await async_conn_->rollback();
+    
+    if (!rollback_result) {
+        co_return std::unexpected(ConnectionError{
+            .message = "Failed to rollback transaction: " + rollback_result.error().message,
+            .error_code = rollback_result.error().error_code
+        });
+    }
+    
+    co_return ConnectionResult<void>{};
 }
 
 std::string PostgreSQLAsyncConnection::convert_placeholders(const std::string& sql) {
@@ -175,10 +242,12 @@ std::string PostgreSQLAsyncConnection::convert_placeholders(const std::string& s
     return result;
 }
 
-result::ResultSet PostgreSQLAsyncConnection::convert_result(const pgsql_async_wrapper::result& pg_result) {
+ConnectionResult<result::ResultSet> PostgreSQLAsyncConnection::convert_result(const pgsql_async_wrapper::result& pg_result) {
     if (!pg_result.ok()) {
-        // Propagate the error
-        throw pgsql_async_wrapper::query_error(pg_result.error_message());
+        return std::unexpected(ConnectionError{
+            .message = "PostgreSQL error: " + std::string(pg_result.error_message()),
+            .error_code = static_cast<int>(pg_result.status())
+        });
     }
     
     // Get column names

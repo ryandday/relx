@@ -205,7 +205,12 @@ TEST_F(AsyncPgIntegrationTest, SingleRowFetch) {
                 .where(users.id == 1);
             
             // Execute the query with DTO mapping
-            auto user = co_await conn->execute<UserDTO>(query);
+            auto user_result = co_await conn->execute<UserDTO>(query);
+            if (!user_result) {
+                throw std::runtime_error("Query failed: " + user_result.error().message);
+            }
+            
+            const auto& user = *user_result;
             
             // Check mapped struct fields
             EXPECT_EQ(1, user.id);
@@ -230,15 +235,19 @@ TEST_F(AsyncPgIntegrationTest, MultipleRowFetch) {
                 .order_by(users.id);
             
             // Execute the query with DTO mapping for multiple rows
-            auto result = co_await conn->execute_many<UserDTO>(query);
+            auto users_vec_result = co_await conn->execute_many<UserDTO>(query);
+            if (!users_vec_result) {
+                throw std::runtime_error("Query failed: " + users_vec_result.error().message);
+            }
+            
+            const auto& users_vec = *users_vec_result;
             
             // Verify result
-            if (result.empty()) {
+            if (users_vec.empty()) {
                 throw std::runtime_error("Failed to execute query");
             }
             
             // Check result set
-            const auto& users_vec = result;
             if (users_vec.size() != 5) {
                 throw std::runtime_error("Expected 5 rows, got " + std::to_string(users_vec.size()));
             }
@@ -269,10 +278,12 @@ TEST_F(AsyncPgIntegrationTest, PartialDtoMapping) {
             
             // Execute the query with partial DTO mapping
             auto result = co_await conn->execute<PartialUserDTO>(query);
-            
+            if (!result) {
+                throw std::runtime_error("Query failed: " + result.error().message);
+            }
             
             // Check mapped struct fields
-            PartialUserDTO user = result;
+            const auto& user = *result;
             EXPECT_EQ(2, user.id);
             EXPECT_EQ("Jane Smith", user.name);
             EXPECT_EQ(28, user.age);
@@ -295,9 +306,14 @@ TEST_F(AsyncPgIntegrationTest, ConcurrentQueries) {
             auto conn3 = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(io_context, conn_string);
             
             // Connect all connections
-            co_await conn1->connect();
-            co_await conn2->connect();
-            co_await conn3->connect();
+            auto connect1 = co_await conn1->connect();
+            if (!connect1) throw std::runtime_error("Failed to connect conn1: " + connect1.error().message);
+            
+            auto connect2 = co_await conn2->connect();
+            if (!connect2) throw std::runtime_error("Failed to connect conn2: " + connect2.error().message);
+            
+            auto connect3 = co_await conn3->connect();
+            if (!connect3) throw std::runtime_error("Failed to connect conn3: " + connect3.error().message);
             
             // Define tasks with their own connections
             auto task1 = [conn1 = conn1.get(), this]() -> boost::asio::awaitable<bool> {
@@ -306,7 +322,12 @@ TEST_F(AsyncPgIntegrationTest, ConcurrentQueries) {
                         .from(users)
                         .where(users.id == 1);
                         
-                    auto user = co_await conn1->execute<NameIDDTO>(query);
+                    auto user_result = co_await conn1->execute<NameIDDTO>(query);
+                    if (!user_result) {
+                        throw std::runtime_error("Task1 query failed: " + user_result.error().message);
+                    }
+                    
+                    const auto& user = *user_result;
                     EXPECT_EQ("John Doe", user.name);
                     co_return true;
                 } catch (const std::exception& e) {
@@ -320,7 +341,12 @@ TEST_F(AsyncPgIntegrationTest, ConcurrentQueries) {
                         .from(users)
                         .where(users.id == 2);
                         
-                    auto user = co_await conn2->execute<NameIDDTO>(query);
+                    auto user_result = co_await conn2->execute<NameIDDTO>(query);
+                    if (!user_result) {
+                        throw std::runtime_error("Task2 query failed: " + user_result.error().message);
+                    }
+                    
+                    const auto& user = *user_result;
                     EXPECT_EQ("Jane Smith", user.name);
                     co_return true;
                 } catch (const std::exception& e) {
@@ -334,7 +360,12 @@ TEST_F(AsyncPgIntegrationTest, ConcurrentQueries) {
                         .from(users)
                         .where(users.id == 3);
                         
-                    auto user = co_await conn3->execute<NameIDDTO>(query);
+                    auto user_result = co_await conn3->execute<NameIDDTO>(query);
+                    if (!user_result) {
+                        throw std::runtime_error("Task3 query failed: " + user_result.error().message);
+                    }
+                    
+                    const auto& user = *user_result;
                     EXPECT_EQ("Bob Johnson", user.name);
                     co_return true;
                 } catch (const std::exception& e) {
@@ -353,9 +384,9 @@ TEST_F(AsyncPgIntegrationTest, ConcurrentQueries) {
             EXPECT_TRUE(result3);
             
             // Disconnect the extra connections
-            co_await conn1->disconnect();
-            co_await conn2->disconnect();
-            co_await conn3->disconnect();
+            auto disconnect1 = co_await conn1->disconnect();
+            auto disconnect2 = co_await conn2->disconnect();
+            auto disconnect3 = co_await conn3->disconnect();
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Test failure: ") + e.what());
         }
@@ -367,8 +398,10 @@ TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
     run_test([this]() -> boost::asio::awaitable<void> {
         try {
             // Begin a transaction
-            co_await conn->begin_transaction();
-            
+            auto begin_result = co_await conn->begin_transaction();
+            if (!begin_result) {
+                throw std::runtime_error("Failed to begin transaction: " + begin_result.error().message);
+            }
             
             // Verify we're in a transaction
             EXPECT_TRUE(conn->in_transaction());
@@ -379,6 +412,9 @@ TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
                 .values("Transaction Test", "transaction@example.com", 50, true, 99.9);
                 
             auto insert_result = co_await conn->execute(insert_query);
+            if (!insert_result) {
+                throw std::runtime_error("Insert failed: " + insert_result.error().message);
+            }
             
             // Verify the record exists in the transaction
             auto select_query = relx::query::select(users.id, users.name, users.email)
@@ -386,9 +422,15 @@ TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
                 .where(users.name == "Transaction Test");
                 
             auto select_result = co_await conn->execute<IDNameEmailDTO>(select_query);
+            if (!select_result) {
+                throw std::runtime_error("Select failed: " + select_result.error().message);
+            }
             
             // Rollback the transaction
-            co_await conn->rollback_transaction();
+            auto rollback_result = co_await conn->rollback_transaction();
+            if (!rollback_result) {
+                throw std::runtime_error("Rollback failed: " + rollback_result.error().message);
+            }
             
             // Verify we're no longer in a transaction
             EXPECT_FALSE(conn->in_transaction());
@@ -398,9 +440,13 @@ TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
                 .from(users)
                 .where(users.name == "Transaction Test");
                 
-            // The query should fail because the record doesn't exist
-            EXPECT_THROW(co_await conn->execute<IDNameEmailDTO>(verify_query), std::runtime_error);
+            auto verify_result = co_await conn->execute_many<IDNameEmailDTO>(verify_query);
+            if (!verify_result) {
+                throw std::runtime_error("Verify query failed: " + verify_result.error().message);
+            }
             
+            // Should be empty after rollback
+            EXPECT_TRUE((*verify_result).empty());
         } catch (const std::exception& e) {
             throw std::runtime_error(std::string("Test failure: ") + e.what());
         }

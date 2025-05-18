@@ -8,6 +8,7 @@
 #include <future>
 #include <sstream>
 #include <regex>
+#include <expected>
 
 #include <boost/asio.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -18,6 +19,7 @@
 #include "connection.hpp"
 #include "../connection/pgsql_async_wrapper.hpp"
 #include "meta.hpp"
+#include "../results/result.hpp"
 
 namespace relx {
 namespace connection {
@@ -57,17 +59,17 @@ public:
 
     /// @brief Connect to the PostgreSQL database asynchronously
     /// @return Awaitable that resolves when connection is established
-    boost::asio::awaitable<void> connect();
+    boost::asio::awaitable<ConnectionResult<void>> connect();
     
     /// @brief Disconnect from the PostgreSQL database asynchronously
     /// @return Awaitable that resolves when disconnection is complete
-    boost::asio::awaitable<void> disconnect();
+    boost::asio::awaitable<ConnectionResult<void>> disconnect();
     
     /// @brief Execute a raw SQL query with parameters asynchronously
     /// @param sql The SQL query string
     /// @param params Vector of parameter values
     /// @return Awaitable that resolves with the query results
-    boost::asio::awaitable<result::ResultSet> execute_raw(
+    boost::asio::awaitable<ConnectionResult<result::ResultSet>> execute_raw(
         std::string sql, 
         std::vector<std::string> params = {});
     
@@ -75,7 +77,7 @@ public:
     /// @param query The query expression to execute
     /// @return Awaitable that resolves with the query results
     template <query::SqlExpr Query>
-    boost::asio::awaitable<result::ResultSet> execute(Query query) {
+    boost::asio::awaitable<ConnectionResult<result::ResultSet>> execute(Query query) {
         std::string sql = query.to_sql();
         std::vector<std::string> params = query.bind_params();
         return execute_raw(sql, params);
@@ -87,11 +89,19 @@ public:
     /// @param query The query expression to execute
     /// @return Awaitable that resolves with the mapped data
     template <typename T, query::SqlExpr Query>
-    boost::asio::awaitable<T> execute(Query query) {
-        result::ResultSet resultSet = co_await execute(query);
+    boost::asio::awaitable<ConnectionResult<T>> execute(Query query) {
+        auto result_set = co_await execute(query);
+        if (!result_set) {
+            co_return std::unexpected(result_set.error());
+        }
+        
+        const auto& resultSet = *result_set;
         
         if (resultSet.empty()) {
-            throw std::runtime_error("No results found");
+            co_return std::unexpected(ConnectionError{
+                .message = "No results found",
+                .error_code = -1
+            });
         }
         
         // Create an instance of T
@@ -109,8 +119,11 @@ public:
             for (const auto& param : query.bind_params()) {
                 ss << param << ", ";
             }
-            throw std::runtime_error("Column count does not match struct field count, " + std::to_string(resultSet.column_count()) + " != " + std::to_string(boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) +
-                " for struct " + typeid(T).name() + " and query " + query.to_sql() + " with params " + ss.str());
+            co_return std::unexpected(ConnectionError{
+                .message = "Column count does not match struct field count, " + std::to_string(resultSet.column_count()) + " != " + std::to_string(boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) +
+                    " for struct " + typeid(T).name() + " and query " + query.to_sql() + " with params " + ss.str(),
+                .error_code = -1
+            });
         }
         
         // Convert each value in the result row to the appropriate type in the struct
@@ -120,7 +133,10 @@ public:
             for (size_t i = 0; i < resultSet.column_count(); ++i) {
                 auto cell_result = row.get_cell(i);
                 if (!cell_result) {
-                    throw std::runtime_error("Failed to get cell value: " + cell_result.error().message);
+                    co_return std::unexpected(ConnectionError{
+                        .message = "Failed to get cell value: " + cell_result.error().message,
+                        .error_code = -1
+                    });
                 }
                 values.push_back((*cell_result)->raw_value());
             }
@@ -128,7 +144,10 @@ public:
             // Apply tuple assignment from the row values to the struct fields
             relx::connection::map_row_to_tuple(structure_tie, values);
         } catch (const std::exception& e) {
-            throw std::runtime_error(std::string("Failed to convert result to struct: ") + e.what());
+            co_return std::unexpected(ConnectionError{
+                .message = std::string("Failed to convert result to struct: ") + e.what(),
+                .error_code = -1
+            });
         }
         
         co_return obj;
@@ -140,8 +159,13 @@ public:
     /// @param query The query expression to execute
     /// @return Awaitable that resolves with a vector of mapped data
     template <typename T, query::SqlExpr Query>
-    boost::asio::awaitable<std::vector<T>> execute_many(const Query& query) {
-        result::ResultSet resultSet = co_await execute(query);
+    boost::asio::awaitable<ConnectionResult<std::vector<T>>> execute_many(const Query& query) {
+        auto result_set = co_await execute(query);
+        if (!result_set) {
+            co_return std::unexpected(result_set.error());
+        }
+        
+        const auto& resultSet = *result_set;
         
         std::vector<T> objects;
         objects.reserve(resultSet.size());
@@ -157,8 +181,11 @@ public:
             for (const auto& param : query.bind_params()) {
                 ss << param << ", ";
             }
-            throw std::runtime_error("Column count does not match struct field count, " + std::to_string(resultSet.column_count()) + " != " + std::to_string(boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) +
-                " for struct " + typeid(T).name() + " and query " + query.to_sql() + " with params " + ss.str());
+            co_return std::unexpected(ConnectionError{
+                .message = "Column count does not match struct field count, " + std::to_string(resultSet.column_count()) + " != " + std::to_string(boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) +
+                    " for struct " + typeid(T).name() + " and query " + query.to_sql() + " with params " + ss.str(),
+                .error_code = -1
+            });
         }
         
         // Process each row
@@ -173,7 +200,10 @@ public:
                 for (size_t i = 0; i < resultSet.column_count(); ++i) {
                     auto cell_result = row.get_cell(i);
                     if (!cell_result) {
-                        throw std::runtime_error("Failed to get cell value: " + cell_result.error().message);
+                        co_return std::unexpected(ConnectionError{
+                            .message = "Failed to get cell value: " + cell_result.error().message,
+                            .error_code = -1
+                        });
                     }
                     values.push_back((*cell_result)->raw_value());
                 }
@@ -181,7 +211,10 @@ public:
                 relx::connection::map_row_to_tuple(structure_tie, values);
                 objects.push_back(std::move(obj));
             } catch (const std::exception& e) {
-                throw std::runtime_error(std::string("Failed to convert result to struct: ") + e.what());
+                co_return std::unexpected(ConnectionError{
+                    .message = std::string("Failed to convert result to struct: ") + e.what(),
+                    .error_code = -1
+                });
             }
         }
         
@@ -191,29 +224,33 @@ public:
     /// @brief Begin a new transaction asynchronously
     /// @param isolation_level The isolation level for the transaction
     /// @return Awaitable that resolves when transaction begins
-    boost::asio::awaitable<void> begin_transaction(
+    boost::asio::awaitable<ConnectionResult<void>> begin_transaction(
         IsolationLevel isolation_level = IsolationLevel::ReadCommitted);
     
     /// @brief Commit the current transaction asynchronously
     /// @return Awaitable that resolves when transaction is committed
-    boost::asio::awaitable<void> commit_transaction();
+    boost::asio::awaitable<ConnectionResult<void>> commit_transaction();
     
     /// @brief Rollback the current transaction asynchronously
     /// @return Awaitable that resolves when transaction is rolled back
-    boost::asio::awaitable<void> rollback_transaction();
+    boost::asio::awaitable<ConnectionResult<void>> rollback_transaction();
     
     /// @brief Get the underlying async connection wrapper
     /// @return Reference to the async wrapper connection
     pgsql_async_wrapper::connection& get_async_conn() { return *async_conn_; }
+
+    /// Get the IO context associated with this connection
+    boost::asio::io_context& get_io_context() const { return io_context_; }
 
 private:
     boost::asio::io_context& io_context_;
     std::string connection_string_;
     std::unique_ptr<pgsql_async_wrapper::connection> async_conn_;
     bool is_connected_ = false;
+    bool in_transaction_ = false;
 
     /// @brief Helper method to convert pgsql_async_wrapper::result to relx::result::ResultSet
-    result::ResultSet convert_result(const pgsql_async_wrapper::result& pg_result);
+    ConnectionResult<result::ResultSet> convert_result(const pgsql_async_wrapper::result& pg_result);
     
     /// @brief Convert SQL with ? placeholders to PostgreSQL's $n format
     /// @param sql SQL query with ? placeholders

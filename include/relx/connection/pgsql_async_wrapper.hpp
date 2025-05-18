@@ -18,7 +18,7 @@
 #include <vector>
 #include <optional>
 #include <memory>
-#include <exception>
+#include <expected>
 #include <stdexcept>
 #include <utility>
 #include <functional>
@@ -28,46 +28,29 @@
 
 namespace relx::pgsql_async_wrapper {
 
-// Exception classes
-class pg_error : public std::runtime_error {
-public:
-    explicit pg_error(const std::string& msg) : std::runtime_error(msg) {}
-    explicit pg_error(const char* msg) : std::runtime_error(msg) {}
+// Error types
+struct PgError {
+    std::string message;
+    int error_code = 0;
+    
+    static PgError from_conn(PGconn* conn) {
+        return PgError{
+            .message = PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown PostgreSQL error",
+            .error_code = PQstatus(conn)
+        };
+    }
+    
+    static PgError from_result(PGresult* result) {
+        return PgError{
+            .message = PQresultErrorMessage(result) ? PQresultErrorMessage(result) : "Unknown PostgreSQL error",
+            .error_code = static_cast<int>(PQresultStatus(result))
+        };
+    }
 };
 
-class connection_error : public pg_error {
-public:
-    explicit connection_error(const std::string& msg) : pg_error(msg) {}
-    explicit connection_error(const char* msg) : pg_error(msg) {}
-    explicit connection_error(PGconn* conn) 
-        : pg_error(PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown PostgreSQL connection error") {}
-};
-
-class query_error : public pg_error {
-public:
-    explicit query_error(const std::string& msg) : pg_error(msg) {}
-    explicit query_error(const char* msg) : pg_error(msg) {}
-    explicit query_error(PGresult* result) 
-        : pg_error(PQresultErrorMessage(result) ? PQresultErrorMessage(result) : "Unknown PostgreSQL query error") {}
-    explicit query_error(PGconn* conn) 
-        : pg_error(PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown PostgreSQL query error") {}
-};
-
-class transaction_error : public pg_error {
-public:
-    explicit transaction_error(const std::string& msg) : pg_error(msg) {}
-    explicit transaction_error(const char* msg) : pg_error(msg) {}
-    explicit transaction_error(PGconn* conn) 
-        : pg_error(PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown PostgreSQL transaction error") {}
-};
-
-class statement_error : public pg_error {
-public:
-    explicit statement_error(const std::string& msg) : pg_error(msg) {}
-    explicit statement_error(const char* msg) : pg_error(msg) {}
-    explicit statement_error(PGconn* conn) 
-        : pg_error(PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown PostgreSQL statement error") {}
-};
+// Type alias for result of operations
+template <typename T>
+using PgResult = std::expected<T, PgError>;
 
 // Result class to handle PGresult
 class result {
@@ -216,9 +199,9 @@ public:
     bool is_prepared() const { return prepared_; }
 
     // The implementation of prepare and execute will be defined in separate cpp file
-    boost::asio::awaitable<void> prepare();
-    boost::asio::awaitable<result> execute(const std::vector<std::string>& params);
-    boost::asio::awaitable<void> deallocate();
+    boost::asio::awaitable<PgResult<void>> prepare();
+    boost::asio::awaitable<PgResult<result>> execute(const std::vector<std::string>& params);
+    boost::asio::awaitable<PgResult<void>> deallocate();
 
     friend class connection;
 };
@@ -234,25 +217,32 @@ private:
     std::unordered_map<std::string, std::shared_ptr<prepared_statement>> statements_;
     bool in_transaction_ = false;
     
-    void create_socket() {
+    PgResult<void> create_socket() {
         if (conn_ == nullptr) {
-            throw connection_error("Cannot create socket: no connection");
+            return std::unexpected(PgError{
+                .message = "Cannot create socket: no connection",
+                .error_code = -1
+            });
         }
         
         int sock = PQsocket(conn_);
         if (sock < 0) {
-            throw connection_error("Invalid socket");
+            return std::unexpected(PgError{
+                .message = "Invalid socket",
+                .error_code = -1
+            });
         }
         
         socket_ = std::make_unique<boost::asio::ip::tcp::socket>(io_, boost::asio::ip::tcp::v4(), sock);
+        return PgResult<void>{};
     }
     
     // Asynchronous flush of outgoing data to the PostgreSQL server
-    boost::asio::awaitable<void> flush_outgoing_data() {
+    boost::asio::awaitable<PgResult<void>> flush_outgoing_data() {
         while (true) {
             int flush_result = PQflush(conn_);
             if (flush_result == -1) {
-                throw query_error(conn_);
+                co_return std::unexpected(PgError::from_conn(conn_));
             }
             if (flush_result == 0) {
                 break; // All data has been flushed
@@ -265,17 +255,21 @@ private:
             );
             
             if (ec) {
-                throw boost::system::system_error(ec);
+                co_return std::unexpected(PgError{
+                    .message = ec.message(),
+                    .error_code = ec.value()
+                });
             }
         }
+        co_return PgResult<void>{};
     }
     
     // Helper method to wait for and get a query result
-    boost::asio::awaitable<result> get_query_result() {
+    boost::asio::awaitable<PgResult<result>> get_query_result() {
         while (true) {
             // Check if we can consume input without blocking
             if (PQconsumeInput(conn_) == 0) {
-                throw query_error(conn_);
+                co_return std::unexpected(PgError::from_conn(conn_));
             }
             
             // Check if we can get a result without blocking
@@ -299,7 +293,10 @@ private:
             );
             
             if (ec) {
-                throw boost::system::system_error(ec);
+                co_return std::unexpected(PgError{
+                    .message = ec.message(),
+                    .error_code = ec.value()
+                });
             }
         }
     }
@@ -366,13 +363,13 @@ public:
     
     boost::asio::ip::tcp::socket& socket() {
         if (!socket_) {
-            throw connection_error("Socket not initialized");
+            throw std::runtime_error("Socket not initialized");
         }
         return *socket_;
     }
     
     // Asynchronous connection using boost::asio::awaitable
-    boost::asio::awaitable<void> connect(const std::string& conninfo) {
+    boost::asio::awaitable<PgResult<void>> connect(const std::string& conninfo) {
         if (conn_ != nullptr) {
             close();
         }
@@ -380,28 +377,41 @@ public:
         // Start the connection process
         conn_ = PQconnectStart(conninfo.c_str());
         if (conn_ == nullptr) {
-            throw connection_error("Out of memory");
+            co_return std::unexpected(PgError{
+                .message = "Out of memory",
+                .error_code = -1
+            });
         }
         
         // Check if connection immediately failed
         if (PQstatus(conn_) == CONNECTION_BAD) {
-            throw connection_error(conn_);
+            auto error = PgError::from_conn(conn_);
+            close();
+            co_return std::unexpected(error);
         }
         
         // Set the connection to non-blocking
         if (PQsetnonblocking(conn_, 1) != 0) {
-            throw connection_error(conn_);
+            auto error = PgError::from_conn(conn_);
+            close();
+            co_return std::unexpected(error);
         }
         
         // Create the socket
-        create_socket();
+        auto socket_result = create_socket();
+        if (!socket_result) {
+            close();
+            co_return std::unexpected(socket_result.error());
+        }
         
         // Connection polling loop
         while (true) {
             PostgresPollingStatusType poll_status = PQconnectPoll(conn_);
             
             if (poll_status == PGRES_POLLING_FAILED) {
-                throw connection_error(conn_);
+                auto error = PgError::from_conn(conn_);
+                close();
+                co_return std::unexpected(error);
             }
             
             if (poll_status == PGRES_POLLING_OK) {
@@ -419,7 +429,11 @@ public:
                 );
                 
                 if (ec) {
-                    throw boost::system::system_error(ec);
+                    close();
+                    co_return std::unexpected(PgError{
+                        .message = ec.message(),
+                        .error_code = ec.value()
+                    });
                 }
             }
             else if (poll_status == PGRES_POLLING_WRITING) {
@@ -431,22 +445,31 @@ public:
                 );
                 
                 if (ec) {
-                    throw boost::system::system_error(ec);
+                    close();
+                    co_return std::unexpected(PgError{
+                        .message = ec.message(),
+                        .error_code = ec.value()
+                    });
                 }
             }
         }
         
         if (PQstatus(conn_) != CONNECTION_OK) {
-            throw connection_error(conn_);
+            auto error = PgError::from_conn(conn_);
+            close();
+            co_return std::unexpected(error);
         }
         
-        co_return;
+        co_return PgResult<void>{};
     }
     
     // Asynchronous parameterized query execution using boost::asio::awaitable
-    boost::asio::awaitable<result> query(const std::string& query_text, const std::vector<std::string>& params = {}) {
+    boost::asio::awaitable<PgResult<result>> query(const std::string& query_text, const std::vector<std::string>& params = {}) {
         if (!is_open()) {
-            throw connection_error("Connection is not open");
+            co_return std::unexpected(PgError{
+                .message = "Connection is not open",
+                .error_code = -1
+            });
         }
         
         // Convert parameters
@@ -468,11 +491,14 @@ public:
                 nullptr, // param formats - text format
                 0 // result format - text format
             )) {
-            throw query_error(conn_);
+            co_return std::unexpected(PgError::from_conn(conn_));
         }
         
         // Flush the outgoing data
-        co_await flush_outgoing_data();
+        auto flush_result = co_await flush_outgoing_data();
+        if (!flush_result) {
+            co_return std::unexpected(flush_result.error());
+        }
         
         // Get and return the result
         co_return co_await get_query_result();
@@ -482,9 +508,12 @@ public:
     // ------------------
     
     // Begin transaction with specified isolation level
-    boost::asio::awaitable<void> begin_transaction(IsolationLevel isolation = IsolationLevel::ReadCommitted) {
+    boost::asio::awaitable<PgResult<void>> begin_transaction(IsolationLevel isolation = IsolationLevel::ReadCommitted) {
         if (in_transaction_) {
-            throw transaction_error("Already in a transaction");
+            co_return std::unexpected(PgError{
+                .message = "Already in a transaction",
+                .error_code = -1
+            });
         }
         
         std::string isolation_str;
@@ -504,55 +533,85 @@ public:
         }
         
         std::string begin_cmd = "BEGIN ISOLATION LEVEL " + isolation_str;
-        result res = co_await query(begin_cmd);
+        auto res_result = co_await query(begin_cmd);
         
-        if (!res) {
-            throw transaction_error(res.error_message());
+        if (!res_result) {
+            co_return std::unexpected(res_result.error());
+        }
+        
+        if (!*res_result) {
+            co_return std::unexpected(PgError{
+                .message = res_result->error_message(),
+                .error_code = static_cast<int>(res_result->status())
+            });
         }
         
         in_transaction_ = true;
-        co_return;
+        co_return PgResult<void>{};
     }
     
     // Commit the current transaction
-    boost::asio::awaitable<void> commit() {
+    boost::asio::awaitable<PgResult<void>> commit() {
         if (!in_transaction_) {
-            throw transaction_error("Not in a transaction");
+            co_return std::unexpected(PgError{
+                .message = "Not in a transaction",
+                .error_code = -1
+            });
         }
         
-        result res = co_await query("COMMIT");
+        auto res_result = co_await query("COMMIT");
         
-        if (!res) {
-            throw transaction_error(res.error_message());
+        if (!res_result) {
+            co_return std::unexpected(res_result.error());
+        }
+        
+        if (!*res_result) {
+            co_return std::unexpected(PgError{
+                .message = res_result->error_message(),
+                .error_code = static_cast<int>(res_result->status())
+            });
         }
         
         in_transaction_ = false;
-        co_return;
+        co_return PgResult<void>{};
     }
     
     // Rollback the current transaction
-    boost::asio::awaitable<void> rollback() {
+    boost::asio::awaitable<PgResult<void>> rollback() {
         if (!in_transaction_) {
-            throw transaction_error("Not in a transaction");
+            co_return std::unexpected(PgError{
+                .message = "Not in a transaction",
+                .error_code = -1
+            });
         }
         
-        result res = co_await query("ROLLBACK");
+        auto res_result = co_await query("ROLLBACK");
         
-        if (!res) {
-            throw transaction_error(res.error_message());
+        if (!res_result) {
+            co_return std::unexpected(res_result.error());
+        }
+        
+        if (!*res_result) {
+            co_return std::unexpected(PgError{
+                .message = res_result->error_message(),
+                .error_code = static_cast<int>(res_result->status())
+            });
         }
         
         in_transaction_ = false;
-        co_return;
+        co_return PgResult<void>{};
     }
     
     // Prepared statement support
     // -------------------------
     
     // Create a prepared statement
-    boost::asio::awaitable<std::shared_ptr<prepared_statement>> prepare_statement(const std::string& name, const std::string& query_text) {
+    boost::asio::awaitable<PgResult<std::shared_ptr<prepared_statement>>> prepare_statement(const std::string& name, const std::string& query_text) {
         if (!is_open()) {
-            throw connection_error("Connection is not open");
+            co_return std::unexpected(PgError{
+                .message = "Connection is not open",
+                .error_code = -1
+            });
         }
         
         auto it = statements_.find(name);
@@ -560,7 +619,10 @@ public:
             // Statement with this name already exists
             if (it->second->query() != query_text) {
                 // Deallocate the old statement since the query is different
-                co_await it->second->deallocate();
+                auto deallocate_result = co_await it->second->deallocate();
+                if (!deallocate_result) {
+                    co_return std::unexpected(deallocate_result.error());
+                }
                 statements_.erase(it);
             } else {
                 // Return the existing statement if it has the same query
@@ -573,44 +635,55 @@ public:
         statements_[name] = stmt;
         
         // Prepare it
-        co_await stmt->prepare();
+        auto prepare_result = co_await stmt->prepare();
+        if (!prepare_result) {
+            statements_.erase(name);
+            co_return std::unexpected(prepare_result.error());
+        }
         
         co_return stmt;
     }
     
     // Get a prepared statement by name
-    std::shared_ptr<prepared_statement> get_prepared_statement(const std::string& name) {
+    PgResult<std::shared_ptr<prepared_statement>> get_prepared_statement(const std::string& name) {
         auto it = statements_.find(name);
         if (it != statements_.end()) {
             return it->second;
         }
-        return nullptr;
+        return std::unexpected(PgError{
+            .message = "Prepared statement not found: " + name,
+            .error_code = -1
+        });
     }
     
     // Execute a prepared statement by name
-    boost::asio::awaitable<result> execute_prepared(const std::string& name, const std::vector<std::string>& params = {}) {
-        auto stmt = get_prepared_statement(name);
-        if (!stmt) {
-            throw statement_error("Prepared statement not found: " + name);
+    boost::asio::awaitable<PgResult<result>> execute_prepared(const std::string& name, const std::vector<std::string>& params = {}) {
+        auto stmt_result = get_prepared_statement(name);
+        if (!stmt_result) {
+            co_return std::unexpected(stmt_result.error());
         }
         
-        co_return co_await stmt->execute(params);
+        co_return co_await (*stmt_result)->execute(params);
     }
     
     // Deallocate a prepared statement by name
-    boost::asio::awaitable<void> deallocate_prepared(const std::string& name) {
-        auto stmt = get_prepared_statement(name);
-        if (!stmt) {
-            throw statement_error("Prepared statement not found: " + name);
+    boost::asio::awaitable<PgResult<void>> deallocate_prepared(const std::string& name) {
+        auto stmt_result = get_prepared_statement(name);
+        if (!stmt_result) {
+            co_return std::unexpected(stmt_result.error());
         }
         
-        co_await stmt->deallocate();
+        auto deallocate_result = co_await (*stmt_result)->deallocate();
+        if (!deallocate_result) {
+            co_return std::unexpected(deallocate_result.error());
+        }
+        
         statements_.erase(name);
-        co_return;
+        co_return PgResult<void>{};
     }
     
     // Deallocate all prepared statements
-    boost::asio::awaitable<void> deallocate_all_prepared() {
+    boost::asio::awaitable<PgResult<void>> deallocate_all_prepared() {
         std::vector<std::string> names;
         names.reserve(statements_.size());
         
@@ -619,10 +692,13 @@ public:
         }
         
         for (const auto& name : names) {
-            co_await deallocate_prepared(name);
+            auto deallocate_result = co_await deallocate_prepared(name);
+            if (!deallocate_result) {
+                co_return std::unexpected(deallocate_result.error());
+            }
         }
         
-        co_return;
+        co_return PgResult<void>{};
     }
     
     friend class prepared_statement;

@@ -22,32 +22,45 @@ std::string convert_placeholders(const std::string& sql) {
 }
 
 // Implementation of prepared_statement methods
-boost::asio::awaitable<void> prepared_statement::prepare() {
+boost::asio::awaitable<PgResult<void>> prepared_statement::prepare() {
     if (prepared_) {
-        co_return;
+        co_return PgResult<void>{};
     }
     
     // Convert ? placeholders to $n format
     std::string pg_query = convert_placeholders(query_);
     
     if (!PQsendPrepare(conn_.native_handle(), name_.c_str(), pg_query.c_str(), 0, nullptr)) {
-        throw statement_error(conn_.native_handle());
+        co_return std::unexpected(PgError::from_conn(conn_.native_handle()));
     }
     
-    co_await conn_.flush_outgoing_data();
-    result res = co_await conn_.get_query_result();
+    auto flush_result = co_await conn_.flush_outgoing_data();
+    if (!flush_result) {
+        co_return std::unexpected(flush_result.error());
+    }
     
-    if (!res) {
-        throw statement_error(res.error_message());
+    auto res_result = co_await conn_.get_query_result();
+    if (!res_result) {
+        co_return std::unexpected(res_result.error());
+    }
+    
+    if (!*res_result) {
+        co_return std::unexpected(PgError{
+            .message = res_result->error_message(),
+            .error_code = static_cast<int>(res_result->status())
+        });
     }
     
     prepared_ = true;
-    co_return;
+    co_return PgResult<void>{};
 }
 
-boost::asio::awaitable<result> prepared_statement::execute(const std::vector<std::string>& params) {
+boost::asio::awaitable<PgResult<result>> prepared_statement::execute(const std::vector<std::string>& params) {
     if (!prepared_) {
-        co_await prepare();
+        auto prepare_result = co_await prepare();
+        if (!prepare_result) {
+            co_return std::unexpected(prepare_result.error());
+        }
     }
     
     // Convert parameters
@@ -66,27 +79,38 @@ boost::asio::awaitable<result> prepared_statement::execute(const std::vector<std
             nullptr, // param formats - text format
             0 // result format - text format
         )) {
-        throw statement_error(conn_.native_handle());
+        co_return std::unexpected(PgError::from_conn(conn_.native_handle()));
     }
     
-    co_await conn_.flush_outgoing_data();
+    auto flush_result = co_await conn_.flush_outgoing_data();
+    if (!flush_result) {
+        co_return std::unexpected(flush_result.error());
+    }
+    
     co_return co_await conn_.get_query_result();
 }
 
-boost::asio::awaitable<void> prepared_statement::deallocate() {
+boost::asio::awaitable<PgResult<void>> prepared_statement::deallocate() {
     if (!prepared_) {
-        co_return;
+        co_return PgResult<void>{};
     }
     
     std::string deallocate_cmd = "DEALLOCATE " + name_;
-    result res = co_await conn_.query(deallocate_cmd);
+    auto res_result = co_await conn_.query(deallocate_cmd);
     
-    if (!res) {
-        throw statement_error(res.error_message());
+    if (!res_result) {
+        co_return std::unexpected(res_result.error());
+    }
+    
+    if (!*res_result) {
+        co_return std::unexpected(PgError{
+            .message = res_result->error_message(),
+            .error_code = static_cast<int>(res_result->status())
+        });
     }
     
     prepared_ = false;
-    co_return;
+    co_return PgResult<void>{};
 }
 
 } // namespace relx::pgsql_async_wrapper 
