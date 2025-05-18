@@ -14,8 +14,7 @@
 /**
  * @brief relx - A type-safe SQL library
  * 
- * This is the main include file for the relx library. It includes
- * all the necessary headers to define database schemas.
+ * This file includes all the necessary headers to define database schemas.
  * 
  * Example usage:
  * 
@@ -23,88 +22,103 @@
  * #include <relx/schema.hpp>
  * 
  * // Define a table
- * struct users { 
+ * struct Users { 
  *     static constexpr auto table_name = "users";
  *     
  *     // Define columns
- *     relx::schema::column<"id", int> id;
- *     relx::schema::column<"name", std::string> name;
- *     relx::schema::column<"email", std::string> email;
+ *     relx::column<Users, "id", int> id;
+ *     relx::column<Users, "name", std::string> name;
+ *     relx::column<Users, "email", std::string> email;
  *     
  *     // Nullable column using std::optional
- *     relx::schema::column<"bio", std::optional<std::string>> bio;
+ *     relx::column<Users, "bio", std::optional<std::string>> bio;
  *     
- *     // Column with default value - uses default_value template
- *     relx::schema::column<"age", int, relx::schema::default_value<18>> age;
+ *     // Column with default value
+ *     relx::column<Users, "age", int, relx::default_value<18>> age;
  *     
  *     // Default value for float
- *     relx::schema::column<"score", double, relx::schema::default_value<0.0>> score;
+ *     relx::column<Users, "score", double, relx::default_value<0.0>> score;
  *     
  *     // Default value for boolean
- *     relx::schema::column<"is_active", bool, relx::schema::default_value<true>> is_active;
+ *     relx::column<Users, "is_active", bool, relx::default_value<true>> is_active;
  *     
  *     // Default value for string
- *     relx::schema::column<"status", std::string, relx::schema::string_default<"pending">> status;
+ *     relx::column<Users, "status", std::string, relx::string_default<"pending">> status;
  *     
  *     // SQL literal default value
- *     relx::schema::column<"created_at", std::string, relx::schema::string_default<"CURRENT_TIMESTAMP", true>> created_at;
+ *     relx::column<Users, "created_at", std::string, relx::string_default<"CURRENT_TIMESTAMP", true>> created_at;
  *     
  *     // Nullable with explicit NULL default
- *     relx::schema::column<"notes", std::optional<std::string>, relx::schema::null_default> notes;
+ *     relx::column<Users, "notes", std::optional<std::string>, relx::null_default> notes;
  *     
  *     // Define a primary key
- *     relx::schema::primary_key<&users::id> pk;
+ *     relx::primary_key<&Users::id> pk;
  *     
  *     // Define a unique constraint
- *     relx::schema::unique_constraint<&users::email> unique_email;
+ *     relx::unique_constraint<&Users::email> unique_email;
  *     
- *     // Define a check constraint
- *     relx::schema::table_check_constraint<&users::age, ">= 18"> age_check;
+ *     // Define a check constraint on a column
+ *     relx::table_check_constraint<&Users::age, ">= 18"> age_check;
  *     
  *     // Define a table-level check constraint
- *     relx::schema::table_check_constraint<"status IN ('pending', 'active', 'suspended')"> status_check;
+ *     relx::table_check_constraint<"status IN ('pending', 'active', 'suspended')"> status_check;
  * };
  * 
- * // Example with autoincrement primary key
- * struct users_with_autoincrement {
- *     static constexpr auto table_name = "users";
+ * // Define another table with foreign key relationship
+ * struct Posts {
+ *     static constexpr auto table_name = "posts";
  *     
- *     // For PostgreSQL, you would use:
- *     // relx::schema::pg_serial<"id"> id;
+ *     relx::column<Posts, "id", int> id;
+ *     relx::column<Posts, "title", std::string> title;
+ *     relx::column<Posts, "content", std::string> content;
+ *     relx::column<Posts, "user_id", int> user_id;
  *     
- *     // Regular columns
- *     relx::schema::column<"name", std::string> name;
- *     relx::schema::column<"email", std::string> email;
+ *     // Define a primary key
+ *     relx::primary_key<&Posts::id> pk;
+ *     
+ *     // Define a foreign key relationship to Users table
+ *     relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
+ *     
+ *     // Define an index for faster lookups
+ *     relx::index<&Posts::user_id> user_id_idx;
  * };
- * ```
  * 
- * You can generate the SQL for creating the table:
- * ```cpp
- * users user_table;
- * std::string sql = relx::schema::create_table(user_table);
+ * // Generate the SQL for creating the tables
+ * Users users;
+ * Posts posts;
  * 
- * users_with_autoincrement auto_table;
- * std::string auto_sql = relx::schema::create_table(auto_table);
- * ```
+ * std::string users_sql = relx::create_table(users);
+ * std::string posts_sql = relx::create_table(posts);
  * 
- * Result for users:
- * ```sql
- * CREATE TABLE IF NOT EXISTS users (
- *     id INTEGER PRIMARY KEY,
- *     name TEXT NOT NULL,
- *     email TEXT NOT NULL,
- *     bio TEXT,
- *     age INTEGER NOT NULL DEFAULT 18,
- *     score REAL NOT NULL DEFAULT 0.0,
- *     is_active BOOLEAN NOT NULL DEFAULT true,
- *     status TEXT NOT NULL DEFAULT 'pending',
- *     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
- *     notes TEXT DEFAULT NULL,
- *     PRIMARY KEY (id),
- *     UNIQUE (email),
- *     CHECK (age >= 18),
- *     CHECK (status IN ('pending', 'active', 'suspended'))
- * )
+ * // Result for users:
+ * // CREATE TABLE IF NOT EXISTS users (
+ * //     id INTEGER NOT NULL,
+ * //     name TEXT NOT NULL,
+ * //     email TEXT NOT NULL,
+ * //     bio TEXT,
+ * //     age INTEGER NOT NULL DEFAULT 18,
+ * //     score REAL NOT NULL DEFAULT 0.0,
+ * //     is_active BOOLEAN NOT NULL DEFAULT true,
+ * //     status TEXT NOT NULL DEFAULT 'pending',
+ * //     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ * //     notes TEXT DEFAULT NULL,
+ * //     PRIMARY KEY (id),
+ * //     UNIQUE (email),
+ * //     CHECK (age >= 18),
+ * //     CHECK (status IN ('pending', 'active', 'suspended'))
+ * // )
+ * 
+ * // Result for posts:
+ * // CREATE TABLE IF NOT EXISTS posts (
+ * //     id INTEGER NOT NULL,
+ * //     title TEXT NOT NULL,
+ * //     content TEXT NOT NULL,
+ * //     user_id INTEGER NOT NULL,
+ * //     PRIMARY KEY (id),
+ * //     FOREIGN KEY (user_id) REFERENCES users (id)
+ * // )
+ * 
+ * // CREATE INDEX posts_user_id_idx ON posts (user_id)
  * ```
  */
 
@@ -115,33 +129,32 @@ namespace relx {
  * 
  * 
  * // Define columns with raw string literals
- * relx::schema::column<"id", int> id_column;
- * relx::schema::column<"name", std::string> name_column;
+ * relx::column<Table, "id", int> id_column;
+ * relx::column<Table, "name", std::string> name_column;
  * 
  * // Define nullable columns with std::optional
- * relx::schema::column<"email", std::optional<std::string>> email_column;
+ * relx::column<Table, "email", std::optional<std::string>> email_column;
  * 
  * // Define columns with default values
- * relx::schema::column<"age", int, relx::schema::default_value<18>> age_column;
- * relx::schema::column<"price", double, relx::schema::default_value<0.0>> price_column;
- * relx::schema::column<"is_active", bool, relx::schema::default_value<true>> is_active_column;
+ * relx::column<Table, "age", int, relx::default_value<18>> age_column;
+ * relx::column<Table, "price", double, relx::default_value<0.0>> price_column;
+ * relx::column<Table, "is_active", bool, relx::default_value<true>> is_active_column;
  * 
  * // Define columns with string default values
- * relx::schema::column<"status", std::string, relx::schema::string_default<"active">> status_column;
+ * relx::column<Table, "status", std::string, relx::string_default<"active">> status_column;
  * 
  * // Define columns with SQL literals as default
- * relx::schema::column<"created_at", std::string, relx::schema::string_default<"CURRENT_TIMESTAMP", true>> created_at_column;
+ * relx::column<Table, "created_at", std::string, relx::string_default<"CURRENT_TIMESTAMP", true>> created_at_column;
  * 
- * // Define autoincrement primary key columns
- * relx::schema::column<"id", int, relx::schema::autoincrement> sqlite_id_column;
- * relx::schema::column<"id", int, relx::schema::serial> postgres_id_column;
+ * // Define primary key
+ * relx::primary_key<&Table::id> pk;
  * 
  * // Define check constraints
- * relx::schema::table_check_constraint<&product::price, "> 0"> price_check;
+ * relx::table_check_constraint<&Table::price, "> 0"> price_check;
  * 
  * // Define unique constraints
- * relx::schema::unique_constraint<&user::email> unique_email;
- * relx::schema::composite_unique_constraint<&user::first_name, &user::last_name> unique_name;
+ * relx::unique_constraint<&Table::email> unique_email;
+ * relx::composite_unique_constraint<&Table::first_name, &Table::last_name> unique_name;
  */
 
 // Re-export all schema types in the relx namespace

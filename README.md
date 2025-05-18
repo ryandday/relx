@@ -4,7 +4,9 @@ Working with SQL often means writing error-prone raw strings. Refactoring is a p
 
 relx is a modern C++23 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
 
-Currently features two postgresql clients so that this library is usable out of the box, an async client (with boost::asio) and a synchronous client.
+Currently features two postgresql clients for database access, an async client (with boost::asio) and a synchronous client.
+
+Once C++26 comes out with reflection (fingers crossed!) then there will be some breaking API changes. But they will be for the better.
 
 ## Key Features
 

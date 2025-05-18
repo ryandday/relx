@@ -29,58 +29,83 @@
  * // Define a table
  * struct Users {
  *     static constexpr auto table_name = "users";
- *     relx::schema::column<"id", int> id;
- *     relx::schema::column<"name", std::string> name;
- *     relx::schema::column<"email", std::string> email;
- *     relx::schema::column<"age", int> age;
+ *     relx::column<Users, "id", int> id;
+ *     relx::column<Users, "name", std::string> name;
+ *     relx::column<Users, "email", std::string> email;
+ *     relx::column<Users, "age", int> age;
  *     
- *     // ... other columns, constraints, etc.
+ *     relx::primary_key<&Users::id> pk;
  * };
  * 
  * // Create table instance
  * Users u;
  * 
- * // Create a simple select query - Option 1: Using helper functions
- * auto query1 = relx::query::select(u.id, u.name, u.email)
- *   .from(u)
- *   .where(relx::query::to_expr(u.age) > relx::query::val(18));
- *
- * // Option 2: Using explicit adapters
- * auto query2 = relx::query::select(
- *     relx::query::to_expr(u.id),
- *     relx::query::to_expr(u.name),
- *     relx::query::to_expr(u.email)
- * )
- * .from(relx::query::to_table(u))
- * .where(relx::query::to_expr(u.age) > relx::query::val(18));
- * 
- * // Option 3: Using new concise API (with operator overloads)
- * auto query3 = relx::query::select(u.id, u.name, u.email)
+ * // Option 1: Simple select query with modern syntax
+ * auto query1 = relx::select(u.id, u.name, u.email)
  *   .from(u)
  *   .where(u.age > 18);
  *
- * // Option 4: Using new concise API with shorthand helper functions
- * using namespace relx::query;
- * auto query4 = select(u.id, u.name, u.email)
+ * // Option 2: Using explicit functions for clarity
+ * auto query2 = relx::select(u.id, u.name, u.email)
  *   .from(u)
- *   .where(e(u.age) > v(18));
- *
- * // Option 5: Using SQL literal suffix
- * auto query5 = select(u.id, u.name, u.email)
+ *   .where(relx::to_expr(u.age) > relx::val(18));
+ * 
+ * // Option 3: Using SQL literal suffix
+ * auto query3 = relx::select(u.id, u.name, u.email)
  *   .from(u)
  *   .where(u.age > 18_sql);
  * 
  * // Get the SQL and parameters
- * std::string sql = query1.to_sql();                   // SELECT id, name, email FROM users WHERE (age > ?)
- * std::vector<std::string> params = query1.bind_params(); // ["18"]
+ * std::string sql = query1.to_sql();  // SELECT users.id, users.name, users.email FROM users WHERE (users.age > ?)
+ * auto params = query1.bind_params();  // ["18"]
  * 
- * // Aggregate functions with concise syntax
- * auto agg_query = select_expr(
- *     a(c_all(), "user_count"),
- *     a(avg(e(u.age)), "average_age")
+ * // Complex queries with joins
+ * struct Posts {
+ *     static constexpr auto table_name = "posts";
+ *     relx::column<Posts, "id", int> id;
+ *     relx::column<Posts, "user_id", int> user_id;
+ *     relx::column<Posts, "title", std::string> title;
+ *     
+ *     relx::primary_key<&Posts::id> pk;
+ *     relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
+ * };
+ * 
+ * Posts p;
+ * 
+ * // Join query
+ * auto join_query = relx::select(u.name, p.title)
+ *     .from(u)
+ *     .join(p, relx::on(u.id == p.user_id))
+ *     .where(u.age > 21)
+ *     .order_by(relx::desc(p.title));
+ * 
+ * // Aggregation functions
+ * auto agg_query = relx::select_expr(
+ *     relx::count_all().as("user_count"),
+ *     relx::avg(u.age).as("average_age")
  * )
  * .from(u)
  * .where(u.age > 21);
+ * 
+ * // Update query
+ * auto update_query = relx::update(u)
+ *     .set(
+ *         relx::set(u.name, "John Smith"),
+ *         relx::set(u.email, "john.smith@example.com")
+ *     )
+ *     .where(u.id == 1);
+ * 
+ * // Delete query
+ * auto delete_query = relx::delete_from(u)
+ *     .where(u.age < 18);
+ * 
+ * // Insert query
+ * auto insert_query = relx::insert_into(u)
+ *     .values(
+ *         relx::set(u.name, "Alice"),
+ *         relx::set(u.email, "alice@example.com"),
+ *         relx::set(u.age, 25)
+ *     );
  * ```
  */
 

@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <relx/utility.hpp>
+#include <relx/utils/error_handling.hpp>
 
 TEST(ExpectedUtilityTest, ValueOrThrowReturnsValue) {
     // Create a successful result with integer value
