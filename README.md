@@ -50,7 +50,11 @@ make test
 
 ```cpp
 #include <relx/schema.hpp>
-#include <iostream>
+#include <relx/postgresql.hpp>  // For PostgreSQLConnection
+#include <relx/query.hpp>       // For select, insert_into, create_table, etc.
+#include <relx/utility/error_handling.hpp>   // For RelxException
+#include <print>                // For std::println (C++23)
+#include <string>               // For std::string
 
 // Define a schema
 struct Users {
