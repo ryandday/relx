@@ -80,9 +80,7 @@ struct Posts {
     relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
 };
 
-
 int main() {
-    
     // Connect to a database
     relx::PostgreSQLConnection conn({
         .host = "localhost",
@@ -92,13 +90,19 @@ int main() {
         .password = "postgres",
         .application_name = "myapp"
     });
+    
     conn.connect();
 
     const Users users;
-    const Posts posts;
 
-    conn.execute(relx::create_table(users));
-    conn.execute(relx::create_table(posts));
+    conn.execute(relx::create_table(users).if_not_exists());
+
+    auto insert_statement = relx::insert_into(users)
+        .columns(users.name, users.email)
+        .values("Jane Smith", "jane@example.com")
+        .values("Bob Johnson", "bob@example.com");
+    
+    conn.execute(insert_statement);
 
     // Building a simple SELECT query
     auto query = relx::select(users.id, users.username)
@@ -128,6 +132,7 @@ int main() {
         }
     }
     
+    conn.execute(relx::drop_table(users));
     return 0;
 }
 ```
