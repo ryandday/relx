@@ -34,6 +34,13 @@ public:
         boost::asio::io_context& io_context,
         std::string connection_string);
     
+    /// @brief Constructor with structured connection parameters and io_context
+    /// @param io_context Boost.Asio IO context for async operations
+    /// @param params PostgreSQL connection parameters
+    explicit PostgreSQLAsyncConnection(
+        boost::asio::io_context& io_context,
+        const PostgreSQLConnectionParams& params);
+    
     /// @brief Destructor that ensures proper cleanup
     ~PostgreSQLAsyncConnection();
     

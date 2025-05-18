@@ -31,6 +31,10 @@ public:
     /// @param connection_string PostgreSQL connection string (e.g. "host=localhost port=5432 dbname=mydb user=postgres password=password")
     explicit PostgreSQLConnection(std::string_view connection_string);
     
+    /// @brief Constructor with structured connection parameters
+    /// @param params PostgreSQL connection parameters
+    explicit PostgreSQLConnection(const PostgreSQLConnectionParams& params);
+    
     /// @brief Destructor that ensures proper cleanup
     ~PostgreSQLConnection() override;
     

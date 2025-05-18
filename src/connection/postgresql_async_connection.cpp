@@ -13,6 +13,14 @@ PostgreSQLAsyncConnection::PostgreSQLAsyncConnection(
       async_conn_(std::make_unique<pgsql_async_wrapper::connection>(io_context)) {
 }
 
+PostgreSQLAsyncConnection::PostgreSQLAsyncConnection(
+    boost::asio::io_context& io_context,
+    const PostgreSQLConnectionParams& params)
+    : io_context_(io_context),
+      connection_string_(params.to_connection_string()),
+      async_conn_(std::make_unique<pgsql_async_wrapper::connection>(io_context)) {
+}
+
 PostgreSQLAsyncConnection::~PostgreSQLAsyncConnection() {
     // Automatically disconnect if still connected
     if (is_connected()) {

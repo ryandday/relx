@@ -560,4 +560,40 @@ TEST_F(PostgreSQLConnectionTest, TestBooleanColumn) {
     conn.disconnect();
 }
 
+TEST_F(PostgreSQLConnectionTest, TestConnectionParamsConstructor) {
+    // Create connection parameters
+    relx::connection::PostgreSQLConnectionParams params;
+    params.host = "localhost";
+    params.port = 5434;
+    params.dbname = "sqllib_test";
+    params.user = "postgres";
+    params.password = "postgres";
+    params.application_name = "connection_params_test";
+    
+    // Create connection using params
+    relx::PostgreSQLConnection conn(params);
+    
+    // Test initial state
+    EXPECT_FALSE(conn.is_connected());
+    
+    // Test connect
+    auto connect_result = conn.connect();
+    ASSERT_TRUE(connect_result) << "Connect failed: " << connect_result.error().message;
+    EXPECT_TRUE(conn.is_connected());
+    
+    // Execute a basic query to verify connection works
+    auto result = conn.execute_raw("SELECT 1 as value");
+    ASSERT_TRUE(result) << "Query failed: " << result.error().message;
+    ASSERT_EQ(1, result->size());
+    
+    auto value = result->at(0).get<int>("value");
+    ASSERT_TRUE(value);
+    EXPECT_EQ(1, *value);
+    
+    // Test disconnect
+    auto disconnect_result = conn.disconnect();
+    ASSERT_TRUE(disconnect_result) << "Disconnect failed: " << disconnect_result.error().message;
+    EXPECT_FALSE(conn.is_connected());
+}
+
 } // namespace 

@@ -7,6 +7,7 @@
 #include <vector>
 #include <tuple>
 #include <type_traits>
+#include <sstream>
 
 #include <boost/pfr.hpp>
 
@@ -33,6 +34,50 @@ enum class IsolationLevel {
     ReadCommitted,    ///< Prevents dirty reads
     RepeatableRead,   ///< Prevents non-repeatable reads
     Serializable      ///< Highest isolation level, prevents phantom reads
+};
+
+/// @brief Basic parameters for a PostgreSQL connection
+struct PostgreSQLConnectionParams {
+    std::string host = "localhost";
+    uint16_t port = 5432;
+    std::string dbname;
+    std::string user;
+    std::string password;
+    std::string application_name;
+    int connect_timeout = 30;  // seconds
+    
+    // Optional parameters
+    std::string ssl_mode;      // disable, require, verify-ca, verify-full
+    std::string ssl_cert;
+    std::string ssl_key;
+    std::string ssl_root_cert;
+    
+    /// @brief Convert parameters to a PostgreSQL connection string
+    /// @return Connection string in libpq format (e.g., "host=localhost port=5432 dbname=mydb...")
+    std::string to_connection_string() const {
+        std::ostringstream conn_str;
+        
+        if (!host.empty()) conn_str << "host=" << host << " ";
+        conn_str << "port=" << port << " ";
+        if (!dbname.empty()) conn_str << "dbname=" << dbname << " ";
+        if (!user.empty()) conn_str << "user=" << user << " ";
+        if (!password.empty()) conn_str << "password=" << password << " ";
+        if (!application_name.empty()) conn_str << "application_name=" << application_name << " ";
+        conn_str << "connect_timeout=" << connect_timeout << " ";
+        
+        // Optional SSL parameters
+        if (!ssl_mode.empty()) conn_str << "sslmode=" << ssl_mode << " ";
+        if (!ssl_cert.empty()) conn_str << "sslcert=" << ssl_cert << " ";
+        if (!ssl_key.empty()) conn_str << "sslkey=" << ssl_key << " ";
+        if (!ssl_root_cert.empty()) conn_str << "sslrootcert=" << ssl_root_cert << " ";
+        
+        std::string result = conn_str.str();
+        if (!result.empty() && result.back() == ' ') {
+            result.pop_back();  // Remove trailing space
+        }
+        
+        return result;
+    }
 };
 
 /// @brief Abstract base class for database connections

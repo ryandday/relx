@@ -454,4 +454,48 @@ TEST_F(AsyncPgIntegrationTest, TransactionSupport) {
     });
 }
 
+TEST_F(AsyncPgIntegrationTest, ConnectionParamsConstructor) {
+    run_test([this]() -> boost::asio::awaitable<void> {
+        try {
+            // Create connection parameters
+            relx::connection::PostgreSQLConnectionParams params;
+            params.host = "localhost";
+            params.port = 5434;
+            params.dbname = "sqllib_test";
+            params.user = "postgres";
+            params.password = "postgres";
+            params.application_name = "async_params_test";
+            
+            // Create a connection with parameters
+            auto param_conn = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(io_context, params);
+            
+            // Connect and verify it works
+            auto connect_result = co_await param_conn->connect();
+            if (!connect_result) {
+                throw std::runtime_error("Connection failed: " + connect_result.error().message);
+            }
+            
+            // Execute a simple query to verify connection
+            auto result = co_await param_conn->execute_raw("SELECT 1 as value");
+            if (!result) {
+                throw std::runtime_error("Query failed: " + result.error().message);
+            }
+            
+            EXPECT_EQ(1, result->size());
+            
+            auto cell_result = result->at(0).get_cell(0);
+            EXPECT_TRUE(cell_result);
+            EXPECT_EQ("1", (*cell_result)->raw_value());
+            
+            // Disconnect
+            co_await param_conn->disconnect();
+            EXPECT_FALSE(param_conn->is_connected());
+            
+        } catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Test failure: ") + e.what());
+        }
+        co_return;
+    });
+}
+
 } // namespace 

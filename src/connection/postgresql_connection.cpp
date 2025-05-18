@@ -91,6 +91,9 @@ std::string convert_pg_bytea_to_binary(const std::string& hex_value) {
 PostgreSQLConnection::PostgreSQLConnection(std::string_view connection_string)
     : connection_string_(connection_string) {}
 
+PostgreSQLConnection::PostgreSQLConnection(const PostgreSQLConnectionParams& params)
+    : connection_string_(params.to_connection_string()) {}
+
 PostgreSQLConnection::~PostgreSQLConnection() {
     disconnect();
 }

@@ -118,6 +118,8 @@ int main() {
 }
 ```
 
+### Creating and Dropping Table Examples
+
 ### Query Building Examples
 
 #### SELECT Queries
