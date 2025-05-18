@@ -241,12 +241,12 @@ public:
     auto returning(const Args&... args) const {
         // Helper to convert columns to ColumnRef expressions if they're not already SqlExpr
         auto to_expr = [](const auto& arg) {
-            if constexpr (SqlExpr<std::decay_t<decltype(arg)>>) {
+            if constexpr (SqlExpr<std::remove_cvref_t<decltype(arg)>>) {
                 return arg;
-            } else if constexpr (ColumnType<std::decay_t<decltype(arg)>>) {
+            } else if constexpr (ColumnType<std::remove_cvref_t<decltype(arg)>>) {
                 return column_ref(arg);
             } else {
-                static_assert(SqlExpr<std::decay_t<decltype(arg)>> || ColumnType<std::decay_t<decltype(arg)>>, 
+                static_assert(SqlExpr<std::remove_cvref_t<decltype(arg)>> || ColumnType<std::remove_cvref_t<decltype(arg)>>, 
                               "Arguments to returning() must be either columns or SQL expressions");
                 // This line is never reached, it's just to make the compiler happy
                 return arg;

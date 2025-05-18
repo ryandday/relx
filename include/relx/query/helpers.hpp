@@ -14,23 +14,6 @@
 namespace relx {
 namespace query {
 
-/// @brief This file provides helper functions and template aliases to reduce the verbosity of relx's API.
-/// This makes it more convenient to use schema columns directly without manual to_expr calls
-/// and reduces the need for explicit val() calls.
-
-/// @brief Create a SELECT query for schema columns with automatic adapter creation
-/// This makes it more convenient to use schema columns directly without manual to_expr calls
-/// @tparam Cols The schema column types
-/// @param cols The schema columns to select
-/// @return A SelectQuery object with the columns wrapped in SchemaColumnAdapter
-// Note: Removed duplicate select function since one already exists in select.hpp
-// template <ColumnType... Cols>
-// auto select(const Cols&... cols) {
-//     return SelectQuery<std::tuple<SchemaColumnAdapter<Cols>...>>(
-//         std::tuple<SchemaColumnAdapter<Cols>...>(SchemaColumnAdapter<Cols>(cols)...)
-//     );
-// }
-
 /// @brief FROM extension for schema tables with automatic adapter creation
 /// @tparam Columns The tuple of column expressions
 /// @tparam Table The schema table type

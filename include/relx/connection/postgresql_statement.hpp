@@ -60,7 +60,7 @@ public:
         
         // Helper to convert a parameter to string and add to vector
         auto add_param = [&param_strings](auto&& param) {
-            using ParamType = std::decay_t<decltype(param)>;
+            using ParamType = std::remove_cvref_t<decltype(param)>;
             
             if constexpr (std::is_same_v<ParamType, std::nullptr_t>) {
                 // Handle NULL values
