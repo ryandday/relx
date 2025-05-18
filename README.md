@@ -6,7 +6,7 @@ relx is a modern C++23 library designed to solve these problems by constructing 
 
 Currently features two postgresql clients for database access, an async client (with boost::asio) and a synchronous client.
 
-Once C++26 comes out with reflection (fingers crossed!) then there will be some breaking API changes. But they will be for the better.
+Once C++26 comes out with reflection (fingers crossed!) then there will be some breaking API changes. But they will make this library better.
 
 ## Key Features
 
@@ -83,65 +83,66 @@ struct Posts {
 };
 
 int main() {
-    // Connect to a database
-    relx::PostgreSQLConnection conn({
-        .host = "localhost",
-        .port = 5432,
-        .dbname = "mydb",
-        .user = "postgres",
-        .password = "postgres",
-        .application_name = "myapp"
-    });
-    
-    auto connect_result = conn.connect();
-    relx::throw_if_failed(connect_result);
+    try {
+        // Connect to a database
+        relx::PostgreSQLConnection conn({
+            .host = "localhost",
+            .port = 5432,
+            .dbname = "mydb",
+            .user = "postgres",
+            .password = "postgres",
+            .application_name = "myapp"
+        });
+        
+        conn.connect();
 
-    const Users users;
+        const Users users;
 
-    auto create_table_result = conn.execute(relx::create_table(users).if_not_exists());
-    relx::throw_if_failed(create_table_result);
+        // Create users table
+        conn.execute(relx::create_table(users).if_not_exists());
 
-    auto insert_statement = relx::insert_into(users)
-        .columns(users.username, users.email)
-        .values("Jane Smith", "jane@example.com")
-        .values("Bob Johnson", "bob@example.com");
-    
-    auto insert_result = conn.execute(insert_statement);
-    relx::throw_if_failed(insert_result);
+        // Insert sample users
+        auto insert_statement = relx::insert_into(users)
+            .columns(users.username, users.email)
+            .values("Jane Smith", "jane@example.com")
+            .values("Bob Johnson", "bob@example.com");
+        
+        conn.execute(insert_statement);
 
-    // Building a simple SELECT query
-    auto query = relx::select(users.id, users.username)
-        .from(users)
-        .where(users.id > 10);
-    
-    // Generate the SQL
-    std::string sql = query.to_sql();
-    // Output: "SELECT id, username FROM users WHERE (id > ?)"
-    
-    // Get the bind parameters
-    auto params = query.bind_params();
-    // params[0] = "10"
-    
-    // Define a DTO to receive the results
-    struct UserDTO {
-        int id;
-        std::string username;
-    };
-    
-    // Execute the query
-    auto query_result = conn.execute<UserDTO>(query);
-    const auto& rows = relx::value_or_throw(query_result);
+        // Building a simple SELECT query
+        auto query = relx::select(users.id, users.username)
+            .from(users)
+            .where(users.id > 10);
+        
+        // Generate the SQL
+        std::string sql = query.to_sql();
+        // Output: "SELECT id, username FROM users WHERE (id > ?)"
+        
+        // Get the bind parameters
+        auto params = query.bind_params();
+        // params[0] = "10"
+        
+        // Define a DTO to receive the results
+        struct UserDTO {
+            int id;
+            std::string username;
+        };
+        
+        // Execute the query
+        auto rows = conn.execute<UserDTO>(query);
 
-    // Process results - automatically mapped to UserDTO objects
-    for (const auto& user : rows) {
-        std::println("User: {} - {}", user.id, user.username);
+        // Process results - automatically mapped to UserDTO objects
+        for (const auto& user : rows) {
+            std::println("User: {} - {}", user.id, user.username);
+        }
+        
+        conn.execute(relx::drop_table(users));
+        return 0;
+    } catch (const relx::RelxException& e) {
+        std::cerr << "Query error: " << e.message << std::endl;
+        return 1;
     }
-    
-    auto drop_result = conn.execute(relx::drop_table(users));
-    relx::throw_if_failed(drop_result);
-    return 0;
 }
-```
 
 ### Creating and Dropping Table Examples
 
