@@ -57,19 +57,19 @@ struct Comments {
 template<typename T>
 bool check_result(const relx::ConnectionResult<T>& result, const std::string& operation) {
     if (!result) {
-        std::cerr << "Error during " << operation << ": " << result.error().message << " (" << result.error().error_code << ")" << std::endl;
+        std::print("Error during {}: {} ({})", operation, result.error().message, result.error().error_code);
         return false;
     }
     return true;
 }
 
 void print_divider() {
-    std::cout << "\n" << std::string(80, '-') << "\n" << std::endl;
+    std::println("\n{}\n", std::string(80, '-'));
 }
 
 // Function to create tables
 bool create_tables(relx::Connection& conn) {
-    std::cout << "Creating tables..." << std::endl;
+    std::println("Creating tables...");
     
     Users users;
     // Create Users table
@@ -89,12 +89,12 @@ bool create_tables(relx::Connection& conn) {
     auto comments_result = conn.execute(create_comments_sql);
     if (!check_result(comments_result, "creating comments table")) return false;
     
-    std::cout << "Tables created successfully!" << std::endl;
+    std::println("Tables created successfully!");
     return true;
 }
 
 bool drop_tables(relx::Connection& conn) {
-    std::cout << "Dropping tables..." << std::endl;
+    std::println("Dropping tables...");
     
     Users users;
     Posts posts;
@@ -113,13 +113,13 @@ bool drop_tables(relx::Connection& conn) {
     auto drop_users_result = conn.execute(drop_users);
     if (!check_result(drop_users_result, "dropping users table")) return false;
     
-    std::cout << "Tables dropped successfully!" << std::endl;
+    std::println("Tables dropped successfully!");
     return true;
 }
 
 // Function to insert sample data
 bool insert_sample_data(relx::Connection& conn) {
-    std::cout << "Inserting sample data..." << std::endl;
+    std::println("Inserting sample data...");
     
     // Begin a transaction
     auto begin_result = conn.begin_transaction();
@@ -215,16 +215,16 @@ bool insert_sample_data(relx::Connection& conn) {
         auto commit_result = conn.commit_transaction();
         if (!check_result(commit_result, "committing transaction")) throw std::runtime_error("Failed to commit transaction");
         
-        std::cout << "Sample data inserted successfully!" << std::endl;
+        std::println("Sample data inserted successfully!");
         return true;
     }
     catch (const std::exception& e) {
-        std::cerr << "Error during data insertion: " << e.what() << std::endl;
+        std::print("Error during data insertion: {}", e.what());
         
         // Rollback the transaction on error
         auto rollback_result = conn.rollback_transaction();
         if (!rollback_result) {
-            std::cerr << "Error during rollback: " << rollback_result.error().message << std::endl;
+            std::print("Error during rollback: {}", rollback_result.error().message);
         }
         
         return false;
@@ -234,11 +234,11 @@ bool insert_sample_data(relx::Connection& conn) {
 // Function to demonstrate basic SQL queries
 void demonstrate_basic_queries(relx::Connection& conn) {
     print_divider();
-    std::cout << "DEMONSTRATING BASIC QUERIES" << std::endl;
+    std::println("DEMONSTRATING BASIC QUERIES");
     print_divider();
     
     // 1. Basic SELECT query - get all users
-    std::cout << "1. Selecting all users:" << std::endl;
+    std::println("1. Selecting all users:");
     
     Users u;
     auto users_query = relx::select(u.id, u.name, u.email, u.age, u.is_active)
@@ -248,19 +248,19 @@ void demonstrate_basic_queries(relx::Connection& conn) {
     auto users_result = conn.execute(users_query);
     if (check_result(users_result, "selecting users")) {
         for (const auto& row : *users_result) {
-            std::cout << "ID: " << *row.get<int>("id") 
-                      << ", Name: " << *row.get<std::string>("name")
-                      << ", Email: " << *row.get<std::string>("email")
-                      << ", Age: " << *row.get<int>("age")
-                      << ", Active: " << (*row.get<bool>("is_active") ? "Yes" : "No")
-                      << std::endl;
+            std::println("ID: {}, Name: {}, Email: {}, Age: {}, Active: {}", 
+                        *row.get<int>("id"), 
+                        *row.get<std::string>("name"),
+                        *row.get<std::string>("email"),
+                        *row.get<int>("age"),
+                        (*row.get<bool>("is_active") ? "Yes" : "No"));
         }
     }
     
     print_divider();
     
     // 2. SELECT with WHERE condition - get active users over 30
-    std::cout << "2. Selecting active users over 30:" << std::endl;
+    std::println("2. Selecting active users over 30:");
     
     auto active_users_query = relx::select(u.id, u.name, u.age)
         .from(u)
@@ -269,17 +269,17 @@ void demonstrate_basic_queries(relx::Connection& conn) {
     auto active_users_result = conn.execute(active_users_query);
     if (check_result(active_users_result, "selecting active users over 30")) {
         for (const auto& row : *active_users_result) {
-            std::cout << "ID: " << *row.get<int>("id") 
-                      << ", Name: " << *row.get<std::string>("name")
-                      << ", Age: " << *row.get<int>("age")
-                      << std::endl;
+            std::println("ID: {}, Name: {}, Age: {}", 
+                        *row.get<int>("id"), 
+                        *row.get<std::string>("name"),
+                        *row.get<int>("age"));
         }
     }
     
     print_divider();
     
     // 3. UPDATE query - update a user's active status
-    std::cout << "3. Updating user's active status:" << std::endl;
+    std::println("3. Updating user's active status:");
     
     auto update_query = relx::update(u)
         .set(u.is_active, true)
@@ -287,7 +287,7 @@ void demonstrate_basic_queries(relx::Connection& conn) {
     
     auto update_result = conn.execute(update_query);
     if (check_result(update_result, "updating user")) {
-        std::cout << "Updated Charlie's active status to true" << std::endl;
+        std::println("Updated Charlie's active status to true");
     }
     
     // Verify the update
@@ -298,29 +298,29 @@ void demonstrate_basic_queries(relx::Connection& conn) {
     auto verify_result = conn.execute(verify_update);
     if (check_result(verify_result, "verifying update")) {
         const auto& row = (*verify_result)[0];
-        std::cout << "Verified: " << *row.get<std::string>("name") 
-                  << "'s active status is now: " << (*row.get<bool>("is_active") ? "true" : "false")
-                  << std::endl;
+        std::println("Verified: {}'s active status is now: {}", 
+                    *row.get<std::string>("name"),
+                    (*row.get<bool>("is_active") ? "true" : "false"));
     }
     
     print_divider();
     
     // 4. DELETE query - delete a non-existent user (safe example)
-    std::cout << "4. Deleting a user (safe example):" << std::endl;
+    std::println("4. Deleting a user (safe example):");
     
     auto delete_query = relx::delete_from(u)
         .where(u.name == "NonExistentUser");
     
     auto delete_result = conn.execute(delete_query);
     if (check_result(delete_result, "deleting user")) {
-        std::cout << "Delete query executed successfully (0 rows affected)" << std::endl;
+        std::println("Delete query executed successfully (0 rows affected)");
     }
 }
 
 // Function to demonstrate complex queries
 void demonstrate_complex_queries(relx::Connection& conn) {
     print_divider();
-    std::cout << "DEMONSTRATING COMPLEX QUERIES" << std::endl;
+    std::println("DEMONSTRATING COMPLEX QUERIES");
     print_divider();
     
     Users u;
@@ -328,7 +328,7 @@ void demonstrate_complex_queries(relx::Connection& conn) {
     Comments c;
     
     // 1. JOIN query - Get posts with their author information
-    std::cout << "1. JOIN: Posts with author information:" << std::endl;
+    std::println("1. JOIN: Posts with author information:");
     
     auto join_query = relx::select(p.id, p.title, p.views, relx::as(u.name, "author_name"), relx::as(u.email, "author_email"))
         .from(p)
@@ -338,19 +338,19 @@ void demonstrate_complex_queries(relx::Connection& conn) {
     auto join_result = conn.execute(join_query);
     if (check_result(join_result, "post-author join")) {
         for (const auto& row : *join_result) {
-            std::cout << "Post ID: " << *row.get<int>("id") 
-                      << ", Title: " << *row.get<std::string>("title")
-                      << ", Views: " << *row.get<int>("views")
-                      << ", Author: " << *row.get<std::string>("author_name")
-                      << " (" << *row.get<std::string>("author_email") << ")"
-                      << std::endl;
+            std::println("Post ID: {}, Title: {}, Views: {}, Author: {} ({})", 
+                        *row.get<int>("id"), 
+                        *row.get<std::string>("title"),
+                        *row.get<int>("views"),
+                        *row.get<std::string>("author_name"),
+                        *row.get<std::string>("author_email"));
         }
     }
     
     print_divider();
     
     // 2. Aggregate functions - Count posts per user with total views
-    std::cout << "2. Aggregates: Post counts and total views per user:" << std::endl;
+    std::println("2. Aggregates: Post counts and total views per user:");
     
     auto agg_query = relx::select_expr(
         u.name,
@@ -365,17 +365,17 @@ void demonstrate_complex_queries(relx::Connection& conn) {
     auto agg_result = conn.execute(agg_query);
     if (check_result(agg_result, "aggregate query")) {
         for (const auto& row : *agg_result) {
-            std::cout << "User: " << *row.get<std::string>("name") 
-                      << ", Post Count: " << *row.get<int>("post_count")
-                      << ", Total Views: " << *row.get<int>("total_views")
-                      << std::endl;
+            std::println("User: {}, Post Count: {}, Total Views: {}", 
+                        *row.get<std::string>("name"),
+                        *row.get<int>("post_count"),
+                        *row.get<int>("total_views"));
         }
     }
     
     print_divider();
     
     // 3. Complex JOIN with subquery and HAVING - Get popular posts with comment counts
-    std::cout << "3. Complex JOIN: Popular posts with comment counts:" << std::endl;
+    std::println("3. Complex JOIN: Popular posts with comment counts:");
     
     auto complex_query = relx::select_expr(
         p.id,
@@ -397,19 +397,19 @@ void demonstrate_complex_queries(relx::Connection& conn) {
     auto complex_result = conn.execute(complex_query);
     if (check_result(complex_result, "complex join query")) {
         for (const auto& row : *complex_result) {
-            std::cout << "Post ID: " << *row.get<int>("id") 
-                      << ", Title: " << *row.get<std::string>("title")
-                      << ", Author: " << *row.get<std::string>("author")
-                      << ", Views: " << *row.get<int>("views")
-                      << ", Comments: " << *row.get<int>("comment_count")
-                      << std::endl;
+            std::println("Post ID: {}, Title: {}, Author: {}, Views: {}, Comments: {}", 
+                        *row.get<int>("id"), 
+                        *row.get<std::string>("title"),
+                        *row.get<std::string>("author"),
+                        *row.get<int>("views"),
+                        *row.get<int>("comment_count"));
         }
     }
     
     print_divider();
     
     // 4. Advanced query with CASE expression - User activity categories
-    std::cout << "4. Advanced CASE expression: User activity categories:" << std::endl;
+    std::println("4. Advanced CASE expression: User activity categories:");
     
     auto case_query = relx::select_expr(
         u.name,
@@ -439,10 +439,10 @@ void demonstrate_complex_queries(relx::Connection& conn) {
     auto case_result = conn.execute(case_query);
     if (check_result(case_result, "case expression query")) {
         for (const auto& row : *case_result) {
-            std::cout << "User: " << *row.get<std::string>("name") 
-                      << ", Category: " << *row.get<std::string>("user_category")
-                      << ", Post Count: " << *row.get<int>("post_count")
-                      << std::endl;
+            std::println("User: {}, Category: {}, Post Count: {}", 
+                        *row.get<std::string>("name"),
+                        *row.get<std::string>("user_category"),
+                        *row.get<int>("post_count"));
         }
     }
 }
@@ -450,7 +450,7 @@ void demonstrate_complex_queries(relx::Connection& conn) {
 // Function to clean up data
 bool clean_up(relx::Connection& conn) {
     print_divider();
-    std::cout << "Cleaning up database..." << std::endl;
+    std::println("Cleaning up database...");
     
     Users users;
     Posts posts;
@@ -470,7 +470,7 @@ bool clean_up(relx::Connection& conn) {
     auto drop_users_result = conn.execute(drop_users);
     if (!check_result(drop_users_result, "dropping users table")) return false;
     
-    std::cout << "Database cleaned up successfully!" << std::endl;
+    std::println("Database cleaned up successfully!");
     
     return true;
 }
@@ -488,7 +488,7 @@ int main() {
         return 1;
     }
     
-    std::cout << "Connected to PostgreSQL database successfully!" << std::endl;
+    std::println("Connected to PostgreSQL database successfully!");
     
     // drop tables if they exist
     if (!drop_tables(conn)) {
@@ -524,7 +524,7 @@ int main() {
         return 1;
     }
     
-    std::cout << "Disconnected from PostgreSQL database successfully!" << std::endl;
+    std::println("Disconnected from PostgreSQL database successfully!");
     
     return 0;
 } 

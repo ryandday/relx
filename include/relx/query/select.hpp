@@ -231,7 +231,7 @@ public:
                         params.insert(params.end(), join_params.begin(), join_params.end());
                     } catch (const std::exception& e) {
                         // Log error and continue
-                        std::cerr << "Error collecting join params: " << e.what() << std::endl;
+                        std::print("Error collecting join params: {}", e.what());
                     }
                 })(), ...);
             }, joins_);

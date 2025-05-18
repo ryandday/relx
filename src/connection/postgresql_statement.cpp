@@ -25,7 +25,7 @@ PostgreSQLStatement::~PostgreSQLStatement() {
         // Deallocate the prepared statement
         auto result = connection_.execute_raw("DEALLOCATE " + name_);
         if (!result) {
-            std::cerr << "Failed to deallocate statement: " << result.error().message << std::endl;
+            std::print("Failed to deallocate statement: {}", result.error().message);
         }
     }
 }
@@ -47,7 +47,7 @@ PostgreSQLStatement& PostgreSQLStatement::operator=(PostgreSQLStatement&& other)
         if (is_valid_) {
             auto result = connection_.execute_raw("DEALLOCATE " + name_);
             if (!result) {
-                std::cerr << "Failed to deallocate statement: " << result.error().message << std::endl;
+                std::print("Failed to deallocate statement: {}", result.error().message);
             }
         }
         

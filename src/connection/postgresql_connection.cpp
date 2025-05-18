@@ -192,9 +192,9 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     const std::vector<std::string>& params) {
     
     if constexpr (ultra_verbose) {
-        std::cout << "Executing raw SQL: " << sql << std::endl;
+        std::println("Executing raw SQL: {}", sql);
         for (const auto& param : params) {
-            std::cout << "Param: " << param << std::endl;
+            std::println("Param: {}", param);
         }
     }
 
@@ -270,7 +270,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
             
         case PGRES_NONFATAL_ERROR:
             // Log the warning but continue processing
-            std::cerr << "PostgreSQL warning: " << PQresultErrorMessage(pg_result.get()) << std::endl;
+            std::print("PostgreSQL warning: {}", PQresultErrorMessage(pg_result.get()));
             break;
             
         case PGRES_COPY_IN:

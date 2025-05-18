@@ -98,15 +98,15 @@ namespace test_utils {
 // Helper to print SQL and parameters for a query
 template <typename Query>
 void print_query_details(const Query& query, const std::string& test_name) {
-    std::cout << "\n=== " << test_name << " ===\n";
-    std::cout << "SQL: " << query.to_sql() << std::endl;
+    std::println("\n=== {} ===", test_name);
+    std::println("SQL: {}", query.to_sql());
     
     auto params = query.bind_params();
-    std::cout << "Params (" << params.size() << "): ";
+    std::println("Params ({}): ", params.size());
     for (size_t i = 0; i < params.size(); ++i) {
-        std::cout << "[" << i << "]=" << params[i] << " ";
+        std::println("[{}]={} ", i, params[i]);
     }
-    std::cout << std::endl;
+    std::println("");
 }
 
 } // namespace test_utils 

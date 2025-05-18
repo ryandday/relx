@@ -179,23 +179,23 @@ TEST(QueryTest, SelectWithCaseExpression) {
         .build();
     
     // First check the case expression directly
-    std::cout << "Case SQL: " << case_expr.to_sql() << std::endl;
+    std::println("Case SQL: {}", case_expr.to_sql());
     auto case_params = case_expr.bind_params();
-    std::cout << "Case params (" << case_params.size() << "): ";
+    std::println("Case params ({}): ", case_params.size());
     for (size_t i = 0; i < case_params.size(); ++i) {
-        std::cout << "[" << i << "]=" << case_params[i] << " ";
+        std::println("[{}]={} ", i, case_params[i]);
     }
-    std::cout << std::endl;
+    std::println("");
     
     // Then check with the alias
     auto aliased_case = relx::query::as(std::move(case_expr), "age_group");
-    std::cout << "Aliased SQL: " << aliased_case.to_sql() << std::endl;
+    std::println("Aliased SQL: {}", aliased_case.to_sql());
     auto alias_params = aliased_case.bind_params();
-    std::cout << "Alias params (" << alias_params.size() << "): ";
+    std::println("Alias params ({}): ", alias_params.size());
     for (size_t i = 0; i < alias_params.size(); ++i) {
-        std::cout << "[" << i << "]=" << alias_params[i] << " ";
+        std::println("[{}]={} ", i, alias_params[i]);
     }
-    std::cout << std::endl;
+    std::println("");
     
     // Finally the full query
     auto query = relx::query::select_expr(
@@ -203,17 +203,17 @@ TEST(QueryTest, SelectWithCaseExpression) {
         std::move(aliased_case))
         .from(u);
     
-    std::cout << "Query SQL: " << query.to_sql() << std::endl;
+    std::println("Query SQL: {}", query.to_sql());
     
     std::string expected_sql = "SELECT users.name, CASE WHEN (users.age < ?) THEN ? WHEN (users.age < ?) THEN ? ELSE ? END AS age_group FROM users";
     EXPECT_EQ(query.to_sql(), expected_sql);
     
     auto params = query.bind_params();
-    std::cout << "Query params (" << params.size() << "): ";
+    std::println("Query params ({}): ", params.size());
     for (size_t i = 0; i < params.size(); ++i) {
-        std::cout << "[" << i << "]=" << params[i] << " ";
+        std::println("[{}]={} ", i, params[i]);
     }
-    std::cout << std::endl;
+    std::println("");
     
     // The validation is valid now that we've fixed the issues
     EXPECT_EQ(params.size(), 5);
@@ -232,13 +232,13 @@ TEST(QueryTest, SimpleCaseWithoutDuplicateParams) {
         relx::query::val(42)
     );
     
-    std::cout << "Value SQL: " << value_query.to_sql() << std::endl;
+    std::println("Value SQL: {}", value_query.to_sql());
     auto value_params = value_query.bind_params();
-    std::cout << "Value params (" << value_params.size() << "): ";
+    std::println("Value params ({}): ", value_params.size());
     for (size_t i = 0; i < value_params.size(); ++i) {
-        std::cout << "[" << i << "]=" << value_params[i] << " ";
+        std::println("[{}]={} ", i, value_params[i]);
     }
-    std::cout << std::endl;
+    std::println("");
     
     EXPECT_EQ(value_params.size(), 1);
     EXPECT_EQ(value_params[0], "42");
@@ -247,39 +247,39 @@ TEST(QueryTest, SimpleCaseWithoutDuplicateParams) {
 TEST(QueryTest, DebugSelectExprDuplicateParams) {
     // Test a direct value parameter
     auto single_val = relx::query::val(123);
-    std::cout << "Single value SQL: " << single_val.to_sql() << std::endl;
+    std::println("Single value SQL: {}", single_val.to_sql());
     auto single_params = single_val.bind_params();
-    std::cout << "Single value params (" << single_params.size() << "): ";
+    std::println("Single value params ({}): ", single_params.size());
     for (size_t i = 0; i < single_params.size(); ++i) {
-        std::cout << "[" << i << "]=" << single_params[i] << " ";
+        std::println("[{}]={} ", i, single_params[i]);
     }
-    std::cout << std::endl;
+    std::println("");
     
     // Test making a tuple with the value
     auto value_tuple = std::make_tuple(single_val);
-    std::cout << "Tuple contents: " << std::get<0>(value_tuple).to_sql() << std::endl;
+    std::println("Tuple contents: {}", std::get<0>(value_tuple).to_sql());
     
     // Test the SelectQuery with the value directly
     auto direct_query = relx::query::SelectQuery<std::tuple<decltype(single_val)>>(
         std::make_tuple(single_val)
     );
     
-    std::cout << "Direct query SQL: " << direct_query.to_sql() << std::endl;
+    std::println("Direct query SQL: {}", direct_query.to_sql());
     auto direct_params = direct_query.bind_params();
-    std::cout << "Direct query params (" << direct_params.size() << "): ";
+    std::println("Direct query params ({}): ", direct_params.size());
     for (size_t i = 0; i < direct_params.size(); ++i) {
-        std::cout << "[" << i << "]=" << direct_params[i] << " ";
+        std::println("[{}]={} ", i, direct_params[i]);
     }
-    std::cout << std::endl;
+    std::println("");
     
     // Now test through the select_expr helper function
     auto select_query = relx::query::select_expr(single_val);
     
-    std::cout << "Select query SQL: " << select_query.to_sql() << std::endl;
+    std::println("Select query SQL: {}", select_query.to_sql());
     auto select_params = select_query.bind_params();
-    std::cout << "Select query params (" << select_params.size() << "): ";
+    std::println("Select query params ({}): ", select_params.size());
     for (size_t i = 0; i < select_params.size(); ++i) {
-        std::cout << "[" << i << "]=" << select_params[i] << " ";
+        std::println("[{}]={} ", i, select_params[i]);
     }
-    std::cout << std::endl;
+    std::println("");
 } 

@@ -77,8 +77,7 @@ protected:
             }
             
             if (expected.size() != binary_actual.size()) {
-                std::cout << "Size mismatch after hex conversion. Expected: " << expected.size() 
-                          << ", Actual: " << binary_actual.size() << std::endl;
+                std::println("Size mismatch after hex conversion. Expected: {}, Actual: {}", expected.size(), binary_actual.size());
                 return false;
             }
             
