@@ -252,13 +252,29 @@ if (!conn_result) {
     return 1;
 }
 
+// Define the schema
+struct Users {
+    static constexpr auto table_name = "users";
+    relx::column<"id", int> id;
+    relx::column<"name", std::string> name;
+    relx::column<"email", std::string> email;
+};
+
+// Create a table instance
+Users users;
+
 // Define a DTO for user data
 struct UserDTO {
     std::string name;
 };
 
-// Execute a query with automatic mapping to UserDTO
-auto result = conn.execute<UserDTO>("SELECT name FROM users");
+// Build a type-safe query using the fluent API
+auto query = relx::select(users.name)
+    .from(users)
+    .where(users.id > 5);
+
+// Execute the query with automatic mapping to UserDTO
+auto result = conn.execute<UserDTO>(query);
 if (result) {
     // Process results - automatically mapped to UserDTO objects
     for (const auto& user : *result) {
@@ -299,7 +315,25 @@ if (!init_result) {
 auto conn_result = pool->get_connection();
 if (conn_result) {
     auto& conn = *conn_result;
-    auto query_result = conn->execute_raw("SELECT COUNT(*) FROM users");
+    
+    // Define schema
+    Users users;
+    
+    // Create a type-safe query
+    auto query = relx::select_expr(relx::as(relx::count_all(), "count")).from(users);
+    
+    // Define a DTO for the count result
+    struct CountDTO {
+        int count;
+    };
+    
+    // Execute with automatic mapping to CountDTO
+    auto query_result = conn->execute<CountDTO>(query);
+    
+    if (query_result) {
+        std::println("User count: {}", (*query_result)[0].count);
+    }
+    
     // Connection automatically returned to pool when conn goes out of scope
 }
 
@@ -334,16 +368,15 @@ For non-blocking I/O, use the `PostgreSQLAsyncConnection` with Boost.Asio:
 #include <relx/postgresql.hpp>
 #include <boost/asio.hpp>
 
-boost::asio::io_context io_context;
-
-// Create async connection
-relx::PostgreSQLAsyncConnection conn(
-    io_context, 
-    "host=localhost port=5432 dbname=my_database user=postgres password=postgres"
-);
-
 // Define a coroutine to connect and run queries
-boost::asio::awaitable<void> run_async_queries() {
+boost::asio::awaitable<void> run_async_queries(auto& connection) {
+
+    // Create async connection
+    relx::PostgreSQLAsyncConnection conn(
+        io_context, 
+        "host=localhost port=5432 dbname=my_database user=postgres password=postgres"
+    );
+
     // Connect
     auto connect_result = co_await conn.connect();
     if (!connect_result) {
@@ -378,9 +411,13 @@ boost::asio::awaitable<void> run_async_queries() {
     co_await conn.disconnect();
 }
 
-// Start the asynchronous operation
-boost::asio::co_spawn(io_context, run_async_queries(), boost::asio::detached);
-io_context.run();
+int main {
+    boost::asio::io_context io_context;
+
+    // Start the asynchronous operation
+    boost::asio::co_spawn(io_context, run_async_queries(), boost::asio::detached);
+    io_context.run();
+}
 ```
 
 ## Docker Development Environment
