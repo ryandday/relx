@@ -7,6 +7,7 @@ relx provides robust error handling mechanisms using modern C++23 features like 
 - [Error Handling Pattern](#error-handling-pattern)
 - [Error Types](#error-types)
 - [Working with std::expected](#working-with-stdexpected)
+- [Exception Utilities](#exception-utilities)
 - [Working with Optional Values](#working-with-optional-values)
 - [Exception Handling](#exception-handling)
 - [Error Propagation](#error-propagation)
@@ -174,6 +175,71 @@ auto result = conn.execute(query)
     });
 ```
 
+## Exception Utilities
+
+While relx primarily uses `std::expected` for error handling, it also provides utility functions to easily convert to exception-based error handling when preferred:
+
+### value_or_throw
+
+For operations that return a value, use `value_or_throw` to extract the value or throw an exception if there's an error:
+
+```cpp
+// Connect to database
+relx::PostgreSQLConnection conn(conn_params);
+auto conn_result = conn.connect();
+
+// Will throw RelxException if connection fails
+relx::throw_if_failed(conn_result);
+
+// Execute a query
+// Can also pass a context message that it will use in the exception statement if desired
+auto users = relx::value_or_throw(
+    conn.execute<UserDTO>(query),
+    "Failed to fetch users"
+);
+
+// If successful, users now contains the query results
+// If an error occurred, an exception was thrown with the error details
+for (const auto& user : users) {
+    std::println("User: {}", user.name);
+}
+```
+
+### throw_if_failed
+
+For operations that don't return a value (void result type), use `throw_if_failed`:
+
+```cpp
+// Begin a transaction
+auto tx_result = conn.begin_transaction();
+// Will throw RelxException if starting the transaction fails
+relx::throw_if_failed(tx_result);
+
+// Execute an update query
+auto update_result = conn.execute(update_query);
+relx::throw_if_failed(update_result, "Failed to update user");
+
+// Commit the transaction
+relx::throw_if_failed(conn.commit(), "Failed to commit transaction");
+```
+
+### Benefits of Exception Utilities
+
+These utility functions provide several advantages:
+
+1. **Source location tracking**: Automatically captures file and line number where the error occurred
+2. **Descriptive error messages**: Formats error details with context
+3. **Simplified error flow**: Reduces boilerplate error handling code
+4. **Consistent handling**: Standardizes error handling across the application
+5. **Context preservation**: Allows adding custom context to error messages
+
+### When to Use
+
+- Use `value_or_throw` when you need the value from an expected and want to handle errors with exceptions
+- Use `throw_if_failed` for void operations where you're only interested in success/failure
+- Both functions are particularly useful in code paths where detailed error handling isn't needed
+- Great for applications where exceptions are the preferred error handling mechanism
+
 ## Working with Optional Values
 
 For columns that may contain NULL values, relx uses `std::optional<T>` and provides a similar error handling pattern:
@@ -217,6 +283,7 @@ While relx primarily uses `std::expected` for error handling, some operations mi
 1. Out-of-memory conditions
 2. Programming errors (invalid arguments, assertions)
 3. Calling `.value()` on an `std::expected` that contains an error
+4. Using `throw_if_failed` or `value_or_throw` on an error result
 
 Here's how to handle these cases:
 
@@ -224,22 +291,16 @@ Here's how to handle these cases:
 try {
     // Connect to the database
     relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=mydb user=postgres password=postgres");
-    auto conn_result = conn.connect();
     
-    if (!conn_result) {
-        std::print("Connection error: {}", conn_result.error().message);
-        return;
-    }
+    // This will throw if connection fails
+    relx::throw_if_failed(conn.connect(), "Failed to connect");
     
-    // Execute a query
-    auto result = conn.execute(query);
-    
-    // Force value extraction (could throw)
-    const auto& rows = result.value();
+    // Execute a query and get results directly
+    auto rows = relx::value_or_throw(conn.execute(query), "Query execution failed");
     
     // Process rows...
-} catch (const std::bad_expected_access<QueryError>& e) {
-    std::print("Error: {}", result.error().message);
+} catch (const relx::RelxException& e) {
+    std::print("relx error: {}", e.what());
 } catch (const std::bad_alloc& e) {
     std::print("Out of memory");
 } catch (const std::exception& e) {
