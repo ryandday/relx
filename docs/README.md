@@ -6,6 +6,7 @@ Welcome to the relx (Relational X) documentation. This documentation provides co
 
 - [Schema Definition](schema-definition.md): How to define tables and columns
 - [Query Building](query-building.md): Building SQL queries with the fluent API
+- [Result Parsing](result-parsing.md): Processing query results in a type-safe way
 - [Advanced Examples](advanced-examples.md): Complex query patterns and examples
 - [Error Handling](error-handling.md): Working with errors and expected results
 
