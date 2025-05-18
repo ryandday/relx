@@ -370,7 +370,7 @@ auto query = relx::query::select(
 // Execute the query
 auto result = conn.execute(query);
 if (!result) {
-    std::cerr << "Error: " << result.error().message << std::endl;
+    std::print("Error: {}", result.error().message);
     return;
 }
 
@@ -390,8 +390,7 @@ auto user_posts = result->transform<UserPost>([](const relx::result::Row& row) -
 
 // Use the transformed data
 for (const auto& user_post : user_posts) {
-    std::cout << "User: " << user_post.user_name 
-              << " - Post: " << user_post.post_title << std::endl;
+    std::println("User: {} - Post: {}", user_post.user_name, user_post.post_title);
 }
 ```
 
@@ -413,13 +412,13 @@ if (result) {
         auto bio = row.get<std::optional<std::string>>("bio");
         
         if (id && name) {
-            std::cout << "User: " << *id << " - " << *name;
+            std::print("User: {} - {}", *id, *name);
             if (bio && *bio) {
-                std::cout << " - Bio: " << **bio;
+                std::print(" - Bio: {}", **bio);
             } else {
-                std::cout << " - No bio available";
+                std::print(" - No bio available");
             }
-            std::cout << std::endl;
+            std::println("");
         }
     }
 }
@@ -452,7 +451,7 @@ auto insert_user = relx::query::insert_into(u)
 auto user_result = conn.execute(insert_user);
 if (!user_result) {
     transaction.rollback();
-    std::cerr << "Failed to insert user: " << user_result.error().message << std::endl;
+    std::print("Failed to insert user: {}", user_result.error().message);
     return;
 }
 
@@ -470,7 +469,7 @@ auto insert_post = relx::query::insert_into(p)
 auto post_result = conn.execute(insert_post);
 if (!post_result) {
     transaction.rollback();
-    std::cerr << "Failed to insert post: " << post_result.error().message << std::endl;
+    std::print("Failed to insert post: {}", post_result.error().message);
     return;
 }
 
@@ -521,7 +520,7 @@ void insert_data(relx::Connection& conn) {
         transaction.commit();
     } catch (const std::exception& e) {
         // Transaction will automatically rollback if not committed
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::print("Error: {}", e.what());
         throw; // Re-throw the exception
     }
 } 

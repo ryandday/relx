@@ -46,7 +46,7 @@
  *     int id = *(row.get<int>(0));
  *     std::string name = *(row.get<std::string>(1));
  *     std::string email = *(row.get<std::string>(2));
- *     std::cout << id << ": " << name << " <" << email << ">" << std::endl;
+ *     std::println("{}: {} <{}>", id, name, email);
  * }
  * 
  * // 2. Using column names
@@ -54,7 +54,7 @@
  *     int id = *(row.get<int>("id"));
  *     std::string name = *(row.get<std::string>("name"));
  *     std::string email = *(row.get<std::string>("email"));
- *     std::cout << id << ": " << name << " <" << email << ">" << std::endl;
+ *     std::println("{}: {} <{}>", id, name, email);
  * }
  * 
  * // 3. Using column objects
@@ -62,7 +62,7 @@
  *     int id = *(row.get<int>(u.id));
  *     std::string name = *(row.get<std::string>(u.name));
  *     std::string email = *(row.get<std::string>(u.email));
- *     std::cout << id << ": " << name << " <" << email << ">" << std::endl;
+ *     std::println("{}: {} <{}>", id, name, email);
  * }
  * 
  * // 4. Using member pointers
@@ -70,12 +70,12 @@
  *     int id = *(row.get<&Users::id>());
  *     std::string name = *(row.get<&Users::name>());
  *     std::string email = *(row.get<&Users::email>());
- *     std::cout << id << ": " << name << " <" << email << ">" << std::endl;
+ *     std::println("{}: {} <{}>", id, name, email);
  * }
  * 
  * // 5. Using structured binding (C++17)
  * for (const auto& [id, name, email] : result->as<int, std::string, std::string>()) {
- *     std::cout << id << ": " << name << " <" << email << ">" << std::endl;
+ *     std::println("{}: {} <{}>", id, name, email);
  * }
  * 
  * // 6. Transforming to custom objects

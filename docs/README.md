@@ -69,7 +69,7 @@ int main() {
             auto id = row.get<int>("id");
             auto name = row.get<std::string>("name");
             if (id && name) {
-                std::cout << "User: " << *id << " - " << *name << std::endl;
+                std::println("User: {} - {}", *id, *name);
             }
         }
     }

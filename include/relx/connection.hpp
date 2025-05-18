@@ -33,7 +33,7 @@
  * // Connect to the database
  * auto connect_result = conn.connect();
  * if (!connect_result) {
- *     std::cerr << "Connection error: " << connect_result.error().message << std::endl;
+ *     std::print("Connection error: {}", connect_result.error().message);
  *     return 1;
  * }
  * 
@@ -48,7 +48,7 @@
  * // Execute the query
  * auto result = conn.execute_raw(query);
  * if (!result) {
- *     std::cerr << "Query error: " << result.error().message << std::endl;
+ *     std::print("Query error: {}", result.error().message);
  *     return 1;
  * }
  * 
@@ -57,7 +57,7 @@
  *     int id = *(row.get<int>(0));
  *     std::string name = *(row.get<std::string>(1));
  *     std::string email = *(row.get<std::string>(2));
- *     std::cout << id << ": " << name << " <" << email << ">" << std::endl;
+ *     std::println("{}: {} <{}>", id, name, email);
  * }
  * 
  * // Disconnect

@@ -29,7 +29,7 @@ auto conn_result = conn.connect();
 
 if (!conn_result) {
     // Handle connection error
-    std::cerr << "Connection error: " << conn_result.error().message << std::endl;
+    std::print("Connection error: {}", conn_result.error().message);
     return;
 }
 
@@ -40,7 +40,7 @@ auto result = conn.execute(query);
 
 if (!result) {
     // Handle query error
-    std::cerr << "Query error: " << result.error().message << std::endl;
+    std::print("Query error: {}", result.error().message);
     return;
 }
 
@@ -106,7 +106,7 @@ if (result) {
     // Error case - result contains an error
     // Use result.error() to access the error
     auto error = result.error();
-    std::cerr << "Error: " << error.message << std::endl;
+    std::print("Error: {}", error.message);
 }
 ```
 
@@ -120,13 +120,13 @@ try {
     const auto& rows = result.value();
     // Process rows...
 } catch (const std::bad_expected_access<QueryError>& e) {
-    std::cerr << "Error: " << result.error().message << std::endl;
+    std::print("Error: {}", result.error().message);
 }
 
 // Alternative: Using .error() (only valid if there's an error)
 if (!result) {
     auto error = result.error();
-    std::cerr << "Error: " << error.message << std::endl;
+    std::print("Error: {}", error.message);
 }
 ```
 
@@ -201,7 +201,7 @@ for (const auto& row : *result) {
     
     if (!id || !name) {
         // Handle missing required fields
-        std::cerr << "Missing required field" << std::endl;
+        std::print("Missing required field");
         continue;
     }
     
@@ -227,7 +227,7 @@ try {
     auto conn_result = conn.connect();
     
     if (!conn_result) {
-        std::cerr << "Connection error: " << conn_result.error().message << std::endl;
+        std::print("Connection error: {}", conn_result.error().message);
         return;
     }
     
@@ -239,11 +239,11 @@ try {
     
     // Process rows...
 } catch (const std::bad_expected_access<QueryError>& e) {
-    std::cerr << "Tried to access result value when there was an error" << std::endl;
+    std::print("Error: {}", result.error().message);
 } catch (const std::bad_alloc& e) {
-    std::cerr << "Out of memory" << std::endl;
+    std::print("Out of memory");
 } catch (const std::exception& e) {
-    std::cerr << "Unexpected error: " << e.what() << std::endl;
+    std::print("Unexpected error: {}", e.what());
 }
 ```
 
@@ -287,12 +287,12 @@ std::expected<std::vector<User>, QueryError> get_active_users(relx::Connection& 
 // Usage
 auto users_result = get_active_users(conn);
 if (!users_result) {
-    std::cerr << "Error: " << users_result.error().message << std::endl;
+    std::print("Error: {}", users_result.error().message);
     return;
 }
 
 for (const auto& user : *users_result) {
-    std::cout << "User: " << user.name << std::endl;
+    std::print("User: {}", user.name);
 }
 ```
 
@@ -312,15 +312,11 @@ auto query = relx::query::select(u.id, u.name)
 
 // Get the SQL string
 std::string sql = query.to_sql();
-std::cout << "SQL: " << sql << std::endl;
+std::print("SQL: {}", sql);
 
 // Get the parameters
 auto params = query.bind_params();
-std::cout << "Parameters: ";
-for (const auto& param : params) {
-    std::cout << param << ", ";
-}
-std::cout << std::endl;
+std::print("Parameters: {}", fmt::join(params, ", "));
 ```
 
 ### Error Inspection
@@ -331,9 +327,9 @@ Detailed error information is available:
 auto result = conn.execute(query);
 if (!result) {
     auto error = result.error();
-    std::cerr << "Error message: " << error.message << std::endl;
-    std::cerr << "Error code: " << error.error_code << std::endl;
-    std::cerr << "Query: " << error.query_string << std::endl;
+    std::print("Error message: {}", error.message);
+    std::print("Error code: {}", error.error_code);
+    std::print("Query: {}", error.query_string);
 }
 ```
 
@@ -347,15 +343,11 @@ class ErrorLogger {
 public:
     void log_connection_error(const ConnectionError& error) {
         // Log to file, send to monitoring system, etc.
-        std::cerr << "[CONNECTION ERROR] " << error.message 
-                  << " (Code: " << error.error_code << ")"
-                  << " Source: " << error.source << std::endl;
+        std::print("[CONNECTION ERROR] {} (Code: {} Source: {})", error.message, error.error_code, error.source);
     }
     
     void log_query_error(const QueryError& error) {
-        std::cerr << "[QUERY ERROR] " << error.message 
-                  << " (Code: " << error.error_code << ")"
-                  << " Query: " << error.query_string << std::endl;
+        std::print("[QUERY ERROR] {} (Code: {} Query: {})", error.message, error.error_code, error.query_string);
     }
 };
 

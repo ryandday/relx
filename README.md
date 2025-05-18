@@ -108,7 +108,7 @@ int main() {
             auto id = row.get<int>("id");
             auto username = row.get<std::string>("username");
             if (id && username) {
-                std::cout << "User: " << *id << " - " << *username << std::endl;
+                std::println("User: {} - {}", *id, *username);
             }
         }
     }
@@ -251,7 +251,7 @@ if (result) {
     for (const auto& row : *result) {
         auto name = row.get<std::string>("name");
         if (name) {
-            std::cout << "Name: " << *name << std::endl;
+            std::println("Name: {}", *name);
         }
     }
 }
@@ -280,7 +280,7 @@ if (result) {
     for (const auto& row : *result) {
         auto name = row.get<std::string>("name");
         if (name) {
-            std::cout << "Name: " << *name << std::endl;
+            std::println("Name: {}", *name);
         }
     }
 }

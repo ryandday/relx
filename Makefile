@@ -32,7 +32,7 @@ build-tests:
 
 .PHONY: test
 test: build-tests postgres-up
-	cd $(BUILD_DIR) && ./relx_tests --gtest_color=yes
+	cd $(BUILD_DIR) && ./relx_tests
 
 # Development helpers
 .PHONY: format
