@@ -6,11 +6,11 @@
 #include <format>
 #include <source_location>
 
-#include "connection/connection.hpp"
-#include "connection/postgresql_connection_pool.hpp"
-#include "query/core.hpp"
-#include "results/result.hpp"
-#include "connection/pgsql_async_wrapper.hpp"
+#include "../connection/connection.hpp"
+#include "../connection/postgresql_connection_pool.hpp"
+#include "../query/core.hpp"
+#include "../results/result.hpp"
+#include "../connection/pgsql_async_wrapper.hpp"
 
 namespace relx {
 
@@ -109,24 +109,7 @@ T value_or_throw(std::expected<T, E>&& result,
  * @brief Function to check a void expected and throw on error
  */
 template <typename E>
-void throw_if_failed(std::expected<void, E>& result,
-                     const std::string& context = "",
-                     const std::source_location& location = std::source_location::current()) {
-    if (!result) {
-        std::string message;
-        if (!context.empty()) {
-            message = std::format("{}: ", context);
-        }
-        message += format_error(result.error());
-        throw RelxException(message, location);
-    }
-}
-
-/**
- * @brief Throw on error for a void expected (rvalue version)
- */
-template <typename E>
-void throw_if_failed(std::expected<void, E>&& result,
+void throw_if_failed(const std::expected<void, E>& result,
                      const std::string& context = "",
                      const std::source_location& location = std::source_location::current()) {
     if (!result) {
