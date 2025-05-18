@@ -24,13 +24,6 @@ struct PostgreSQLConnectionPoolConfig {
     /// @brief Initial number of connections to create
     size_t initial_size = 5;
 
-
-
-
-
-
-
-
     /// @brief Maximum number of connections allowed
     size_t max_size = 10;
 
@@ -69,16 +62,6 @@ private:
     /// @brief Constructor with pool configuration
     /// @param config Configuration for the connection pool
     explicit PostgreSQLConnectionPool(PostgreSQLConnectionPoolConfig config);
-
-
-
-
-
-
-
-
-
-
 
 public:
     // Forward declaration of the connection wrapper class
