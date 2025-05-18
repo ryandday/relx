@@ -113,6 +113,8 @@ add_executable(relx_tests
   # Additional comprehensive tests
   test/query/edge_case_test.cpp
   test/query/data_type_test.cpp
+  # Utility tests
+  test/utility/throw_if_failed_test.cpp
 )
 
 # Link against both gtest and gtest_main libraries

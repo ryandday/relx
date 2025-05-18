@@ -2,8 +2,10 @@
 
 #include "connection/connection.hpp"
 #include "connection/postgresql_connection.hpp"
+#include "connection/postgresql_async_connection.hpp"
 #include "connection/transaction_guard.hpp"
 #include "connection/postgresql_connection_pool.hpp"
+#include "utility.hpp"
 /**
  * @brief relx database connection
  * 
@@ -65,17 +67,24 @@
  * ```
  */
 
+// Re-export connection components to the top-level namespace
 namespace relx {
-
-// Convenient imports from the connection namespace 
-using connection::Connection;
-using connection::ConnectionError;
-using connection::ConnectionResult;
-using connection::PostgreSQLConnection;
-using connection::PostgreSQLConnectionPool;
-using connection::PostgreSQLConnectionPoolConfig;
-using connection::ConnectionPoolResult;
-using connection::ConnectionPoolError;
-
-
-} // namespace relx 
+    // Re-export connection types
+    using connection::Connection;
+    using connection::PostgreSQLConnection;
+    using connection::PostgreSQLConnectionParams;
+    using connection::PostgreSQLConnectionPool;
+    using connection::PostgreSQLConnectionPoolConfig;
+    using connection::TransactionGuard;
+    
+    // Re-export error types
+    using connection::ConnectionError;
+    using connection::ConnectionPoolError;
+    
+    // Re-export result alias templates
+    using connection::ConnectionResult;
+    using connection::ConnectionPoolResult;
+    using query::QueryResult;
+    using result::ResultProcessingResult;
+    using pgsql_async_wrapper::PgResult;
+} 

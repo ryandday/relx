@@ -91,18 +91,21 @@ int main() {
         .application_name = "myapp"
     });
     
-    conn.connect();
+    auto connect_result = conn.connect();
+    relx::throw_if_failed(connect_result);
 
     const Users users;
 
-    conn.execute(relx::create_table(users).if_not_exists());
+    auto create_table_result = conn.execute(relx::create_table(users).if_not_exists());
+    relx::throw_if_failed(create_table_result);
 
     auto insert_statement = relx::insert_into(users)
         .columns(users.name, users.email)
         .values("Jane Smith", "jane@example.com")
         .values("Bob Johnson", "bob@example.com");
     
-    conn.execute(insert_statement);
+    auto insert_result = conn.execute(insert_statement);
+    relx::throw_if_failed(insert_result);
 
     // Building a simple SELECT query
     auto query = relx::select(users.id, users.username)
@@ -124,15 +127,16 @@ int main() {
     };
     
     // Execute the query
-    auto result = conn.execute<UserDTO>(query);
-    if (result) {
-        // Process results - automatically mapped to UserDTO objects
-        for (const auto& user : *result) {
-            std::println("User: {} - {}", user.id, user.username);
-        }
+    auto query_result = conn.execute<UserDTO>(query);
+    const auto& rows = relx::value_or_throw(query_result);
+
+    // Process results - automatically mapped to UserDTO objects
+    for (const auto& user : *result) {
+        std::println("User: {} - {}", user.id, user.username);
     }
     
-    conn.execute(relx::drop_table(users));
+    auto drop_result = conn.execute(relx::drop_table(users));
+    relx::throw_if_failed(drop_result);
     return 0;
 }
 ```

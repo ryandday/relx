@@ -2,6 +2,7 @@
 
 #include "connection/postgresql_connection.hpp"
 #include "connection/postgresql_async_connection.hpp"
+#include "utility.hpp"
 
 namespace relx {
 // Convenient import from the connection namespace
