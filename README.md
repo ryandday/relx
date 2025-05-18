@@ -1,6 +1,8 @@
 # relx - Modern C++ SQL Query Building Library
 
-relx is a modern C++23 library for constructing and executing SQL queries with compile-time type safety. It provides a fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors.
+Working with SQL often means writing error-prone raw strings. Refactoring is a pain, and in more complex applications you have to write extensive tests to make sure your stringly typed queries work in every situation.
+
+relx is a modern C++23 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
 
 ## Key Features
 
@@ -8,37 +10,35 @@ relx is a modern C++23 library for constructing and executing SQL queries with c
 - **Fluent Interface**: Build SQL using intuitive, chainable method calls
 - **Schema Definition**: Strongly typed table and column definitions
 - **Query Building**: Type-safe SELECT, INSERT, UPDATE, and DELETE operations
-- **Compile-time Validation**: Catch SQL syntax errors during compilation when possible
+- **Macro Free**: Leverages Boost::pfr for boilerplate free schema definitions and automatic result parsing.
 
 ## Requirements
 
 - C++23 compiler support
-  - GCC 11+
-  - Clang 14+
-  - MSVC 19.29+ (Visual Studio 2022+)
-- CMake 3.15+
-- Conan 2.0+ (for dependencies)
 
 ## Dependencies
-
 - Boost (header-only)
 - Google Test (for testing)
+
+### Can use two options for dependencies
+
+- Conan 2.0+ 
+- System installed 
 
 ## Getting Started
 
 ### Building the Project
-
-#### Install conan
 
 ```bash
 # Clone the repository
 git clone https://github.com/ryandday/relx.git
 cd relx
 
-# Build using make
+# A makefile is provided with all the common commands needed to build and test
+# This one will run conan, cmake, and make to build the project.
 make build
 
-# Run tests
+# Run tests - will start a docker postgres container before tests run.
 make test
 ```
 
@@ -99,16 +99,18 @@ int main() {
     relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=mydb user=postgres password=postgres");
     conn.connect();
     
+    // Define a DTO to receive the results
+    struct UserDTO {
+        int id;
+        std::string username;
+    };
+    
     // Execute the query
-    auto result = conn.execute(query);
+    auto result = conn.execute<UserDTO>(query);
     if (result) {
-        // Process results
-        for (const auto& row : *result) {
-            auto id = row.get<int>("id");
-            auto username = row.get<std::string>("username");
-            if (id && username) {
-                std::println("User: {} - {}", *id, *username);
-            }
+        // Process results - automatically mapped to UserDTO objects
+        for (const auto& user : *result) {
+            std::println("User: {} - {}", user.id, user.username);
         }
     }
     
@@ -250,20 +252,21 @@ if (!conn_result) {
     return 1;
 }
 
-// Execute a query
-auto result = conn.execute_raw("SELECT * FROM users");
+// Define a DTO for user data
+struct UserDTO {
+    std::string name;
+};
+
+// Execute a query with automatic mapping to UserDTO
+auto result = conn.execute<UserDTO>("SELECT name FROM users");
 if (result) {
-    // Process results
-    for (const auto& row : *result) {
-        auto name = row.get<std::string>("name");
-        if (name) {
-            std::println("Name: {}", *name);
-        }
+    // Process results - automatically mapped to UserDTO objects
+    for (const auto& user : *result) {
+        std::println("Name: {}", user.name);
     }
 }
 
-// Disconnect when done
-conn.disconnect();
+// Automatic disconnect of connection when it goes out of scope
 ```
 
 #### Connection Pool
@@ -302,15 +305,20 @@ if (conn_result) {
 
 // Method 2: Use the with_connection pattern
 auto user_count = pool->with_connection([](auto& conn) -> relx::ConnectionResult<int> {
+    // Define a simple DTO for the count result
+    struct CountDTO {
+        int count;
+    };
+    
     Users users;
-    auto query = relx::select_expr(relx::count_all()).from(users);
-    auto result = conn->execute(query);
+    auto query = relx::select_expr(relx::as(relx::count_all(), "count")).from(users);
+    auto result = conn->execute<CountDTO>(query);
     
     if (!result) {
         return std::unexpected(result.error());
     }
     
-    return (*result)[0].get<int>(0).value_or(0);
+    return (*result)[0].count;
 });
 
 if (user_count) {
@@ -351,13 +359,18 @@ boost::asio::awaitable<void> run_async_queries() {
         .from(users)
         .where(users.id > 10);
     
-    // Execute asynchronously
-    auto result = co_await conn.execute(query);
+    // Define a DTO for the query results
+    struct UserDTO {
+        int id;
+        std::string username;
+    };
+    
+    // Execute asynchronously with automatic mapping to UserDTO
+    auto result = co_await conn.execute<UserDTO>(query);
     if (result) {
-        for (const auto& row : *result) {
-            auto id = row.get<int>("id");
-            auto username = row.get<std::string>("username");
-            std::println("User: {} - {}", *id, *username);
+        // Process results - automatically mapped to UserDTO objects
+        for (const auto& user : *result) {
+            std::println("User: {} - {}", user.id, user.username);
         }
     }
     
