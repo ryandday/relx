@@ -96,7 +96,14 @@ int main() {
     // params[0] = "10"
     
     // Connect to a database
-    relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=mydb user=postgres password=postgres");
+    relx::PostgreSQLConnection conn({
+        .host = "localhost",
+        .port = 5432,
+        .dbname = "mydb",
+        .user = "postgres",
+        .password = "postgres",
+        .application_name = "myapp"
+    });
     conn.connect();
     
     // Define a DTO to receive the results
@@ -119,6 +126,20 @@ int main() {
 ```
 
 ### Creating and Dropping Table Examples
+
+```cpp
+// Define schemas (as shown in previous examples)
+Users users;
+Posts posts;
+
+// Create tables
+auto create_users = relx::schema::create_table(users);
+auto create_posts = relx::schema::create_table(posts).if_not_exists();
+
+// Drop tables
+auto drop_users = relx::drop_table(users).if_exists().cascade();
+auto drop_posts = relx::drop_table(posts).if_exists();
+```
 
 ### Query Building Examples
 
@@ -246,7 +267,15 @@ The `PostgreSQLConnection` class provides a synchronous interface for PostgreSQL
 #include <relx/postgresql.hpp>
 
 // Create a connection to a PostgreSQL database
-relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=my_database user=postgres password=postgres");
+relx::PostgreSQLConnectionParams conn_params;
+conn_params.host = "localhost";
+conn_params.port = 5432;
+conn_params.dbname = "my_database";
+conn_params.user = "postgres";
+conn_params.password = "postgres";
+conn_params.application_name = "relx_example";
+
+relx::PostgreSQLConnection conn(conn_params);
 auto conn_result = conn.connect();
 
 if (!conn_result) {
@@ -296,7 +325,14 @@ For applications requiring higher concurrency and performance, use the `PostgreS
 
 // Configure the connection pool
 relx::PostgreSQLConnectionPoolConfig config{
-    .connection_string = "host=localhost port=5432 dbname=my_database user=postgres password=postgres",
+    .connection_params = {
+        .host = "localhost",
+        .port = 5432,
+        .dbname = "my_database",
+        .user = "postgres",
+        .password = "postgres",
+        .application_name = "relx_pool_example"
+    },
     .initial_size = 5,      // Start with 5 connections
     .max_size = 20,         // Allow up to 20 connections
     .connection_timeout = std::chrono::milliseconds(3000),
@@ -374,9 +410,17 @@ For non-blocking I/O, use the `PostgreSQLAsyncConnection` with Boost.Asio:
 boost::asio::awaitable<void> run_async_queries(auto& connection) {
 
     // Create async connection
+    relx::PostgreSQLConnectionParams conn_params;
+    conn_params.host = "localhost";
+    conn_params.port = 5432;
+    conn_params.dbname = "my_database";
+    conn_params.user = "postgres";
+    conn_params.password = "postgres";
+    conn_params.application_name = "relx_async_example";
+    
     relx::PostgreSQLAsyncConnection conn(
         io_context, 
-        "host=localhost port=5432 dbname=my_database user=postgres password=postgres"
+        conn_params
     );
 
     // Connect
