@@ -4,13 +4,15 @@ Working with SQL often means writing error-prone raw strings. Refactoring is a p
 
 relx is a modern C++23 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
 
+Currently features two postgresql clients so that this library is usable out of the box, an async client (with boost::asio) and a synchronous client.
+
 ## Key Features
 
 - **Type Safety**: SQL queries are validated at compile time
 - **Fluent Interface**: Build SQL using intuitive, chainable method calls
 - **Schema Definition**: Strongly typed table and column definitions
 - **Query Building**: Type-safe SELECT, INSERT, UPDATE, and DELETE operations
-- **Boilerplate/Macro Free**: Leverages Boost::pfr for simple schema definitions and automatic result parsing.
+- **Boilerplate/Macro Free**: Leverages Boost::pfr for simple schema definitions and automatic result parsing. With C++26 I will be transitioning this to using reflection, to get more compile time safety and remove the boost dependency.
 
 ## Requirements
 
@@ -78,10 +80,26 @@ struct Posts {
     relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
 };
 
+
 int main() {
-    Users users;
-    Posts posts;
     
+    // Connect to a database
+    relx::PostgreSQLConnection conn({
+        .host = "localhost",
+        .port = 5432,
+        .dbname = "mydb",
+        .user = "postgres",
+        .password = "postgres",
+        .application_name = "myapp"
+    });
+    conn.connect();
+
+    const Users users;
+    const Posts posts;
+
+    conn.execute(relx::create_table(users));
+    conn.execute(relx::create_table(posts));
+
     // Building a simple SELECT query
     auto query = relx::select(users.id, users.username)
         .from(users)
@@ -94,17 +112,6 @@ int main() {
     // Get the bind parameters
     auto params = query.bind_params();
     // params[0] = "10"
-    
-    // Connect to a database
-    relx::PostgreSQLConnection conn({
-        .host = "localhost",
-        .port = 5432,
-        .dbname = "mydb",
-        .user = "postgres",
-        .password = "postgres",
-        .application_name = "myapp"
-    });
-    conn.connect();
     
     // Define a DTO to receive the results
     struct UserDTO {
