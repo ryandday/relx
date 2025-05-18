@@ -35,7 +35,7 @@ if (!conn_result) {
 
 // Execute a query
 Users users;
-auto query = relx::query::select(users.id, users.name).from(users);
+auto query = relx::select(users.id, users.name).from(users);
 auto result = conn.execute(query);
 
 if (!result) {
@@ -255,7 +255,7 @@ When building larger applications, you'll often want to propagate errors up the 
 std::expected<std::vector<User>, QueryError> get_active_users(relx::Connection& conn) {
     Users u;
     
-    auto query = relx::query::select(u.id, u.name, u.email)
+    auto query = relx::select(u.id, u.name, u.email)
         .from(u)
         .where(u.is_active == true);
     
@@ -306,7 +306,7 @@ You can inspect the generated SQL and parameters:
 
 ```cpp
 Users u;
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
     .where(u.age > 18);
 

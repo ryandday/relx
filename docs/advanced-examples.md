@@ -23,54 +23,54 @@ We'll use the following schema for our examples:
 // Users table
 struct Users {
     static constexpr auto table_name = "users";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"email", std::string> email;
-    relx::schema::column<"age", int> age;
-    relx::schema::column<"is_active", bool> is_active;
-    relx::schema::column<"department_id", int> department_id;
-    relx::schema::column<"bio", std::optional<std::string>> bio;
+    relx::column<"id", int> id;
+    relx::column<"name", std::string> name;
+    relx::column<"email", std::string> email;
+    relx::column<"age", int> age;
+    relx::column<"is_active", bool> is_active;
+    relx::column<"department_id", int> department_id;
+    relx::column<"bio", std::optional<std::string>> bio;
     
-    relx::schema::primary_key<&Users::id> pk;
-    relx::schema::unique_constraint<&Users::email> unique_email;
+    relx::primary_key<&Users::id> pk;
+    relx::unique_constraint<&Users::email> unique_email;
 };
 
 // Posts table
 struct Posts {
     static constexpr auto table_name = "posts";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"user_id", int> user_id;
-    relx::schema::column<"title", std::string> title;
-    relx::schema::column<"content", std::string> content;
-    relx::schema::column<"views", int> views;
-    relx::schema::column<"created_at", std::string> created_at;
+    relx::column<"id", int> id;
+    relx::column<"user_id", int> user_id;
+    relx::column<"title", std::string> title;
+    relx::column<"content", std::string> content;
+    relx::column<"views", int> views;
+    relx::column<"created_at", std::string> created_at;
     
-    relx::schema::primary_key<&Posts::id> pk;
-    relx::schema::foreign_key<&Posts::user_id, &Users::id> user_fk;
+    relx::primary_key<&Posts::id> pk;
+    relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
 };
 
 // Comments table
 struct Comments {
     static constexpr auto table_name = "comments";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"post_id", int> post_id;
-    relx::schema::column<"user_id", int> user_id; 
-    relx::schema::column<"content", std::string> content;
-    relx::schema::column<"created_at", std::string> created_at;
+    relx::column<"id", int> id;
+    relx::column<"post_id", int> post_id;
+    relx::column<"user_id", int> user_id; 
+    relx::column<"content", std::string> content;
+    relx::column<"created_at", std::string> created_at;
     
-    relx::schema::primary_key<&Comments::id> pk;
-    relx::schema::foreign_key<&Comments::post_id, &Posts::id> post_fk;
-    relx::schema::foreign_key<&Comments::user_id, &Users::id> user_fk;
+    relx::primary_key<&Comments::id> pk;
+    relx::foreign_key<&Comments::post_id, &Posts::id> post_fk;
+    relx::foreign_key<&Comments::user_id, &Users::id> user_fk;
 };
 
 // Departments table
 struct Departments {
     static constexpr auto table_name = "departments";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"budget", double> budget;
+    relx::column<"id", int> id;
+    relx::column<"name", std::string> name;
+    relx::column<"budget", double> budget;
     
-    relx::schema::primary_key<&Departments::id> pk;
+    relx::primary_key<&Departments::id> pk;
 };
 ```
 
@@ -85,11 +85,11 @@ Users u;
 Posts p;
 Comments c;
 
-auto query = relx::query::select(
+auto query = relx::select(
     u.name, p.title, c.content
 ).from(u)
- .join(p, relx::query::on(u.id == p.user_id))
- .join(c, relx::query::on(p.id == c.post_id));
+ .join(p, relx::on(u.id == p.user_id))
+ .join(c, relx::on(p.id == c.post_id));
 
 // Generated SQL:
 // SELECT name, title, content 
@@ -106,18 +106,18 @@ Finding all users and their posts, including users without posts:
 Users u;
 Posts p;
 
-auto query = relx::query::select(
+auto query = relx::select(
     u.name,
     p.title,
-    relx::query::as(
-        relx::query::case_()
+    relx::as(
+        relx::case_()
             .when(p.id.is_null(), "No posts")
             .else_("Has posts")
             .build(),
         "post_status"
     )
 ).from(u)
- .left_join(p, relx::query::on(u.id == p.user_id));
+ .left_join(p, relx::on(u.id == p.user_id));
 
 // Generated SQL:
 // SELECT name, title, 
@@ -136,12 +136,12 @@ Count posts per user:
 Users u;
 Posts p;
 
-auto query = relx::query::select_expr(
+auto query = relx::select_expr(
     u.id,
     u.name,
-    relx::query::as(relx::query::count(p.id), "post_count")
+    relx::as(relx::count(p.id), "post_count")
 ).from(u)
- .join(p, relx::query::on(u.id == p.user_id))
+ .join(p, relx::on(u.id == p.user_id))
  .group_by(u.id, u.name);
 
 // Generated SQL:
@@ -159,14 +159,14 @@ Find users with more than 5 posts:
 Users u;
 Posts p;
 
-auto query = relx::query::select_expr(
+auto query = relx::select_expr(
     u.id,
     u.name,
-    relx::query::as(relx::query::count(p.id), "post_count")
+    relx::as(relx::count(p.id), "post_count")
 ).from(u)
- .join(p, relx::query::on(u.id == p.user_id))
+ .join(p, relx::on(u.id == p.user_id))
  .group_by(u.id, u.name)
- .having(relx::query::count(p.id) > 5);
+ .having(relx::count(p.id) > 5);
 
 // Generated SQL:
 // SELECT id, name, COUNT(id) AS post_count 
@@ -185,14 +185,14 @@ Users u;
 Posts p;
 Departments d;
 
-auto query = relx::query::select_expr(
+auto query = relx::select_expr(
     d.name,
-    relx::query::as(relx::query::count(u.id), "user_count"),
-    relx::query::as(relx::query::count(p.id), "post_count"),
-    relx::query::as(relx::query::sum(p.views), "total_views")
+    relx::as(relx::count(u.id), "user_count"),
+    relx::as(relx::count(p.id), "post_count"),
+    relx::as(relx::sum(p.views), "total_views")
 ).from(d)
- .join(u, relx::query::on(d.id == u.department_id))
- .join(p, relx::query::on(u.id == p.user_id))
+ .join(u, relx::on(d.id == u.department_id))
+ .join(p, relx::on(u.id == p.user_id))
  .group_by(d.name);
 
 // Generated SQL:
@@ -216,13 +216,13 @@ Find users who have written posts with more than 100 views:
 Users u;
 Posts p;
 
-auto subquery = relx::query::select(p.user_id)
+auto subquery = relx::select(p.user_id)
     .from(p)
     .where(p.views > 100);
 
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
-    .where(relx::query::in(u.id, subquery));
+    .where(relx::in(u.id, subquery));
 
 // Generated SQL:
 // SELECT id, name 
@@ -242,16 +242,16 @@ Find users whose average post views exceed the overall average:
 Users u;
 Posts p;
 
-auto avg_views_subquery = relx::query::select_expr(
-    relx::query::avg(p.views)
+auto avg_views_subquery = relx::select_expr(
+    relx::avg(p.views)
 ).from(p);
 
-auto user_avg_views_subquery = relx::query::select_expr(
-    relx::query::avg(p.views)
+auto user_avg_views_subquery = relx::select_expr(
+    relx::avg(p.views)
 ).from(p)
  .where(p.user_id == u.id);
 
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
     .where(user_avg_views_subquery > avg_views_subquery);
 
@@ -277,11 +277,11 @@ Categorize users by age:
 ```cpp
 Users u;
 
-auto query = relx::query::select_expr(
+auto query = relx::select_expr(
     u.id,
     u.name,
-    relx::query::as(
-        relx::query::case_()
+    relx::as(
+        relx::case_()
             .when(u.age < 18, "Minor")
             .when(u.age < 65, "Adult")
             .else_("Senior")
@@ -307,19 +307,19 @@ Count users in each age group:
 ```cpp
 Users u;
 
-auto query = relx::query::select_expr(
-    relx::query::as(
-        relx::query::case_()
+auto query = relx::select_expr(
+    relx::as(
+        relx::case_()
             .when(u.age < 18, "Minor")
             .when(u.age < 65, "Adult")
             .else_("Senior")
             .build(),
         "age_group"
     ),
-    relx::query::as(relx::query::count_all(), "count")
+    relx::as(relx::count_all(), "count")
 ).from(u)
  .group_by(
-    relx::query::case_()
+    relx::case_()
         .when(u.age < 18, "Minor")
         .when(u.age < 65, "Adult")
         .else_("Senior")
@@ -362,10 +362,10 @@ struct UserPost {
 };
 
 // Create a query
-auto query = relx::query::select(
+auto query = relx::select(
     u.id, u.name, p.id, p.title
 ).from(u)
- .join(p, relx::query::on(u.id == p.user_id));
+ .join(p, relx::on(u.id == p.user_id));
 
 // Execute the query
 auto result = conn.execute(query);
@@ -401,7 +401,7 @@ Working with optional columns:
 ```cpp
 Users u;
 
-auto query = relx::query::select(u.id, u.name, u.bio)
+auto query = relx::select(u.id, u.name, u.bio)
     .from(u);
 
 auto result = conn.execute(query);
@@ -438,14 +438,14 @@ Posts p;
 auto transaction = conn.begin_transaction();
 
 // Insert a user
-auto insert_user = relx::query::insert_into(u)
+auto insert_user = relx::insert_into(u)
     .values(
-        relx::query::set(u.id, 1),
-        relx::query::set(u.name, "John Doe"),
-        relx::query::set(u.email, "john@example.com"),
-        relx::query::set(u.age, 30),
-        relx::query::set(u.is_active, true),
-        relx::query::set(u.department_id, 1)
+        relx::set(u.id, 1),
+        relx::set(u.name, "John Doe"),
+        relx::set(u.email, "john@example.com"),
+        relx::set(u.age, 30),
+        relx::set(u.is_active, true),
+        relx::set(u.department_id, 1)
     );
 
 auto user_result = conn.execute(insert_user);
@@ -456,14 +456,14 @@ if (!user_result) {
 }
 
 // Insert a post for the user
-auto insert_post = relx::query::insert_into(p)
+auto insert_post = relx::insert_into(p)
     .values(
-        relx::query::set(p.id, 1),
-        relx::query::set(p.user_id, 1),
-        relx::query::set(p.title, "My First Post"),
-        relx::query::set(p.content, "This is my first post."),
-        relx::query::set(p.views, 0),
-        relx::query::set(p.created_at, "2023-01-01")
+        relx::set(p.id, 1),
+        relx::set(p.user_id, 1),
+        relx::set(p.title, "My First Post"),
+        relx::set(p.content, "This is my first post."),
+        relx::set(p.views, 0),
+        relx::set(p.created_at, "2023-01-01")
     );
 
 auto post_result = conn.execute(insert_post);
@@ -491,27 +491,27 @@ void insert_data(relx::Connection& conn) {
     
     try {
         // Insert a user
-        auto insert_user = relx::query::insert_into(u)
+        auto insert_user = relx::insert_into(u)
             .values(
-                relx::query::set(u.id, 1),
-                relx::query::set(u.name, "John Doe"),
-                relx::query::set(u.email, "john@example.com"),
-                relx::query::set(u.age, 30),
-                relx::query::set(u.is_active, true),
-                relx::query::set(u.department_id, 1)
+                relx::set(u.id, 1),
+                relx::set(u.name, "John Doe"),
+                relx::set(u.email, "john@example.com"),
+                relx::set(u.age, 30),
+                relx::set(u.is_active, true),
+                relx::set(u.department_id, 1)
             );
         
         conn.execute(insert_user);
         
         // Insert a post
-        auto insert_post = relx::query::insert_into(p)
+        auto insert_post = relx::insert_into(p)
             .values(
-                relx::query::set(p.id, 1),
-                relx::query::set(p.user_id, 1),
-                relx::query::set(p.title, "My First Post"),
-                relx::query::set(p.content, "This is my first post."),
-                relx::query::set(p.views, 0),
-                relx::query::set(p.created_at, "2023-01-01")
+                relx::set(p.id, 1),
+                relx::set(p.user_id, 1),
+                relx::set(p.title, "My First Post"),
+                relx::set(p.content, "This is my first post."),
+                relx::set(p.views, 0),
+                relx::set(p.created_at, "2023-01-01")
             );
         
         conn.execute(insert_post);

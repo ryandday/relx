@@ -53,30 +53,30 @@ make test
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"username", std::string> username;
-    relx::schema::column<"email", std::string> email;
+    relx::column<"id", int> id;
+    relx::column<"username", std::string> username;
+    relx::column<"email", std::string> email;
     
     // Primary key
-    relx::schema::primary_key<&Users::id> pk;
+    relx::primary_key<&Users::id> pk;
     
     // Unique constraints
-    relx::schema::unique_constraint<&Users::email> unique_email;
+    relx::unique_constraint<&Users::email> unique_email;
 };
 
 struct Posts {
     static constexpr auto table_name = "posts";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"user_id", int> user_id;
-    relx::schema::column<"title", std::string> title;
-    relx::schema::column<"content", std::string> content;
+    relx::column<"id", int> id;
+    relx::column<"user_id", int> user_id;
+    relx::column<"title", std::string> title;
+    relx::column<"content", std::string> content;
     
     // Primary key
-    relx::schema::primary_key<&Posts::id> pk;
+    relx::primary_key<&Posts::id> pk;
     
     // Foreign key
-    relx::schema::foreign_key<&Posts::user_id, &Users::id> user_fk;
+    relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
 };
 
 int main() {
@@ -84,7 +84,7 @@ int main() {
     Posts posts;
     
     // Building a simple SELECT query
-    auto query = relx::query::select(users.id, users.username)
+    auto query = relx::select(users.id, users.username)
         .from(users)
         .where(users.id > 10);
     
@@ -126,39 +126,39 @@ Users users;
 Posts posts;
 
 // Basic SELECT
-auto query1 = relx::query::select(users.id, users.username, users.email)
+auto query1 = relx::select(users.id, users.username, users.email)
     .from(users);
 
 // SELECT with WHERE condition
-auto query2 = relx::query::select(users.id, users.username)
+auto query2 = relx::select(users.id, users.username)
     .from(users)
     .where(users.id > 10);
 
 // SELECT with multiple conditions
-auto query3 = relx::query::select(users.id, users.username)
+auto query3 = relx::select(users.id, users.username)
     .from(users)
     .where(users.id > 10 && users.username.like("%john%"));
 
 // SELECT with ORDER BY and LIMIT
-auto query4 = relx::query::select(users.id, users.username)
+auto query4 = relx::select(users.id, users.username)
     .from(users)
-    .order_by(relx::query::desc(users.id))
+    .order_by(relx::desc(users.id))
     .limit(10);
 
 // SELECT with JOIN
-auto query5 = relx::query::select(users.username, posts.title)
+auto query5 = relx::select(users.username, posts.title)
     .from(users)
-    .join(posts, relx::query::on(users.id == posts.user_id));
+    .join(posts, relx::on(users.id == posts.user_id));
 
 // SELECT with GROUP BY and aggregates
-auto query6 = relx::query::select_expr(
+auto query6 = relx::select_expr(
     users.id,
     users.username,
-    relx::query::as(relx::query::count(posts.id), "post_count")
+    relx::as(relx::count(posts.id), "post_count")
 ).from(users)
- .join(posts, relx::query::on(users.id == posts.user_id))
+ .join(posts, relx::on(users.id == posts.user_id))
  .group_by(users.id, users.username)
- .having(relx::query::count(posts.id) > 5);
+ .having(relx::count(posts.id) > 5);
 ```
 
 #### INSERT Queries
@@ -167,14 +167,14 @@ auto query6 = relx::query::select_expr(
 Users users;
 
 // Simple INSERT
-auto insert1 = relx::query::insert_into(users)
+auto insert1 = relx::insert_into(users)
     .values(
-        relx::query::set(users.username, "john_doe"),
-        relx::query::set(users.email, "john@example.com")
+        relx::set(users.username, "john_doe"),
+        relx::set(users.email, "john@example.com")
     );
 
 // Multi-row INSERT
-auto insert2 = relx::query::insert_into(users)
+auto insert2 = relx::insert_into(users)
     .columns(users.username, users.email)
     .values("john_doe", "john@example.com")
     .values("jane_smith", "jane@example.com");
@@ -186,10 +186,10 @@ auto insert2 = relx::query::insert_into(users)
 Users users;
 
 // Basic UPDATE
-auto update1 = relx::query::update(users)
+auto update1 = relx::update(users)
     .set(
-        relx::query::set(users.username, "new_username"),
-        relx::query::set(users.email, "new_email@example.com")
+        relx::set(users.username, "new_username"),
+        relx::set(users.email, "new_email@example.com")
     )
     .where(users.id == 1);
 ```
@@ -200,11 +200,11 @@ auto update1 = relx::query::update(users)
 Users users;
 
 // Basic DELETE
-auto delete1 = relx::query::delete_from(users)
+auto delete1 = relx::delete_from(users)
     .where(users.id == 1);
 
 // DELETE all
-auto delete2 = relx::query::delete_from(users);
+auto delete2 = relx::delete_from(users);
 ```
 
 For more advanced examples, see our [documentation](docs/README.md).

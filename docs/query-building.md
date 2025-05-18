@@ -26,24 +26,24 @@ Throughout this document, we'll use the following schema definitions:
 
 struct Users {
     static constexpr auto table_name = "users";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"email", std::string> email;
-    relx::schema::column<"age", int> age;
-    relx::schema::column<"is_active", bool> is_active;
+    relx::column<"id", int> id;
+    relx::column<"name", std::string> name;
+    relx::column<"email", std::string> email;
+    relx::column<"age", int> age;
+    relx::column<"is_active", bool> is_active;
     
-    relx::schema::primary_key<&Users::id> pk;
+    relx::primary_key<&Users::id> pk;
 };
 
 struct Posts {
     static constexpr auto table_name = "posts";
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"user_id", int> user_id;
-    relx::schema::column<"title", std::string> title;
-    relx::schema::column<"content", std::string> content;
+    relx::column<"id", int> id;
+    relx::column<"user_id", int> user_id;
+    relx::column<"title", std::string> title;
+    relx::column<"content", std::string> content;
     
-    relx::schema::primary_key<&Posts::id> pk;
-    relx::schema::foreign_key<&Posts::user_id, &Users::id> user_fk;
+    relx::primary_key<&Posts::id> pk;
+    relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
 };
 ```
 
@@ -56,7 +56,7 @@ Selecting specific columns from a table:
 ```cpp
 Users u;
 
-auto query = relx::query::select(u.id, u.name, u.email)
+auto query = relx::select(u.id, u.name, u.email)
     .from(u);
 
 // SQL: SELECT id, name, email FROM users
@@ -69,7 +69,7 @@ Filtering rows with a WHERE clause:
 ```cpp
 Users u;
 
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
     .where(u.age > 18);
 
@@ -84,7 +84,7 @@ Combining multiple conditions:
 ```cpp
 Users u;
 
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
     .where(u.age >= 18 && u.is_active == true);
 
@@ -100,23 +100,23 @@ Sorting results:
 Users u;
 
 // Ascending order (default)
-auto query1 = relx::query::select(u.id, u.name)
+auto query1 = relx::select(u.id, u.name)
     .from(u)
     .order_by(u.name);
 
 // SQL: SELECT id, name FROM users ORDER BY name ASC
 
 // Descending order
-auto query2 = relx::query::select(u.id, u.name)
+auto query2 = relx::select(u.id, u.name)
     .from(u)
-    .order_by(relx::query::desc(u.name));
+    .order_by(relx::desc(u.name));
 
 // SQL: SELECT id, name FROM users ORDER BY name DESC
 
 // Multiple order by clauses
-auto query3 = relx::query::select(u.id, u.name)
+auto query3 = relx::select(u.id, u.name)
     .from(u)
-    .order_by(u.age, relx::query::desc(u.name));
+    .order_by(u.age, relx::desc(u.name));
 
 // SQL: SELECT id, name FROM users ORDER BY age ASC, name DESC
 ```
@@ -128,7 +128,7 @@ Limiting results:
 ```cpp
 Users u;
 
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
     .limit(10)
     .offset(20);
@@ -146,12 +146,12 @@ Inserting a single row:
 ```cpp
 Users u;
 
-auto query = relx::query::insert_into(u)
+auto query = relx::insert_into(u)
     .values(
-        relx::query::set(u.name, "John Doe"),
-        relx::query::set(u.email, "john@example.com"),
-        relx::query::set(u.age, 30),
-        relx::query::set(u.is_active, true)
+        relx::set(u.name, "John Doe"),
+        relx::set(u.email, "john@example.com"),
+        relx::set(u.age, 30),
+        relx::set(u.is_active, true)
     );
 
 // SQL: INSERT INTO users (name, email, age, is_active) VALUES (?, ?, ?, ?)
@@ -165,7 +165,7 @@ Inserting multiple rows:
 ```cpp
 Users u;
 
-auto query = relx::query::insert_into(u)
+auto query = relx::insert_into(u)
     .columns(u.name, u.email, u.age)
     .values("John Doe", "john@example.com", 30)
     .values("Jane Smith", "jane@example.com", 25);
@@ -183,10 +183,10 @@ Updating rows:
 ```cpp
 Users u;
 
-auto query = relx::query::update(u)
+auto query = relx::update(u)
     .set(
-        relx::query::set(u.name, "New Name"),
-        relx::query::set(u.email, "new@example.com")
+        relx::set(u.name, "New Name"),
+        relx::set(u.email, "new@example.com")
     )
     .where(u.id == 1);
 
@@ -201,10 +201,10 @@ Using expressions in updates:
 ```cpp
 Posts p;
 
-auto query = relx::query::update(p)
+auto query = relx::update(p)
     .set(
-        relx::query::set(p.title, "Updated Title"),
-        relx::query::set_expr(p.views, p.views + 1)
+        relx::set(p.title, "Updated Title"),
+        relx::set_expr(p.views, p.views + 1)
     )
     .where(p.id == 1);
 
@@ -221,7 +221,7 @@ Deleting rows:
 ```cpp
 Users u;
 
-auto query = relx::query::delete_from(u)
+auto query = relx::delete_from(u)
     .where(u.id == 1);
 
 // SQL: DELETE FROM users WHERE (id = ?)
@@ -235,7 +235,7 @@ Deleting all rows from a table:
 ```cpp
 Users u;
 
-auto query = relx::query::delete_from(u);
+auto query = relx::delete_from(u);
 
 // SQL: DELETE FROM users
 ```
@@ -250,9 +250,9 @@ Joining two tables:
 Users u;
 Posts p;
 
-auto query = relx::query::select(u.name, p.title)
+auto query = relx::select(u.name, p.title)
     .from(u)
-    .join(p, relx::query::on(u.id == p.user_id));
+    .join(p, relx::on(u.id == p.user_id));
 
 // SQL: SELECT name, title FROM users JOIN posts ON (id = user_id)
 ```
@@ -266,10 +266,10 @@ Users u;
 Posts p;
 Comments c;
 
-auto query = relx::query::select(u.name, p.title, c.content)
+auto query = relx::select(u.name, p.title, c.content)
     .from(u)
-    .join(p, relx::query::on(u.id == p.user_id))
-    .join(c, relx::query::on(p.id == c.post_id));
+    .join(p, relx::on(u.id == p.user_id))
+    .join(c, relx::on(p.id == c.post_id));
 
 // SQL: SELECT name, title, content FROM users 
 //      JOIN posts ON (id = user_id)
@@ -284,9 +284,9 @@ Including rows from the left table that have no matches:
 Users u;
 Posts p;
 
-auto query = relx::query::select(u.name, p.title)
+auto query = relx::select(u.name, p.title)
     .from(u)
-    .left_join(p, relx::query::on(u.id == p.user_id));
+    .left_join(p, relx::on(u.id == p.user_id));
 
 // SQL: SELECT name, title FROM users LEFT JOIN posts ON (id = user_id)
 ```
@@ -301,27 +301,27 @@ relx supports all standard comparison operators:
 Users u;
 
 // Equal
-auto q1 = relx::query::select(u.id, u.name).from(u).where(u.age == 30);
+auto q1 = relx::select(u.id, u.name).from(u).where(u.age == 30);
 // SQL: WHERE (age = ?)
 
 // Not equal
-auto q2 = relx::query::select(u.id, u.name).from(u).where(u.age != 30);
+auto q2 = relx::select(u.id, u.name).from(u).where(u.age != 30);
 // SQL: WHERE (age != ?)
 
 // Greater than
-auto q3 = relx::query::select(u.id, u.name).from(u).where(u.age > 30);
+auto q3 = relx::select(u.id, u.name).from(u).where(u.age > 30);
 // SQL: WHERE (age > ?)
 
 // Greater than or equal
-auto q4 = relx::query::select(u.id, u.name).from(u).where(u.age >= 30);
+auto q4 = relx::select(u.id, u.name).from(u).where(u.age >= 30);
 // SQL: WHERE (age >= ?)
 
 // Less than
-auto q5 = relx::query::select(u.id, u.name).from(u).where(u.age < 30);
+auto q5 = relx::select(u.id, u.name).from(u).where(u.age < 30);
 // SQL: WHERE (age < ?)
 
 // Less than or equal
-auto q6 = relx::query::select(u.id, u.name).from(u).where(u.age <= 30);
+auto q6 = relx::select(u.id, u.name).from(u).where(u.age <= 30);
 // SQL: WHERE (age <= ?)
 ```
 
@@ -333,25 +333,25 @@ Combining conditions with AND, OR, and NOT:
 Users u;
 
 // AND
-auto q1 = relx::query::select(u.id, u.name)
+auto q1 = relx::select(u.id, u.name)
     .from(u)
     .where(u.age > 18 && u.is_active == true);
 // SQL: WHERE ((age > ?) AND (is_active = ?))
 
 // OR
-auto q2 = relx::query::select(u.id, u.name)
+auto q2 = relx::select(u.id, u.name)
     .from(u)
     .where(u.age < 18 || u.age > 65);
 // SQL: WHERE ((age < ?) OR (age > ?))
 
 // NOT
-auto q3 = relx::query::select(u.id, u.name)
+auto q3 = relx::select(u.id, u.name)
     .from(u)
     .where(!(u.age >= 18 && u.age <= 65));
 // SQL: WHERE (NOT ((age >= ?) AND (age <= ?)))
 
 // Complex condition
-auto q4 = relx::query::select(u.id, u.name)
+auto q4 = relx::select(u.id, u.name)
     .from(u)
     .where((u.age < 18 || u.age > 65) && u.is_active == true);
 // SQL: WHERE (((age < ?) OR (age > ?)) AND (is_active = ?))
@@ -366,15 +366,15 @@ Users u;
 
 // Using a vector
 std::vector<std::string> names = {"Alice", "Bob", "Charlie"};
-auto q1 = relx::query::select(u.id, u.email)
+auto q1 = relx::select(u.id, u.email)
     .from(u)
-    .where(relx::query::in(u.name, names));
+    .where(relx::in(u.name, names));
 // SQL: WHERE name IN (?, ?, ?)
 
 // Using direct values
-auto q2 = relx::query::select(u.id, u.email)
+auto q2 = relx::select(u.id, u.email)
     .from(u)
-    .where(relx::query::in(u.age, {18, 21, 25, 30}));
+    .where(relx::in(u.age, {18, 21, 25, 30}));
 // SQL: WHERE age IN (?, ?, ?, ?)
 ```
 
@@ -385,9 +385,9 @@ Pattern matching with LIKE:
 ```cpp
 Users u;
 
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
-    .where(relx::query::like(u.email, "%@example.com"));
+    .where(relx::like(u.email, "%@example.com"));
 
 // SQL: SELECT id, name FROM users WHERE email LIKE ?
 // Parameters: ["%@example.com"]
@@ -401,13 +401,13 @@ Checking for NULL values:
 Users u;
 
 // Using is_null()
-auto q1 = relx::query::select(u.id, u.name)
+auto q1 = relx::select(u.id, u.name)
     .from(u)
     .where(u.email.is_null());
 // SQL: WHERE (email IS NULL)
 
 // Using is_not_null()
-auto q2 = relx::query::select(u.id, u.name)
+auto q2 = relx::select(u.id, u.name)
     .from(u)
     .where(u.email.is_not_null());
 // SQL: WHERE (email IS NOT NULL)
@@ -422,11 +422,11 @@ Sorting by multiple columns:
 ```cpp
 Users u;
 
-auto query = relx::query::select(u.id, u.name, u.age)
+auto query = relx::select(u.id, u.name, u.age)
     .from(u)
     .order_by(
         u.age,                      // ASC by default
-        relx::query::desc(u.name) // DESC explicitly
+        relx::desc(u.name) // DESC explicitly
     );
 
 // SQL: SELECT id, name, age FROM users ORDER BY age ASC, name DESC
@@ -444,7 +444,7 @@ int page_size = 10;
 int page_number = 3;
 int offset = (page_number - 1) * page_size;
 
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
     .order_by(u.id)
     .limit(page_size)
@@ -465,33 +465,33 @@ Users u;
 Posts p;
 
 // COUNT
-auto q1 = relx::query::select_expr(
-    relx::query::count_all()
+auto q1 = relx::select_expr(
+    relx::count_all()
 ).from(u);
 // SQL: SELECT COUNT(*) FROM users
 
 // COUNT with column
-auto q2 = relx::query::select_expr(
-    relx::query::count(u.id)
+auto q2 = relx::select_expr(
+    relx::count(u.id)
 ).from(u);
 // SQL: SELECT COUNT(id) FROM users
 
 // SUM
-auto q3 = relx::query::select_expr(
-    relx::query::sum(p.views)
+auto q3 = relx::select_expr(
+    relx::sum(p.views)
 ).from(p);
 // SQL: SELECT SUM(views) FROM posts
 
 // AVG
-auto q4 = relx::query::select_expr(
-    relx::query::avg(u.age)
+auto q4 = relx::select_expr(
+    relx::avg(u.age)
 ).from(u);
 // SQL: SELECT AVG(age) FROM users
 
 // MIN and MAX
-auto q5 = relx::query::select_expr(
-    relx::query::min(u.age),
-    relx::query::max(u.age)
+auto q5 = relx::select_expr(
+    relx::min(u.age),
+    relx::max(u.age)
 ).from(u);
 // SQL: SELECT MIN(age), MAX(age) FROM users
 ```
@@ -503,9 +503,9 @@ Using aliases for readable result columns:
 ```cpp
 Users u;
 
-auto query = relx::query::select_expr(
-    relx::query::as(relx::query::count_all(), "user_count"),
-    relx::query::as(relx::query::avg(u.age), "average_age")
+auto query = relx::select_expr(
+    relx::as(relx::count_all(), "user_count"),
+    relx::as(relx::avg(u.age), "average_age")
 ).from(u);
 
 // SQL: SELECT COUNT(*) AS user_count, AVG(age) AS average_age FROM users
@@ -519,10 +519,10 @@ Grouping results:
 Users u;
 Posts p;
 
-auto query = relx::query::select_expr(
+auto query = relx::select_expr(
     u.is_active,
-    relx::query::as(relx::query::count(u.id), "user_count"),
-    relx::query::as(relx::query::avg(u.age), "average_age")
+    relx::as(relx::count(u.id), "user_count"),
+    relx::as(relx::avg(u.age), "average_age")
 ).from(u)
  .group_by(u.is_active);
 
@@ -539,14 +539,14 @@ Filtering grouped results:
 Users u;
 Posts p;
 
-auto query = relx::query::select_expr(
+auto query = relx::select_expr(
     u.id,
     u.name,
-    relx::query::as(relx::query::count(p.id), "post_count")
+    relx::as(relx::count(p.id), "post_count")
 ).from(u)
- .join(p, relx::query::on(u.id == p.user_id))
+ .join(p, relx::on(u.id == p.user_id))
  .group_by(u.id, u.name)
- .having(relx::query::count(p.id) > 5);
+ .having(relx::count(p.id) > 5);
 
 // SQL: SELECT id, name, COUNT(id) AS post_count 
 //      FROM users 
@@ -567,12 +567,12 @@ Users u;
 Posts p;
 
 // Find users who have at least one post
-auto subquery = relx::query::select(p.user_id)
+auto subquery = relx::select(p.user_id)
     .from(p);
 
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
-    .where(relx::query::in(u.id, subquery));
+    .where(relx::in(u.id, subquery));
 
 // SQL: SELECT id, name FROM users WHERE id IN (SELECT user_id FROM posts)
 ```
@@ -586,12 +586,12 @@ Users u;
 Posts p;
 
 // Find users who have more than 3 posts
-auto correlated_subquery = relx::query::select_expr(
-    relx::query::count(p.id)
+auto correlated_subquery = relx::select_expr(
+    relx::count(p.id)
 ).from(p)
  .where(p.user_id == u.id);
 
-auto query = relx::query::select(u.id, u.name)
+auto query = relx::select(u.id, u.name)
     .from(u)
     .where(correlated_subquery > 3);
 
@@ -608,11 +608,11 @@ Conditional expressions:
 ```cpp
 Users u;
 
-auto query = relx::query::select_expr(
+auto query = relx::select_expr(
     u.id,
     u.name,
-    relx::query::as(
-        relx::query::case_()
+    relx::as(
+        relx::case_()
             .when(u.age < 18, "Minor")
             .when(u.age < 65, "Adult")
             .else_("Senior")
@@ -635,19 +635,19 @@ Using expressions in CASE statements:
 Users u;
 Posts p;
 
-auto query = relx::query::select_expr(
+auto query = relx::select_expr(
     u.id,
     u.name,
-    relx::query::as(
-        relx::query::case_()
-            .when(relx::query::count(p.id) == 0, "No posts")
-            .when(relx::query::count(p.id) < 5, "Few posts")
+    relx::as(
+        relx::case_()
+            .when(relx::count(p.id) == 0, "No posts")
+            .when(relx::count(p.id) < 5, "Few posts")
             .else_("Many posts")
             .build(),
         "post_status"
     )
 ).from(u)
- .left_join(p, relx::query::on(u.id == p.user_id))
+ .left_join(p, relx::on(u.id == p.user_id))
  .group_by(u.id, u.name);
 
 // SQL: SELECT id, name, 

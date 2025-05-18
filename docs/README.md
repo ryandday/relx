@@ -33,11 +33,11 @@ relx is a modern C++23 library for building and executing SQL queries with compi
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::schema::column<"id", int> id;
-    relx::schema::column<"name", std::string> name;
-    relx::schema::column<"email", std::string> email;
+    relx::column<"id", int> id;
+    relx::column<"name", std::string> name;
+    relx::column<"email", std::string> email;
     
-    relx::schema::primary_key<&Users::id> pk;
+    relx::primary_key<&Users::id> pk;
 };
 
 int main() {
@@ -50,16 +50,16 @@ int main() {
     conn.execute_raw("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL)");
     
     // Insert data
-    auto insert = relx::query::insert_into(users)
+    auto insert = relx::insert_into(users)
         .values(
-            relx::query::set(users.id, 1),
-            relx::query::set(users.name, "John Doe"),
-            relx::query::set(users.email, "john@example.com")
+            relx::set(users.id, 1),
+            relx::set(users.name, "John Doe"),
+            relx::set(users.email, "john@example.com")
         );
     conn.execute(insert);
     
     // Query data
-    auto query = relx::query::select(users.id, users.name)
+    auto query = relx::select(users.id, users.name)
         .from(users)
         .where(users.id == 1);
     
