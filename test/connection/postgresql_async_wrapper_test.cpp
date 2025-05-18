@@ -84,15 +84,6 @@ TEST_F(PostgresqlAsyncWrapperTest, ConnectionErrorServerOffline) {
     });
 }
 
-// Test using socket before initialization - this still throws since it's a programming error
-TEST_F(PostgresqlAsyncWrapperTest, SocketNotInitialized) {
-    GTEST_SKIP() << "Socket not initialized throws an exception as it's a programming error, not a runtime error";
-    
-    // This is a programming error case, not a runtime error case
-    // In our design, we still throw exceptions for programming errors
-    // This test is kept as documentation but skipped
-}
-
 // Test query on closed connection
 TEST_F(PostgresqlAsyncWrapperTest, QueryOnClosedConnection) {
     connection conn(io_);
@@ -186,29 +177,6 @@ TEST_F(PostgresqlAsyncWrapperTest, BasicQuery) {
         EXPECT_EQ(1, res.columns());
         EXPECT_STREQ("num", res.field_name(0));
         EXPECT_STREQ("1", res.get_value(0, 0));
-        
-        conn.close();
-    });
-}
-
-// Test malformed query
-TEST_F(PostgresqlAsyncWrapperTest, MalformedQuery) {
-    GTEST_SKIP() << "PostgreSQL handles nonexistent tables with notices rather than errors in the current configuration";
-    
-    connection conn(io_);
-    
-    run_test([&]() -> asio::awaitable<void> {
-        auto connect_result = co_await conn.connect(conn_string);
-        EXPECT_TRUE(connect_result);
-        
-        auto res_result = co_await conn.query("SELECT * FROM nonexistent_table");
-        
-        // With PostgreSQL, querying a non-existent table should be an error
-        // However, in some configurations PostgreSQL sends notices instead
-        EXPECT_FALSE(res_result);
-        EXPECT_FALSE(res_result.has_value());
-        EXPECT_TRUE(res_result.error().message.find("nonexistent_table") != std::string::npos ||
-                    res_result.error().message.find("does not exist") != std::string::npos);
         
         conn.close();
     });
