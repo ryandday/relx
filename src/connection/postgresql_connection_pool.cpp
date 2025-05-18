@@ -45,14 +45,9 @@ ConnectionPoolResult<PostgreSQLConnectionPool::PooledConnection> PostgreSQLConne
     }
 
     return PooledConnection(*conn_result, shared_from_this());
-
-
-
-
 }
 
 ConnectionPoolResult<std::shared_ptr<PostgreSQLConnection>> PostgreSQLConnectionPool::get_raw_connection() {
-
     using namespace std::chrono;
 
     // Cleanup old connections first
@@ -163,7 +158,7 @@ size_t PostgreSQLConnectionPool::idle_connections() const {
 }
 
 ConnectionPoolResult<std::shared_ptr<PostgreSQLConnection>> PostgreSQLConnectionPool::create_connection() {
-    auto connection = std::make_shared<PostgreSQLConnection>(config_.connection_string);
+    auto connection = std::make_shared<PostgreSQLConnection>(config_.connection_params);
     
     auto result = connection->connect();
     if (!result) {

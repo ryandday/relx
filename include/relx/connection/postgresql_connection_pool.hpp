@@ -18,8 +18,8 @@ namespace connection {
 
 /// @brief Configuration for PostgreSQL connection pool
 struct PostgreSQLConnectionPoolConfig {
-    /// @brief The connection string for PostgreSQL
-    std::string connection_string;
+    /// @brief Connection parameters for PostgreSQL
+    PostgreSQLConnectionParams connection_params;
     
     /// @brief Initial number of connections to create
     size_t initial_size = 5;

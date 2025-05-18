@@ -65,7 +65,13 @@ protected:
 
 TEST_F(PostgreSQLConnectionPoolTest, TestPoolInitialization) {
     relx::connection::PostgreSQLConnectionPoolConfig config;
-    config.connection_string = conn_string;
+    config.connection_params = {
+        .host = "localhost",
+        .port = 5434,
+        .dbname = "sqllib_test",
+        .user = "postgres",
+        .password = "postgres"
+    };
     config.initial_size = 3;
     config.max_size = 5;
     
@@ -97,7 +103,13 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolInitialization) {
 
 TEST_F(PostgreSQLConnectionPoolTest, TestPoolMaxConnections) {
     relx::connection::PostgreSQLConnectionPoolConfig config;
-    config.connection_string = conn_string;
+    config.connection_params = {
+        .host = "localhost",
+        .port = 5434,
+        .dbname = "sqllib_test",
+        .user = "postgres",
+        .password = "postgres"
+    };
     config.initial_size = 2;
     config.max_size = 4;
     config.connection_timeout = std::chrono::milliseconds(500); // Short timeout for testing
@@ -137,7 +149,13 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMaxConnections) {
 
 TEST_F(PostgreSQLConnectionPoolTest, TestPoolWithConnection) {
     relx::connection::PostgreSQLConnectionPoolConfig config;
-    config.connection_string = conn_string;
+    config.connection_params = {
+        .host = "localhost",
+        .port = 5434,
+        .dbname = "sqllib_test",
+        .user = "postgres",
+        .password = "postgres"
+    };
     config.initial_size = 2;
     config.max_size = 5;
     
@@ -206,7 +224,13 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolWithConnection) {
 
 TEST_F(PostgreSQLConnectionPoolTest, TestPoolMultithreaded) {
     relx::connection::PostgreSQLConnectionPoolConfig config;
-    config.connection_string = conn_string;
+    config.connection_params = {
+        .host = "localhost",
+        .port = 5434,
+        .dbname = "sqllib_test",
+        .user = "postgres",
+        .password = "postgres"
+    };
     config.initial_size = 3;
     config.max_size = 10;
     
@@ -289,7 +313,13 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMultithreaded) {
 
 TEST_F(PostgreSQLConnectionPoolTest, TestPoolConnectionValidation) {
     relx::connection::PostgreSQLConnectionPoolConfig config;
-    config.connection_string = conn_string;
+    config.connection_params = {
+        .host = "localhost",
+        .port = 5434,
+        .dbname = "sqllib_test",
+        .user = "postgres",
+        .password = "postgres"
+    };
     config.initial_size = 2;
     config.max_size = 4;
     config.validate_connections = true;
