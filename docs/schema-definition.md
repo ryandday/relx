@@ -26,10 +26,10 @@ struct Users {
     static constexpr auto table_name = "users";
     
     // Column definitions
-    relx::column<"id", int> id;
-    relx::column<"username", std::string> username;
-    relx::column<"email", std::string> email;
-    relx::column<"created_at", std::string> created_at;
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "username", std::string> username;
+    relx::column<Users, "email", std::string> email;
+    relx::column<Users, "created_at", std::string> created_at;
     
     // Primary key constraint
     relx::primary_key<&Users::id> pk;
@@ -41,7 +41,7 @@ struct Users {
 
 Key points:
 - A table is represented as a struct with a static `table_name` field
-- Each column is defined using the `relx::column<Name, Type>` template
+- Each column is defined using the `relx::column<TableType, Name, Type>` template
 - The struct should also contain any constraints that apply to the table
 
 ## Column Types
@@ -62,11 +62,11 @@ Example:
 struct Products {
     static constexpr auto table_name = "products";
     
-    relx::column<"id", int> id;
-    relx::column<"name", std::string> name;
-    relx::column<"price", double> price;
-    relx::column<"is_active", bool> is_active;
-    relx::column<"description", std::optional<std::string>> description;
+    relx::column<Products, "id", int> id;
+    relx::column<Products, "name", std::string> name;
+    relx::column<Products, "price", double> price;
+    relx::column<Products, "is_active", bool> is_active;
+    relx::column<Products, "description", std::optional<std::string>> description;
     
     relx::primary_key<&Products::id> pk;
 };
@@ -87,8 +87,8 @@ Primary keys are defined using the `primary_key` template:
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<"id", int> id;
-    relx::column<"username", std::string> username;
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "username", std::string> username;
     
     // Primary key constraint
     relx::primary_key<&Users::id> pk;
@@ -105,7 +105,7 @@ Foreign keys define relationships between tables:
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<"id", int> id;
+    relx::column<Users, "id", int> id;
     // ...
     
     relx::primary_key<&Users::id> pk;
@@ -114,8 +114,8 @@ struct Users {
 struct Posts {
     static constexpr auto table_name = "posts";
     
-    relx::column<"id", int> id;
-    relx::column<"user_id", int> user_id;
+    relx::column<Posts, "id", int> id;
+    relx::column<Posts, "user_id", int> user_id;
     // ...
     
     relx::primary_key<&Posts::id> pk;
@@ -137,8 +137,8 @@ Unique constraints are defined similarly to primary keys:
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<"id", int> id;
-    relx::column<"email", std::string> email;
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "email", std::string> email;
     // ...
     
     relx::primary_key<&Users::id> pk;
@@ -158,10 +158,10 @@ To define nullable columns, use `std::optional<T>`:
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<"id", int> id;
-    relx::column<"name", std::string> name;
-    relx::column<"bio", std::optional<std::string>> bio;
-    relx::column<"last_login", std::optional<std::string>> last_login;
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "name", std::string> name;
+    relx::column<Users, "bio", std::optional<std::string>> bio;
+    relx::column<Users, "last_login", std::optional<std::string>> last_login;
     // ...
     
     relx::primary_key<&Users::id> pk;
@@ -178,9 +178,9 @@ To define indexes for faster queries:
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<"id", int> id;
-    relx::column<"name", std::string> name;
-    relx::column<"email", std::string> email;
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "name", std::string> name;
+    relx::column<Users, "email", std::string> email;
     // ...
     
     relx::primary_key<&Users::id> pk;
@@ -201,10 +201,10 @@ relx also supports composite (multi-column) keys:
 struct OrderItems {
     static constexpr auto table_name = "order_items";
     
-    relx::column<"order_id", int> order_id;
-    relx::column<"product_id", int> product_id;
-    relx::column<"quantity", int> quantity;
-    relx::column<"price", double> price;
+    relx::column<OrderItems, "order_id", int> order_id;
+    relx::column<OrderItems, "product_id", int> product_id;
+    relx::column<OrderItems, "quantity", int> quantity;
+    relx::column<OrderItems, "price", double> price;
     
     // Composite primary key
     relx::composite_primary_key<&OrderItems::order_id, &OrderItems::product_id> pk;
@@ -217,7 +217,7 @@ Similarly, you can create composite foreign keys and composite unique constraint
 struct Orders {
     static constexpr auto table_name = "orders";
     
-    relx::column<"id", int> id;
+    relx::column<Orders, "id", int> id;
     // ...
     
     relx::primary_key<&Orders::id> pk;
@@ -226,7 +226,7 @@ struct Orders {
 struct Products {
     static constexpr auto table_name = "products";
     
-    relx::column<"id", int> id;
+    relx::column<Products, "id", int> id;
     // ...
     
     relx::primary_key<&Products::id> pk;
@@ -235,8 +235,8 @@ struct Products {
 struct OrderItems {
     static constexpr auto table_name = "order_items";
     
-    relx::column<"order_id", int> order_id;
-    relx::column<"product_id", int> product_id;
+    relx::column<OrderItems, "order_id", int> order_id;
+    relx::column<OrderItems, "product_id", int> product_id;
     // ...
     
     // Composite primary key
@@ -278,4 +278,48 @@ conn.execute(create_users_table);
 
 auto create_posts_table = relx::create_table(posts);
 conn.execute(create_posts_table);
-``` 
+```
+
+struct User {
+    static constexpr auto table_name = "users";
+    
+    relx::column<User, "id", int> id;
+    relx::column<User, "username", std::string> username;
+    
+    relx::primary_key<&User::id> pk;
+};
+
+struct Order {
+    static constexpr auto table_name = "orders";
+    
+    relx::column<Order, "id", int> id;
+    
+    relx::primary_key<&Order::id> pk;
+};
+
+struct OrderItem {
+    static constexpr auto table_name = "order_items";
+    
+    relx::column<OrderItem, "id", int> id;
+    relx::column<OrderItem, "user_id", int> user_id;
+    
+    relx::primary_key<&OrderItem::id> pk;
+    relx::foreign_key<&OrderItem::user_id, &User::id> user_fk;
+};
+
+struct Post {
+    static constexpr auto table_name = "posts";
+    
+    relx::column<Post, "id", int> id;
+    
+    relx::primary_key<&Post::id> pk;
+};
+
+struct PostTag {
+    static constexpr auto table_name = "post_tags";
+    
+    relx::column<PostTag, "order_id", int> order_id;
+    relx::column<PostTag, "product_id", int> product_id;
+
+    relx::primary_key<&PostTag::order_id, &PostTag::product_id> pk;
+}; 

@@ -54,9 +54,9 @@ make test
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<"id", int> id;
-    relx::column<"username", std::string> username;
-    relx::column<"email", std::string> email;
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "username", std::string> username;
+    relx::column<Users, "email", std::string> email;
     
     // Primary key
     relx::primary_key<&Users::id> pk;
@@ -68,10 +68,10 @@ struct Users {
 struct Posts {
     static constexpr auto table_name = "posts";
     
-    relx::column<"id", int> id;
-    relx::column<"user_id", int> user_id;
-    relx::column<"title", std::string> title;
-    relx::column<"content", std::string> content;
+    relx::column<Posts, "id", int> id;
+    relx::column<Posts, "user_id", int> user_id;
+    relx::column<Posts, "title", std::string> title;
+    relx::column<Posts, "content", std::string> content;
     
     // Primary key
     relx::primary_key<&Posts::id> pk;
@@ -300,9 +300,9 @@ if (!conn_result) {
 // Define the schema
 struct Users {
     static constexpr auto table_name = "users";
-    relx::column<"id", int> id;
-    relx::column<"name", std::string> name;
-    relx::column<"email", std::string> email;
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "name", std::string> name;
+    relx::column<Users, "email", std::string> email;
 };
 
 // Create a table instance

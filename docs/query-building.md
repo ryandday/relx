@@ -27,21 +27,23 @@ Throughout this document, we'll use the following schema definitions:
 
 struct Users {
     static constexpr auto table_name = "users";
-    relx::column<"id", int> id;
-    relx::column<"name", std::string> name;
-    relx::column<"email", std::string> email;
-    relx::column<"age", int> age;
-    relx::column<"is_active", bool> is_active;
+    
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "name", std::string> name;
+    relx::column<Users, "email", std::string> email;
+    relx::column<Users, "age", int> age;
+    relx::column<Users, "is_active", bool> is_active;
     
     relx::primary_key<&Users::id> pk;
 };
 
 struct Posts {
     static constexpr auto table_name = "posts";
-    relx::column<"id", int> id;
-    relx::column<"user_id", int> user_id;
-    relx::column<"title", std::string> title;
-    relx::column<"content", std::string> content;
+    
+    relx::column<Posts, "id", int> id;
+    relx::column<Posts, "user_id", int> user_id;
+    relx::column<Posts, "title", std::string> title;
+    relx::column<Posts, "content", std::string> content;
     
     relx::primary_key<&Posts::id> pk;
     relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
@@ -665,9 +667,10 @@ PostgreSQL allows getting back data from modified rows using the RETURNING claus
 ```cpp
 struct Users {
     static constexpr auto table_name = "users";
-    relx::column<"id", int> id;
-    relx::column<"name", std::string> name;
-    relx::column<"email", std::string> email;
+    
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "name", std::string> name;
+    relx::column<Users, "email", std::string> email;
     
     relx::primary_key<&Users::id> pk;
 };

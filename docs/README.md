@@ -30,9 +30,9 @@ relx is a modern C++23 library for building and executing SQL queries with compi
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<"id", int> id;
-    relx::column<"name", std::string> name;
-    relx::column<"email", std::string> email;
+    relx::column<Users, "id", int> id;
+    relx::column<Users, "name", std::string> name;
+    relx::column<Users, "email", std::string> email;
     
     relx::primary_key<&Users::id> pk;
 };
