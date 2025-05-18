@@ -112,23 +112,6 @@ using query::in;
 using query::to_expr;
 using query::to_table;
 
-// New concise helpers
-using query::v;      // shorthand for val
-using query::e;      // shorthand for to_expr
-using query::a;      // shorthand for as
-using query::l;      // shorthand for like
-using query::i;      // shorthand for in
-using query::c;      // shorthand for count
-using query::c_all;  // shorthand for count_all
-using query::c_distinct; // shorthand for count_distinct
-using query::s;      // shorthand for sum
-using query::a_avg;  // shorthand for avg
-using query::a_min;  // shorthand for min
-using query::a_max;  // shorthand for max
-using query::d;      // shorthand for distinct
-using query::a_by;   // shorthand for asc (order by)
-using query::d_by;   // shorthand for desc (order by)
-
 // User-defined literals
 using namespace query::literals; // Enables 42_sql, "string"_sql, etc.
 

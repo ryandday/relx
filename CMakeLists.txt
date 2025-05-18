@@ -89,7 +89,6 @@ add_executable(relx_tests
   test/query/insert_query_test.cpp
   test/query/select_all_test.cpp
   test/query/distinct_select_test.cpp
-  test/query/concise_api_test.cpp
   # Result processing tests
   test/result_test.cpp
   test/advanced_query_test.cpp
