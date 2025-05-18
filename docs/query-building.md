@@ -60,7 +60,7 @@ Users u;
 auto query = relx::select(u.id, u.name, u.email)
     .from(u);
 
-// SQL: SELECT id, name, email FROM users
+// SQL: SELECT users.id, users.name, users.email FROM users
 ```
 
 ### SELECT with WHERE Condition
@@ -74,7 +74,7 @@ auto query = relx::select(u.id, u.name)
     .from(u)
     .where(u.age > 18);
 
-// SQL: SELECT id, name FROM users WHERE (age > ?)
+// SQL: SELECT users.id, users.name FROM users WHERE (users.age > ?)
 // Parameters: ["18"]
 ```
 
@@ -89,7 +89,7 @@ auto query = relx::select(u.id, u.name)
     .from(u)
     .where(u.age >= 18 && u.is_active == true);
 
-// SQL: SELECT id, name FROM users WHERE ((age >= ?) AND (is_active = ?))
+// SQL: SELECT users.id, users.name FROM users WHERE ((users.age >= ?) AND (users.is_active = ?))
 // Parameters: ["18", "1"]
 ```
 
@@ -105,21 +105,21 @@ auto query1 = relx::select(u.id, u.name)
     .from(u)
     .order_by(u.name);
 
-// SQL: SELECT id, name FROM users ORDER BY name ASC
+// SQL: SELECT users.id, users.name FROM users ORDER BY users.name ASC
 
 // Descending order
 auto query2 = relx::select(u.id, u.name)
     .from(u)
     .order_by(relx::desc(u.name));
 
-// SQL: SELECT id, name FROM users ORDER BY name DESC
+// SQL: SELECT users.id, users.name FROM users ORDER BY users.name DESC
 
 // Multiple order by clauses
 auto query3 = relx::select(u.id, u.name)
     .from(u)
     .order_by(u.age, relx::desc(u.name));
 
-// SQL: SELECT id, name FROM users ORDER BY age ASC, name DESC
+// SQL: SELECT users.id, users.name FROM users ORDER BY users.age ASC, users.name DESC
 ```
 
 ### SELECT with LIMIT and OFFSET
@@ -134,7 +134,7 @@ auto query = relx::select(u.id, u.name)
     .limit(10)
     .offset(20);
 
-// SQL: SELECT id, name FROM users LIMIT ? OFFSET ?
+// SQL: SELECT users.id, users.name FROM users LIMIT ? OFFSET ?
 // Parameters: ["10", "20"]
 ```
 
@@ -155,7 +155,7 @@ auto query = relx::insert_into(u)
         relx::set(u.is_active, true)
     );
 
-// SQL: INSERT INTO users (name, email, age, is_active) VALUES (?, ?, ?, ?)
+// SQL: INSERT INTO users (users.name, users.email, users.age, users.is_active) VALUES (?, ?, ?, ?)
 // Parameters: ["John Doe", "john@example.com", "30", "1"]
 ```
 
@@ -171,7 +171,7 @@ auto query = relx::insert_into(u)
     .values("John Doe", "john@example.com", 30)
     .values("Jane Smith", "jane@example.com", 25);
 
-// SQL: INSERT INTO users (name, email, age) VALUES (?, ?, ?), (?, ?, ?)
+// SQL: INSERT INTO users (users.name, users.email, users.age) VALUES (?, ?, ?), (?, ?, ?)
 // Parameters: ["John Doe", "john@example.com", "30", "Jane Smith", "jane@example.com", "25"]
 ```
 
@@ -191,7 +191,7 @@ auto query = relx::update(u)
     )
     .where(u.id == 1);
 
-// SQL: UPDATE users SET name = ?, email = ? WHERE (id = ?)
+// SQL: UPDATE users SET users.name = ?, users.email = ? WHERE (users.id = ?)
 // Parameters: ["New Name", "new@example.com", "1"]
 ```
 
@@ -207,7 +207,7 @@ Users u;
 auto query = relx::delete_from(u)
     .where(u.id == 1);
 
-// SQL: DELETE FROM users WHERE (id = ?)
+// SQL: DELETE FROM users WHERE (users.id = ?)
 // Parameters: ["1"]
 ```
 
@@ -237,7 +237,7 @@ auto query = relx::select(u.name, p.title)
     .from(u)
     .join(p, relx::on(u.id == p.user_id));
 
-// SQL: SELECT name, title FROM users JOIN posts ON (id = user_id)
+// SQL: SELECT users.name, posts.title FROM users JOIN posts ON (users.id = posts.user_id)
 ```
 
 ### Multiple JOINs
@@ -254,14 +254,15 @@ auto query = relx::select(u.name, p.title, c.content)
     .join(p, relx::on(u.id == p.user_id))
     .join(c, relx::on(p.id == c.post_id));
 
-// SQL: SELECT name, title, content FROM users 
-//      JOIN posts ON (id = user_id)
-//      JOIN comments ON (id = post_id)
+// SQL: SELECT users.name, posts.title, comments.content 
+// FROM users 
+// JOIN posts ON (users.id = posts.user_id) 
+// JOIN comments ON (posts.id = comments.post_id)
 ```
 
 ### LEFT JOIN
 
-Including rows from the left table that have no matches:
+Including rows from the left table even when there are no matches in the right table:
 
 ```cpp
 Users u;
@@ -271,129 +272,141 @@ auto query = relx::select(u.name, p.title)
     .from(u)
     .left_join(p, relx::on(u.id == p.user_id));
 
-// SQL: SELECT name, title FROM users LEFT JOIN posts ON (id = user_id)
+// SQL: SELECT users.name, posts.title 
+// FROM users 
+// LEFT JOIN posts ON (users.id = posts.user_id)
+```
+
+### RIGHT JOIN
+
+Including rows from the right table even when there are no matches in the left table:
+
+```cpp
+Users u;
+Posts p;
+
+auto query = relx::select(u.name, p.title)
+    .from(u)
+    .right_join(p, relx::on(u.id == p.user_id));
+
+// SQL: SELECT users.name, posts.title 
+// FROM users 
+// RIGHT JOIN posts ON (users.id = posts.user_id)
 ```
 
 ## WHERE Conditions
 
-### Comparison Operators
-
-relx supports all standard comparison operators:
+### Basic Conditions
 
 ```cpp
 Users u;
 
-// Equal
-auto q1 = relx::select(u.id, u.name).from(u).where(u.age == 30);
-// SQL: WHERE (age = ?)
+// Equality
+auto query1 = relx::select(u.id, u.name)
+    .from(u)
+    .where(u.id == 5);
 
-// Not equal
-auto q2 = relx::select(u.id, u.name).from(u).where(u.age != 30);
-// SQL: WHERE (age != ?)
+// SQL: SELECT users.id, users.name FROM users WHERE (users.id = ?)
 
-// Greater than
-auto q3 = relx::select(u.id, u.name).from(u).where(u.age > 30);
-// SQL: WHERE (age > ?)
+// Inequality
+auto query2 = relx::select(u.id, u.name)
+    .from(u)
+    .where(u.age != 30);
 
-// Greater than or equal
-auto q4 = relx::select(u.id, u.name).from(u).where(u.age >= 30);
-// SQL: WHERE (age >= ?)
+// SQL: SELECT users.id, users.name FROM users WHERE (users.age <> ?)
 
-// Less than
-auto q5 = relx::select(u.id, u.name).from(u).where(u.age < 30);
-// SQL: WHERE (age < ?)
+// Comparison operators
+auto query3 = relx::select(u.id, u.name)
+    .from(u)
+    .where(u.age > 18);
 
-// Less than or equal
-auto q6 = relx::select(u.id, u.name).from(u).where(u.age <= 30);
-// SQL: WHERE (age <= ?)
+// SQL: SELECT users.id, users.name FROM users WHERE (users.age > ?)
 ```
 
 ### Logical Operators
 
-Combining conditions with AND, OR, and NOT:
+Combining conditions with AND/OR:
 
 ```cpp
 Users u;
 
 // AND
-auto q1 = relx::select(u.id, u.name)
+auto query1 = relx::select(u.id, u.name)
     .from(u)
-    .where(u.age > 18 && u.is_active == true);
-// SQL: WHERE ((age > ?) AND (is_active = ?))
+    .where(u.age >= 18 && u.age <= 65);
+
+// SQL: SELECT users.id, users.name FROM users WHERE ((users.age >= ?) AND (users.age <= ?))
 
 // OR
-auto q2 = relx::select(u.id, u.name)
+auto query2 = relx::select(u.id, u.name)
     .from(u)
     .where(u.age < 18 || u.age > 65);
-// SQL: WHERE ((age < ?) OR (age > ?))
 
-// NOT
-auto q3 = relx::select(u.id, u.name)
-    .from(u)
-    .where(!(u.age >= 18 && u.age <= 65));
-// SQL: WHERE (NOT ((age >= ?) AND (age <= ?)))
+// SQL: SELECT users.id, users.name FROM users WHERE ((users.age < ?) OR (users.age > ?))
 
 // Complex condition
-auto q4 = relx::select(u.id, u.name)
+auto query3 = relx::select(u.id, u.name)
     .from(u)
-    .where((u.age < 18 || u.age > 65) && u.is_active == true);
-// SQL: WHERE (((age < ?) OR (age > ?)) AND (is_active = ?))
+    .where(
+        (u.age >= 18 && u.is_active == true) ||
+        (u.email.like("%admin%"))
+    );
+
+// SQL: SELECT users.id, users.name
+// FROM users
+// WHERE (((users.age >= ?) AND (users.is_active = ?)) OR (users.email LIKE ?))
 ```
 
-### IN Operator
+### Pattern Matching
 
-Checking if a value is in a set:
-
-```cpp
-Users u;
-
-// Using a vector
-std::vector<std::string> names = {"Alice", "Bob", "Charlie"};
-auto q1 = relx::select(u.id, u.email)
-    .from(u)
-    .where(relx::in(u.name, names));
-// SQL: WHERE name IN (?, ?, ?)
-
-// Using direct values
-auto q2 = relx::select(u.id, u.email)
-    .from(u)
-    .where(relx::in(u.age, {18, 21, 25, 30}));
-// SQL: WHERE age IN (?, ?, ?, ?)
-```
-
-### LIKE Operator
-
-Pattern matching with LIKE:
+Using LIKE for pattern matching:
 
 ```cpp
 Users u;
 
 auto query = relx::select(u.id, u.name)
     .from(u)
-    .where(relx::like(u.email, "%@example.com"));
+    .where(u.email.like("%gmail.com"));
 
-// SQL: SELECT id, name FROM users WHERE email LIKE ?
-// Parameters: ["%@example.com"]
+// SQL: SELECT users.id, users.name FROM users WHERE (users.email LIKE ?)
+// Parameters: ["%gmail.com"]
 ```
 
-### IS NULL / IS NOT NULL
+### IN Operator
+
+Matching against a list of values:
+
+```cpp
+Users u;
+
+auto query = relx::select(u.id, u.name)
+    .from(u)
+    .where(relx::in(u.id, {1, 2, 3, 4, 5}));
+
+// SQL: SELECT users.id, users.name FROM users WHERE (users.id IN (?, ?, ?, ?, ?))
+// Parameters: ["1", "2", "3", "4", "5"]
+```
+
+### NULL Checking
 
 Checking for NULL values:
 
 ```cpp
 Users u;
 
-// Using is_null()
-auto q1 = relx::select(u.id, u.name)
+// IS NULL
+auto query1 = relx::select(u.id, u.name)
     .from(u)
-    .where(u.email.is_null());
-// SQL: WHERE (email IS NULL)
+    .where(u.bio.is_null());
 
-// Using is_not_null()
-auto q2 = relx::select(u.id, u.name)
+// SQL: SELECT users.id, users.name FROM users WHERE (users.bio IS NULL)
+
+// IS NOT NULL
+auto query2 = relx::select(u.id, u.name)
     .from(u)
-    .where(u.email.is_not_null());
-// SQL: WHERE (email IS NOT NULL)
+    .where(u.bio.is_not_null());
+
+// SQL: SELECT users.id, users.name FROM users WHERE (users.bio IS NOT NULL)
 ```
 
 ## ORDER BY and LIMIT

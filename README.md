@@ -12,7 +12,7 @@ Currently features two postgresql clients so that this library is usable out of 
 - **Fluent Interface**: Build SQL using intuitive, chainable method calls
 - **Schema Definition**: Strongly typed table and column definitions
 - **Query Building**: Type-safe SELECT, INSERT, UPDATE, and DELETE operations
-- **Boilerplate/Macro Free**: Leverages Boost::pfr for simple schema definitions and automatic result parsing. With C++26 I will be transitioning this to using reflection, to get more compile time safety and remove the boost dependency.
+- **Boilerplate/Macro Free**: Leverages Boost::pfr for simple schema definitions and automatic result parsing. With C++26 I will be transitioning this to using reflection, to get more compile time safety, remove the boost dependency, and make the API cleaner.
 
 ## Requirements
 
@@ -100,7 +100,7 @@ int main() {
     relx::throw_if_failed(create_table_result);
 
     auto insert_statement = relx::insert_into(users)
-        .columns(users.name, users.email)
+        .columns(users.username, users.email)
         .values("Jane Smith", "jane@example.com")
         .values("Bob Johnson", "bob@example.com");
     
@@ -131,7 +131,7 @@ int main() {
     const auto& rows = relx::value_or_throw(query_result);
 
     // Process results - automatically mapped to UserDTO objects
-    for (const auto& user : *result) {
+    for (const auto& user : rows) {
         std::println("User: {} - {}", user.id, user.username);
     }
     

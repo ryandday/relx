@@ -92,10 +92,10 @@ auto query = relx::select(
  .join(c, relx::on(p.id == c.post_id));
 
 // Generated SQL:
-// SELECT name, title, content 
+// SELECT users.name, posts.title, comments.content 
 // FROM users 
-// JOIN posts ON (id = user_id) 
-// JOIN comments ON (id = post_id)
+// JOIN posts ON (users.id = posts.user_id) 
+// JOIN comments ON (posts.id = comments.post_id)
 ```
 
 ### Left Join with NULL Handling
@@ -120,10 +120,10 @@ auto query = relx::select(
  .left_join(p, relx::on(u.id == p.user_id));
 
 // Generated SQL:
-// SELECT name, title, 
-//   CASE WHEN (id IS NULL) THEN ? ELSE ? END AS post_status 
+// SELECT users.name, posts.title, 
+//   CASE WHEN (posts.id IS NULL) THEN ? ELSE ? END AS post_status 
 // FROM users 
-// LEFT JOIN posts ON (id = user_id)
+// LEFT JOIN posts ON (users.id = posts.user_id)
 ```
 
 ## Aggregate Functions
@@ -145,10 +145,10 @@ auto query = relx::select_expr(
  .group_by(u.id, u.name);
 
 // Generated SQL:
-// SELECT id, name, COUNT(id) AS post_count 
+// SELECT users.id, users.name, COUNT(posts.id) AS post_count 
 // FROM users 
-// JOIN posts ON (id = user_id) 
-// GROUP BY id, name
+// JOIN posts ON (users.id = posts.user_id) 
+// GROUP BY users.id, users.name
 ```
 
 ### Having Clause
@@ -169,11 +169,11 @@ auto query = relx::select_expr(
  .having(relx::count(p.id) > 5);
 
 // Generated SQL:
-// SELECT id, name, COUNT(id) AS post_count 
+// SELECT users.id, users.name, COUNT(posts.id) AS post_count 
 // FROM users 
-// JOIN posts ON (id = user_id) 
-// GROUP BY id, name 
-// HAVING (COUNT(id) > ?)
+// JOIN posts ON (users.id = posts.user_id) 
+// GROUP BY users.id, users.name 
+// HAVING (COUNT(posts.id) > ?)
 ```
 
 ### Multiple Aggregates
@@ -196,14 +196,14 @@ auto query = relx::select_expr(
  .group_by(d.name);
 
 // Generated SQL:
-// SELECT name, 
-//   COUNT(id) AS user_count, 
-//   COUNT(id) AS post_count, 
-//   SUM(views) AS total_views 
+// SELECT departments.name, 
+//   COUNT(users.id) AS user_count, 
+//   COUNT(posts.id) AS post_count, 
+//   SUM(posts.views) AS total_views 
 // FROM departments 
-// JOIN users ON (id = department_id) 
-// JOIN posts ON (id = user_id) 
-// GROUP BY name
+// JOIN users ON (departments.id = users.department_id) 
+// JOIN posts ON (users.id = posts.user_id) 
+// GROUP BY departments.name
 ```
 
 ## Subqueries
@@ -225,12 +225,12 @@ auto query = relx::select(u.id, u.name)
     .where(relx::in(u.id, subquery));
 
 // Generated SQL:
-// SELECT id, name 
+// SELECT users.id, users.name 
 // FROM users 
-// WHERE id IN (
-//   SELECT user_id 
+// WHERE users.id IN (
+//   SELECT posts.user_id 
 //   FROM posts 
-//   WHERE (views > ?)
+//   WHERE (posts.views > ?)
 // )
 ```
 
@@ -256,14 +256,14 @@ auto query = relx::select(u.id, u.name)
     .where(user_avg_views_subquery > avg_views_subquery);
 
 // Generated SQL:
-// SELECT id, name 
+// SELECT users.id, users.name 
 // FROM users 
 // WHERE (
-//   SELECT AVG(views) 
+//   SELECT AVG(posts.views) 
 //   FROM posts 
-//   WHERE (user_id = id)
+//   WHERE (posts.user_id = users.id)
 // ) > (
-//   SELECT AVG(views) 
+//   SELECT AVG(posts.views) 
 //   FROM posts
 // )
 ```
@@ -291,10 +291,10 @@ auto query = relx::select_expr(
 ).from(u);
 
 // Generated SQL:
-// SELECT id, name, 
+// SELECT users.id, users.name, 
 //   CASE 
-//     WHEN (age < ?) THEN ? 
-//     WHEN (age < ?) THEN ? 
+//     WHEN (users.age < ?) THEN ? 
+//     WHEN (users.age < ?) THEN ? 
 //     ELSE ? 
 //   END AS age_group 
 // FROM users
@@ -329,16 +329,16 @@ auto query = relx::select_expr(
 // Generated SQL:
 // SELECT 
 //   CASE 
-//     WHEN (age < ?) THEN ? 
-//     WHEN (age < ?) THEN ? 
+//     WHEN (users.age < ?) THEN ? 
+//     WHEN (users.age < ?) THEN ? 
 //     ELSE ? 
 //   END AS age_group, 
 //   COUNT(*) AS count 
 // FROM users 
 // GROUP BY 
 //   CASE 
-//     WHEN (age < ?) THEN ? 
-//     WHEN (age < ?) THEN ? 
+//     WHEN (users.age < ?) THEN ? 
+//     WHEN (users.age < ?) THEN ? 
 //     ELSE ? 
 //   END
 ```
