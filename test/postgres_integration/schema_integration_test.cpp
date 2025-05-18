@@ -197,7 +197,7 @@ TEST_F(SchemaIntegrationTest, CreateTables) {
     
     auto& rows = *tables;
     for (auto& row : rows) {
-        std::cerr << "row: " << row.get<std::string>(0).value_or("NULL") << std::endl;
+        std::println(stderr, "row: {}", row.get<std::string>(0).value_or("NULL"));
     }
     ASSERT_EQ(5, rows.size()) << "Expected 5 tables to be created";
     
@@ -266,10 +266,6 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
         {"products", "id"}
     };
     
-    std::cerr << "pk_rows: " << pk_rows.size() << std::endl;
-    for (auto& row : pk_rows) {
-        std::cerr << "row: " << row.get<std::string>(0).value_or("NULL") << std::endl;
-    }
     ASSERT_EQ(expected_pks.size(), pk_rows.size()) << "Expected " << expected_pks.size() << " primary key columns";
     
     for (size_t i = 0; i < pk_rows.size(); ++i) {
