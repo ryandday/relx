@@ -100,11 +100,13 @@ int main() {
     
     // Clean up
     auto drop_table_query = relx::drop_table(users);
-    conn.execute(drop_table_query);
+    auto drop_result = conn.execute(drop_table_query);
+    if (!drop_result) {
+        std::println("Insert error: {}", insert_result.error().message);
+        return 1;
+    }
     
-    // Disconnect
-    conn.disconnect();
-    
+    // Disconnect on destruction of the connection object
     return 0;
 }
 ```

@@ -19,23 +19,23 @@ public:
     /// @return SQL string defining the constraint
     constexpr std::string sql_definition() const {
         std::string result;
-        
+
         // Add constraint name if provided
         if constexpr (!Name.empty()) {
             result = "CONSTRAINT " + std::string(std::string_view(Name)) + " ";
         }
-        
+
         // Use the condition as-is
         result += "CHECK (" + std::string(std::string_view(Condition)) + ")";
         return result;
     }
-    
+
     /// @brief Get the condition as a string_view
     /// @return The condition string
     constexpr std::string_view condition() const {
         return std::string_view(Condition);
     }
-    
+
     /// @brief Get the name as a string_view
     /// @return The constraint name
     constexpr std::string_view name() const {
@@ -55,55 +55,55 @@ public:
     /// @return SQL string defining the constraint
     constexpr std::string sql_definition() const {
         std::string result;
-        
+
         // Add constraint name if provided
         if constexpr (!Name.empty()) {
             result = "CONSTRAINT " + std::string(std::string_view(Name)) + " ";
         }
-        
+
         // Use the column name and condition
         using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
-        
+
         // Append the condition, replacing "column" or "COLUMN" with the actual column name if needed
         std::string condition_str = std::string(std::string_view(Condition));
         result += "CHECK (" + condition_str + ")";
-        
+
         return result;
     }
-    
+
     /// @brief Get the condition as a string_view
     /// @return The condition string
     constexpr std::string_view condition() const {
         return std::string_view(Condition);
     }
-    
+
     /// @brief Get the name as a string_view
     /// @return The constraint name
     constexpr std::string_view name() const {
         return std::string_view(Name);
     }
-    
+
     /// @brief Get the associated column name
     /// @return The column name
     std::string_view column_name() const {
         using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
         return column_type::name;
     }
-    
+
 private:
     // Helper to extract the class type from a member pointer
     template <typename T>
     struct member_pointer_class;
-    
+
     template <typename C, typename T>
     struct member_pointer_class<T C::*> {
         using type = C;
     };
-    
+
     // Helper to extract the member type from a member pointer
     template <typename T>
     struct member_pointer_type;
-    
+
     template <typename C, typename T>
     struct member_pointer_type<T C::*> {
         using type = T;
@@ -147,4 +147,4 @@ constexpr auto named_column_check() {
 }
 
 } // namespace schema
-} // namespace relx 
+} // namespace relx

@@ -52,7 +52,7 @@ make test
 #include <relx/schema.hpp>
 #include <iostream>
 
-// Define a schema
+// Define schemas
 struct Users {
     static constexpr auto table_name = "users";
     
@@ -135,6 +135,7 @@ int main() {
         return 0;
     } catch (const relx::RelxException& e) {
         std::println("{}", e.what());
+        return 1;
     }
 }
 ```
