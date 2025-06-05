@@ -99,9 +99,9 @@ public:
       co_return std::unexpected(result_set.error());
     }
 
-    const auto& resultSet = *result_set;
+    const auto& result_set = *result_set;
 
-    if (resultSet.empty()) {
+    if (result_set.empty()) {
       co_return std::unexpected(ConnectionError{.message = "No results found", .error_code = -1});
     }
 
@@ -109,20 +109,20 @@ public:
     T obj{};
 
     // Get the first row of results
-    const auto& row = resultSet.at(0);
+    const auto& row = result_set.at(0);
 
     // Use Boost.PFR to get the tuple type that matches our struct
     auto structure_tie = boost::pfr::structure_tie(obj);
 
     // Make sure the number of columns matches the number of fields in the struct
-    if (resultSet.column_count() != boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) {
+    if (result_set.column_count() != boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) {
       std::stringstream ss;
       for (const auto& param : query.bind_params()) {
         ss << param << ", ";
       }
       co_return std::unexpected(ConnectionError{
           .message = "Column count does not match struct field count, " +
-                     std::to_string(resultSet.column_count()) +
+                     std::to_string(result_set.column_count()) +
                      " != " + std::to_string(boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) +
                      " for struct " + typeid(T).name() + " and query " + query.to_sql() +
                      " with params " + ss.str(),
@@ -133,7 +133,7 @@ public:
     try {
       // Create a vector of values from the row
       std::vector<std::string> values;
-      for (size_t i = 0; i < resultSet.column_count(); ++i) {
+      for (size_t i = 0; i < result_set.column_count(); ++i) {
         auto cell_result = row.get_cell(i);
         if (!cell_result) {
           co_return std::unexpected(
@@ -166,25 +166,25 @@ public:
       co_return std::unexpected(result_set.error());
     }
 
-    const auto& resultSet = *result_set;
+    const auto& result_set = *result_set;
 
     std::vector<T> objects;
-    objects.reserve(resultSet.size());
+    objects.reserve(result_set.size());
 
     // Check if we have at least one row to determine column count
-    if (resultSet.empty()) {
+    if (result_set.empty()) {
       co_return objects;  // Return empty vector
     }
 
     // Make sure the number of columns matches the number of fields in the struct
-    if (resultSet.column_count() != boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) {
+    if (result_set.column_count() != boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) {
       std::stringstream ss;
       for (const auto& param : query.bind_params()) {
         ss << param << ", ";
       }
       co_return std::unexpected(ConnectionError{
           .message = "Column count does not match struct field count, " +
-                     std::to_string(resultSet.column_count()) +
+                     std::to_string(result_set.column_count()) +
                      " != " + std::to_string(boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) +
                      " for struct " + typeid(T).name() + " and query " + query.to_sql() +
                      " with params " + ss.str(),
@@ -192,15 +192,15 @@ public:
     }
 
     // Process each row
-    for (size_t row_idx = 0; row_idx < resultSet.size(); ++row_idx) {
-      const auto& row = resultSet.at(row_idx);
+    for (size_t row_idx = 0; row_idx < result_set.size(); ++row_idx) {
+      const auto& row = result_set.at(row_idx);
       T obj{};
       auto structure_tie = boost::pfr::structure_tie(obj);
 
       try {
         // Create a vector of values from the row
         std::vector<std::string> values;
-        for (size_t i = 0; i < resultSet.column_count(); ++i) {
+        for (size_t i = 0; i < result_set.column_count(); ++i) {
           auto cell_result = row.get_cell(i);
           if (!cell_result) {
             co_return std::unexpected(ConnectionError{.message = "Failed to get cell value: " +

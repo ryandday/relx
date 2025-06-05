@@ -115,12 +115,12 @@ boost::asio::awaitable<ConnectionResult<result::ResultSet>> PostgreSQLAsyncConne
   }
 
   // Convert the result to our ResultSet type
-  auto resultSet = convert_result(*pg_result);
-  if (!resultSet) {
-    co_return std::unexpected(resultSet.error());
+  auto result_set = convert_result(*pg_result);
+  if (!result_set) {
+    co_return std::unexpected(result_set.error());
   }
 
-  co_return *resultSet;
+  co_return *result_set;
 }
 
 boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::begin_transaction(
