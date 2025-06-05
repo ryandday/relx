@@ -21,8 +21,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/use_awaitable.hpp>
 
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 /// @brief Asynchronous PostgreSQL implementation of the Connection interface
 class PostgreSQLAsyncConnection {
@@ -260,5 +259,4 @@ private:
   std::string convert_placeholders(const std::string& sql);
 };
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

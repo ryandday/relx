@@ -7,8 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Represents a literal value in a SQL query
 /// @tparam T The C++ type of the value
@@ -204,5 +203,4 @@ inline auto val(std::nullopt_t) {
   return Value<std::nullopt_t>(std::nullopt);
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

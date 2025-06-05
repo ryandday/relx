@@ -13,8 +13,7 @@
 #include <utility>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Error type for query operations
 struct QueryError {
@@ -86,5 +85,4 @@ inline std::string join_type_to_string(JoinType type) {
   }
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

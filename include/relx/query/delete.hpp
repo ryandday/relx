@@ -14,8 +14,7 @@
 #include <utility>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Base DELETE query builder
 /// @tparam Table Table to delete from
@@ -101,5 +100,4 @@ auto delete_from(const Table& table) {
   return DeleteQuery<Table>(table);
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

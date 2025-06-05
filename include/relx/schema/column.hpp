@@ -8,8 +8,7 @@
 #include <tuple>
 #include <type_traits>
 
-namespace relx {
-namespace schema {
+namespace relx::schema {
 
 /// @brief UNIQUE constraint
 struct unique {
@@ -459,5 +458,4 @@ private:
   }
 };
 
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

@@ -7,8 +7,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace relx {
-namespace schema {
+namespace relx::schema {
 
 /// @brief Index types
 enum class index_type { normal, unique, fulltext, spatial };
@@ -179,5 +178,4 @@ private:
   };
 };
 
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

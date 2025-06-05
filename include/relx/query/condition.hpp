@@ -9,8 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Generic binary condition expression
 template <SqlExpr Left, SqlExpr Right>
@@ -318,5 +317,4 @@ auto operator!(Expr expr) {
   return NotCondition<Expr>(std::move(expr));
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

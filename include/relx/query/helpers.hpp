@@ -12,8 +12,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief FROM extension for schema tables with automatic adapter creation
 /// @tparam Columns The tuple of column expressions
@@ -54,5 +53,4 @@ auto join(const SelectQuery<Columns, Tables, Joins, Where, GroupBys, OrderBys, H
   return query.template join<decltype(adapter), Condition>(adapter, std::move(cond), type);
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

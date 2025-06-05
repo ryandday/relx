@@ -6,8 +6,7 @@
 #include <string_view>
 #include <type_traits>
 
-namespace relx {
-namespace schema {
+namespace relx::schema {
 
 /// @brief Foreign key actions
 enum class reference_action { cascade, restrict, set_null, set_default, no_action };
@@ -331,5 +330,4 @@ auto make_fk(reference_action on_delete, reference_action on_update) {
 template <auto... Args>
 using fk = decltype(make_fk<Args...>());
 
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

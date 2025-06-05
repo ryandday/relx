@@ -6,8 +6,7 @@
 #include <string_view>
 #include <utility>
 
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 /// @brief Exception thrown when transaction operations fail
 class TransactionException : public std::runtime_error {
@@ -144,10 +143,8 @@ private:
   bool rolled_back_;
 };
 
-}  // namespace connection
+}  // namespace relx::connection
 
 // Convenient imports from the connection namespace
-using connection::TransactionException;
-using connection::TransactionGuard;
-
-}  // namespace relx
+using relx::connection::TransactionException;
+using relx::connection::TransactionGuard;

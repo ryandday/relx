@@ -1,7 +1,6 @@
 #include "relx/connection/postgresql_connection_pool.hpp"
 
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 PostgreSQLConnectionPool::PostgreSQLConnectionPool(PostgreSQLConnectionPoolConfig config)
     : config_(std::move(config)) {}
@@ -225,5 +224,4 @@ void PostgreSQLConnectionPool::cleanup_idle_connections() {
   total_connections_ -= closed;
 }
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

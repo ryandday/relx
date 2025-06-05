@@ -5,8 +5,7 @@
 #include <string_view>
 #include <type_traits>
 
-namespace relx {
-namespace schema {
+namespace relx::schema {
 
 /// @brief Represents a primary key constraint on a table
 /// @tparam ColumnPtr Pointer to the column member
@@ -121,5 +120,4 @@ auto make_pk() {
 template <auto... ColumnPtrs>
 using pk = decltype(make_pk<ColumnPtrs...>());
 
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

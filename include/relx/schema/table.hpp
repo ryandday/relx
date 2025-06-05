@@ -13,8 +13,7 @@
 
 #include <boost/pfr.hpp>
 
-namespace relx {
-namespace schema {
+namespace relx::schema {
 
 /// @brief Helper to detect column members in a table
 template <typename T>
@@ -233,5 +232,4 @@ private:
   bool cascade_ = false;
   bool restrict_ = false;
 };
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

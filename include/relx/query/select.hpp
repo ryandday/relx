@@ -17,8 +17,7 @@
 #include <utility>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief relx Query Module
 ///
@@ -747,5 +746,4 @@ auto select_distinct_all() {
   return select_distinct_all(table);
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

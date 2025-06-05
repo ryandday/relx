@@ -15,14 +15,11 @@ struct pg_result;
 using PGresult = pg_result;
 
 // Forward declare statement class
-namespace relx {
-namespace connection {
+namespace relx::connection {
 class PostgreSQLStatement;
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection
 
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 /// @brief PostgreSQL implementation of the Connection interface
 class PostgreSQLConnection : public Connection {
@@ -168,5 +165,4 @@ private:
   std::string convert_placeholders(const std::string& sql);
 };
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

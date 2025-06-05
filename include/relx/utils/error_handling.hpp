@@ -102,7 +102,7 @@ T value_or_throw(std::expected<T, E>&& result, const std::string& context = "",
 }
 
 /**
- * @brief Function to check a void expected and throw on error
+ * @brief Function to check and throw on error with no return value
  */
 template <typename E>
 void throw_if_failed(const std::expected<void, E>& result, const std::string& context = "",

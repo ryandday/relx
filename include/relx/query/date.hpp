@@ -16,8 +16,7 @@
 #include <string>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Binary date function expression (e.g., DATE_DIFF)
 template <SqlExpr Left, SqlExpr Right>
@@ -836,5 +835,4 @@ auto operator+(const UnaryDateFunctionExpr<Expr1>& left,
                                                                                     right);
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

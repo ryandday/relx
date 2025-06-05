@@ -5,8 +5,7 @@
 #include <string_view>
 #include <type_traits>
 
-namespace relx {
-namespace schema {
+namespace relx::schema {
 
 /// @brief Represents a UNIQUE constraint on a table
 /// @tparam ColumnPtr Pointer to the column member
@@ -94,5 +93,4 @@ private:
   };
 };
 
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

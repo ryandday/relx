@@ -5,8 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Literals namespace for SQL value literals
 namespace literals {
@@ -35,5 +34,4 @@ inline auto operator""_sql(const char* str, std::size_t len) {
 
 }  // namespace literals
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

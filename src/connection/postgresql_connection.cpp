@@ -9,8 +9,7 @@
 #include <vector>
 
 #include <libpq-fe.h>
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 // RAII wrapper for PGresult
 class PGResultWrapper {
@@ -549,5 +548,4 @@ std::unique_ptr<PostgreSQLStatement> PostgreSQLConnection::prepare_statement(
   return std::make_unique<PostgreSQLStatement>(*this, name, sql, param_count);
 }
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

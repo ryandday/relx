@@ -5,8 +5,7 @@
 
 #include <libpq-fe.h>
 
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 PostgreSQLStatement::PostgreSQLStatement(PostgreSQLConnection& connection, std::string name,
                                          std::string sql, int param_count)
@@ -146,5 +145,4 @@ std::string PostgreSQLStatement::escape_string(const std::string& str) {
   return result;
 }
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

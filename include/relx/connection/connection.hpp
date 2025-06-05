@@ -280,12 +280,11 @@ public:
 private:
 };
 
-}  // namespace connection
+}  // namespace relx::connection
 
 // Convenient imports from the connection namespace
-using connection::Connection;
-using connection::ConnectionError;
-using connection::ConnectionResult;
-using connection::IsolationLevel;
-
+using relx::connection::Connection;
+using relx::connection::ConnectionError;
+using relx::connection::ConnectionResult;
+using relx::connection::IsolationLevel;
 }  // namespace relx

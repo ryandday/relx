@@ -6,8 +6,7 @@
 #include <string>
 #include <string_view>
 
-namespace relx {
-namespace schema {
+namespace relx::schema {
 
 /// @brief Check constraint that accepts a condition string at compile time
 /// @details Uses compile-time string literals to define the constraint condition
@@ -139,5 +138,4 @@ constexpr auto named_column_check() {
   return column_check_constraint<ColumnPtr, Condition, Name>();
 }
 
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

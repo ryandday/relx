@@ -9,10 +9,9 @@
 #include <type_traits>
 #include <utility>
 
-namespace relx {
+namespace relx::schema {
 
 /// @brief Contains schema definition components
-namespace schema {
 
 /// @brief Metadata for a SQL column
 template <typename T>
@@ -168,5 +167,4 @@ concept ColumnTypeConcept = requires {
   { column_traits<T>::from_sql_string(std::declval<std::string>()) } -> std::convertible_to<T>;
 };
 
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

@@ -23,8 +23,7 @@
 #include <variant>
 #include <vector>
 
-namespace relx {
-namespace result {
+namespace relx::result {
 
 // Helper type to extract class type from member pointer
 template <typename T>
@@ -872,8 +871,7 @@ ResultProcessingResult<ResultSet> parse(const Query& query, const std::string& r
   }
 }
 
-}  // namespace result
-}  // namespace relx
+}  // namespace relx::result
 
 // Structured binding support
 namespace std {

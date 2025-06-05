@@ -8,8 +8,7 @@
 
 #include <type_traits>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Type checking for arithmetic operations
 namespace arithmetic_checking {
@@ -512,11 +511,9 @@ auto operator/(ValueT&& value, const query::ArithmeticExpr<Left, Right>& right_e
 }
 
 }  // namespace query
-}  // namespace relx
 
 // Arithmetic operators need to be in the schema namespace for ADL to find them
-namespace relx {
-namespace schema {
+namespace relx::schema {
 
 /// @brief Addition operator for columns with type checking
 template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
@@ -909,5 +906,4 @@ auto operator/(ValueT&& value, const query::ArithmeticExpr<Left, Right>& right_e
       std::move(value_expr), "/", std::move(right_expr));
 }
 
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

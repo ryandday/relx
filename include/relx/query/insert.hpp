@@ -16,8 +16,7 @@
 #include <utility>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Represents a single column-value pair for an INSERT statement
 /// @tparam Column The column type
@@ -332,5 +331,4 @@ auto insert_into(const Table& table) {
   return InsertQuery<Table>(table);
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

@@ -17,8 +17,7 @@
 #include <utility>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Represents a SET clause assignment in an UPDATE statement
 template <ColumnType Column, SqlExpr Value>
@@ -254,5 +253,4 @@ auto update(const Table& table) {
   return UpdateQuery<Table>(table);
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

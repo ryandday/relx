@@ -13,8 +13,7 @@
 #include <string_view>
 #include <vector>
 
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 /// @brief Configuration for PostgreSQL connection pool
 struct PostgreSQLConnectionPoolConfig {
@@ -206,5 +205,4 @@ private:
   void cleanup_idle_connections();
 };
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

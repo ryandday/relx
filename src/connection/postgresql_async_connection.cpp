@@ -3,8 +3,7 @@
 #include <iostream>
 #include <regex>
 
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 PostgreSQLAsyncConnection::PostgreSQLAsyncConnection(boost::asio::io_context& io_context,
                                                      std::string connection_string)
@@ -267,5 +266,4 @@ ConnectionResult<result::ResultSet> PostgreSQLAsyncConnection::convert_result(
   return result::ResultSet(std::move(rows), std::move(column_names));
 }
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

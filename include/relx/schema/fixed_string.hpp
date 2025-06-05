@@ -57,10 +57,7 @@ template <std::size_t N>
 std::ostream& operator<<(std::ostream& os, const FixedString<N>& str) {
   return os << std::string_view(str);
 }
-
-}  // namespace schema
-
-// Namespace alias for convenience
+}
 namespace literals {
 // Standard C++11 user-defined literal syntax
 template <char... Chars>
@@ -69,7 +66,5 @@ constexpr auto operator""_fs() {
   return schema::FixedString<sizeof...(Chars) + 1>(str);
 }
 }  // namespace literals
-
-using namespace literals;
 
 }  // namespace relx

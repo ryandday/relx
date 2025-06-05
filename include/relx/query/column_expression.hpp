@@ -9,8 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 // Forward declarations
 class CaseExpr;
@@ -116,5 +115,4 @@ auto as(const Column& column, std::string alias) {
   return AliasedColumn<ColumnRef<Column>>(column_ref(column), std::move(alias));
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

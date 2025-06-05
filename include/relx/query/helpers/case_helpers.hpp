@@ -3,8 +3,7 @@
 #include "../function.hpp"
 #include "../value.hpp"
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 // Extension methods for CaseBuilder to work with literals in THEN clauses
 
@@ -93,5 +92,4 @@ inline CaseBuilder& else_(CaseBuilder& builder, bool value) {
   return builder.else_(val(value));
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

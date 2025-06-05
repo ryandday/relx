@@ -5,11 +5,8 @@
 #include <type_traits>
 #include "../schema/column.hpp"
 
-namespace relx {
-namespace query {
-
 /// @brief Type checking concepts for date/time operations
-namespace date_checking {
+namespace relx::query::date_checking {
 
 /// @brief Remove optional wrapper to get base type
 template <typename T>
@@ -76,7 +73,4 @@ using extract_column_type_t = typename extract_column_type<T>::type;
 template <typename T>
 concept DateTimeColumn = DateTimeType<remove_optional_t<extract_column_type_t<T>>>;
 
-}  // namespace date_checking
-
-}  // namespace query
-}  // namespace relx 
+}  // namespace relx::query::date_checking

@@ -3,8 +3,7 @@
 #include <regex>
 #include <sstream>
 
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 PostgreSQLError PostgreSQLError::from_libpq(int pg_error_code, std::string_view error_msg) {
   PostgreSQLError error;
@@ -124,5 +123,4 @@ std::string PostgreSQLError::formatted_message() const {
   return ss.str();
 }
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

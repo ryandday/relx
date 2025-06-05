@@ -9,8 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Base class for SQL function expressions
 /// @tparam Expr The expression type for the function argument
@@ -653,5 +652,4 @@ inline auto as(CaseExpr&& expr, std::string alias) {
   return AliasedColumn<CaseExpr>(std::shared_ptr<CaseExpr>(std::move(expr_ptr)), std::move(alias));
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

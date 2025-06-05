@@ -16,8 +16,7 @@
 #include <optional>
 
 namespace relx {
-
-/// @brief Type compatibility utilities for column comparisons
+     /// @brief Type compatibility utilities for column comparisons
 namespace type_checking {
 
 /// @brief Helper to extract the underlying type from optional
@@ -1422,8 +1421,7 @@ auto operator!=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
 }  // namespace relx
 
 // Implementation of column methods that delegate to query functions
-namespace relx {
-namespace schema {
+namespace relx::schema {
 
 // Implementation for non-optional columns
 template <typename TableT, FixedString Name, typename T, typename... Modifiers>
@@ -1461,5 +1459,4 @@ auto column<TableT, Name, std::optional<T>, Modifiers...>::is_not_null() const {
   return query::is_not_null(*this);
 }
 
-}  // namespace schema
-}  // namespace relx
+}  // namespace relx::schema

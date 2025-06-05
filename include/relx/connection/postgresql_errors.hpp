@@ -3,8 +3,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 /// @brief PostgreSQL specific error codes
 enum class PostgreSQLErrorCode {
@@ -90,5 +89,4 @@ inline const std::unordered_map<std::string, PostgreSQLErrorCode> SQL_STATE_MAP 
     // Add more mappings as needed
 };
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

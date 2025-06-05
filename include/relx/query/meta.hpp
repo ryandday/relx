@@ -7,8 +7,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Helper to check if a tuple is empty
 template <typename Tuple>
@@ -80,5 +79,4 @@ constexpr auto column_name_of() {
   return column_t::name;
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query

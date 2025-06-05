@@ -11,8 +11,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace relx {
-namespace query {
+namespace relx::query {
 
 /// @brief Adapter to convert schema::column to a ColumnRef
 /// This allows direct use of schema columns in query expressions
@@ -113,5 +112,4 @@ auto to_table(const T& table) {
   return SchemaTableAdapter<T>(table);
 }
 
-}  // namespace query
-}  // namespace relx
+}  // namespace relx::query
