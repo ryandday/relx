@@ -251,12 +251,12 @@ private:
   bool in_transaction_ = false;
 
   /// @brief Helper method to convert pgsql_async_wrapper::result to relx::result::ResultSet
-  ConnectionResult<result::ResultSet> convert_result(const pgsql_async_wrapper::Result& pg_result);
+  static ConnectionResult<result::ResultSet> convert_result(const pgsql_async_wrapper::Result& pg_result);
 
   /// @brief Convert SQL with ? placeholders to PostgreSQL's $n format
   /// @param sql SQL query with ? placeholders
   /// @return Converted SQL with $1, $2, etc. placeholders
-  std::string convert_placeholders(const std::string& sql);
+  static std::string convert_placeholders(const std::string& sql);
 };
 
 }  // namespace relx::connection

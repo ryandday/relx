@@ -199,7 +199,7 @@ private:
   /// @brief Validate a connection is still usable
   /// @param connection The connection to validate
   /// @return True if the connection is valid, false otherwise
-  bool validate_connection(const std::shared_ptr<PostgreSQLConnection>& connection) const;
+  static bool validate_connection(const std::shared_ptr<PostgreSQLConnection>& connection);
 
   /// @brief Clean up idle connections that have been idle for too long
   void cleanup_idle_connections();

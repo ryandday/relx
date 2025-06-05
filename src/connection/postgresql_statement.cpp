@@ -105,7 +105,7 @@ ConnectionResult<result::ResultSet> PostgreSQLStatement::execute(
 }
 
 ConnectionResult<PGresult*> PostgreSQLStatement::execute_raw(const std::vector<std::string>& params,
-                                                             int result_format) {
+                                                             int /*result_format*/) {
   if (!is_valid_) {
     return std::unexpected(ConnectionError{.message = "Statement is not valid", .error_code = -1});
   }
@@ -122,7 +122,7 @@ ConnectionResult<PGresult*> PostgreSQLStatement::execute_raw(const std::vector<s
                       .error_code = -1});
 }
 
-ConnectionResult<result::ResultSet> PostgreSQLStatement::process_result(PGresult* pg_result) {
+static ConnectionResult<result::ResultSet> process_result(PGresult* /*pg_result*/) {
   // This should be implemented using the same logic as in PostgreSQLConnection::execute_raw
   // Since we're using higher-level execution through the connection, we don't need this.
   return std::unexpected(ConnectionError{

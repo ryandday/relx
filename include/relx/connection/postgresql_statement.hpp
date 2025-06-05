@@ -119,7 +119,7 @@ private:
   /// @brief Process PGresult into a ResultSet
   /// @param pg_result The PGresult to process
   /// @return ResultSet or error
-  ConnectionResult<result::ResultSet> process_result(PGresult* pg_result);
+  static ConnectionResult<result::ResultSet> process_result(PGresult* pg_result);
 
   /// @brief Helper to escape string literals for PostgreSQL
   /// @param str The string to escape

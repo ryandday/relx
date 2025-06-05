@@ -163,8 +163,8 @@ PostgreSQLConnectionPool::create_connection() {
   return connection;
 }
 
-bool PostgreSQLConnectionPool::validate_connection(
-    const std::shared_ptr<PostgreSQLConnection>& connection) const {
+static bool validate_connection(
+    const std::shared_ptr<PostgreSQLConnection>& connection) {
   if (!connection->is_connected()) {
     return false;
   }

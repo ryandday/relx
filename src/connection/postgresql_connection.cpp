@@ -62,7 +62,7 @@ private:
 };
 
 // Helper function to convert PostgreSQL hex BYTEA format to binary
-std::string convert_pg_bytea_to_binary(const std::string& hex_value) {
+static std::string convert_pg_bytea_to_binary(const std::string& hex_value) {
   // Check if this is a PostgreSQL hex-encoded BYTEA value (starts with \x)
   if (hex_value.size() >= 2 && hex_value.substr(0, 2) == "\\x") {
     std::string binary_result;
@@ -508,7 +508,7 @@ bool PostgreSQLConnection::in_transaction() const {
   return in_transaction_;
 }
 
-std::string PostgreSQLConnection::convert_placeholders(const std::string& sql) {
+static std::string convert_placeholders(const std::string& sql) {
   std::regex placeholder_regex("\\?");
   std::string result;
   std::string::const_iterator search_start(sql.cbegin());
