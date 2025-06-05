@@ -13,7 +13,7 @@ namespace relx::schema {
 /// @brief Index types
 // Keep the names lowercase to match the lowercase table api
 // NOLINTNEXTLINE(readability-identifier-naming)
-enum class index_type { normal, unique, fulltext, spatial };
+enum class index_type : uint8_t { normal, unique, fulltext, spatial };
 
 /// @brief Convert index type to SQL string
 /// @param type The index type
@@ -55,7 +55,7 @@ public:
     std::string table_name = std::string(table_type::table_name);
     std::string column_name = std::string(column_type::name);
 
-    std::string index_name = table_name + "_" + column_name + "_idx";
+    const std::string index_name = table_name + "_" + column_name + "_idx";
 
     std::string result = "CREATE ";
     result += std::string(index_type_to_string(type_));

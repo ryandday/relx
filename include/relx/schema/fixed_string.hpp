@@ -23,7 +23,7 @@ namespace schema {
  */
 template <std::size_t N>
 struct FixedString {
-  constexpr FixedString(const char (&str)[N]) { std::copy_n(str, N, value); }
+  constexpr FixedString(const char (&str)[N]){ std::copy_n(str, N, value); }
 
   constexpr FixedString(const FixedString&) = default;
 

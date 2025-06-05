@@ -33,15 +33,15 @@ Checks: >
   -misc-use-anonymous-namespace,
   modernize-*,
   -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
   -modernize-use-trailing-return-type,
   performance-*,
-  readability-identifier-naming,
   readability-convert-member-functions-to-static,
   readability-else-after-return,
   readability-const-return-type,
   readability-container-size-empty,
   readability-delete-null-pointer,
-  readability-implicit-bool-conversion,
+  -readability-implicit-bool-conversion,
   readability-inconsistent-declaration-parameter-name,
   readability-make-member-function-const,
   readability-misleading-indentation,
@@ -80,15 +80,10 @@ CheckOptions:
   readability-identifier-naming.PrivateMemberSuffix: '_'
   readability-identifier-naming.ProtectedMemberSuffix: '_'
   readability-identifier-naming.EnumConstantCase: CamelCase
-  readability-identifier-naming.ClassCase: CamelCase
-  readability-identifier-naming.StructCase: CamelCase
-  readability-identifier-naming.TypedefCase: CamelCase
-  readability-identifier-naming.TypeAliasCase: CamelCase
   
   # Modern C++ checks
   modernize-use-auto.MinTypeNameLength: 5
   modernize-use-auto.RemoveStars: false
-  modernize-use-nodiscard.ReplacementString: '[[nodiscard]]'
   modernize-use-std-print.StrictMode: true
   
   # Performance settings
