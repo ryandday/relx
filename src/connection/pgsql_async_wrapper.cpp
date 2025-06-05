@@ -5,7 +5,7 @@
 namespace relx::pgsql_async_wrapper {
 
 // Helper function to convert ? placeholders to $1, $2, etc.
-std::string convert_placeholders(const std::string& sql) {
+static std::string convert_placeholders(const std::string& sql) {
   std::regex placeholder_regex("\\?");
   std::string result;
   std::string::const_iterator search_start(sql.cbegin());
@@ -22,8 +22,8 @@ std::string convert_placeholders(const std::string& sql) {
   return result;
 }
 
-// Implementation of prepared_statement methods
-boost::asio::awaitable<PgResult<void>> prepared_statement::prepare() {
+// Implementation of PreparedStatement methods
+boost::asio::awaitable<PgResult<void>> PreparedStatement::prepare() {
   if (prepared_) {
     co_return PgResult<void>{};
   }
@@ -54,7 +54,7 @@ boost::asio::awaitable<PgResult<void>> prepared_statement::prepare() {
   co_return PgResult<void>{};
 }
 
-boost::asio::awaitable<PgResult<result>> prepared_statement::execute(
+boost::asio::awaitable<PgResult<Result>> PreparedStatement::execute(
     const std::vector<std::string>& params) {
   if (!prepared_) {
     auto prepare_result = co_await prepare();
@@ -87,7 +87,7 @@ boost::asio::awaitable<PgResult<result>> prepared_statement::execute(
   co_return co_await conn_.get_query_result();
 }
 
-boost::asio::awaitable<PgResult<void>> prepared_statement::deallocate() {
+boost::asio::awaitable<PgResult<void>> PreparedStatement::deallocate() {
   if (!prepared_) {
     co_return PgResult<void>{};
   }

@@ -51,23 +51,23 @@ template <typename T>
 using PgResult = std::expected<T, PgError>;
 
 // Result class to handle PGresult
-class result {
+class Result {
 private:
   PGresult* res_ = nullptr;
 
 public:
-  result() = default;
+  Result() = default;
 
-  explicit result(PGresult* res) : res_(res) {}
+  explicit Result(PGresult* res) : res_(res) {}
 
-  ~result() { clear(); }
+  ~Result() { clear(); }
 
-  result(const result&) = delete;
-  result& operator=(const result&) = delete;
+  Result(const Result&) = delete;
+  Result& operator=(const Result&) = delete;
 
-  result(result&& other) noexcept : res_(other.res_) { other.res_ = nullptr; }
+  Result(Result&& other) noexcept : res_(other.res_) { other.res_ = nullptr; }
 
-  result& operator=(result&& other) noexcept {
+  Result& operator=(Result&& other) noexcept {
     if (this != &other) {
       clear();
       res_ = other.res_;
@@ -84,7 +84,9 @@ public:
   }
 
   bool ok() const {
-    if (!res_) return false;
+    if (!res_) {
+      return false;
+    }
     auto status = PQresultStatus(res_);
     return status == PGRES_COMMAND_OK || status == PGRES_TUPLES_OK;
   }
@@ -124,34 +126,34 @@ public:
 enum class IsolationLevel { ReadUncommitted, ReadCommitted, RepeatableRead, Serializable };
 
 // Forward declaration
-class connection;
+class Connection;
 
 // Prepared statement class
-class prepared_statement {
+class PreparedStatement {
 private:
-  connection& conn_;
+  Connection& conn_;
   std::string name_;
   std::string query_;
   bool prepared_ = false;
 
 public:
-  prepared_statement(connection& conn, std::string name, std::string query)
+  PreparedStatement(Connection& conn, std::string name, std::string query)
       : conn_(conn), name_(std::move(name)), query_(std::move(query)) {}
 
-  ~prepared_statement() = default;
+  ~PreparedStatement() = default;
 
   // Non-copyable
-  prepared_statement(const prepared_statement&) = delete;
-  prepared_statement& operator=(const prepared_statement&) = delete;
+  PreparedStatement(const PreparedStatement&) = delete;
+  PreparedStatement& operator=(const PreparedStatement&) = delete;
 
   // Move constructible/assignable
-  prepared_statement(prepared_statement&& other) noexcept
+  PreparedStatement(PreparedStatement&& other) noexcept
       : conn_(other.conn_), name_(std::move(other.name_)), query_(std::move(other.query_)),
         prepared_(other.prepared_) {
     other.prepared_ = false;
   }
 
-  prepared_statement& operator=(prepared_statement&& other) noexcept {
+  PreparedStatement& operator=(PreparedStatement&& other) noexcept {
     if (this != &other) {
       name_ = std::move(other.name_);
       query_ = std::move(other.query_);
@@ -167,21 +169,21 @@ public:
 
   // The implementation of prepare and execute will be defined in separate cpp file
   boost::asio::awaitable<PgResult<void>> prepare();
-  boost::asio::awaitable<PgResult<result>> execute(const std::vector<std::string>& params);
+  boost::asio::awaitable<PgResult<Result>> execute(const std::vector<std::string>& params);
   boost::asio::awaitable<PgResult<void>> deallocate();
 
-  friend class connection;
+  friend class Connection;
 };
 
 // ----------------------------------------------------------------------
 // The connection class - main interface for PostgreSQL operations
 // ----------------------------------------------------------------------
-class connection {
+class Connection {
 private:
   boost::asio::io_context& io_;
   PGconn* conn_ = nullptr;
   std::unique_ptr<boost::asio::ip::tcp::socket> socket_;
-  std::unordered_map<std::string, std::shared_ptr<prepared_statement>> statements_;
+  std::unordered_map<std::string, std::shared_ptr<PreparedStatement>> statements_;
   bool in_transaction_ = false;
 
   PgResult<void> create_socket() {
@@ -222,7 +224,7 @@ private:
   }
 
   // Helper method to wait for and get a query result
-  boost::asio::awaitable<PgResult<result>> get_query_result() {
+  boost::asio::awaitable<PgResult<Result>> get_query_result() {
     while (true) {
       // Check if we can consume input without blocking
       if (PQconsumeInput(conn_) == 0) {
@@ -232,7 +234,7 @@ private:
       // Check if we can get a result without blocking
       if (!PQisBusy(conn_)) {
         PGresult* res = PQgetResult(conn_);
-        result result_obj(res);
+        Result result_obj(res);
 
         // Flush all remaining results (normally there should be none for a single query)
         while ((res = PQgetResult(conn_)) != nullptr) {
@@ -254,23 +256,23 @@ private:
   }
 
 public:
-  connection(boost::asio::io_context& io) : io_(io) {}
+  Connection(boost::asio::io_context& io) : io_(io) {}
 
-  ~connection() { close(); }
+  ~Connection() { close(); }
 
   // Non-copyable
-  connection(const connection&) = delete;
-  connection& operator=(const connection&) = delete;
+  Connection(const Connection&) = delete;
+  Connection& operator=(const Connection&) = delete;
 
   // Move constructible/assignable
-  connection(connection&& other) noexcept
+  Connection(Connection&& other) noexcept
       : io_(other.io_), conn_(other.conn_), socket_(std::move(other.socket_)),
         statements_(std::move(other.statements_)), in_transaction_(other.in_transaction_) {
     other.conn_ = nullptr;
     other.in_transaction_ = false;
   }
 
-  connection& operator=(connection&& other) noexcept {
+  Connection& operator=(Connection&& other) noexcept {
     if (this != &other) {
       close();
       conn_ = other.conn_;
@@ -394,7 +396,7 @@ public:
   }
 
   // Asynchronous parameterized query execution using boost::asio::awaitable
-  boost::asio::awaitable<PgResult<result>> query(const std::string& query_text,
+  boost::asio::awaitable<PgResult<Result>> query(const std::string& query_text,
                                                  const std::vector<std::string>& params = {}) {
     if (!is_open()) {
       co_return std::unexpected(PgError{.message = "Connection is not open", .error_code = -1});
@@ -517,7 +519,7 @@ public:
   // -------------------------
 
   // Create a prepared statement
-  boost::asio::awaitable<PgResult<std::shared_ptr<prepared_statement>>> prepare_statement(
+  boost::asio::awaitable<PgResult<std::shared_ptr<PreparedStatement>>> prepare_statement(
       const std::string& name, const std::string& query_text) {
     if (!is_open()) {
       co_return std::unexpected(PgError{.message = "Connection is not open", .error_code = -1});
@@ -540,7 +542,7 @@ public:
     }
 
     // Create a new prepared statement
-    auto stmt = std::make_shared<prepared_statement>(*this, name, query_text);
+    auto stmt = std::make_shared<PreparedStatement>(*this, name, query_text);
     statements_[name] = stmt;
 
     // Prepare it
@@ -554,7 +556,7 @@ public:
   }
 
   // Get a prepared statement by name
-  PgResult<std::shared_ptr<prepared_statement>> get_prepared_statement(const std::string& name) {
+  PgResult<std::shared_ptr<PreparedStatement>> get_prepared_statement(const std::string& name) {
     auto it = statements_.find(name);
     if (it != statements_.end()) {
       return it->second;
@@ -564,7 +566,7 @@ public:
   }
 
   // Execute a prepared statement by name
-  boost::asio::awaitable<PgResult<result>> execute_prepared(
+  boost::asio::awaitable<PgResult<Result>> execute_prepared(
       const std::string& name, const std::vector<std::string>& params = {}) {
     auto stmt_result = get_prepared_statement(name);
     if (!stmt_result) {
@@ -609,7 +611,7 @@ public:
     co_return PgResult<void>{};
   }
 
-  friend class prepared_statement;
+  friend class PreparedStatement;
 };
 
 }  // namespace relx::pgsql_async_wrapper

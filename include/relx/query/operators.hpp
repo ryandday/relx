@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../query/condition.hpp"
-#include "../query/date.hpp"
+#include "../query/date_concepts.hpp"
 #include "../query/function.hpp"
 #include "../query/meta.hpp"
 #include "../query/schema_adapter.hpp"
@@ -12,6 +12,8 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <chrono>
+#include <optional>
 
 namespace relx {
 
@@ -1191,8 +1193,7 @@ class DateArithmeticExpr;
 
 // Operators for CurrentDateTimeExpr with date columns
 template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator>(const CurrentDateTimeExpr& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1200,8 +1201,7 @@ auto operator>(const CurrentDateTimeExpr& expr,
 }
 
 template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator<(const CurrentDateTimeExpr& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1209,8 +1209,7 @@ auto operator<(const CurrentDateTimeExpr& expr,
 }
 
 template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator>=(const CurrentDateTimeExpr& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1218,8 +1217,7 @@ auto operator>=(const CurrentDateTimeExpr& expr,
 }
 
 template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator<=(const CurrentDateTimeExpr& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1227,8 +1225,7 @@ auto operator<=(const CurrentDateTimeExpr& expr,
 }
 
 template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator==(const CurrentDateTimeExpr& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1236,8 +1233,7 @@ auto operator==(const CurrentDateTimeExpr& expr,
 }
 
 template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator!=(const CurrentDateTimeExpr& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1247,8 +1243,7 @@ auto operator!=(const CurrentDateTimeExpr& expr,
 // Operators for UnaryDateFunctionExpr with date columns
 template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator>(const UnaryDateFunctionExpr<Expr>& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1257,8 +1252,7 @@ auto operator>(const UnaryDateFunctionExpr<Expr>& expr,
 
 template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator<(const UnaryDateFunctionExpr<Expr>& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1267,8 +1261,7 @@ auto operator<(const UnaryDateFunctionExpr<Expr>& expr,
 
 template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator>=(const UnaryDateFunctionExpr<Expr>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1277,8 +1270,7 @@ auto operator>=(const UnaryDateFunctionExpr<Expr>& expr,
 
 template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator<=(const UnaryDateFunctionExpr<Expr>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1287,8 +1279,7 @@ auto operator<=(const UnaryDateFunctionExpr<Expr>& expr,
 
 template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator==(const UnaryDateFunctionExpr<Expr>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1297,8 +1288,7 @@ auto operator==(const UnaryDateFunctionExpr<Expr>& expr,
 
 template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator!=(const UnaryDateFunctionExpr<Expr>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1308,8 +1298,7 @@ auto operator!=(const UnaryDateFunctionExpr<Expr>& expr,
 // Operators for BinaryDateFunctionExpr with date columns
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator>(const BinaryDateFunctionExpr<Left, Right>& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1319,8 +1308,7 @@ auto operator>(const BinaryDateFunctionExpr<Left, Right>& expr,
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator<(const BinaryDateFunctionExpr<Left, Right>& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1330,8 +1318,7 @@ auto operator<(const BinaryDateFunctionExpr<Left, Right>& expr,
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator>=(const BinaryDateFunctionExpr<Left, Right>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1341,8 +1328,7 @@ auto operator>=(const BinaryDateFunctionExpr<Left, Right>& expr,
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator<=(const BinaryDateFunctionExpr<Left, Right>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1352,8 +1338,7 @@ auto operator<=(const BinaryDateFunctionExpr<Left, Right>& expr,
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator==(const BinaryDateFunctionExpr<Left, Right>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1363,8 +1348,7 @@ auto operator==(const BinaryDateFunctionExpr<Left, Right>& expr,
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
           typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator!=(const BinaryDateFunctionExpr<Left, Right>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1375,8 +1359,7 @@ auto operator!=(const BinaryDateFunctionExpr<Left, Right>& expr,
 // Operators for DateArithmeticExpr with date columns
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
           typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator>(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1386,8 +1369,7 @@ auto operator>(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
           typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator<(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1397,8 +1379,7 @@ auto operator<(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
           typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator>=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1408,8 +1389,7 @@ auto operator>=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
           typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator<=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1419,8 +1399,7 @@ auto operator<=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
           typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator==(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
@@ -1430,8 +1409,7 @@ auto operator==(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
           typename T, typename... Modifiers>
-  requires query::date_checking::DateTimeType<T> ||
-           query::date_checking::DateTimeType<query::date_checking::remove_optional_t<T>>
+  requires date_checking::DateTimeType<T>
 auto operator!=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);

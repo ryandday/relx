@@ -43,7 +43,7 @@ TEST_F(PostgresqlAsyncWrapperTest, PgErrorTests) {
 
 // Test result class methods with nullptr
 TEST_F(PostgresqlAsyncWrapperTest, ResultNullptr) {
-    result res;
+    Result res;
     
     EXPECT_FALSE(res.ok());
     EXPECT_EQ(PGRES_FATAL_ERROR, res.status());
@@ -63,7 +63,7 @@ TEST_F(PostgresqlAsyncWrapperTest, ResultNullptr) {
 
 // Test connection_error with invalid connection parameters
 TEST_F(PostgresqlAsyncWrapperTest, ConnectionErrorInvalidParams) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto result = co_await conn.connect("this is not a valid connection string");
@@ -74,7 +74,7 @@ TEST_F(PostgresqlAsyncWrapperTest, ConnectionErrorInvalidParams) {
 
 // Test connection_error when server is offline
 TEST_F(PostgresqlAsyncWrapperTest, ConnectionErrorServerOffline) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         // Use a non-existent port to simulate server being offline
@@ -86,7 +86,7 @@ TEST_F(PostgresqlAsyncWrapperTest, ConnectionErrorServerOffline) {
 
 // Test query on closed connection
 TEST_F(PostgresqlAsyncWrapperTest, QueryOnClosedConnection) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto res_result = co_await conn.query("SELECT 1", {});
@@ -98,8 +98,8 @@ TEST_F(PostgresqlAsyncWrapperTest, QueryOnClosedConnection) {
 TEST_F(PostgresqlAsyncWrapperTest, MoveOperations) {
     // Move constructor
     {
-        connection conn1(io_);
-        connection conn2(std::move(conn1));
+        Connection conn1(io_);
+        Connection conn2(std::move(conn1));
         
         // conn1 should be in a moved-from state
         EXPECT_FALSE(conn1.is_open());
@@ -110,8 +110,8 @@ TEST_F(PostgresqlAsyncWrapperTest, MoveOperations) {
     
     // Move assignment
     {
-        connection conn1(io_);
-        connection conn2(io_);
+        Connection conn1(io_);
+        Connection conn2(io_);
         
         conn2 = std::move(conn1);
         
@@ -127,16 +127,16 @@ TEST_F(PostgresqlAsyncWrapperTest, MoveOperations) {
 TEST_F(PostgresqlAsyncWrapperTest, ResultMoveOperations) {
     // Move constructor
     {
-        result res1;
-        result res2(std::move(res1));
+        Result res1;
+        Result res2(std::move(res1));
         
         EXPECT_FALSE(res2.ok());
     }
     
     // Move assignment
     {
-        result res1;
-        result res2;
+        Result res1;
+        Result res2;
         
         res2 = std::move(res1);
         
@@ -149,7 +149,7 @@ TEST_F(PostgresqlAsyncWrapperTest, ResultMoveOperations) {
 
 // Test successful connection to real PostgreSQL server
 TEST_F(PostgresqlAsyncWrapperTest, RealConnectionSuccess) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -162,7 +162,7 @@ TEST_F(PostgresqlAsyncWrapperTest, RealConnectionSuccess) {
 
 // Test basic query with real PostgreSQL server
 TEST_F(PostgresqlAsyncWrapperTest, BasicQuery) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -184,7 +184,7 @@ TEST_F(PostgresqlAsyncWrapperTest, BasicQuery) {
 
 // Test parameterized query
 TEST_F(PostgresqlAsyncWrapperTest, ParameterizedQuery) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -206,7 +206,7 @@ TEST_F(PostgresqlAsyncWrapperTest, ParameterizedQuery) {
 
 // Test connection close and reconnect
 TEST_F(PostgresqlAsyncWrapperTest, ConnectionCloseAndReconnect) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -230,7 +230,7 @@ TEST_F(PostgresqlAsyncWrapperTest, ConnectionCloseAndReconnect) {
 
 // Test basic transaction
 TEST_F(PostgresqlAsyncWrapperTest, BasicTransaction) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -273,7 +273,7 @@ TEST_F(PostgresqlAsyncWrapperTest, BasicTransaction) {
 
 // Test transaction rollback
 TEST_F(PostgresqlAsyncWrapperTest, TransactionRollback) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -315,7 +315,7 @@ TEST_F(PostgresqlAsyncWrapperTest, TransactionRollback) {
 
 // Test transaction isolation levels
 TEST_F(PostgresqlAsyncWrapperTest, TransactionIsolationLevels) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -351,7 +351,7 @@ TEST_F(PostgresqlAsyncWrapperTest, TransactionIsolationLevels) {
 
 // Test nested transaction error
 TEST_F(PostgresqlAsyncWrapperTest, NestedTransactionError) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -380,7 +380,7 @@ TEST_F(PostgresqlAsyncWrapperTest, NestedTransactionError) {
 
 // Test transaction state errors
 TEST_F(PostgresqlAsyncWrapperTest, TransactionStateErrors) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -410,7 +410,7 @@ TEST_F(PostgresqlAsyncWrapperTest, TransactionStateErrors) {
 
 // Test auto rollback on close
 TEST_F(PostgresqlAsyncWrapperTest, AutoRollbackOnClose) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -452,7 +452,7 @@ TEST_F(PostgresqlAsyncWrapperTest, AutoRollbackOnClose) {
 
 // Test prepared statement creation
 TEST_F(PostgresqlAsyncWrapperTest, BasicPreparedStatement) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -482,7 +482,7 @@ TEST_F(PostgresqlAsyncWrapperTest, BasicPreparedStatement) {
 
 // Test executing a prepared statement
 TEST_F(PostgresqlAsyncWrapperTest, ExecutePrepared) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);
@@ -513,7 +513,7 @@ TEST_F(PostgresqlAsyncWrapperTest, ExecutePrepared) {
 
 // Test deallocating a prepared statement
 TEST_F(PostgresqlAsyncWrapperTest, DeallocateStatement) {
-    connection conn(io_);
+    Connection conn(io_);
     
     run_test([&]() -> asio::awaitable<void> {
         auto connect_result = co_await conn.connect(conn_string);

@@ -1,0 +1,85 @@
+---
+# Configuration for clang-tidy
+# Optimized for C++23 relx project with modern C++ practices
+
+# Inherit default checks and add custom checks
+Checks: >
+  -*,
+  hicpp-braces-around-statements,
+  readability-identifier-naming,
+  modernize-concat-nested-namespaces,
+  modernize-use-using,
+  modernize-use-emplace,
+  readability-else-after-return,
+  readability-convert-member-functions-to-static,
+  misc-unused-parameters,
+  misc-use-internal-linkage,
+  performance-unnecessary-value-param,
+  hicpp-use-emplace
+
+# Warn as error for critical issues
+WarningsAsErrors: >
+  bugprone-use-after-move,
+  bugprone-dangling-handle,
+  bugprone-infinite-loop,
+  cppcoreguidelines-slicing,
+  modernize-use-nullptr
+
+# Header filter - analyze only project headers, exclude external dependencies
+HeaderFilterRegex: '.*/include/.*\.(h|hpp)$'
+
+# Check options
+CheckOptions:
+  # Naming conventions (snake_case for functions/variables, PascalCase for types)
+  readability-identifier-naming.NamespaceCase: lower_case
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.TemplateParameterCase: CamelCase
+  readability-identifier-naming.FunctionCase: lower_case
+  readability-identifier-naming.VariableCase: lower_case
+  readability-identifier-naming.ClassMemberCase: lower_case
+  readability-identifier-naming.ClassMemberSuffix: '_'
+  readability-identifier-naming.PrivateMemberSuffix: '_'
+  readability-identifier-naming.ProtectedMemberSuffix: '_'
+  readability-identifier-naming.EnumConstantCase: CamelCase
+  readability-identifier-naming.ConstantCase: CamelCase
+  readability-identifier-naming.StaticConstantCase: CamelCase
+  readability-identifier-naming.MemberConstantCase: CamelCase
+  readability-identifier-naming.GlobalConstantCase: CamelCase
+  
+  # Emplace settings
+  modernize-use-emplace.ContainersWithPushBack: '::std::vector;::std::list;::std::deque'
+  modernize-use-emplace.SmartPointers: '::std::shared_ptr;::std::unique_ptr;::std::auto_ptr;::std::weak_ptr'
+  hicpp-use-emplace.ContainersWithPushBack: '::std::vector;::std::list;::std::deque'
+  hicpp-use-emplace.SmartPointers: '::std::shared_ptr;::std::unique_ptr;::std::auto_ptr;::std::weak_ptr'
+  
+  # Performance settings
+  performance-unnecessary-value-param.AllowedTypes: ''
+  
+  # Readability settings
+  readability-braces-around-statements.ShortStatementLines: 2
+  readability-function-size.LineThreshold: 100
+  readability-function-size.StatementThreshold: 100
+  readability-function-size.BranchThreshold: 20
+  readability-function-size.ParameterThreshold: 8
+  readability-function-size.NestingThreshold: 6
+  readability-function-size.VariableThreshold: 50
+  
+  # Core Guidelines enforcement
+  cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true
+  cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions: false
+  cppcoreguidelines-explicit-virtual-functions.IgnoreDestructors: true
+  
+  # Misc settings
+  misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic: true
+  misc-throw-by-value-catch-by-reference.CheckThrowTemporaries: true
+  
+  # Bugprone settings
+  bugprone-argument-comment.StrictMode: true
+  bugprone-assert-side-effect.AssertMacros: 'assert,CHECK'
+  bugprone-string-constructor.WarnOnLargeLength: true
+  bugprone-string-constructor.LargeLengthThreshold: 8388608
+  
+  # HICPP settings aligned with Core Guidelines
+  hicpp-member-init.IgnoreArrays: true
+  hicpp-use-auto.MinTypeNameLength: 5

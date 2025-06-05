@@ -239,7 +239,7 @@ public:
 
   /// @brief Get the underlying async connection wrapper
   /// @return Reference to the async wrapper connection
-  pgsql_async_wrapper::connection& get_async_conn() { return *async_conn_; }
+  pgsql_async_wrapper::Connection& get_async_conn() { return *async_conn_; }
 
   /// Get the IO context associated with this connection
   boost::asio::io_context& get_io_context() const { return io_context_; }
@@ -247,12 +247,12 @@ public:
 private:
   boost::asio::io_context& io_context_;
   std::string connection_string_;
-  std::unique_ptr<pgsql_async_wrapper::connection> async_conn_;
+  std::unique_ptr<pgsql_async_wrapper::Connection> async_conn_;
   bool is_connected_ = false;
   bool in_transaction_ = false;
 
   /// @brief Helper method to convert pgsql_async_wrapper::result to relx::result::ResultSet
-  ConnectionResult<result::ResultSet> convert_result(const pgsql_async_wrapper::result& pg_result);
+  ConnectionResult<result::ResultSet> convert_result(const pgsql_async_wrapper::Result& pg_result);
 
   /// @brief Convert SQL with ? placeholders to PostgreSQL's $n format
   /// @param sql SQL query with ? placeholders

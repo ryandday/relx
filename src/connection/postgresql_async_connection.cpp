@@ -9,12 +9,12 @@ namespace connection {
 PostgreSQLAsyncConnection::PostgreSQLAsyncConnection(boost::asio::io_context& io_context,
                                                      std::string connection_string)
     : io_context_(io_context), connection_string_(std::move(connection_string)),
-      async_conn_(std::make_unique<pgsql_async_wrapper::connection>(io_context)) {}
+      async_conn_(std::make_unique<pgsql_async_wrapper::Connection>(io_context)) {}
 
 PostgreSQLAsyncConnection::PostgreSQLAsyncConnection(boost::asio::io_context& io_context,
                                                      const PostgreSQLConnectionParams& params)
     : io_context_(io_context), connection_string_(params.to_connection_string()),
-      async_conn_(std::make_unique<pgsql_async_wrapper::connection>(io_context)) {}
+      async_conn_(std::make_unique<pgsql_async_wrapper::Connection>(io_context)) {}
 
 PostgreSQLAsyncConnection::~PostgreSQLAsyncConnection() {
   // Automatically disconnect if still connected
@@ -61,7 +61,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::connec
 
   // Make sure the connection object exists
   if (!async_conn_) {
-    async_conn_ = std::make_unique<pgsql_async_wrapper::connection>(io_context_);
+    async_conn_ = std::make_unique<pgsql_async_wrapper::Connection>(io_context_);
   }
 
   // Connect with a copy of the connection string
@@ -226,7 +226,7 @@ std::string PostgreSQLAsyncConnection::convert_placeholders(const std::string& s
 }
 
 ConnectionResult<result::ResultSet> PostgreSQLAsyncConnection::convert_result(
-    const pgsql_async_wrapper::result& pg_result) {
+    const pgsql_async_wrapper::Result& pg_result) {
   if (!pg_result.ok()) {
     return std::unexpected(
         ConnectionError{.message = "PostgreSQL error: " + std::string(pg_result.error_message()),

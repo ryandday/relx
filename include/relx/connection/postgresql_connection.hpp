@@ -10,9 +10,9 @@
 
 // Forward declarations to avoid including libpq headers in our public API
 struct pg_conn;
-typedef struct pg_conn PGconn;
+using PGconn = pg_conn;
 struct pg_result;
-typedef struct pg_result PGresult;
+using PGresult = pg_result;
 
 // Forward declare statement class
 namespace relx {

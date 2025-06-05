@@ -51,6 +51,65 @@ format-diff:
 	@find src include -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | \
 		xargs clang-format --dry-run --Werror --output-replacements-xml
 
+.PHONY: tidy
+tidy:
+	@echo "Running clang-tidy on source files..."
+	cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
+		xargs clang-tidy -p . --header-filter='.*/(include|test)/.*\.(h|hpp)$$'
+
+.PHONY: tidy-check
+tidy-check:
+	@echo "Running clang-tidy checks (warnings as errors)..."
+	cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
+		xargs clang-tidy -p . --header-filter='.*/include/.*\.(h|hpp)$$'
+
+.PHONY: tidy-fix
+tidy-fix:
+	@echo "Running clang-tidy with automatic fixes..."
+	cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
+		xargs clang-tidy -p . --header-filter='.*/(include|test)/.*\.(h|hpp)$$' --fix
+
+.PHONY: tidy-strict
+tidy-strict:
+	@echo "Running clang-tidy with strict external dependency exclusion..."
+	cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
+		xargs clang-tidy -p . --header-filter='.*/(include|test)/.*\.(h|hpp)$$' \
+		--system-headers=false \
+		--extra-arg=-isystem --extra-arg=/dev/null
+
+.PHONY: tidy-safe
+tidy-safe:
+	@echo "Running clang-tidy on source files (one at a time)..."
+	@cd $(BUILD_DIR) && for file in $$(find ../src ../include -name "*.cpp" -o -name "*.hpp"); do \
+		echo "Processing $$file..."; \
+		clang-tidy -p . --header-filter='.*/include/.*\.(h|hpp)$$' "$$file" || true; \
+	done
+
+.PHONY: tidy-single
+tidy-single:
+	@echo "Running clang-tidy on a single file for testing..."
+	cd $(BUILD_DIR) && find ../src -name "*.cpp" | head -1 | \
+		xargs clang-tidy -p . --header-filter='.*/include/.*\.(h|hpp)$$'
+
+# Multithreaded versions for faster analysis
+.PHONY: tidy-mt
+tidy-mt:
+	@echo "Running clang-tidy on source files (multithreaded)..."
+	cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
+		xargs -n1 -P$$(sysctl -n hw.ncpu) -I{} clang-tidy -p . --header-filter='.*/include/.*\.(h|hpp)$$' {}
+
+.PHONY: tidy-check-mt
+tidy-check-mt:
+	@echo "Running clang-tidy checks (multithreaded, warnings as errors)..."
+	cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
+		xargs -n1 -P$$(sysctl -n hw.ncpu) -I{} clang-tidy -p . --header-filter='.*/include/.*\.(h|hpp)$$' {}
+
+.PHONY: tidy-fix-mt
+tidy-fix-mt:
+	@echo "Running clang-tidy with automatic fixes (multithreaded)..."
+	cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
+		xargs -n1 -P$$(sysctl -n hw.ncpu) -I{} clang-tidy -p . --header-filter='.*/include/.*\.(h|hpp)$$' --fix {}
+
 # Docker Compose commands
 .PHONY: postgres-up
 postgres-up:
@@ -102,6 +161,15 @@ help:
 	@echo "  format           - Format code using clang-format"
 	@echo "  format-check     - Check code formatting"
 	@echo "  format-diff      - Show formatting differences"
+	@echo "  tidy             - Run clang-tidy on source files"
+	@echo "  tidy-check       - Run clang-tidy checks (warnings as errors)"
+	@echo "  tidy-fix         - Run clang-tidy with automatic fixes"
+	@echo "  tidy-strict      - Run clang-tidy with strict external dependency exclusion"
+	@echo "  tidy-safe        - Run clang-tidy on source files (one at a time)"
+	@echo "  tidy-single      - Run clang-tidy on a single file for testing"
+	@echo "  tidy-mt          - Run clang-tidy on source files (multithreaded)"
+	@echo "  tidy-check-mt    - Run clang-tidy checks (multithreaded, warnings as errors)"
+	@echo "  tidy-fix-mt      - Run clang-tidy with automatic fixes (multithreaded)"
 	@echo "  postgres-up      - Start PostgreSQL container"
 	@echo "  postgres-down    - Stop PostgreSQL container"
 	@echo "  postgres-logs    - Show PostgreSQL container logs"
