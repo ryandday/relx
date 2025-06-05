@@ -5,10 +5,8 @@
 #include <string>
 #include <string_view>
 
-namespace relx::query {
-
 /// @brief Literals namespace for SQL value literals
-namespace literals {
+namespace relx::query::literals {
 
 /// @brief Automatic conversion from literal integers to Value expressions
 /// @param value The integer literal
@@ -32,6 +30,4 @@ inline auto operator""_sql(const char* str, std::size_t len) {
   return Value<std::string_view>(std::string_view(str, len));
 }
 
-}  // namespace literals
-
-}  // namespace relx::query
+}  // namespace relx::query::literals

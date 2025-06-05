@@ -53,41 +53,49 @@ inline CaseBuilder& when(CaseBuilder& builder, const ConditionExpr auto& conditi
 // Helper for else_ with literals
 
 // For string literals
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline CaseBuilder& else_(CaseBuilder& builder, const char* value) {
   return builder.else_(val(value));
 }
 
 // For string
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline CaseBuilder& else_(CaseBuilder& builder, const std::string& value) {
   return builder.else_(val(value));
 }
 
 // For integers
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline CaseBuilder& else_(CaseBuilder& builder, int value) {
   return builder.else_(val(value));
 }
 
 // For long integers
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline CaseBuilder& else_(CaseBuilder& builder, long value) {
   return builder.else_(val(value));
 }
 
 // For long long integers
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline CaseBuilder& else_(CaseBuilder& builder, long long value) {
   return builder.else_(val(value));
 }
 
 // For double
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline CaseBuilder& else_(CaseBuilder& builder, double value) {
   return builder.else_(val(value));
 }
 
 // For float
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline CaseBuilder& else_(CaseBuilder& builder, float value) {
   return builder.else_(val(value));
 }
 
 // For bool
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline CaseBuilder& else_(CaseBuilder& builder, bool value) {
   return builder.else_(val(value));
 }

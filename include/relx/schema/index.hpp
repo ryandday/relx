@@ -11,6 +11,8 @@
 namespace relx::schema {
 
 /// @brief Index types
+// Keep the names lowercase to match the lowercase table api
+// NOLINTNEXTLINE(readability-identifier-naming)
 enum class index_type { normal, unique, fulltext, spatial };
 
 /// @brief Convert index type to SQL string

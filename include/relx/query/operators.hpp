@@ -642,6 +642,7 @@ auto when(const CondT& condition, const schema::column<TableT, Name, T, Modifier
 
 // Else with a column result
 template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+// NOLINTNEXTLINE(readability-identifier-naming)
 auto else_(const schema::column<TableT, Name, T, Modifiers...>& result) {
   auto result_expr = to_expr(result);
   return else_(result_expr);

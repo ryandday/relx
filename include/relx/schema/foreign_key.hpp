@@ -10,6 +10,8 @@
 namespace relx::schema {
 
 /// @brief Foreign key actions
+// Keep the names lowercase to match the lowercase table api
+// NOLINTNEXTLINE(readability-identifier-naming)
 enum class reference_action { cascade, restrict, set_null, set_default, no_action };
 
 /// @brief Convert reference action to SQL string
@@ -211,6 +213,24 @@ private:
     // Should never reach here if parameters are correct
     return "unknown_table";
   }
+
+  // Helper to extract the class type from a member pointer
+  template <typename T>
+  struct member_pointer_class;
+
+  template <typename C, typename T>
+  struct member_pointer_class<T C::*> {
+    using type = C;
+  };
+
+  // Helper to extract the member type from a member pointer
+  template <typename T>
+  struct member_pointer_type;
+
+  template <typename C, typename T>
+  struct member_pointer_type<T C::*> {
+    using type = T;
+  };
 };
 
 // Helper type alias for splitting column pointers into local and referenced parts
