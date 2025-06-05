@@ -1,14 +1,15 @@
 #pragma once
 
-#include "core.hpp"
-#include "select.hpp"
-#include "schema_adapter.hpp"
 #include "column_expression.hpp"
-#include "value.hpp"
-#include "function.hpp"
 #include "condition.hpp"
-#include <type_traits>
+#include "core.hpp"
+#include "function.hpp"
+#include "schema_adapter.hpp"
+#include "select.hpp"
+#include "value.hpp"
+
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace relx {
@@ -22,8 +23,8 @@ namespace query {
 /// @return A new SelectQuery with the table added to the FROM clause
 template <typename Columns, TableType Table>
 auto from(const SelectQuery<Columns>& query, const Table& table) {
-    auto adapter = to_table(table);
-    return query.template from<decltype(adapter)>(adapter);
+  auto adapter = to_table(table);
+  return query.template from<decltype(adapter)>(adapter);
 }
 
 /// @brief JOIN extension for schema tables with automatic adapter creation
@@ -43,21 +44,15 @@ auto from(const SelectQuery<Columns>& query, const Table& table) {
 /// @param cond The join condition
 /// @param type The join type
 /// @return A new SelectQuery with the join added
-template <
-    typename Columns, typename Tables, typename Joins,
-    typename Where, typename GroupBys, typename OrderBys,
-    typename HavingCond, typename LimitVal, typename OffsetVal,
-    TableType Table, ConditionExpr Condition
->
-auto join(
-    const SelectQuery<Columns, Tables, Joins, Where, GroupBys, OrderBys, HavingCond, LimitVal, OffsetVal>& query,
-    const Table& table,
-    Condition cond,
-    JoinType type = JoinType::Inner
-) {
-    auto adapter = to_table(table);
-    return query.template join<decltype(adapter), Condition>(adapter, std::move(cond), type);
+template <typename Columns, typename Tables, typename Joins, typename Where, typename GroupBys,
+          typename OrderBys, typename HavingCond, typename LimitVal, typename OffsetVal,
+          TableType Table, ConditionExpr Condition>
+auto join(const SelectQuery<Columns, Tables, Joins, Where, GroupBys, OrderBys, HavingCond, LimitVal,
+                            OffsetVal>& query,
+          const Table& table, Condition cond, JoinType type = JoinType::Inner) {
+  auto adapter = to_table(table);
+  return query.template join<decltype(adapter), Condition>(adapter, std::move(cond), type);
 }
 
-} // namespace query
-} // namespace relx 
+}  // namespace query
+}  // namespace relx

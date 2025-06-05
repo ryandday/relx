@@ -1,6 +1,7 @@
 #pragma once
 
 #include "column.hpp"
+
 #include <string_view>
 #include <type_traits>
 
@@ -12,37 +13,37 @@ namespace schema {
 template <auto ColumnPtr>
 class table_primary_key {
 public:
-    /// @brief Default constructor
-    table_primary_key() = default;
-    
-    /// @brief Get SQL definition for the PRIMARY KEY constraint
-    /// @return SQL string defining the constraint
-    std::string sql_definition() const {
-        // Extract the column name from the pointer
-        using table_type = typename member_pointer_class<decltype(ColumnPtr)>::type;
-        using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
-        
-        return "PRIMARY KEY (" + std::string(column_type::name) + ")";
-    }
-    
+  /// @brief Default constructor
+  table_primary_key() = default;
+
+  /// @brief Get SQL definition for the PRIMARY KEY constraint
+  /// @return SQL string defining the constraint
+  std::string sql_definition() const {
+    // Extract the column name from the pointer
+    using table_type = typename member_pointer_class<decltype(ColumnPtr)>::type;
+    using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
+
+    return "PRIMARY KEY (" + std::string(column_type::name) + ")";
+  }
+
 private:
-    // Helper to extract the class type from a member pointer
-    template <typename T>
-    struct member_pointer_class;
-    
-    template <typename C, typename T>
-    struct member_pointer_class<T C::*> {
-        using type = C;
-    };
-    
-    // Helper to extract the member type from a member pointer
-    template <typename T>
-    struct member_pointer_type;
-    
-    template <typename C, typename T>
-    struct member_pointer_type<T C::*> {
-        using type = T;
-    };
+  // Helper to extract the class type from a member pointer
+  template <typename T>
+  struct member_pointer_class;
+
+  template <typename C, typename T>
+  struct member_pointer_class<T C::*> {
+    using type = C;
+  };
+
+  // Helper to extract the member type from a member pointer
+  template <typename T>
+  struct member_pointer_type;
+
+  template <typename C, typename T>
+  struct member_pointer_type<T C::*> {
+    using type = T;
+  };
 };
 
 /// @brief Represents a primary key constraint with multiple columns (composite key)
@@ -50,51 +51,51 @@ private:
 template <auto... ColumnPtrs>
 class composite_primary_key {
 public:
-    /// @brief Default constructor
-    composite_primary_key() = default;
-    
-    /// @brief Get SQL definition for the composite PRIMARY KEY constraint
-    /// @return SQL string defining the constraint
-    std::string sql_definition() const {
-        std::string result = "PRIMARY KEY (";
-        result += get_column_names();
-        result += ")";
-        return result;
-    }
-    
+  /// @brief Default constructor
+  composite_primary_key() = default;
+
+  /// @brief Get SQL definition for the composite PRIMARY KEY constraint
+  /// @return SQL string defining the constraint
+  std::string sql_definition() const {
+    std::string result = "PRIMARY KEY (";
+    result += get_column_names();
+    result += ")";
+    return result;
+  }
+
 private:
-    // Helper to get comma-separated column names
-    std::string get_column_names() const {
-        // Using fold expression to concatenate column names
-        std::string names;
-        (append_column_name<ColumnPtrs>(names, names.empty() ? "" : ", "), ...);
-        return names;
-    }
-    
-    // Helper to append a single column name
-    template <auto ColumnPtr>
-    void append_column_name(std::string& names, const std::string& separator) const {
-        using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
-        names += separator + std::string(column_type::name);
-    }
-    
-    // Helper to extract the class type from a member pointer
-    template <typename T>
-    struct member_pointer_class;
-    
-    template <typename C, typename T>
-    struct member_pointer_class<T C::*> {
-        using type = C;
-    };
-    
-    // Helper to extract the member type from a member pointer
-    template <typename T>
-    struct member_pointer_type;
-    
-    template <typename C, typename T>
-    struct member_pointer_type<T C::*> {
-        using type = T;
-    };
+  // Helper to get comma-separated column names
+  std::string get_column_names() const {
+    // Using fold expression to concatenate column names
+    std::string names;
+    (append_column_name<ColumnPtrs>(names, names.empty() ? "" : ", "), ...);
+    return names;
+  }
+
+  // Helper to append a single column name
+  template <auto ColumnPtr>
+  void append_column_name(std::string& names, const std::string& separator) const {
+    using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
+    names += separator + std::string(column_type::name);
+  }
+
+  // Helper to extract the class type from a member pointer
+  template <typename T>
+  struct member_pointer_class;
+
+  template <typename C, typename T>
+  struct member_pointer_class<T C::*> {
+    using type = C;
+  };
+
+  // Helper to extract the member type from a member pointer
+  template <typename T>
+  struct member_pointer_type;
+
+  template <typename C, typename T>
+  struct member_pointer_type<T C::*> {
+    using type = T;
+  };
 };
 
 /// @brief Helper function to create a primary key
@@ -102,18 +103,23 @@ private:
 /// @return A primary key constraint
 template <auto... ColumnPtrs>
 auto make_pk() {
-    if constexpr (sizeof...(ColumnPtrs) == 1) {
-        // Use fold expression to extract the single column pointer
-        return table_primary_key<([]<auto Ptr>() { return Ptr; }.template operator()<ColumnPtrs>(), ...)>();
-    } else {
-        return composite_primary_key<ColumnPtrs...>();
-    }
+  if constexpr (sizeof...(ColumnPtrs) == 1) {
+    // Use fold expression to extract the single column pointer
+    return table_primary_key<(
+        []<auto Ptr>() {
+          return Ptr;
+        }.template operator()<ColumnPtrs>(),
+        ...)>();
+  } else {
+    return composite_primary_key<ColumnPtrs...>();
+  }
 }
 
 /// @brief Helper type alias for primary key constraints
-/// @details Automatically selects between single-column and composite primary key based on the number of columns
+/// @details Automatically selects between single-column and composite primary key based on the
+/// number of columns
 template <auto... ColumnPtrs>
 using pk = decltype(make_pk<ColumnPtrs...>());
 
-} // namespace schema
-} // namespace relx
+}  // namespace schema
+}  // namespace relx

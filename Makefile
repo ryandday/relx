@@ -37,7 +37,19 @@ test: build-tests postgres-up
 # Development helpers
 .PHONY: format
 format:
-	find src include -name "*.cpp" -o -name "*.h" | xargs clang-format -i
+	find src include -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | xargs clang-format -i
+
+.PHONY: format-check
+format-check:
+	@echo "Checking code formatting..."
+	@find src include -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | \
+		xargs clang-format --dry-run --Werror
+
+.PHONY: format-diff
+format-diff:
+	@echo "Showing formatting differences..."
+	@find src include -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | \
+		xargs clang-format --dry-run --Werror --output-replacements-xml
 
 # Docker Compose commands
 .PHONY: postgres-up
@@ -88,6 +100,8 @@ help:
 	@echo "  run              - Build and run the application"
 	@echo "  test             - Build and run the tests with CTest (starts PostgreSQL)"
 	@echo "  format           - Format code using clang-format"
+	@echo "  format-check     - Check code formatting"
+	@echo "  format-diff      - Show formatting differences"
 	@echo "  postgres-up      - Start PostgreSQL container"
 	@echo "  postgres-down    - Stop PostgreSQL container"
 	@echo "  postgres-logs    - Show PostgreSQL container logs"

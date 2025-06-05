@@ -2,8 +2,9 @@
 
 #include "core.hpp"
 #include "fixed_string.hpp"
-#include <string_view>
+
 #include <string>
+#include <string_view>
 
 namespace relx {
 namespace schema {
@@ -15,32 +16,28 @@ namespace schema {
 template <FixedString Condition, FixedString Name = "">
 class table_check_constraint {
 public:
-    /// @brief Get SQL definition for the CHECK constraint
-    /// @return SQL string defining the constraint
-    constexpr std::string sql_definition() const {
-        std::string result;
+  /// @brief Get SQL definition for the CHECK constraint
+  /// @return SQL string defining the constraint
+  constexpr std::string sql_definition() const {
+    std::string result;
 
-        // Add constraint name if provided
-        if constexpr (!Name.empty()) {
-            result = "CONSTRAINT " + std::string(std::string_view(Name)) + " ";
-        }
-
-        // Use the condition as-is
-        result += "CHECK (" + std::string(std::string_view(Condition)) + ")";
-        return result;
+    // Add constraint name if provided
+    if constexpr (!Name.empty()) {
+      result = "CONSTRAINT " + std::string(std::string_view(Name)) + " ";
     }
 
-    /// @brief Get the condition as a string_view
-    /// @return The condition string
-    constexpr std::string_view condition() const {
-        return std::string_view(Condition);
-    }
+    // Use the condition as-is
+    result += "CHECK (" + std::string(std::string_view(Condition)) + ")";
+    return result;
+  }
 
-    /// @brief Get the name as a string_view
-    /// @return The constraint name
-    constexpr std::string_view name() const {
-        return std::string_view(Name);
-    }
+  /// @brief Get the condition as a string_view
+  /// @return The condition string
+  constexpr std::string_view condition() const { return std::string_view(Condition); }
+
+  /// @brief Get the name as a string_view
+  /// @return The constraint name
+  constexpr std::string_view name() const { return std::string_view(Name); }
 };
 
 /// @brief Check constraint explicitly associated with a column
@@ -51,63 +48,59 @@ public:
 template <auto ColumnPtr, FixedString Condition, FixedString Name = "">
 class column_check_constraint {
 public:
-    /// @brief Get SQL definition for the column-specific CHECK constraint
-    /// @return SQL string defining the constraint
-    constexpr std::string sql_definition() const {
-        std::string result;
+  /// @brief Get SQL definition for the column-specific CHECK constraint
+  /// @return SQL string defining the constraint
+  constexpr std::string sql_definition() const {
+    std::string result;
 
-        // Add constraint name if provided
-        if constexpr (!Name.empty()) {
-            result = "CONSTRAINT " + std::string(std::string_view(Name)) + " ";
-        }
-
-        // Use the column name and condition
-        using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
-
-        // Append the condition, replacing "column" or "COLUMN" with the actual column name if needed
-        std::string condition_str = std::string(std::string_view(Condition));
-        result += "CHECK (" + condition_str + ")";
-
-        return result;
+    // Add constraint name if provided
+    if constexpr (!Name.empty()) {
+      result = "CONSTRAINT " + std::string(std::string_view(Name)) + " ";
     }
 
-    /// @brief Get the condition as a string_view
-    /// @return The condition string
-    constexpr std::string_view condition() const {
-        return std::string_view(Condition);
-    }
+    // Use the column name and condition
+    using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
 
-    /// @brief Get the name as a string_view
-    /// @return The constraint name
-    constexpr std::string_view name() const {
-        return std::string_view(Name);
-    }
+    // Append the condition, replacing "column" or "COLUMN" with the actual column name if needed
+    std::string condition_str = std::string(std::string_view(Condition));
+    result += "CHECK (" + condition_str + ")";
 
-    /// @brief Get the associated column name
-    /// @return The column name
-    std::string_view column_name() const {
-        using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
-        return column_type::name;
-    }
+    return result;
+  }
+
+  /// @brief Get the condition as a string_view
+  /// @return The condition string
+  constexpr std::string_view condition() const { return std::string_view(Condition); }
+
+  /// @brief Get the name as a string_view
+  /// @return The constraint name
+  constexpr std::string_view name() const { return std::string_view(Name); }
+
+  /// @brief Get the associated column name
+  /// @return The column name
+  std::string_view column_name() const {
+    using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
+    return column_type::name;
+  }
 
 private:
-    // Helper to extract the class type from a member pointer
-    template <typename T>
-    struct member_pointer_class;
+  // Helper to extract the class type from a member pointer
+  template <typename T>
+  struct member_pointer_class;
 
-    template <typename C, typename T>
-    struct member_pointer_class<T C::*> {
-        using type = C;
-    };
+  template <typename C, typename T>
+  struct member_pointer_class<T C::*> {
+    using type = C;
+  };
 
-    // Helper to extract the member type from a member pointer
-    template <typename T>
-    struct member_pointer_type;
+  // Helper to extract the member type from a member pointer
+  template <typename T>
+  struct member_pointer_type;
 
-    template <typename C, typename T>
-    struct member_pointer_type<T C::*> {
-        using type = T;
-    };
+  template <typename C, typename T>
+  struct member_pointer_type<T C::*> {
+    using type = T;
+  };
 };
 
 /// @brief Helper function to create a named check constraint at compile time
@@ -116,7 +109,7 @@ private:
 /// @return A check constraint with the given condition and name
 template <FixedString Condition, FixedString Name>
 constexpr auto named_check() {
-    return table_check_constraint<Condition, Name>();
+  return table_check_constraint<Condition, Name>();
 }
 
 /// @brief Helper function to create an unnamed check constraint at compile time
@@ -124,7 +117,7 @@ constexpr auto named_check() {
 /// @return A check constraint with the given condition
 template <FixedString Condition>
 constexpr auto table_check() {
-    return table_check_constraint<Condition, "">();
+  return table_check_constraint<Condition, "">();
 }
 
 /// @brief Helper function to create a column-bound check constraint at compile time
@@ -133,7 +126,7 @@ constexpr auto table_check() {
 /// @return A column-specific check constraint
 template <auto ColumnPtr, FixedString Condition>
 constexpr auto column_check() {
-    return column_check_constraint<ColumnPtr, Condition, "">();
+  return column_check_constraint<ColumnPtr, Condition, "">();
 }
 
 /// @brief Helper function to create a named column-bound check constraint at compile time
@@ -143,8 +136,8 @@ constexpr auto column_check() {
 /// @return A named column-specific check constraint
 template <auto ColumnPtr, FixedString Condition, FixedString Name>
 constexpr auto named_column_check() {
-    return column_check_constraint<ColumnPtr, Condition, Name>();
+  return column_check_constraint<ColumnPtr, Condition, Name>();
 }
 
-} // namespace schema
-} // namespace relx
+}  // namespace schema
+}  // namespace relx
