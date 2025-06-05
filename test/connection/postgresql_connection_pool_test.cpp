@@ -13,7 +13,7 @@ namespace {
 class PostgreSQLConnectionPoolTest : public ::testing::Test {
 protected:
     // Connection string for the Docker container
-    std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
     
     void SetUp() override {
         // Clean up any existing test tables
@@ -68,7 +68,7 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolInitialization) {
     config.connection_params = {
         .host = "localhost",
         .port = 5434,
-        .dbname = "sqllib_test",
+        .dbname = "relx_test",
         .user = "postgres",
         .password = "postgres"
     };
@@ -106,7 +106,7 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMaxConnections) {
     config.connection_params = {
         .host = "localhost",
         .port = 5434,
-        .dbname = "sqllib_test",
+        .dbname = "relx_test",
         .user = "postgres",
         .password = "postgres"
     };
@@ -152,7 +152,7 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolWithConnection) {
     config.connection_params = {
         .host = "localhost",
         .port = 5434,
-        .dbname = "sqllib_test",
+        .dbname = "relx_test",
         .user = "postgres",
         .password = "postgres"
     };
@@ -227,7 +227,7 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolMultithreaded) {
     config.connection_params = {
         .host = "localhost",
         .port = 5434,
-        .dbname = "sqllib_test",
+        .dbname = "relx_test",
         .user = "postgres",
         .password = "postgres"
     };
@@ -316,7 +316,7 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolConnectionValidation) {
     config.connection_params = {
         .host = "localhost",
         .port = 5434,
-        .dbname = "sqllib_test",
+        .dbname = "relx_test",
         .user = "postgres",
         .password = "postgres"
     };

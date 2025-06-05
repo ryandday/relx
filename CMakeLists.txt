@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 project(relx VERSION 0.1.0 LANGUAGES CXX)
 
 # Set C++ standard
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Sanitizer flags
@@ -84,14 +84,19 @@ add_executable(relx_tests
   test/query/aggregate_test.cpp
   test/query/case_expression_test.cpp
   test/query/string_function_test.cpp
+  test/query/arithmetic_test.cpp
+  test/query/date_test.cpp
+  test/query/date_multi_clock_test.cpp
   test/query/update_query_test.cpp
   test/query/delete_query_test.cpp
   test/query/insert_query_test.cpp
   test/query/select_all_test.cpp
   test/query/distinct_select_test.cpp
+  test/column_like_test.cpp
   # Result processing tests
   test/result_test.cpp
   test/advanced_query_test.cpp
+  test/type_safety_test.cpp
   # Connection tests
   test/connection/postgresql_connection_test.cpp
   test/connection/postgresql_api_test.cpp

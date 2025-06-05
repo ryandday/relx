@@ -129,6 +129,39 @@ auto count_distinct(const T& column) {
     return count_distinct(to_expr(column));
 }
 
+/// @brief Type checking concepts for aggregate functions
+namespace aggregate_checking {
+    
+    /// @brief Concept for numeric types suitable for SUM and AVG
+    template <typename T>
+    concept Summable = std::is_arithmetic_v<std::remove_cvref_t<T>> && 
+                       !std::same_as<std::remove_cvref_t<T>, bool>;
+    
+    /// @brief Concept for types suitable for COUNT (any type is countable)
+    template <typename T>
+    concept Countable = true;
+    
+    /// @brief Concept for comparable types suitable for MIN/MAX
+    template <typename T>
+    concept Comparable = std::is_arithmetic_v<std::remove_cvref_t<T>> || 
+                         std::same_as<std::remove_cvref_t<T>, std::string> ||
+                         std::same_as<std::remove_cvref_t<T>, std::string_view>;
+    
+    /// @brief Helper to extract column type for checking
+    template <typename T>
+    struct extract_column_type {
+        using type = T;
+    };
+    
+    template <typename TableT, schema::FixedString Name, typename ColumnT, typename... Modifiers>
+    struct extract_column_type<schema::column<TableT, Name, ColumnT, Modifiers...>> {
+        using type = ColumnT;
+    };
+    
+    template <typename T>
+    using extract_column_type_t = typename extract_column_type<T>::type;
+}
+
 /// @brief SUM aggregate function
 /// @tparam Expr The expression type
 /// @param expr The expression to sum
@@ -138,10 +171,14 @@ auto sum(Expr expr) {
     return FunctionExpr<Expr>("SUM", std::move(expr));
 }
 
-// Overload for column types
+// Overload for column types with type checking
 template <typename T>
 requires ColumnType<T>
 auto sum(const T& column) {
+    using column_type = aggregate_checking::extract_column_type_t<T>;
+    static_assert(aggregate_checking::Summable<column_type>, 
+                  "SUM can only be used with numeric columns (int, long, float, double, etc.). "
+                  "Boolean columns are not summable.");
     return sum(to_expr(column));
 }
 
@@ -154,10 +191,14 @@ auto avg(Expr expr) {
     return FunctionExpr<Expr>("AVG", std::move(expr));
 }
 
-// Overload for column types
+// Overload for column types with type checking
 template <typename T>
 requires ColumnType<T>
 auto avg(const T& column) {
+    using column_type = aggregate_checking::extract_column_type_t<T>;
+    static_assert(aggregate_checking::Summable<column_type>, 
+                  "AVG can only be used with numeric columns (int, long, float, double, etc.). "
+                  "Boolean and string columns cannot be averaged.");
     return avg(to_expr(column));
 }
 
@@ -170,10 +211,14 @@ auto min(Expr expr) {
     return FunctionExpr<Expr>("MIN", std::move(expr));
 }
 
-// Overload for column types
+// Overload for column types with type checking
 template <typename T>
 requires ColumnType<T>
 auto min(const T& column) {
+    using column_type = aggregate_checking::extract_column_type_t<T>;
+    static_assert(aggregate_checking::Comparable<column_type>, 
+                  "MIN can only be used with comparable columns (numeric types or strings). "
+                  "Boolean columns cannot be compared for MIN/MAX.");
     return min(to_expr(column));
 }
 
@@ -186,10 +231,14 @@ auto max(Expr expr) {
     return FunctionExpr<Expr>("MAX", std::move(expr));
 }
 
-// Overload for column types
+// Overload for column types with type checking
 template <typename T>
 requires ColumnType<T>
 auto max(const T& column) {
+    using column_type = aggregate_checking::extract_column_type_t<T>;
+    static_assert(aggregate_checking::Comparable<column_type>, 
+                  "MAX can only be used with comparable columns (numeric types or strings). "
+                  "Boolean columns cannot be compared for MIN/MAX.");
     return max(to_expr(column));
 }
 
@@ -255,10 +304,16 @@ auto lower(Expr expr) {
     return FunctionExpr<Expr>("LOWER", std::move(expr));
 }
 
-// Overload for column types
+// Overload for column types with type checking
 template <typename T>
 requires ColumnType<T>
 auto lower(const T& column) {
+    using column_type = aggregate_checking::extract_column_type_t<T>;
+    static_assert(std::same_as<column_type, std::string> || 
+                  std::same_as<column_type, std::string_view> ||
+                  std::same_as<column_type, const char*>,
+                  "LOWER can only be used with string columns (std::string, std::string_view, const char*). "
+                  "Numeric and boolean columns cannot be converted to lowercase.");
     return lower(to_expr(column));
 }
 
@@ -271,10 +326,16 @@ auto upper(Expr expr) {
     return FunctionExpr<Expr>("UPPER", std::move(expr));
 }
 
-// Overload for column types
+// Overload for column types with type checking
 template <typename T>
 requires ColumnType<T>
 auto upper(const T& column) {
+    using column_type = aggregate_checking::extract_column_type_t<T>;
+    static_assert(std::same_as<column_type, std::string> || 
+                  std::same_as<column_type, std::string_view> ||
+                  std::same_as<column_type, const char*>,
+                  "UPPER can only be used with string columns (std::string, std::string_view, const char*). "
+                  "Numeric and boolean columns cannot be converted to uppercase.");
     return upper(to_expr(column));
 }
 
@@ -491,114 +552,152 @@ private:
     std::unique_ptr<SqlExpression> else_expr_;
 };
 
-// Then define CaseBuilder that uses CaseExpr
-class CaseBuilder {
+// Then define CaseBuilder that uses CaseExpr with type checking
+template <typename ResultType = void>
+class TypedCaseBuilder {
 public:
-    CaseBuilder() : when_thens_(), else_expr_(nullptr) {}
+    using WhenThenPair = std::pair<std::unique_ptr<SqlExpression>, std::unique_ptr<SqlExpression>>;
     
-    template <SqlExpr Then>
-    CaseBuilder& when(const ConditionExpr auto& when, const Then& then) {
-        when_thens_.emplace_back(
-            std::make_unique<std::remove_cvref_t<decltype(when)>>(when),
-            std::make_unique<Then>(then)
-        );
+private:
+    std::vector<WhenThenPair> when_thens_;
+    std::unique_ptr<SqlExpression> else_expr_;
+    
+public:
+    TypedCaseBuilder() : when_thens_(), else_expr_(nullptr) {}
+    
+    // Move constructor
+    TypedCaseBuilder(TypedCaseBuilder&& other) noexcept 
+        : when_thens_(std::move(other.when_thens_)), 
+          else_expr_(std::move(other.else_expr_)) {}
+    
+    // Move assignment  
+    TypedCaseBuilder& operator=(TypedCaseBuilder&& other) noexcept {
+        if (this != &other) {
+            when_thens_ = std::move(other.when_thens_);
+            else_expr_ = std::move(other.else_expr_);
+        }
         return *this;
     }
     
-    // Overloads for common literal types to avoid requiring val() calls
+    // Delete copy constructor and assignment to prevent accidental copies
+    TypedCaseBuilder(const TypedCaseBuilder&) = delete;
+    TypedCaseBuilder& operator=(const TypedCaseBuilder&) = delete;
     
-    // For string literals
-    CaseBuilder& when(const ConditionExpr auto& when, const char* then) {
-        return this->when(when, query::val(then));
+    // Template constructor for converting between different result types
+    template <typename OtherType>
+    explicit TypedCaseBuilder(TypedCaseBuilder<OtherType>&& other) 
+        : when_thens_(std::move(other.when_thens_)), 
+          else_expr_(std::move(other.else_expr_)) {}
+    
+    template <SqlExpr Then>
+    auto when(const ConditionExpr auto& when_cond, const Then& then) {
+        if constexpr (std::same_as<ResultType, void>) {
+            // First WHEN clause - establish the result type
+            when_thens_.emplace_back(
+                std::make_unique<std::remove_cvref_t<decltype(when_cond)>>(when_cond),
+                std::make_unique<Then>(then)
+            );
+            return TypedCaseBuilder<Then>(std::move(*this));
+        } else {
+            // Subsequent WHEN clauses - ensure type compatibility
+            static_assert(std::same_as<std::remove_cvref_t<Then>, std::remove_cvref_t<ResultType>>,
+                         "All WHEN/THEN branches in CASE expressions must return the same type. "
+                         "Mixed types in CASE branches can lead to runtime type errors.");
+            
+            when_thens_.emplace_back(
+                std::make_unique<std::remove_cvref_t<decltype(when_cond)>>(when_cond),
+                std::make_unique<Then>(then)
+            );
+            return std::move(*this);
+        }
     }
     
-    // For string
-    CaseBuilder& when(const ConditionExpr auto& when, const std::string& then) {
-        return this->when(when, query::val(then));
+    // Specific overloads for common literal types to avoid template conflicts
+    auto when(const ConditionExpr auto& when_cond, const char* then) {
+        return this->when(when_cond, query::val(then));
     }
     
-    // For integers
-    CaseBuilder& when(const ConditionExpr auto& when, int then) {
-        return this->when(when, query::val(then));
+    auto when(const ConditionExpr auto& when_cond, const std::string& then) {
+        return this->when(when_cond, query::val(then));
     }
     
-    // For long
-    CaseBuilder& when(const ConditionExpr auto& when, long then) {
-        return this->when(when, query::val(then));
+    auto when(const ConditionExpr auto& when_cond, int then) {
+        return this->when(when_cond, query::val(then));
     }
     
-    // For double
-    CaseBuilder& when(const ConditionExpr auto& when, double then) {
-        return this->when(when, query::val(then));
+    auto when(const ConditionExpr auto& when_cond, long then) {
+        return this->when(when_cond, query::val(then));
     }
     
-    // For float
-    CaseBuilder& when(const ConditionExpr auto& when, float then) {
-        return this->when(when, query::val(then));
+    auto when(const ConditionExpr auto& when_cond, double then) {
+        return this->when(when_cond, query::val(then));
     }
     
-    // For boolean
-    CaseBuilder& when(const ConditionExpr auto& when, bool then) {
-        return this->when(when, query::val(then));
+    auto when(const ConditionExpr auto& when_cond, float then) {
+        return this->when(when_cond, query::val(then));
     }
     
+    auto when(const ConditionExpr auto& when_cond, bool then) {
+        return this->when(when_cond, query::val(then));
+    }
+    
+    template <SqlExpr Else>
+    auto else_(const Else& else_expr) {
+        if constexpr (!std::same_as<ResultType, void>) {
+            static_assert(std::same_as<std::remove_cvref_t<Else>, std::remove_cvref_t<ResultType>>,
+                         "ELSE clause type must match the WHEN/THEN branch types in CASE expressions.");
+        }
+        
+        else_expr_ = std::make_unique<Else>(else_expr);
+        return std::move(*this);
+    }
+    
+    // Specific overloads for common literal types in else clause
+    auto else_(const char* else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    auto else_(const std::string& else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    auto else_(int else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    auto else_(long else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    auto else_(double else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    auto else_(float else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    auto else_(bool else_value) {
+        return this->else_(query::val(else_value));
+    }
+    
+    // Build the final CaseExpr
     auto build() {
         return CaseExpr(std::move(when_thens_), std::move(else_expr_));
     }
     
-    template <SqlExpr Else>
-    CaseBuilder& else_(const Else& else_expr) {
-        else_expr_ = std::make_unique<Else>(else_expr);
-        return *this;
-    }
-    
-    // Overloads for common literal types to avoid requiring val() calls
-    
-    // For string literals
-    CaseBuilder& else_(const char* else_value) {
-        return this->else_(query::val(else_value));
-    }
-    
-    // For string
-    CaseBuilder& else_(const std::string& else_value) {
-        return this->else_(query::val(else_value));
-    }
-    
-    // For integers
-    CaseBuilder& else_(int else_value) {
-        return this->else_(query::val(else_value));
-    }
-    
-    // For long
-    CaseBuilder& else_(long else_value) {
-        return this->else_(query::val(else_value));
-    }
-    
-    // For double
-    CaseBuilder& else_(double else_value) {
-        return this->else_(query::val(else_value));
-    }
-    
-    // For float
-    CaseBuilder& else_(float else_value) {
-        return this->else_(query::val(else_value));
-    }
-    
-    // For boolean
-    CaseBuilder& else_(bool else_value) {
-        return this->else_(query::val(else_value));
-    }
-
-private:
-    using WhenThenPair = std::pair<std::unique_ptr<SqlExpression>, std::unique_ptr<SqlExpression>>;
-    std::vector<WhenThenPair> when_thens_;
-    std::unique_ptr<SqlExpression> else_expr_;
+    // Friend access for template constructor
+    template <typename>
+    friend class TypedCaseBuilder;
 };
 
-/// @brief Create a CASE expression
-/// @return A CaseBuilder
+// Keep the old CaseBuilder as an alias for backward compatibility
+using CaseBuilder = TypedCaseBuilder<void>;
+
+/// @brief Create a CASE expression with type checking
+/// @return A TypedCaseBuilder
 inline auto case_() {
-    return CaseBuilder();
+    return TypedCaseBuilder<void>();
 }
 
 // Specialized as function for CaseExpr

@@ -43,8 +43,28 @@ format:
 .PHONY: postgres-up
 postgres-up:
 	docker-compose up -d postgres
-	# Wait for PostgreSQL to be ready
-	docker-compose exec -T postgres sh -c "until pg_isready -U postgres; do sleep 1; done"
+	# Wait for PostgreSQL container to be healthy (includes database initialization)
+	@echo "Waiting for PostgreSQL to be ready..."
+	@timeout=60; \
+	while [ $$timeout -gt 0 ]; do \
+		if docker-compose ps postgres | grep -q "healthy"; then \
+			echo "PostgreSQL is healthy!"; \
+			break; \
+		fi; \
+		echo "Waiting... ($$timeout seconds remaining)"; \
+		sleep 2; \
+		timeout=$$((timeout-2)); \
+	done; \
+	if [ $$timeout -eq 0 ]; then \
+		echo "Timeout waiting for PostgreSQL to become healthy"; \
+		docker-compose logs postgres; \
+		exit 1; \
+	fi
+	# Verify database connection
+	@echo "Verifying database connection..."
+	@docker-compose exec -T postgres psql -U postgres -d relx_test -c "SELECT 'Database is ready!' as status;" || \
+	(echo "Failed to connect to relx_test database"; docker-compose logs postgres; exit 1)
+	@echo "PostgreSQL and relx_test database are ready for testing!"
 
 .PHONY: postgres-down
 postgres-down:

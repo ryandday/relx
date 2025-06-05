@@ -6,12 +6,14 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: relx_test
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     ports:
       - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker-init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d relx_test"]
       interval: 5s
       timeout: 5s
       retries: 5

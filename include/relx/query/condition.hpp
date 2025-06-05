@@ -2,6 +2,7 @@
 
 #include "core.hpp"
 #include "column_expression.hpp"
+#include "schema_adapter.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -84,7 +85,66 @@ auto operator||(Left left, Right right) {
     return BinaryCondition<Left, Right>(std::move(left), "OR", std::move(right));
 }
 
-/// @brief IN condition (col IN (values))
+/// @brief IN condition (col IN (values)) with type checking
+template <SqlExpr Expr, std::ranges::range Range>
+requires std::convertible_to<std::ranges::range_value_t<Range>, std::string>
+class TypedInCondition : public SqlExpression {
+public:
+    TypedInCondition(Expr expr, Range values) 
+        : expr_(std::move(expr)), values_(std::move(values)) {}
+
+    std::string to_sql() const override {
+        std::stringstream ss;
+        ss << expr_.to_sql() << " IN (";
+        bool first = true;
+        for (const auto& _ : values_) {
+            if (!first) ss << ", ";
+            ss << "?";
+            first = false;
+        }
+        ss << ")";
+        return ss.str();
+    }
+
+    std::vector<std::string> bind_params() const override {
+        auto params = expr_.bind_params();
+        for (const auto& value : values_) {
+            params.push_back(value);
+        }
+        return params;
+    }
+
+private:
+    Expr expr_;
+    Range values_;
+};
+
+/// @brief Create an IN condition with type checking for columns
+/// @tparam Column The column type
+/// @tparam Range The values range type
+/// @param col The column
+/// @param values The values to check against
+/// @return An InCondition expression
+template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers, 
+          std::ranges::range Range>
+requires std::convertible_to<std::ranges::range_value_t<Range>, std::string>
+auto in(const schema::column<TableT, Name, T, Modifiers...>& col, Range values) {
+    using ValueType = std::ranges::range_value_t<Range>;
+    
+    // Type check for IN operations - ensure the values are compatible with the column type
+    if constexpr (std::same_as<T, std::string> || std::same_as<T, std::string_view>) {
+        static_assert(std::convertible_to<ValueType, std::string>,
+                      "IN operation with string column requires string-convertible values");
+    } else if constexpr (std::is_arithmetic_v<T>) {
+        static_assert(std::convertible_to<ValueType, std::string>,
+                      "IN operation values must be convertible to string for parameter binding");
+    }
+    
+    auto col_expr = to_expr(col);
+    return TypedInCondition<decltype(col_expr), Range>(std::move(col_expr), std::move(values));
+}
+
+/// @brief Original IN condition for backward compatibility
 template <SqlExpr Expr, std::ranges::range Range>
 requires std::convertible_to<std::ranges::range_value_t<Range>, std::string>
 class InCondition : public SqlExpression {
@@ -118,7 +178,7 @@ private:
     Range values_;
 };
 
-/// @brief Create an IN condition
+/// @brief Create an IN condition for expressions
 /// @tparam Expr The expression type
 /// @tparam Range The values range type
 /// @param expr The column or expression

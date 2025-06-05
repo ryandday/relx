@@ -26,7 +26,7 @@ struct Products {
 class PostgreSQLApiTest : public ::testing::Test {
 protected:
     // Connection string for the Docker container
-    std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
     
     void SetUp() override {
         // Clean up any existing test tables

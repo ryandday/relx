@@ -13,7 +13,7 @@ protected:
     asio::io_context io_;
     
     // Connection string for the test database - matching other test files
-    std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
     
     void SetUp() override {
         // Nothing to do here yet

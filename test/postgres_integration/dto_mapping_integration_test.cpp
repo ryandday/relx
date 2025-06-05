@@ -55,7 +55,7 @@ struct PartialUserDTO {
 class DtoMappingIntegrationTest : public ::testing::Test {
 protected:
     // Connection string for the PostgreSQL test database
-    std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
     std::unique_ptr<relx::PostgreSQLConnection> conn;
     Users users;
     

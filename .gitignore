@@ -4,3 +4,11 @@ build/
 .ccls-cache/
 compile_commands.json
 .cursorrules
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeLists.txt.user
+Makefile
+cmake_install.cmake
+install_manifest.txt

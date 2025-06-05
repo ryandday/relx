@@ -268,7 +268,22 @@ public:
     std::optional<T> get_default_value() const {
         return find_default_value<T, Modifiers...>();
     }
-    
+
+    /// @brief Create a LIKE condition for this column
+    /// @param pattern The pattern to match against
+    /// @return A LIKE condition expression
+    template<typename PatternType>
+    requires std::convertible_to<PatternType, std::string>
+    auto like(PatternType&& pattern) const;
+
+    /// @brief Create an IS NULL condition for this column
+    /// @return An IS NULL condition expression
+    auto is_null() const;
+
+    /// @brief Create an IS NOT NULL condition for this column
+    /// @return An IS NOT NULL condition expression
+    auto is_not_null() const;
+
 private:
     // Helper to find default value in the modifiers
     template <typename ValueT, typename First, typename... Rest>
@@ -377,7 +392,22 @@ public:
     std::optional<std::optional<T>> get_default_value() const {
         return find_default_value<std::optional<T>, Modifiers...>();
     }
-    
+
+    /// @brief Create a LIKE condition for this column
+    /// @param pattern The pattern to match against
+    /// @return A LIKE condition expression
+    template<typename PatternType>
+    requires std::convertible_to<PatternType, std::string>
+    auto like(PatternType&& pattern) const;
+
+    /// @brief Create an IS NULL condition for this column
+    /// @return An IS NULL condition expression
+    auto is_null() const;
+
+    /// @brief Create an IS NOT NULL condition for this column
+    /// @return An IS NOT NULL condition expression
+    auto is_not_null() const;
+
 private:
     // Helper to find default value in the modifiers
     template <typename ValueT, typename First, typename... Rest>

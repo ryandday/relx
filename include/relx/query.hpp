@@ -13,6 +13,8 @@
 #include "query/helpers.hpp"
 #include "query/literals.hpp"
 #include "query/operators.hpp"
+#include "query/arithmetic.hpp"
+#include "query/date.hpp"
 
 /**
  * @brief relx query builder
@@ -136,6 +138,33 @@ using query::like;
 using query::in;
 using query::to_expr;
 using query::to_table;
+
+// Date/time functions
+using query::date_diff;
+using query::date_add;
+using query::date_sub;
+using query::extract;
+using query::date_trunc;
+using query::interval;
+using query::current_date;
+using query::current_time;
+using query::current_timestamp;
+using query::now;
+using query::age_in_years;
+using query::days_since;
+using query::days_until;
+using query::start_of_year;
+using query::start_of_month;
+using query::start_of_day;
+using query::year;
+using query::month;
+using query::day;
+using query::day_of_week;
+using query::day_of_year;
+using query::hour;
+using query::minute;
+using query::second;
+using query::abs;
 
 // User-defined literals
 using namespace query::literals; // Enables 42_sql, "string"_sql, etc.

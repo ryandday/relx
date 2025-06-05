@@ -26,7 +26,7 @@ protected:
     void SetUp() override {
         // Configure the connection pool
         PoolConfig config;
-        config.connection_string = "host=localhost port=5432 dbname=relx_test user=postgres password=postgres";
+        config.connection_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
         config.initial_size = 3;
         config.max_size = 10;
         config.connection_timeout = std::chrono::milliseconds(5000);

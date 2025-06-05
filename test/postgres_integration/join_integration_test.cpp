@@ -27,7 +27,7 @@ protected:
     
     void SetUp() override {
         // Connect to the database
-        conn = std::make_unique<Connection>("host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres");
+        conn = std::make_unique<Connection>("host=localhost port=5434 dbname=relx_test user=postgres password=postgres");
         auto result = conn->connect();
         ASSERT_TRUE(result) << "Failed to connect: " << result.error().message;
         

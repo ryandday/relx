@@ -161,6 +161,14 @@ inline auto val(std::string str) {
     return Value<std::string>(std::move(str));
 }
 
+/// @brief Helper to create a value expression from a string_view
+/// @note Be careful with this one, if the underlying string_view goes out of scope, the value will be invalid
+/// @param sv The string_view
+/// @return A Value<std::string_view> expression
+inline auto val(std::string_view sv) {
+    return Value<std::string_view>(sv);
+}
+
 /// @brief Helper to create a value expression from an int
 /// @param i The integer
 /// @return A Value<int> expression

@@ -14,6 +14,7 @@
 #include <utility>
 #include <optional>
 #include <iostream>
+#include <type_traits>
 
 namespace relx {
 namespace query {
@@ -513,6 +514,15 @@ public:
     template <typename T>
     requires ColumnType<T>
     auto order_by(const T& column) const {
+        // Type check for ORDER BY - ensure the column is comparable
+        // Extract column type from the column template parameters
+        using ColumnType = typename T::value_type;
+        static_assert(std::is_arithmetic_v<ColumnType> || 
+                      std::same_as<ColumnType, std::string> ||
+                      std::same_as<ColumnType, std::string_view>,
+                      "ORDER BY can only be used with comparable columns (numeric types, strings). "
+                      "Complex types, boolean columns, or non-comparable types cannot be used for ordering.");
+        
         return order_by(asc(to_expr(column)));
     }
 

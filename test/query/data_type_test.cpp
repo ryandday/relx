@@ -18,20 +18,21 @@ TEST(DataTypeTest, IntegerTypes) {
         .from(u)
         .where(u.id == 42);
     
-    auto query_long = relx::query::select(u.id, u.name)
+    // Use max int32_t value instead of max int64_t since the column is int
+    auto query_large_int = relx::query::select(u.id, u.name)
         .from(u)
-        .where(u.id == 9223372036854775807L); // max int64_t
+        .where(u.id == 2147483647); // max int32_t
     
     EXPECT_EQ(query_int.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.id = ?)");
-    EXPECT_EQ(query_long.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.id = ?)");
+    EXPECT_EQ(query_large_int.to_sql(), "SELECT users.id, users.name FROM users WHERE (users.id = ?)");
     
     auto params_int = query_int.bind_params();
-    auto params_long = query_long.bind_params();
+    auto params_large_int = query_large_int.bind_params();
     
     EXPECT_EQ(params_int.size(), 1);
-    EXPECT_EQ(params_long.size(), 1);
+    EXPECT_EQ(params_large_int.size(), 1);
     EXPECT_EQ(params_int[0], "42");
-    EXPECT_EQ(params_long[0], "9223372036854775807");
+    EXPECT_EQ(params_large_int[0], "2147483647");
 }
 
 // Define a custom column for testing

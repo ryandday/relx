@@ -69,7 +69,7 @@ struct IDNameEmailDTO {
 class AsyncPgIntegrationTest : public ::testing::Test {
 protected:
     // Connection string for the PostgreSQL test database
-    std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
     boost::asio::io_context io_context;
     std::unique_ptr<relx::connection::PostgreSQLAsyncConnection> conn;
     Users users;
@@ -461,7 +461,7 @@ TEST_F(AsyncPgIntegrationTest, ConnectionParamsConstructor) {
             relx::connection::PostgreSQLConnectionParams params;
             params.host = "localhost";
             params.port = 5434;
-            params.dbname = "sqllib_test";
+            params.dbname = "relx_test";
             params.user = "postgres";
             params.password = "postgres";
             params.application_name = "async_params_test";

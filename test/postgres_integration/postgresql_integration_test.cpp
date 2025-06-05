@@ -12,7 +12,7 @@
 namespace {
 
 // Test configuration (could be loaded from environment variables in production)
-const std::string POSTGRES_CONNECTION = "host=localhost port=5432 dbname=relx_test user=postgres password=postgres";
+const std::string POSTGRES_CONNECTION = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
 
 // Base test fixture for PostgreSQL integration tests
 class PostgreSQLIntegrationTest : public ::testing::Test {

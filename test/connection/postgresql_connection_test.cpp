@@ -22,7 +22,7 @@ struct Users {
 class PostgreSQLConnectionTest : public ::testing::Test {
 protected:
     // Connection string for the Docker container
-    std::string conn_string = "host=localhost port=5434 dbname=sqllib_test user=postgres password=postgres";
+    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
     
     void SetUp() override {
         // Clean up any existing test tables
@@ -565,7 +565,7 @@ TEST_F(PostgreSQLConnectionTest, TestConnectionParamsConstructor) {
     relx::connection::PostgreSQLConnectionParams params;
     params.host = "localhost";
     params.port = 5434;
-    params.dbname = "sqllib_test";
+    params.dbname = "relx_test";
     params.user = "postgres";
     params.password = "postgres";
     params.application_name = "connection_params_test";
