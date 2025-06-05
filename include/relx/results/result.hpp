@@ -280,7 +280,7 @@ private:
     }
 
     return str.length() > start &&
-           std::all_of(str.begin() + start, str.end(), [](char c) { return std::isdigit(c); });
+           std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start), str.end(), [](char c) { return std::isdigit(c); });
   }
 
   static bool is_valid_unsigned_integer(const std::string& str) {
@@ -294,7 +294,7 @@ private:
     }
 
     return str.length() > start &&
-           std::all_of(str.begin() + start, str.end(), [](char c) { return std::isdigit(c); });
+           std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start), str.end(), [](char c) { return std::isdigit(c); });
   }
 
   static bool is_valid_float(const std::string& str) {
@@ -312,7 +312,7 @@ private:
     }
 
     for (; i < str.length(); i++) {
-      char c = str[i];
+      const char c = str[i];
 
       if (std::isdigit(c)) {
         has_digit = true;
@@ -846,7 +846,7 @@ ResultProcessingResult<ResultSet> parse(const Query& /*query*/, const std::strin
 
     // Parse column names from the first line
     std::vector<std::string> column_names;
-    std::string header = lines[0];
+    const std::string header = lines[0];
     pos = 0;
 
     while ((next_pos = header.find('|', pos)) != std::string::npos) {

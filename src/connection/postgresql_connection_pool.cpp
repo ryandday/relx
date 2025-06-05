@@ -7,14 +7,14 @@ PostgreSQLConnectionPool::PostgreSQLConnectionPool(PostgreSQLConnectionPoolConfi
 
 PostgreSQLConnectionPool::~PostgreSQLConnectionPool() {
   // Clear all idle connections
-  std::lock_guard<std::mutex> lock(pool_mutex_);
+  const std::lock_guard<std::mutex> lock(pool_mutex_);
   while (!idle_connections_.empty()) {
     idle_connections_.pop();
   }
 }
 
 ConnectionPoolResult<void> PostgreSQLConnectionPool::initialize() {
-  std::lock_guard<std::mutex> lock(pool_mutex_);
+  const std::lock_guard<std::mutex> lock(pool_mutex_);
 
   // Create initial connections
   for (size_t i = 0; i < config_.initial_size; ++i) {
@@ -125,7 +125,7 @@ void PostgreSQLConnectionPool::return_connection(std::shared_ptr<PostgreSQLConne
     }
   }
 
-  std::lock_guard<std::mutex> lock(pool_mutex_);
+  const std::lock_guard<std::mutex> lock(pool_mutex_);
 
   --active_connections_;
 
@@ -145,7 +145,7 @@ size_t PostgreSQLConnectionPool::active_connections() const {
 }
 
 size_t PostgreSQLConnectionPool::idle_connections() const {
-  std::lock_guard<std::mutex> lock(pool_mutex_);
+  const std::lock_guard<std::mutex> lock(pool_mutex_);
   return idle_connections_.size();
 }
 
@@ -177,7 +177,7 @@ static bool validate_connection(
 void PostgreSQLConnectionPool::cleanup_idle_connections() {
   using namespace std::chrono;
 
-  std::lock_guard<std::mutex> lock(pool_mutex_);
+  const std::lock_guard<std::mutex> lock(pool_mutex_);
 
   if (idle_connections_.empty()) {
     return;
@@ -203,7 +203,7 @@ void PostgreSQLConnectionPool::cleanup_idle_connections() {
     // Check if the connection has been idle for too long
     auto idle_time = now - pooled_conn.last_used;
 
-    bool should_close = idle_time > config_.max_idle_time &&
+    const bool should_close = idle_time > config_.max_idle_time &&
                         (total_connections_ - closed) > config_.initial_size;
 
     if (should_close) {

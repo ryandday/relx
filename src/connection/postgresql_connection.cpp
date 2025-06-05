@@ -72,8 +72,8 @@ static std::string convert_pg_bytea_to_binary(const std::string& hex_value) {
     for (size_t i = 2; i < hex_value.size(); i += 2) {
       if (i + 1 < hex_value.size()) {
         try {
-          std::string hex_byte = hex_value.substr(i, 2);
-          char byte = static_cast<char>(std::stoi(hex_byte, nullptr, 16));
+          const std::string hex_byte = hex_value.substr(i, 2);
+          const char byte = static_cast<char>(std::stoi(hex_byte, nullptr, 16));
           binary_result.push_back(byte);
         } catch (const std::exception&) {
           // If conversion fails, just return the original value
@@ -129,7 +129,7 @@ ConnectionResult<void> PostgreSQLConnection::connect() {
   pg_conn_ = PQconnectdb(connection_string_.c_str());
 
   if (PQstatus(pg_conn_) != CONNECTION_OK) {
-    std::string error_msg = PQerrorMessage(pg_conn_);
+    const std::string error_msg = PQerrorMessage(pg_conn_);
     PQfinish(pg_conn_);
     pg_conn_ = nullptr;
     return std::unexpected(
@@ -172,10 +172,10 @@ ConnectionResult<PGresult*> PostgreSQLConnection::handle_pg_result(PGresult* res
                                            .error_code = static_cast<int>(PQstatus(pg_conn_))});
   }
 
-  ExecStatusType status = PQresultStatus(result);
+  const ExecStatusType status = PQresultStatus(result);
 
   if (expected_status != -1 && status != expected_status) {
-    std::string error_msg = PQresultErrorMessage(result);
+    const std::string error_msg = PQresultErrorMessage(result);
     return std::unexpected(ConnectionError{.message = "PostgreSQL error: " + error_msg,
                                            .error_code = static_cast<int>(status)});
   }
@@ -213,7 +213,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     pg_result = PGResultWrapper(PQexec(pg_conn_, sql.c_str()));
   } else {
     // Convert ? placeholders to $1, $2, etc.
-    std::string pg_sql = convert_placeholders(sql);
+    const std::string pg_sql = convert_placeholders(sql);
 
     // Prepare parameter values array
     std::vector<const char*> param_values;
@@ -240,7 +240,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
   }
 
   // Handle the result
-  ExecStatusType status = PQresultStatus(pg_result.get());
+  const ExecStatusType status = PQresultStatus(pg_result.get());
 
   // Handle different result statuses
   switch (status) {
@@ -274,7 +274,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
   case PGRES_BAD_RESPONSE:
   case PGRES_FATAL_ERROR:
   case PGRES_PIPELINE_ABORTED:
-    std::string error_msg = PQresultErrorMessage(pg_result.get());
+    const std::string error_msg = PQresultErrorMessage(pg_result.get());
     return std::unexpected(ConnectionError{.message = "PostgreSQL error: " + error_msg,
                                            .error_code = static_cast<int>(status)});
   }
@@ -284,7 +284,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
   std::vector<result::Row> rows;
 
   // Get column names
-  int column_count = PQnfields(pg_result.get());
+  const int column_count = PQnfields(pg_result.get());
   column_names.reserve(column_count);
   for (int i = 0; i < column_count; i++) {
     const char* name = PQfname(pg_result.get(), i);
@@ -292,7 +292,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
   }
 
   // Process rows
-  int row_count = PQntuples(pg_result.get());
+  const int row_count = PQntuples(pg_result.get());
   rows.reserve(row_count);
 
   for (int row_idx = 0; row_idx < row_count; row_idx++) {
@@ -335,7 +335,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
     pg_result = PGResultWrapper(PQexec(pg_conn_, sql.c_str()));
   } else {
     // Convert ? placeholders to $1, $2, etc.
-    std::string pg_sql = convert_placeholders(sql);
+    const std::string pg_sql = convert_placeholders(sql);
 
     // Prepare parameter values and format arrays
     std::vector<const char*> param_values;
@@ -371,7 +371,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
   std::vector<result::Row> rows;
 
   // Get column names
-  int column_count = PQnfields(pg_result.get());
+  const int column_count = PQnfields(pg_result.get());
   column_names.reserve(column_count);
   for (int i = 0; i < column_count; i++) {
     const char* name = PQfname(pg_result.get(), i);
@@ -379,7 +379,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
   }
 
   // Process rows
-  int row_count = PQntuples(pg_result.get());
+  const int row_count = PQntuples(pg_result.get());
   rows.reserve(row_count);
 
   // Get column types to identify BYTEA columns
@@ -452,7 +452,7 @@ ConnectionResult<void> PostgreSQLConnection::begin_transaction(IsolationLevel is
   }
 
   // Execute the transaction begin statement with isolation level
-  std::string begin_sql = "BEGIN ISOLATION LEVEL " + isolation_level_str;
+  const std::string begin_sql = "BEGIN ISOLATION LEVEL " + isolation_level_str;
   auto result = execute_raw(begin_sql);
   if (!result) {
     return std::unexpected(result.error());
@@ -509,7 +509,7 @@ bool PostgreSQLConnection::in_transaction() const {
 }
 
 static std::string convert_placeholders(const std::string& sql) {
-  std::regex placeholder_regex("\\?");
+  const std::regex placeholder_regex("\\?");
   std::string result;
   std::string::const_iterator search_start(sql.cbegin());
   std::smatch match;
@@ -532,10 +532,10 @@ std::unique_ptr<PostgreSQLStatement> PostgreSQLConnection::prepare_statement(
   }
 
   // Convert ? placeholders to $1, $2, etc.
-  std::string pg_sql = convert_placeholders(sql);
+  const std::string pg_sql = convert_placeholders(sql);
 
   // Prepare the statement in PostgreSQL
-  PGResultWrapper result(PQprepare(pg_conn_, name.c_str(), pg_sql.c_str(), param_count,
+  const PGResultWrapper result(PQprepare(pg_conn_, name.c_str(), pg_sql.c_str(), param_count,
                                    nullptr  // Use default parameter types
                                    ));
 

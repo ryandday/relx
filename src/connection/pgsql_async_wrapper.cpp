@@ -6,7 +6,7 @@ namespace relx::pgsql_async_wrapper {
 
 // Helper function to convert ? placeholders to $1, $2, etc.
 static std::string convert_placeholders(const std::string& sql) {
-  std::regex placeholder_regex("\\?");
+  const std::regex placeholder_regex("\\?");
   std::string result;
   std::string::const_iterator search_start(sql.cbegin());
   std::smatch match;
@@ -29,7 +29,7 @@ boost::asio::awaitable<PgResult<void>> PreparedStatement::prepare() {
   }
 
   // Convert ? placeholders to $n format
-  std::string pg_query = convert_placeholders(query_);
+  const std::string pg_query = convert_placeholders(query_);
 
   if (!PQsendPrepare(conn_.native_handle(), name_.c_str(), pg_query.c_str(), 0, nullptr)) {
     co_return std::unexpected(PgError::from_conn(conn_.native_handle()));
@@ -92,7 +92,7 @@ boost::asio::awaitable<PgResult<void>> PreparedStatement::deallocate() {
     co_return PgResult<void>{};
   }
 
-  std::string deallocate_cmd = "DEALLOCATE " + name_;
+  const std::string deallocate_cmd = "DEALLOCATE " + name_;
   auto res_result = co_await conn_.query(deallocate_cmd);
 
   if (!res_result) {

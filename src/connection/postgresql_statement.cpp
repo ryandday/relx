@@ -134,7 +134,7 @@ std::string PostgreSQLStatement::escape_string(const std::string& str) {
   std::string result;
   result.reserve(str.size());
 
-  for (char c : str) {
+  for (const char c : str) {
     if (c == '\'') {
       result.append("''");  // Double single quotes to escape them
     } else {

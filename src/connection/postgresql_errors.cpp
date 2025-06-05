@@ -34,7 +34,7 @@ PostgreSQLError PostgreSQLError::from_libpq(int pg_error_code, std::string_view 
   // Look for SQLSTATE in the message
   static const std::regex sqlstate_regex(R"(ERROR:\s+\w+:\s+\d+\s+(\w+))");
   std::smatch match;
-  std::string error_msg_str(error_msg);
+  const std::string error_msg_str(error_msg);
   if (std::regex_search(error_msg_str, match, sqlstate_regex) && match.size() > 1) {
     error.sql_state = match[1].str();
 

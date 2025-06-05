@@ -192,7 +192,7 @@ private:
           PgError{.message = "Cannot create socket: no connection", .error_code = -1});
     }
 
-    int sock = PQsocket(conn_);
+    const int sock = PQsocket(conn_);
     if (sock < 0) {
       return std::unexpected(PgError{.message = "Invalid socket", .error_code = -1});
     }
@@ -204,7 +204,7 @@ private:
   // Asynchronous flush of outgoing data to the PostgreSQL server
   boost::asio::awaitable<PgResult<void>> flush_outgoing_data() {
     while (true) {
-      int flush_result = PQflush(conn_);
+      const int flush_result = PQflush(conn_);
       if (flush_result == -1) {
         co_return std::unexpected(PgError::from_conn(conn_));
       }
@@ -349,7 +349,7 @@ public:
 
     // Connection polling loop
     while (true) {
-      PostgresPollingStatusType poll_status = PQconnectPoll(conn_);
+      const PostgresPollingStatusType poll_status = PQconnectPoll(conn_);
 
       if (poll_status == PGRES_POLLING_FAILED) {
         auto error = PgError::from_conn(conn_);
@@ -457,7 +457,7 @@ public:
       break;
     }
 
-    std::string begin_cmd = "BEGIN ISOLATION LEVEL " + isolation_str;
+    const std::string begin_cmd = "BEGIN ISOLATION LEVEL " + isolation_str;
     auto res_result = co_await query(begin_cmd);
 
     if (!res_result) {

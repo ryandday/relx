@@ -64,7 +64,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::connec
   }
 
   // Connect with a copy of the connection string
-  std::string conn_str_copy = connection_string_;
+  const std::string conn_str_copy = connection_string_;
   auto connect_result = co_await async_conn_->connect(conn_str_copy);
 
   if (!connect_result) {
@@ -103,8 +103,8 @@ boost::asio::awaitable<ConnectionResult<result::ResultSet>> PostgreSQLAsyncConne
   }
 
   // Execute the query with copies of the parameters
-  std::string sql_copy = sql;
-  std::vector<std::string> params_copy = params;
+  const std::string sql_copy = sql;
+  const std::vector<std::string> params_copy = params;
 
   auto pg_result = co_await async_conn_->query(sql_copy, params_copy);
 
@@ -208,7 +208,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::rollba
 }
 
 static std::string convert_placeholders(const std::string& sql) {
-  std::regex placeholder_regex("\\?");
+  const std::regex placeholder_regex("\\?");
   std::string result;
   std::string::const_iterator search_start(sql.cbegin());
   std::smatch match;
