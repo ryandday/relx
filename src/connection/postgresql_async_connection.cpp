@@ -207,7 +207,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::rollba
   co_return ConnectionResult<void>{};
 }
 
-static std::string convert_placeholders(const std::string& sql) {
+std::string PostgreSQLAsyncConnection::convert_placeholders(const std::string& sql) {
   const std::regex placeholder_regex("\\?");
   std::string result;
   std::string::const_iterator search_start(sql.cbegin());
@@ -224,7 +224,7 @@ static std::string convert_placeholders(const std::string& sql) {
   return result;
 }
 
-static ConnectionResult<result::ResultSet> convert_result(
+ConnectionResult<result::ResultSet> PostgreSQLAsyncConnection::convert_result(
     const pgsql_async_wrapper::Result& pg_result) {
   if (!pg_result.ok()) {
     return std::unexpected(

@@ -508,7 +508,7 @@ bool PostgreSQLConnection::in_transaction() const {
   return in_transaction_;
 }
 
-static std::string convert_placeholders(const std::string& sql) {
+std::string PostgreSQLConnection::convert_placeholders(const std::string& sql) {
   const std::regex placeholder_regex("\\?");
   std::string result;
   std::string::const_iterator search_start(sql.cbegin());
