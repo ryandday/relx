@@ -14,8 +14,7 @@
 // Forward declaration
 struct pg_result;
 using PGresult = pg_result;
-namespace relx {
-namespace connection {
+namespace relx::connection {
 
 /// @brief Represents a prepared statement in PostgreSQL
 class PostgreSQLStatement {
@@ -128,5 +127,4 @@ private:
   static std::string escape_string(const std::string& str);
 };
 
-}  // namespace connection
-}  // namespace relx
+}  // namespace relx::connection

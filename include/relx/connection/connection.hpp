@@ -57,19 +57,37 @@ struct PostgreSQLConnectionParams {
   std::string to_connection_string() const {
     std::ostringstream conn_str;
 
-    if (!host.empty()) conn_str << "host=" << host << " ";
+    if (!host.empty()) {
+      conn_str << "host=" << host << " ";
+    }
     conn_str << "port=" << port << " ";
-    if (!dbname.empty()) conn_str << "dbname=" << dbname << " ";
-    if (!user.empty()) conn_str << "user=" << user << " ";
-    if (!password.empty()) conn_str << "password=" << password << " ";
-    if (!application_name.empty()) conn_str << "application_name=" << application_name << " ";
+    if (!dbname.empty()) {
+      conn_str << "dbname=" << dbname << " ";
+    }
+    if (!user.empty()) {
+      conn_str << "user=" << user << " ";
+    }
+    if (!password.empty()) {
+      conn_str << "password=" << password << " ";
+    }
+    if (!application_name.empty()) {
+      conn_str << "application_name=" << application_name << " ";
+    }
     conn_str << "connect_timeout=" << connect_timeout << " ";
 
     // Optional SSL parameters
-    if (!ssl_mode.empty()) conn_str << "sslmode=" << ssl_mode << " ";
-    if (!ssl_cert.empty()) conn_str << "sslcert=" << ssl_cert << " ";
-    if (!ssl_key.empty()) conn_str << "sslkey=" << ssl_key << " ";
-    if (!ssl_root_cert.empty()) conn_str << "sslrootcert=" << ssl_root_cert << " ";
+    if (!ssl_mode.empty()) {
+      conn_str << "sslmode=" << ssl_mode << " ";
+    }
+    if (!ssl_cert.empty()) {
+      conn_str << "sslcert=" << ssl_cert << " ";
+    }
+    if (!ssl_key.empty()) {
+      conn_str << "sslkey=" << ssl_key << " ";
+    }
+    if (!ssl_root_cert.empty()) {
+      conn_str << "sslrootcert=" << ssl_root_cert << " ";
+    }
 
     std::string result = conn_str.str();
     if (!result.empty() && result.back() == ' ') {

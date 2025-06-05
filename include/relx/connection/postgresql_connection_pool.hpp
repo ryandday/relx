@@ -143,7 +143,7 @@ public:
     /// @param connection The database connection
     /// @param pool The connection pool that owns this connection
     PooledConnection(std::shared_ptr<PostgreSQLConnection> connection,
-                     std::shared_ptr<PostgreSQLConnectionPool> pool)
+                     const std::shared_ptr<PostgreSQLConnectionPool>& pool)
         : connection_(std::move(connection)), pool_(pool) {}
 
     /// @brief Destructor automatically returns connection to pool if available

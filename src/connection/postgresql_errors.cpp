@@ -39,8 +39,8 @@ PostgreSQLError PostgreSQLError::from_libpq(int pg_error_code, std::string_view 
     error.sql_state = match[1].str();
 
     // Check if we have a mapping for this SQLSTATE
-    auto it = SQL_STATE_MAP.find(error.sql_state);
-    if (it != SQL_STATE_MAP.end()) {
+    auto it = sql_state_map.find(error.sql_state);
+    if (it != sql_state_map.end()) {
       error.error_code = it->second;
     }
   }
@@ -82,8 +82,8 @@ PostgreSQLError PostgreSQLError::from_sql_state(std::string_view sql_state,
   error.sql_state = std::string(sql_state);
 
   // Look up the error code from the SQL state
-  auto it = SQL_STATE_MAP.find(std::string(sql_state));
-  if (it != SQL_STATE_MAP.end()) {
+  auto it = sql_state_map.find(std::string(sql_state));
+  if (it != sql_state_map.end()) {
     error.error_code = it->second;
   } else {
     error.error_code = PostgreSQLErrorCode::Unknown;

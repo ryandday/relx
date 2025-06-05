@@ -197,7 +197,7 @@ private:
   }
 
   // Check if a value is likely a boolean
-  bool is_boolean_value(const std::string& str) const {
+  static bool is_boolean_value(const std::string& str) {
     // Only accept "true", "false", "0", or "1" as possible boolean values
     return str == "true" || str == "false" || str == "0" || str == "1";
   }
@@ -255,9 +255,8 @@ private:
         auto result = as<ValueType>(allow_numeric_bools);
         if (result) {
           return T{*result};
-        } else {
-          return T{std::nullopt};
         }
+        return T{std::nullopt};
       } else {
         // For any other type, throw a clear conversion error
         return std::unexpected(
@@ -270,35 +269,47 @@ private:
   }
 
   // Helper functions for validation
-  bool is_valid_integer(const std::string& str) const {
-    if (str.empty()) return false;
+  static bool is_valid_integer(const std::string& str) {
+    if (str.empty()) {
+      return false;
+    }
 
     size_t start = 0;
-    if (str[0] == '-' || str[0] == '+') start = 1;
+    if (str[0] == '-' || str[0] == '+') {
+      start = 1;
+    }
 
     return str.length() > start &&
            std::all_of(str.begin() + start, str.end(), [](char c) { return std::isdigit(c); });
   }
 
-  bool is_valid_unsigned_integer(const std::string& str) const {
-    if (str.empty()) return false;
+  static bool is_valid_unsigned_integer(const std::string& str) {
+    if (str.empty()) {
+      return false;
+    }
 
     size_t start = 0;
-    if (str[0] == '+') start = 1;
+    if (str[0] == '+') {
+      start = 1;
+    }
 
     return str.length() > start &&
            std::all_of(str.begin() + start, str.end(), [](char c) { return std::isdigit(c); });
   }
 
-  bool is_valid_float(const std::string& str) const {
-    if (str.empty()) return false;
+  static bool is_valid_float(const std::string& str) {
+    if (str.empty()) {
+      return false;
+    }
 
     bool has_digit = false;
     bool has_decimal = false;
     bool has_exponent = false;
 
     size_t i = 0;
-    if (str[0] == '-' || str[0] == '+') i++;
+    if (str[0] == '-' || str[0] == '+') {
+      i++;
+    }
 
     for (; i < str.length(); i++) {
       char c = str[i];
@@ -306,14 +317,22 @@ private:
       if (std::isdigit(c)) {
         has_digit = true;
       } else if (c == '.') {
-        if (has_decimal || has_exponent) return false;
+        if (has_decimal || has_exponent) {
+          return false;
+        }
         has_decimal = true;
       } else if (c == 'e' || c == 'E') {
-        if (!has_digit || has_exponent) return false;
+        if (!has_digit || has_exponent) {
+          return false;
+        }
         has_exponent = true;
 
-        if (i + 1 < str.length() && (str[i + 1] == '+' || str[i + 1] == '-')) i++;
-        if (i + 1 >= str.length()) return false;  // No digits after exponent
+        if (i + 1 < str.length() && (str[i + 1] == '+' || str[i + 1] == '-')) {
+          i++;
+        }
+        if (i + 1 >= str.length()) {
+          return false;  // No digits after exponent
+        }
       } else {
         return false;
       }
@@ -580,10 +599,9 @@ private:
           auto result = row.template get<ResultType>(column_indices[Indices], allow_numeric_bools);
           if (result) {
             return *result;
-          } else {
-            // Return default value for the type if conversion fails
-            return ResultType{};
           }
+          // Return default value for the type if conversion fails
+          return ResultType{};
         }()...}};
   }
 };
@@ -780,7 +798,7 @@ public:
    */
   template <typename Table, typename P1, typename... Ps>
     requires schema::TableConcept<std::remove_reference_t<Table>>
-  auto with_schema(const Table& table, P1 mp1, Ps... mps) const {
+  auto with_schema(const Table& /*table*/, P1 mp1, Ps... mps) const {
     return with_schema<std::remove_reference_t<Table>>(mp1, mps...);
   }
 
@@ -804,7 +822,7 @@ private:
 /// @param raw_results The raw results as CSV or similar format
 /// @return A ResultSet with typed rows
 template <query::SqlExpr Query>
-ResultProcessingResult<ResultSet> parse(const Query& query, const std::string& raw_results) {
+ResultProcessingResult<ResultSet> parse(const Query& /*query*/, const std::string& raw_results) {
   try {
     // Split the raw results into lines
     std::vector<std::string> lines;

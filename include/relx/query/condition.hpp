@@ -97,7 +97,9 @@ public:
     ss << expr_.to_sql() << " IN (";
     bool first = true;
     for (const auto& _ : values_) {
-      if (!first) ss << ", ";
+      if (!first) {
+        ss << ", ";
+      }
       ss << "?";
       first = false;
     }
@@ -155,7 +157,9 @@ public:
     ss << expr_.to_sql() << " IN (";
     bool first = true;
     for (const auto& _ : values_) {
-      if (!first) ss << ", ";
+      if (!first) {
+        ss << ", ";
+      }
       ss << "?";
       first = false;
     }

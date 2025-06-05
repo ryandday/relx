@@ -79,7 +79,7 @@ struct PostgreSQLError {
 };
 
 /// @brief Map of SQL STATE codes to PostgreSQLErrorCode values
-inline const std::unordered_map<std::string, PostgreSQLErrorCode> SQL_STATE_MAP = {
+inline const std::unordered_map<std::string, PostgreSQLErrorCode> sql_state_map = {
     // Class 23 — Integrity Constraint Violation
     {"23505", PostgreSQLErrorCode::DuplicateKey},
     {"23503", PostgreSQLErrorCode::ForeignKeyViolation},

@@ -41,17 +41,15 @@ public:
   std::string to_sql() const override {
     if (value_.has_value()) {
       return "?";
-    } else {
-      return "NULL";
     }
+    return "NULL";
   }
 
   std::vector<std::string> bind_params() const override {
     if (value_.has_value()) {
       return {schema::column_traits<T>::to_sql_string(*value_)};
-    } else {
-      return {};
     }
+    return {};
   }
 
   const std::optional<T>& value() const { return value_; }

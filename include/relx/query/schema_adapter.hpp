@@ -41,9 +41,8 @@ private:
   std::string qualified_name() const override {
     if (table_name_.empty()) {
       return std::string(C::name);
-    } else {
-      return std::string(table_name_) + "." + std::string(C::name);
     }
+    return std::string(table_name_) + "." + std::string(C::name);
   }
 
   std::string_view get_parent_table_name() const {

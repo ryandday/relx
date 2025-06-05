@@ -150,11 +150,11 @@ public:
   std::string to_sql() const override {
     if (func_name_ == "EXTRACT") {
       return "EXTRACT(" + unit_ + " FROM " + expr_.to_sql() + ")";
-    } else if (func_name_ == "ABS") {
-      return "ABS(" + expr_.to_sql() + ")";
-    } else {
-      return func_name_ + "('" + unit_ + "', " + expr_.to_sql() + ")";
     }
+    if (func_name_ == "ABS") {
+      return "ABS(" + expr_.to_sql() + ")";
+    }
+    return func_name_ + "('" + unit_ + "', " + expr_.to_sql() + ")";
   }
 
   std::vector<std::string> bind_params() const override { return expr_.bind_params(); }

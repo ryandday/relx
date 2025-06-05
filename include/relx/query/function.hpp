@@ -602,6 +602,7 @@ public:
   }
 
   template <SqlExpr Else>
+  // NOLINTNEXTLINE(readability-identifier-naming)
   auto else_(const Else& else_expr) {
     if constexpr (!std::same_as<ResultType, void>) {
       static_assert(std::same_as<std::remove_cvref_t<Else>, std::remove_cvref_t<ResultType>>,
@@ -613,18 +614,27 @@ public:
   }
 
   // Specific overloads for common literal types in else clause
+  // Have to use underscore to avoid conflict with else keyword
+  // but this is not allowed by clang-tidy.
+  // NOLINTNEXTLINE(readability-identifier-naming)
   auto else_(const char* else_value) { return this->else_(query::val(else_value)); }
 
+  // NOLINTNEXTLINE(readability-identifier-naming)
   auto else_(const std::string& else_value) { return this->else_(query::val(else_value)); }
 
+  // NOLINTNEXTLINE(readability-identifier-naming)
   auto else_(int else_value) { return this->else_(query::val(else_value)); }
 
+  // NOLINTNEXTLINE(readability-identifier-naming)
   auto else_(long else_value) { return this->else_(query::val(else_value)); }
 
+  // NOLINTNEXTLINE(readability-identifier-naming)
   auto else_(double else_value) { return this->else_(query::val(else_value)); }
 
+  // NOLINTNEXTLINE(readability-identifier-naming)
   auto else_(float else_value) { return this->else_(query::val(else_value)); }
 
+  // NOLINTNEXTLINE(readability-identifier-naming)
   auto else_(bool else_value) { return this->else_(query::val(else_value)); }
 
   // Build the final CaseExpr
@@ -640,6 +650,7 @@ using CaseBuilder = TypedCaseBuilder<void>;
 
 /// @brief Create a CASE expression with type checking
 /// @return A TypedCaseBuilder
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline auto case_() {
   return TypedCaseBuilder<void>();
 }
