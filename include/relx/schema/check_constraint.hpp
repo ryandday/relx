@@ -2,6 +2,7 @@
 
 #include "core.hpp"
 #include "fixed_string.hpp"
+#include "meta.hpp"
 
 #include <string>
 #include <string_view>
@@ -81,25 +82,6 @@ public:
     using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
     return column_type::name;
   }
-
-private:
-  // Helper to extract the class type from a member pointer
-  template <typename T>
-  struct member_pointer_class;
-
-  template <typename C, typename T>
-  struct member_pointer_class<T C::*> {
-    using type = C;
-  };
-
-  // Helper to extract the member type from a member pointer
-  template <typename T>
-  struct member_pointer_type;
-
-  template <typename C, typename T>
-  struct member_pointer_type<T C::*> {
-    using type = T;
-  };
 };
 
 /// @brief Helper function to create a named check constraint at compile time

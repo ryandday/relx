@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core.hpp"
+#include "meta.hpp"
 
 #include <string_view>
 #include <type_traits>
@@ -20,25 +21,6 @@ public:
 
     return "UNIQUE (" + std::string(column_type::name) + ")";
   }
-
-private:
-  // Helper to extract the class type from a member pointer
-  template <typename T>
-  struct member_pointer_class;
-
-  template <typename C, typename T>
-  struct member_pointer_class<T C::*> {
-    using type = C;
-  };
-
-  // Helper to extract the member type from a member pointer
-  template <typename T>
-  struct member_pointer_type;
-
-  template <typename C, typename T>
-  struct member_pointer_type<T C::*> {
-    using type = T;
-  };
 };
 
 /// @brief Represents a composite UNIQUE constraint on multiple columns
@@ -73,24 +55,6 @@ private:
     using column_type = typename member_pointer_type<decltype(ColumnPtr)>::type;
     names += separator + std::string(column_type::name);
   }
-
-  // Helper to extract the class type from a member pointer
-  template <typename T>
-  struct member_pointer_class;
-
-  template <typename C, typename T>
-  struct member_pointer_class<T C::*> {
-    using type = C;
-  };
-
-  // Helper to extract the member type from a member pointer
-  template <typename T>
-  struct member_pointer_type;
-
-  template <typename C, typename T>
-  struct member_pointer_type<T C::*> {
-    using type = T;
-  };
 };
 
 }  // namespace relx::schema

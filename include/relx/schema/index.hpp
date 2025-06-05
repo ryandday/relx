@@ -1,6 +1,7 @@
 #pragma once
 
 #include "column.hpp"
+#include "meta.hpp"
 #include "table.hpp"
 
 #include <string_view>
@@ -64,24 +65,6 @@ public:
 
 private:
   index_type type_;
-
-  // Helper to extract the class type from a member pointer
-  template <typename T>
-  struct member_pointer_class;
-
-  template <typename C, typename T>
-  struct member_pointer_class<T C::*> {
-    using type = C;
-  };
-
-  // Helper to extract the member type from a member pointer
-  template <typename T>
-  struct member_pointer_type;
-
-  template <typename C, typename T>
-  struct member_pointer_type<T C::*> {
-    using type = T;
-  };
 };
 
 /// @brief Represents a composite index on multiple columns

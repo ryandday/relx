@@ -1,6 +1,7 @@
 #pragma once
 
 #include "column.hpp"
+#include "meta.hpp"
 
 #include <array>
 #include <string_view>
@@ -80,24 +81,6 @@ public:
 private:
   reference_action on_delete_ = reference_action::no_action;
   reference_action on_update_ = reference_action::no_action;
-
-  // Helper to extract the class type from a member pointer
-  template <typename T>
-  struct member_pointer_class;
-
-  template <typename C, typename T>
-  struct member_pointer_class<T C::*> {
-    using type = C;
-  };
-
-  // Helper to extract the member type from a member pointer
-  template <typename T>
-  struct member_pointer_type;
-
-  template <typename C, typename T>
-  struct member_pointer_type<T C::*> {
-    using type = T;
-  };
 };
 
 /// @brief Represents a composite foreign key constraint with multiple columns
@@ -228,24 +211,6 @@ private:
     // Should never reach here if parameters are correct
     return "unknown_table";
   }
-
-  // Helper to extract the class type from a member pointer
-  template <typename T>
-  struct member_pointer_class;
-
-  template <typename C, typename T>
-  struct member_pointer_class<T C::*> {
-    using type = C;
-  };
-
-  // Helper to extract the member type from a member pointer
-  template <typename T>
-  struct member_pointer_type;
-
-  template <typename C, typename T>
-  struct member_pointer_type<T C::*> {
-    using type = T;
-  };
 };
 
 // Helper type alias for splitting column pointers into local and referenced parts
