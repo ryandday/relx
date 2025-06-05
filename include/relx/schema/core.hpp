@@ -134,9 +134,8 @@ struct column_traits<std::optional<T>> {
   static std::string to_sql_string(const std::optional<T>& value) {
     if (value) {
       return column_traits<T>::to_sql_string(*value);
-    } else {
-      return "NULL";
     }
+    return "NULL";
   }
 
   static std::optional<T> from_sql_string(const std::string& value) {

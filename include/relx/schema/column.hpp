@@ -66,21 +66,26 @@ struct identity {
 
       // Add increment if not default
       if constexpr (increment != 1) {
-        if constexpr (start != 1) result += " ";
+        if constexpr (start != 1) {
+          result += " ";
+        }
         result += "INCREMENT BY " + std::to_string(increment);
       }
 
       // Add min value if not default
       if constexpr (min_value != std::numeric_limits<decltype(start)>::min()) {
-        if constexpr (start != 1 || increment != 1) result += " ";
+        if constexpr (start != 1 || increment != 1) {
+          result += " ";
+        }
         result += "MINVALUE " + std::to_string(min_value);
       }
 
       // Add max value if not default
       if constexpr (max_value != std::numeric_limits<decltype(start)>::max()) {
         if constexpr (start != 1 || increment != 1 ||
-                      min_value != std::numeric_limits<decltype(start)>::min())
+                      min_value != std::numeric_limits<decltype(start)>::min()) {
           result += " ";
+        }
         result += "MAXVALUE " + std::to_string(max_value);
       }
 
@@ -88,8 +93,9 @@ struct identity {
       if constexpr (cycle) {
         if constexpr (start != 1 || increment != 1 ||
                       min_value != std::numeric_limits<decltype(start)>::min() ||
-                      max_value != std::numeric_limits<decltype(start)>::max())
+                      max_value != std::numeric_limits<decltype(start)>::max()) {
           result += " ";
+        }
         result += "CYCLE";
       }
 
@@ -367,9 +373,8 @@ public:
   static std::string to_sql_string(const std::optional<T>& value) {
     if (value.has_value()) {
       return column_traits<T>::to_sql_string(*value);
-    } else {
-      return "NULL";
     }
+    return "NULL";
   }
 
   static std::optional<T> from_sql_string(const std::string& sql_str) {
