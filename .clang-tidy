@@ -1,23 +1,71 @@
 ---
 Checks: >
   -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-assignment-in-if-condition,
+  cert-dcl50-cpp,
+  cert-err34-c,
+  cert-err52-cpp,
+  cert-err60-cpp,
+  cert-flp30-c,
+  cert-msc50-cpp,
+  cert-msc51-cpp,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-const-cast,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-pro-type-vararg,
   hicpp-braces-around-statements,
+  misc-*,
+  -misc-non-private-member-variables-in-classes,
+  -misc-use-anonymous-namespace,
+  modernize-*,
+  -modernize-avoid-c-arrays,
+  -modernize-use-trailing-return-type,
+  performance-*,
   readability-identifier-naming,
-  modernize-concat-nested-namespaces,
-  modernize-use-using,
-  readability-else-after-return,
   readability-convert-member-functions-to-static,
-  misc-unused-parameters,
-  misc-use-internal-linkage,
-  performance-unnecessary-value-param,
+  readability-else-after-return,
+  readability-const-return-type,
+  readability-container-size-empty,
+  readability-delete-null-pointer,
+  readability-implicit-bool-conversion,
+  readability-inconsistent-declaration-parameter-name,
+  readability-make-member-function-const,
+  readability-misleading-indentation,
+  readability-redundant-control-flow,
+  readability-redundant-declaration,
+  readability-redundant-smartptr-get,
+  readability-redundant-string-cstr,
+  readability-simplify-boolean-expr,
+  readability-static-accessed-through-instance,
+  readability-uppercase-literal-suffix,
 
 # Warn as error for critical issues
 WarningsAsErrors: >
   bugprone-use-after-move,
   bugprone-dangling-handle,
   bugprone-infinite-loop,
+  bugprone-unchecked-optional-access,
+  bugprone-unhandled-exception-at-new,
   cppcoreguidelines-slicing,
-  modernize-use-nullptr
+  cppcoreguidelines-narrowing-conversions,
+  cppcoreguidelines-pro-type-member-init,
+  modernize-use-nullptr,
+  misc-const-correctness,
+  performance-move-const-arg
 
 # Header filter - analyze only project headers, exclude external dependencies
 HeaderFilterRegex: '.*/include/.*\.(h|hpp)$'
@@ -32,15 +80,40 @@ CheckOptions:
   readability-identifier-naming.PrivateMemberSuffix: '_'
   readability-identifier-naming.ProtectedMemberSuffix: '_'
   readability-identifier-naming.EnumConstantCase: CamelCase
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.TypedefCase: CamelCase
+  readability-identifier-naming.TypeAliasCase: CamelCase
+  
+  # Modern C++ checks
+  modernize-use-auto.MinTypeNameLength: 5
+  modernize-use-auto.RemoveStars: false
+  modernize-use-nodiscard.ReplacementString: '[[nodiscard]]'
+  modernize-use-std-print.StrictMode: true
+  
+  # Performance settings
+  performance-unnecessary-value-param.AllowedTypes: ''
+  performance-for-range-copy.WarnOnAllAutoCopies: true
+  
+  # Const correctness
+  misc-const-correctness.AnalyzeValues: true
+  misc-const-correctness.AnalyzeReferences: true
+  misc-const-correctness.WarnPointersAsValues: false
+  misc-const-correctness.TransformValues: true
+  misc-const-correctness.TransformReferences: true
+  
+  # C++ Core Guidelines
+  cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true
+  cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions: false
+  
+  # Concurrency checks
+  concurrency-mt-unsafe.FunctionSet: 'posix'
   
   # Emplace settings
   modernize-use-emplace.ContainersWithPushBack: '::std::vector;::std::list;::std::deque'
   modernize-use-emplace.SmartPointers: '::std::shared_ptr;::std::unique_ptr;::std::auto_ptr;::std::weak_ptr'
   hicpp-use-emplace.ContainersWithPushBack: '::std::vector;::std::list;::std::deque'
   hicpp-use-emplace.SmartPointers: '::std::shared_ptr;::std::unique_ptr;::std::auto_ptr;::std::weak_ptr'
-  
-  # Performance settings
-  performance-unnecessary-value-param.AllowedTypes: ''
   
   # Readability settings
   readability-braces-around-statements.ShortStatementLines: 2
