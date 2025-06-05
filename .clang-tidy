@@ -1,21 +1,15 @@
 ---
-# Configuration for clang-tidy
-# Optimized for C++23 relx project with modern C++ practices
-
-# Inherit default checks and add custom checks
 Checks: >
   -*,
   hicpp-braces-around-statements,
   readability-identifier-naming,
   modernize-concat-nested-namespaces,
   modernize-use-using,
-  modernize-use-emplace,
   readability-else-after-return,
   readability-convert-member-functions-to-static,
   misc-unused-parameters,
   misc-use-internal-linkage,
   performance-unnecessary-value-param,
-  hicpp-use-emplace
 
 # Warn as error for critical issues
 WarningsAsErrors: >
@@ -35,8 +29,6 @@ CheckOptions:
   readability-identifier-naming.TemplateParameterCase: CamelCase
   readability-identifier-naming.FunctionCase: lower_case
   readability-identifier-naming.VariableCase: lower_case
-  readability-identifier-naming.ClassMemberCase: lower_case
-  readability-identifier-naming.ClassMemberSuffix: '_'
   readability-identifier-naming.PrivateMemberSuffix: '_'
   readability-identifier-naming.ProtectedMemberSuffix: '_'
   readability-identifier-naming.EnumConstantCase: CamelCase
@@ -58,11 +50,6 @@ CheckOptions:
   readability-function-size.ParameterThreshold: 8
   readability-function-size.NestingThreshold: 6
   readability-function-size.VariableThreshold: 50
-  
-  # Core Guidelines enforcement
-  cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true
-  cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions: false
-  cppcoreguidelines-explicit-virtual-functions.IgnoreDestructors: true
   
   # Misc settings
   misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic: true

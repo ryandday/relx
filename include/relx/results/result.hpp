@@ -108,9 +108,8 @@ public:
     if (is_null()) {
       if constexpr (is_optional_v<T>) {
         return T{std::nullopt};
-      } else {
-        return std::unexpected(ResultError{"Cannot convert NULL to non-optional type"});
-      }
+      } 
+      return std::unexpected(ResultError{"Cannot convert NULL to non-optional type"});
     }
 
     // More strict type checking
@@ -120,17 +119,22 @@ public:
       // Always accept explicit boolean strings
       if (lower == "true") {
         return true;
-      } else if (lower == "false") {
+      } 
+      if (lower == "false") {
         return false;
-      } else if (lower == "t") {  // PostgreSQL format
+      } 
+      if (lower == "t") {  // PostgreSQL format
         return true;
-      } else if (lower == "f") {  // PostgreSQL format
+      } 
+      if (lower == "f") {  // PostgreSQL format
         return false;
-      } else if (allow_numeric_bools) {
+      } 
+      if (allow_numeric_bools) {
         // Only allow numeric conversion if explicitly allowed
         if (lower == "1") {
           return true;
-        } else if (lower == "0") {
+        } 
+        if (lower == "0") {
           return false;
         }
       }
@@ -365,7 +369,8 @@ public:
     for (size_t i = 0; i < column_names_.size(); ++i) {
       if (column_names_[i] == name && i < cells_.size()) {
         return &cells_[i];
-      } else if (column_names_[i] == name) {
+      } 
+      if (column_names_[i] == name) {
         // Found the column name but missing the corresponding cell
         return std::unexpected(ResultError{"Column found but missing cell data: " + name});
       }
