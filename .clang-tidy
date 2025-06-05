@@ -32,8 +32,6 @@ HeaderFilterRegex: '.*/include/.*\.(h|hpp)$'
 CheckOptions:
   # Naming conventions (snake_case for functions/variables, PascalCase for types)
   readability-identifier-naming.NamespaceCase: lower_case
-  readability-identifier-naming.ClassCase: CamelCase
-  readability-identifier-naming.StructCase: CamelCase
   readability-identifier-naming.TemplateParameterCase: CamelCase
   readability-identifier-naming.FunctionCase: lower_case
   readability-identifier-naming.VariableCase: lower_case
@@ -42,10 +40,6 @@ CheckOptions:
   readability-identifier-naming.PrivateMemberSuffix: '_'
   readability-identifier-naming.ProtectedMemberSuffix: '_'
   readability-identifier-naming.EnumConstantCase: CamelCase
-  readability-identifier-naming.ConstantCase: CamelCase
-  readability-identifier-naming.StaticConstantCase: CamelCase
-  readability-identifier-naming.MemberConstantCase: CamelCase
-  readability-identifier-naming.GlobalConstantCase: CamelCase
   
   # Emplace settings
   modernize-use-emplace.ContainersWithPushBack: '::std::vector;::std::list;::std::deque'
