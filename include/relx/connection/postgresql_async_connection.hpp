@@ -94,12 +94,12 @@ public:
   /// @return Awaitable that resolves with the mapped data
   template <typename T, query::SqlExpr Query>
   boost::asio::awaitable<ConnectionResult<T>> execute(Query query) {
-    auto result_set = co_await execute(query);
-    if (!result_set) {
-      co_return std::unexpected(result_set.error());
+    auto result_set_output = co_await execute(query);
+    if (!result_set_output) {
+      co_return std::unexpected(result_set_output.error());
     }
 
-    const auto& result_set = *result_set;
+    const auto& result_set = *result_set_output;
 
     if (result_set.empty()) {
       co_return std::unexpected(ConnectionError{.message = "No results found", .error_code = -1});
@@ -161,12 +161,12 @@ public:
   /// @return Awaitable that resolves with a vector of mapped data
   template <typename T, query::SqlExpr Query>
   boost::asio::awaitable<ConnectionResult<std::vector<T>>> execute_many(const Query& query) {
-    auto result_set = co_await execute(query);
-    if (!result_set) {
-      co_return std::unexpected(result_set.error());
+    auto result_set_output = co_await execute(query);
+    if (!result_set_output) {
+      co_return std::unexpected(result_set_output.error());
     }
 
-    const auto& result_set = *result_set;
+    const auto& result_set = *result_set_output;
 
     std::vector<T> objects;
     objects.reserve(result_set.size());
