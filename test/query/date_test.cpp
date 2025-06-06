@@ -46,24 +46,24 @@ TEST_F(DateFunctionTest, DateDiffFunction) {
     auto query1 = select_expr(date_diff("day", emp.hire_date, emp.birth_date))
         .from(emp);
     
-    EXPECT_EQ(query1.to_sql(), "SELECT DATE_DIFF('day', employees.hire_date, employees.birth_date) FROM employees");
+    EXPECT_EQ(query1.to_sql(), "SELECT (employees.birth_date::date - employees.hire_date::date) FROM employees");
     EXPECT_TRUE(query1.bind_params().empty());
     
     // Test with different units
     auto query_years = select_expr(date_diff("year", emp.birth_date, current_date()))
         .from(emp);
     
-    EXPECT_EQ(query_years.to_sql(), "SELECT DATE_DIFF('year', employees.birth_date, CURRENT_DATE) FROM employees");
+    EXPECT_EQ(query_years.to_sql(), "SELECT EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) FROM employees");
     
     auto query_months = select_expr(date_diff("month", emp.hire_date, current_date()))
         .from(emp);
     
-    EXPECT_EQ(query_months.to_sql(), "SELECT DATE_DIFF('month', employees.hire_date, CURRENT_DATE) FROM employees");
+    EXPECT_EQ(query_months.to_sql(), "SELECT EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.hire_date)) FROM employees");
     
     auto query_hours = select_expr(date_diff("hour", emp.last_review, current_timestamp()))
         .from(emp);
     
-    EXPECT_EQ(query_hours.to_sql(), "SELECT DATE_DIFF('hour', employees.last_review, CURRENT_TIMESTAMP) FROM employees");
+    EXPECT_EQ(query_hours.to_sql(), "SELECT EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP::timestamp - employees.last_review::timestamp))/3600 FROM employees");
 }
 
 // Test 2: DATE_ADD and DATE_SUB functions
@@ -199,19 +199,19 @@ TEST_F(DateFunctionTest, HelperFunctions) {
     auto age_query = select_expr(age_in_years(emp.birth_date))
         .from(emp);
     
-    EXPECT_EQ(age_query.to_sql(), "SELECT DATE_DIFF('year', employees.birth_date, CURRENT_DATE) FROM employees");
+    EXPECT_EQ(age_query.to_sql(), "SELECT EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) FROM employees");
     
     // Test days_since helper
     auto days_since_query = select_expr(days_since(emp.hire_date))
         .from(emp);
     
-    EXPECT_EQ(days_since_query.to_sql(), "SELECT DATE_DIFF('day', employees.hire_date, CURRENT_DATE) FROM employees");
+    EXPECT_EQ(days_since_query.to_sql(), "SELECT (CURRENT_DATE::date - employees.hire_date::date) FROM employees");
     
     // Test days_until helper
     auto days_until_query = select_expr(days_until(emp.termination_date))
         .from(emp);
     
-    EXPECT_EQ(days_until_query.to_sql(), "SELECT DATE_DIFF('day', CURRENT_DATE, employees.termination_date) FROM employees");
+    EXPECT_EQ(days_until_query.to_sql(), "SELECT (employees.termination_date::date - CURRENT_DATE::date) FROM employees");
     
     // Test start_of_year helper
     auto start_year = select_expr(start_of_year(emp.hire_date))
@@ -300,13 +300,13 @@ TEST_F(DateFunctionTest, ComplexDateQueries) {
     
     std::string expected_sql = 
         "SELECT employees.id, employees.name, "
-        "DATE_DIFF('year', employees.birth_date, CURRENT_DATE) AS age, "
-        "DATE_DIFF('day', employees.hire_date, CURRENT_DATE) AS tenure_days, "
+        "EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) AS age, "
+        "(CURRENT_DATE::date - employees.hire_date::date) AS tenure_days, "
         "EXTRACT(year FROM employees.hire_date) AS hire_year, "
         "EXTRACT(month FROM employees.hire_date) AS hire_month "
         "FROM employees "
-        "WHERE (DATE_DIFF('year', employees.birth_date, CURRENT_DATE) >= ?) "
-        "ORDER BY DATE_DIFF('day', employees.hire_date, CURRENT_DATE)";
+        "WHERE (EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) >= ?) "
+        "ORDER BY (CURRENT_DATE::date - employees.hire_date::date)";
     
     EXPECT_EQ(complex_query.to_sql(), expected_sql);
     
@@ -324,7 +324,7 @@ TEST_F(DateFunctionTest, DateFunctionsInWhere) {
     
     EXPECT_EQ(recent_hires.to_sql(), 
         "SELECT employees.id, employees.name FROM employees "
-        "WHERE (DATE_DIFF('day', employees.hire_date, CURRENT_DATE) <= ?)");
+        "WHERE ((CURRENT_DATE::date - employees.hire_date::date) <= ?)");
     
     auto params = recent_hires.bind_params();
     ASSERT_EQ(params.size(), 1);
@@ -362,7 +362,7 @@ TEST_F(DateFunctionTest, DateFunctionsInOrderBy) {
     
     EXPECT_EQ(order_by_age.to_sql(),
         "SELECT employees.id, employees.name FROM employees "
-        "ORDER BY DATE_DIFF('year', employees.birth_date, CURRENT_DATE) DESC");
+        "ORDER BY EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) DESC");
     
     // Order by hire date (most recent first)
     auto order_by_hire = select(emp.id, emp.name)
@@ -440,7 +440,7 @@ TEST_F(DateFunctionTest, OptionalDateColumns) {
     
     EXPECT_EQ(optional_date_query.to_sql(),
         "SELECT employees.id, employees.name, "
-        "DATE_DIFF('day', employees.last_review, CURRENT_DATE) AS days_since_review, "
+        "(CURRENT_DATE::date - employees.last_review::date) AS days_since_review, "
         "(employees.last_review + INTERVAL '1 year') AS next_review_due "
         "FROM employees "
         "WHERE employees.last_review IS NOT NULL");
@@ -509,8 +509,8 @@ TEST_F(DateFunctionTest, ComplexBusinessLogic) {
     
     EXPECT_EQ(retirement_eligible.to_sql(),
         "SELECT employees.id, employees.name FROM employees "
-        "WHERE ((DATE_DIFF('year', employees.birth_date, CURRENT_DATE) >= ?) AND "
-        "(DATE_DIFF('year', employees.hire_date, CURRENT_DATE) >= ?))");
+        "WHERE ((EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) >= ?) AND "
+        "(EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.hire_date)) >= ?))");
     
     auto params = retirement_eligible.bind_params();
     ASSERT_EQ(params.size(), 2);
@@ -682,14 +682,12 @@ TEST_F(DateFunctionTest, ComplexNestedDateFunctionCompositions) {
     
     EXPECT_EQ(recursive_complex.to_sql(),
         "SELECT employees.id, employees.name, "
-        "DATE_DIFF('year', employees.birth_date, CURRENT_DATE) AS current_age, "
+        "EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) AS current_age, "
         "EXTRACT(year FROM employees.hire_date) AS hire_year, "
-        "DATE_DIFF('year', DATE_TRUNC('year', (CURRENT_DATE - INTERVAL '50 years')), "
-        "DATE_TRUNC('year', employees.hire_date)) AS years_since_epoch "
+        "EXTRACT(YEAR FROM AGE(DATE_TRUNC('year', employees.hire_date), DATE_TRUNC('year', (CURRENT_DATE - INTERVAL '50 years')))) AS years_since_epoch "
         "FROM employees "
-        "WHERE ((DATE_DIFF('year', employees.birth_date, CURRENT_DATE) * ?) = "
-        "DATE_DIFF('year', DATE_TRUNC('year', (CURRENT_DATE - INTERVAL '50 years')), "
-        "DATE_TRUNC('year', employees.hire_date)))");
+        "WHERE ((EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) * ?) = "
+        "EXTRACT(YEAR FROM AGE(DATE_TRUNC('year', employees.hire_date), DATE_TRUNC('year', (CURRENT_DATE - INTERVAL '50 years')))))");
     
     params = recursive_complex.bind_params();
     ASSERT_EQ(params.size(), 1);
@@ -908,10 +906,10 @@ TEST_F(DateFunctionTest, CurrentDateWithAllFunctions) {
     
     EXPECT_EQ(date_diff_tests.to_sql(),
         "SELECT "
-        "DATE_DIFF('day', CURRENT_DATE, employees.hire_date) AS days_from_current_to_hire, "
-        "DATE_DIFF('month', employees.birth_date, CURRENT_DATE) AS months_from_birth_to_current, "
-        "DATE_DIFF('year', CURRENT_DATE, employees.termination_date) AS years_from_current_to_termination, "
-        "DATE_DIFF('hour', CURRENT_DATE, CURRENT_DATE) AS should_be_zero_hours "
+        "(employees.hire_date::date - CURRENT_DATE::date) AS days_from_current_to_hire, "
+        "EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.birth_date)) AS months_from_birth_to_current, "
+        "EXTRACT(YEAR FROM AGE(employees.termination_date, CURRENT_DATE)) AS years_from_current_to_termination, "
+        "EXTRACT(EPOCH FROM (CURRENT_DATE::timestamp - CURRENT_DATE::timestamp))/3600 AS should_be_zero_hours "
         "FROM employees");
     
     // Test current_date() with date_add and date_sub
@@ -1017,9 +1015,9 @@ TEST_F(DateFunctionTest, CurrentDateWithAllFunctions) {
     
     EXPECT_EQ(helper_diff_tests.to_sql(),
         "SELECT "
-        "DATE_DIFF('year', CURRENT_DATE, CURRENT_DATE) AS age_of_current_date, "
-        "DATE_DIFF('day', CURRENT_DATE, CURRENT_DATE) AS days_since_current, "
-        "DATE_DIFF('day', CURRENT_DATE, CURRENT_DATE) AS days_until_current "
+        "EXTRACT(YEAR FROM AGE(CURRENT_DATE, CURRENT_DATE)) AS age_of_current_date, "
+        "(CURRENT_DATE::date - CURRENT_DATE::date) AS days_since_current, "
+        "(CURRENT_DATE::date - CURRENT_DATE::date) AS days_until_current "
         "FROM employees");
     
     // Test current_date() in complex nested expressions
@@ -1071,7 +1069,7 @@ TEST_F(DateFunctionTest, CurrentDateWithAllFunctions) {
         "WHERE ((((((((EXTRACT(year FROM employees.hire_date) <= EXTRACT(year FROM CURRENT_DATE)) AND "
         "(EXTRACT(month FROM employees.birth_date) != EXTRACT(month FROM CURRENT_DATE))) AND "
         "(EXTRACT(day FROM employees.hire_date) >= EXTRACT(day FROM CURRENT_DATE))) AND "
-        "(DATE_DIFF('year', employees.birth_date, CURRENT_DATE) >= ?)) AND "
+        "(EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) >= ?)) AND "
         "((employees.hire_date + INTERVAL '1 year') < CURRENT_DATE)) AND "
         "((CURRENT_DATE - INTERVAL '5 years') > DATE_TRUNC('year', employees.birth_date))) AND "
         "(EXTRACT(dow FROM CURRENT_DATE) != EXTRACT(dow FROM employees.hire_date))) AND "
@@ -1093,8 +1091,8 @@ TEST_F(DateFunctionTest, CurrentDateWithAllFunctions) {
     
     EXPECT_EQ(order_by_tests.to_sql(),
         "SELECT employees.id, employees.name FROM employees "
-        "ORDER BY DATE_DIFF('day', employees.hire_date, CURRENT_DATE) DESC, "
-        "ABS(DATE_DIFF('month', employees.birth_date, CURRENT_DATE)) ASC, "
+        "ORDER BY (CURRENT_DATE::date - employees.hire_date::date) DESC, "
+        "ABS(EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.birth_date))) ASC, "
         "(EXTRACT(year FROM CURRENT_DATE) - EXTRACT(year FROM employees.hire_date)) DESC, "
         "EXTRACT(month FROM (CURRENT_DATE + INTERVAL '6 months')) ASC");
     
@@ -1120,12 +1118,12 @@ TEST_F(DateFunctionTest, CurrentDateWithAllFunctions) {
     EXPECT_EQ(group_by_tests.to_sql(),
         "SELECT EXTRACT(year FROM CURRENT_DATE), EXTRACT(month FROM CURRENT_DATE), "
         "COUNT(*) AS total_employees, "
-        "AVG(DATE_DIFF('year', employees.birth_date, CURRENT_DATE)) AS avg_age, "
-        "MIN(DATE_DIFF('day', employees.hire_date, CURRENT_DATE)) AS min_tenure_days, "
-        "MAX(DATE_DIFF('day', employees.hire_date, CURRENT_DATE)) AS max_tenure_days "
+        "AVG(EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date))) AS avg_age, "
+        "MIN((CURRENT_DATE::date - employees.hire_date::date)) AS min_tenure_days, "
+        "MAX((CURRENT_DATE::date - employees.hire_date::date)) AS max_tenure_days "
         "FROM employees "
         "GROUP BY EXTRACT(year FROM CURRENT_DATE), EXTRACT(month FROM CURRENT_DATE) "
-        "HAVING ((COUNT(*) > ?) AND (AVG(DATE_DIFF('year', employees.birth_date, CURRENT_DATE)) >= ?))");
+        "HAVING ((COUNT(*) > ?) AND (AVG(EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date))) >= ?))");
     
     params = group_by_tests.bind_params();
     ASSERT_EQ(params.size(), 2);

@@ -7,6 +7,7 @@
 #include <chrono>
 #include <optional>
 #include <vector>
+#include <iostream>
 
 namespace {
 
@@ -63,7 +64,7 @@ struct EmployeeTable {
 class DateTimeIntegrationTest : public ::testing::Test {
 protected:
     // Connection string for the PostgreSQL test database
-    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=relx_user password=relx_password";
+    std::string conn_string = "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
     
     void SetUp() override {
         // Setup test tables

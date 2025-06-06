@@ -27,9 +27,26 @@ public:
         right_(std::move(right)) {}
 
   std::string to_sql() const override {
-    // Different databases have different syntax
-    // PostgreSQL: EXTRACT(EPOCH FROM (date2 - date1))/86400 for days
-    // For now, use a generic format that can be adapted per database
+    // Generate PostgreSQL-compatible SQL for date differences
+    if (func_name_ == "DATE_DIFF") {
+      if (unit_ == "year") {
+        return "EXTRACT(YEAR FROM AGE(" + right_.to_sql() + ", " + left_.to_sql() + "))";
+      } else if (unit_ == "day") {
+        // For PostgreSQL, handle date vs timestamp arithmetic properly
+        // If we're dealing with timestamps, convert to date difference in days
+        // If we're dealing with dates, simple subtraction works
+        return "(" + right_.to_sql() + "::date - " + left_.to_sql() + "::date)";
+      } else if (unit_ == "second") {
+        return "EXTRACT(EPOCH FROM (" + right_.to_sql() + "::timestamp - " + left_.to_sql() + "::timestamp))";
+      } else if (unit_ == "month") {
+        return "EXTRACT(MONTH FROM AGE(" + right_.to_sql() + ", " + left_.to_sql() + "))";
+      } else if (unit_ == "hour") {
+        return "EXTRACT(EPOCH FROM (" + right_.to_sql() + "::timestamp - " + left_.to_sql() + "::timestamp))/3600";
+      } else if (unit_ == "minute") {
+        return "EXTRACT(EPOCH FROM (" + right_.to_sql() + "::timestamp - " + left_.to_sql() + "::timestamp))/60";
+      }
+    }
+    // Fallback to generic format for other functions
     return func_name_ + "('" + unit_ + "', " + left_.to_sql() + ", " + right_.to_sql() + ")";
   }
 

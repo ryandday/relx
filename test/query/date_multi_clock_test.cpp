@@ -72,7 +72,7 @@ TEST_F(MultiClockDateTest, SystemClockBasicFunctions) {
     auto diff_query = select_expr(date_diff("day", system_table.timestamp, current_date()))
         .from(system_table);
     
-    EXPECT_EQ(diff_query.to_sql(), "SELECT DATE_DIFF('day', system_clock_events.timestamp, CURRENT_DATE) FROM system_clock_events");
+    EXPECT_EQ(diff_query.to_sql(), "SELECT (CURRENT_DATE::date - system_clock_events.timestamp::date) FROM system_clock_events");
     EXPECT_TRUE(diff_query.bind_params().empty());
     
     // Test extract
@@ -100,7 +100,7 @@ TEST_F(MultiClockDateTest, SteadyClockBasicFunctions) {
     auto diff_query = select_expr(date_diff("hour", steady_table.timestamp, now()))
         .from(steady_table);
     
-    EXPECT_EQ(diff_query.to_sql(), "SELECT DATE_DIFF('hour', steady_clock_events.timestamp, NOW()) FROM steady_clock_events");
+    EXPECT_EQ(diff_query.to_sql(), "SELECT EXTRACT(EPOCH FROM (NOW()::timestamp - steady_clock_events.timestamp::timestamp))/3600 FROM steady_clock_events");
     EXPECT_TRUE(diff_query.bind_params().empty());
     
     // Test extract
@@ -128,7 +128,7 @@ TEST_F(MultiClockDateTest, HighResClockBasicFunctions) {
     auto diff_query = select_expr(date_diff("minute", high_res_table.timestamp, current_timestamp()))
         .from(high_res_table);
     
-    EXPECT_EQ(diff_query.to_sql(), "SELECT DATE_DIFF('minute', high_res_clock_events.timestamp, CURRENT_TIMESTAMP) FROM high_res_clock_events");
+    EXPECT_EQ(diff_query.to_sql(), "SELECT EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP::timestamp - high_res_clock_events.timestamp::timestamp))/60 FROM high_res_clock_events");
     EXPECT_TRUE(diff_query.bind_params().empty());
     
     // Test extract
@@ -471,9 +471,9 @@ TEST_F(MultiClockDateTest, SpecialHelpersWithDifferentClocks) {
     
     EXPECT_EQ(system_helpers.to_sql(),
         "SELECT "
-        "DATE_DIFF('year', system_clock_events.timestamp, CURRENT_DATE) AS age_years, "
-        "DATE_DIFF('day', system_clock_events.timestamp, CURRENT_DATE) AS days_since, "
-        "DATE_DIFF('day', CURRENT_DATE, system_clock_events.timestamp) AS days_until "
+        "EXTRACT(YEAR FROM AGE(CURRENT_DATE, system_clock_events.timestamp)) AS age_years, "
+        "(CURRENT_DATE::date - system_clock_events.timestamp::date) AS days_since, "
+        "(system_clock_events.timestamp::date - CURRENT_DATE::date) AS days_until "
         "FROM system_clock_events");
     
     // Test with steady_clock (syntactically valid, but semantically these helpers
@@ -486,9 +486,9 @@ TEST_F(MultiClockDateTest, SpecialHelpersWithDifferentClocks) {
     
     EXPECT_EQ(steady_helpers.to_sql(),
         "SELECT "
-        "DATE_DIFF('year', steady_clock_events.timestamp, CURRENT_DATE) AS steady_age, "
-        "DATE_DIFF('day', steady_clock_events.timestamp, CURRENT_DATE) AS steady_days_since, "
-        "DATE_DIFF('day', CURRENT_DATE, steady_clock_events.timestamp) AS steady_days_until "
+        "EXTRACT(YEAR FROM AGE(CURRENT_DATE, steady_clock_events.timestamp)) AS steady_age, "
+        "(CURRENT_DATE::date - steady_clock_events.timestamp::date) AS steady_days_since, "
+        "(steady_clock_events.timestamp::date - CURRENT_DATE::date) AS steady_days_until "
         "FROM steady_clock_events");
     
     // Test with high_resolution_clock
@@ -500,8 +500,8 @@ TEST_F(MultiClockDateTest, SpecialHelpersWithDifferentClocks) {
     
     EXPECT_EQ(high_res_helpers.to_sql(),
         "SELECT "
-        "DATE_DIFF('year', high_res_clock_events.timestamp, CURRENT_DATE) AS hr_age, "
-        "DATE_DIFF('day', high_res_clock_events.timestamp, CURRENT_DATE) AS hr_days_since, "
-        "DATE_DIFF('day', CURRENT_DATE, high_res_clock_events.timestamp) AS hr_days_until "
+        "EXTRACT(YEAR FROM AGE(CURRENT_DATE, high_res_clock_events.timestamp)) AS hr_age, "
+        "(CURRENT_DATE::date - high_res_clock_events.timestamp::date) AS hr_days_since, "
+        "(high_res_clock_events.timestamp::date - CURRENT_DATE::date) AS hr_days_until "
         "FROM high_res_clock_events");
 } 
