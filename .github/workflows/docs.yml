@@ -45,7 +45,7 @@ jobs:
           echo "=== Doxyfile exists ==="
           ls -la Doxyfile
           echo "=== Docs directory ==="
-          ls -la docs/
+          ls -la docs/ || echo "No docs directory found"
 
       - name: Generate API Documentation
         run: |
@@ -61,32 +61,16 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.1'
-          bundler-cache: true
-          working-directory: './docs'
-
-      - name: Build with Jekyll
-        run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
-        working-directory: './docs'
-        env:
-          JEKYLL_ENV: production
-
-      - name: Create combined documentation site
+      - name: Prepare documentation site
         run: |
-          # Create a combined site with both API docs and manual docs
+          # Create the site directory structure
           mkdir -p _site
           mkdir -p _site/api
           
-          # Copy Jekyll-built markdown docs to _site
-          cp -r docs/_site/* _site/
+          # Copy API documentation as the main site
+          cp -r docs/api/html/* _site/
           
-          # Copy API documentation to _site/api
-          cp -r docs/api/html/* _site/api/
-
-          # Create an enhanced index.html that provides navigation to both
+          # Create an enhanced index.html that provides navigation to GitHub
           cat > _site/index.html << 'EOF'
           <!DOCTYPE html>
           <html lang="en">
@@ -184,42 +168,43 @@ jobs:
                   <div class="nav-card">
                       <h3>📚 User Guide</h3>
                       <p>Learn how to use relx with comprehensive guides and tutorials.</p>
-                      <p><a href="./schema-definition.html">Schema Definition</a></p>
-                      <p><a href="./query-building.html">Query Building</a></p>
-                      <p><a href="./result-parsing.html">Result Parsing</a></p>
-                      <p><a href="./error-handling.html">Error Handling</a></p>
+                      <p><a href="https://github.com/ryandday/relx/blob/main/docs/schema-definition.md">Schema Definition</a></p>
+                      <p><a href="https://github.com/ryandday/relx/blob/main/docs/query-building.md">Query Building</a></p>
+                      <p><a href="https://github.com/ryandday/relx/blob/main/docs/result-parsing.md">Result Parsing</a></p>
+                      <p><a href="https://github.com/ryandday/relx/blob/main/docs/error-handling.md">Error Handling</a></p>
                   </div>
                   
                   <div class="nav-card">
                       <h3>🔍 API Reference</h3>
                       <p>Complete API documentation generated from source code with examples and detailed explanations.</p>
-                      <p><a href="./api/annotated.html">Browse API Documentation →</a></p>
+                      <p><a href="./annotated.html">Browse API Documentation →</a></p>
                   </div>
                   
                   <div class="nav-card">
                       <h3>🚀 Examples & Advanced Topics</h3>
                       <p>Advanced examples, performance tips, and development guides.</p>
-                      <p><a href="./advanced-examples.html">Advanced Examples</a></p>
-                      <p><a href="./performance.html">Performance Guide</a></p>
-                      <p><a href="./development.html">Development Guide</a></p>
+                      <p><a href="https://github.com/ryandday/relx/blob/main/docs/advanced-examples.md">Advanced Examples</a></p>
+                      <p><a href="https://github.com/ryandday/relx/blob/main/docs/performance.md">Performance Guide</a></p>
+                      <p><a href="https://github.com/ryandday/relx/blob/main/docs/development.md">Development Guide</a></p>
                   </div>
               </div>
               
               <div class="quick-links">
                   <h3>Quick Links</h3>
                   <ul>
-                      <li><a href="./api/classes.html">Classes</a> - All classes and structs</li>
-                      <li><a href="./api/namespaces.html">Namespaces</a> - Namespace documentation</li>
-                      <li><a href="./api/files.html">Files</a> - Source file documentation</li>
-                      <li><a href="./api/examples.html">Examples</a> - Code examples</li>
+                      <li><a href="./classes.html">Classes</a> - All classes and structs</li>
+                      <li><a href="./namespaces.html">Namespaces</a> - Namespace documentation</li>
+                      <li><a href="./files.html">Files</a> - Source file documentation</li>
+                      <li><a href="./examples.html">Examples</a> - Code examples</li>
                       <li><a href="https://github.com/ryandday/relx">GitHub Repository</a> - Source code</li>
+                      <li><a href="https://github.com/ryandday/relx/blob/main/README.md">Main README</a> - Getting started</li>
                   </ul>
               </div>
           </body>
           </html>
           EOF
           
-          echo "Combined documentation site created"
+          echo "Documentation site prepared"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
