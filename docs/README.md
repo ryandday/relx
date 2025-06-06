@@ -1,25 +1,30 @@
 # relx Documentation
 
-Welcome to the relx (Relational X) documentation. This documentation provides comprehensive guides and examples for using the relx C++ query building library.
+Welcome to the relx documentation. This documentation provides comprehensive guides and examples for using the relx C++ query building library.
 
-## Table of Contents
+## Quick Navigation
 
-- [Schema Definition](schema-definition.md): How to define tables and columns
-- [Query Building](query-building.md): Building SQL queries with the fluent API
-- [Result Parsing](result-parsing.md): Processing query results in a type-safe way
-- [Advanced Examples](advanced-examples.md): Complex query patterns and examples
-- [Error Handling](error-handling.md): Working with errors and expected results
+| Guide | Description |
+|-------|-------------|
+| [Schema Definition](schema-definition.md) | Define tables, columns, and relationships |
+| [Query Building](query-building.md) | Build SQL queries with the fluent API |
+| [Result Parsing](result-parsing.md) | Process query results in a type-safe way |
+| [Error Handling](error-handling.md) | Working with errors and expected results |
+| [Advanced Examples](advanced-examples.md) | Complex query patterns and real-world examples |
+| [Performance Guide](performance.md) | Optimization tips and best practices |
+| [Development Guide](development.md) | Building, testing, and contributing |
 
 ## Library Overview
 
-relx is a modern C++23 library for building and executing SQL queries with compile-time type safety. It allows you to:
+relx is a modern C++23 library for building and executing SQL queries with compile-time type safety. Key capabilities:
 
-1. Define database schemas as C++ structures
-2. Build SQL queries with a fluent, type-safe API
-3. Execute queries against PostgreSQL databases
-4. Process results in a type-safe manner
+- **Schema Definition**: Define database schemas as C++ structures
+- **Type-Safe Queries**: Build SQL queries with a fluent, chainable API
+- **Compile-Time Validation**: Catch SQL errors at compile time
+- **Database Execution**: Execute queries against PostgreSQL databases
+- **Result Mapping**: Process results with automatic type conversion
 
-## Example
+## Getting Started Example
 
 ```cpp
 #include <relx/schema.hpp>
@@ -31,14 +36,14 @@ relx is a modern C++23 library for building and executing SQL queries with compi
 struct Users {
     static constexpr auto table_name = "users";
     
-    relx::column<Users, "id", int> id;
+    relx::column<Users, "id", int, relx::primary_key> id;
     relx::column<Users, "name", std::string> name;
     relx::column<Users, "email", std::string> email;
     
-    relx::primary_key<&Users::id> pk;
+    relx::unique_constraint<&Users::email> unique_email;
 };
 
-// Define a DTO (Data Transfer Object) for User data
+// Define a DTO for query results
 struct UserDTO {
     int id;
     std::string name;
@@ -46,50 +51,42 @@ struct UserDTO {
 };
 
 int main() {
-    // Create connection using a struct
-    relx::ConnectionParams params{
+    // Database connection
+    relx::PostgreSQLConnectionParams params{
         .host = "localhost",
         .port = 5432,
         .dbname = "example",
         .user = "postgres",
-        .password = "postgres"
+        .password = "postgres",
+        .application_name = "relx_example"
     };
     
     relx::PostgreSQLConnection conn(params);
     
-    // Connect to the database
     auto connect_result = conn.connect();
     if (!connect_result) {
         std::println("Connection error: {}", connect_result.error().message);
         return 1;
     }
     
-    // Create table
     Users users;
-    auto create_table_query = relx::create_table(users);
-    conn.execute(create_table_query);
+    
+    // Create table
+    auto create_result = conn.execute(relx::create_table(users).if_not_exists());
+    relx::throw_if_failed(create_result);
     
     // Insert data
-    auto insert = relx::insert_into(users)
-        .values(
-            relx::set(users.name, "John Doe"),
-            relx::set(users.email, "john@example.com")
-        )
-        .returning(users.id);  // PostgreSQL supports RETURNING clause
-        
-    auto insert_result = conn.execute(insert);
-    if (!insert_result) {
-        std::println("Insert error: {}", insert_result.error().message);
-        return 1;
-    }
+    auto insert_result = conn.execute(
+        relx::insert_into(users)
+            .columns(users.name, users.email)
+            .values("John Doe", "john@example.com")
+    );
+    relx::throw_if_failed(insert_result);
     
-    int user_id = (*insert_result)[0].get<int>("id").value_or(0);
-    std::println("Inserted user with ID: {}", user_id);
-    
-    // Query data
+    // Query data with automatic mapping to DTO
     auto query = relx::select(users.id, users.name, users.email)
         .from(users)
-        .where(users.id == user_id);
+        .where(users.name.like("%John%"));
     
     auto result = conn.execute<UserDTO>(query);
     if (result) {
@@ -98,15 +95,23 @@ int main() {
         }
     }
     
-    // Clean up
-    auto drop_table_query = relx::drop_table(users);
-    auto drop_result = conn.execute(drop_table_query);
-    if (!drop_result) {
-        std::println("Insert error: {}", insert_result.error().message);
-        return 1;
-    }
-    
-    // Disconnect on destruction of the connection object
     return 0;
 }
 ```
+
+## Architecture Overview
+
+relx is designed with several key components:
+
+- **Core Library** (header-only): Schema definitions, query building, SQL generation
+- **PostgreSQL Client**: Synchronous database operations
+- **PostgreSQL Async Client**: Asynchronous operations with Boost.Asio
+- **Connection Pool**: Managed connection pooling for high-concurrency applications
+
+## Next Steps
+
+1. Start with [Schema Definition](schema-definition.md) to learn how to define your database structure
+2. Read [Query Building](query-building.md) to understand the fluent API
+3. Review [Result Parsing](result-parsing.md) for handling query results
+4. Check [Error Handling](error-handling.md) for robust error management
+5. Explore [Advanced Examples](advanced-examples.md) for complex scenarios

@@ -51,7 +51,7 @@ Since relx is header-only, you can also manually integrate it:
 
 ### Prerequisites
 
-- C++23 compatible compiler (GCC 11+, Clang 14+, or MSVC 19.29+)
+- C++23 bleeding edge compiler (GCC 15, Clang 20)
 - CMake 3.15 or later
 - Docker (for running PostgreSQL during tests)
 - One of the following for dependencies:
