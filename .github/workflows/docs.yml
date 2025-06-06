@@ -186,7 +186,7 @@ jobs:
                     <li><a href="./namespaces.html">Namespaces</a> - Namespace documentation</li>
                     <li><a href="./files.html">Files</a> - Source file documentation</li>
                     <li><a href="./examples.html">Examples</a> - Code examples</li>
-                    <li><a href="https://github.com/ryanday2/sqllib">GitHub Repository</a> - Source code</li>
+                                         <li><a href="https://github.com/ryandday/relx">GitHub Repository</a> - Source code</li>
                 </ul>
             </div>
         </body>
