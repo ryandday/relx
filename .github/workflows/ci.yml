@@ -4,6 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
+    types: [opened, synchronize, closed]
     branches: [ main ]
 
 env:
@@ -136,11 +137,11 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
-  # Clang-Tidy Check with Clang 20 (only on push to main)
+  # Clang-Tidy Check with Clang 20 (only when PR merges)
   clang-tidy:
     runs-on: ubuntu-24.04
     needs: format-check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
 
     steps:
     - uses: actions/checkout@v4
