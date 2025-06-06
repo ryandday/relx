@@ -350,4 +350,114 @@ TEST_F(PostgreSQLStatementTest, TestMultipleStatements) {
     conn.disconnect();
 }
 
+TEST_F(PostgreSQLStatementTest, TestMoveSemantics) {
+    relx::connection::PostgreSQLConnection conn(conn_string);
+    ASSERT_TRUE(conn.connect());
+    
+    // Create test table
+    create_test_table(conn);
+    
+    // Test move constructor
+    {
+        auto stmt1 = conn.prepare_statement(
+            "move_test1",
+            "INSERT INTO prepared_test (name, value) VALUES ($1, $2)",
+            2
+        );
+        
+        EXPECT_TRUE(stmt1->is_valid());
+        EXPECT_EQ("move_test1", stmt1->name());
+        
+        // Move construct
+        auto stmt2 = std::move(stmt1);
+        
+        EXPECT_FALSE(stmt1->is_valid()); // Original should be invalid
+        EXPECT_TRUE(stmt2->is_valid());  // Moved-to should be valid
+        EXPECT_EQ("move_test1", stmt2->name());
+        
+        // Test that moved-to statement works
+        auto result = stmt2->execute({"Move Test", "123"});
+        EXPECT_TRUE(result);
+        
+        stmt2.reset();
+    }
+    
+    // Test move assignment
+    {
+        auto stmt1 = conn.prepare_statement(
+            "move_test2",
+            "INSERT INTO prepared_test (name, value) VALUES ($1, $2)",
+            2
+        );
+        
+        auto stmt2 = conn.prepare_statement(
+            "move_test3", 
+            "SELECT * FROM prepared_test WHERE value = $1",
+            1
+        );
+        
+        EXPECT_TRUE(stmt1->is_valid());
+        EXPECT_TRUE(stmt2->is_valid());
+        EXPECT_EQ("move_test2", stmt1->name());
+        EXPECT_EQ("move_test3", stmt2->name());
+        
+        // Move assign
+        stmt2 = std::move(stmt1);
+        
+        EXPECT_FALSE(stmt1->is_valid()); // Original should be invalid
+        EXPECT_TRUE(stmt2->is_valid());  // Moved-to should be valid  
+        EXPECT_EQ("move_test2", stmt2->name()); // Should have moved-from name
+        
+        // Test that moved-to statement works
+        auto result = stmt2->execute({"Move Assign Test", "456"});
+        EXPECT_TRUE(result);
+        
+        stmt2.reset();
+    }
+    
+    conn.disconnect();
+}
+
+TEST_F(PostgreSQLStatementTest, TestInvalidConnection) {
+    // Test statement behavior when connection is closed
+    relx::connection::PostgreSQLConnection conn(conn_string);
+    ASSERT_TRUE(conn.connect());
+    
+    create_test_table(conn);
+    
+    auto stmt = conn.prepare_statement(
+        "invalid_conn_test",
+        "INSERT INTO prepared_test (name, value) VALUES ($1, $2)",
+        2
+    );
+    
+    // Statement should work initially
+    auto result1 = stmt->execute({"Initial Test", "100"});
+    EXPECT_TRUE(result1);
+    
+    // Disconnect the connection
+    conn.disconnect();
+    
+    // Now statement should fail (though this depends on implementation)
+    // The prepared statement may still exist in PostgreSQL but our connection wrapper
+    // should detect the disconnected state
+    
+    stmt.reset(); // This should handle the disconnected state gracefully
+    
+    // Test with a completely new connection to ensure cleanup worked
+    relx::connection::PostgreSQLConnection conn2(conn_string);
+    ASSERT_TRUE(conn2.connect());
+    
+    // Should be able to create statement with same name since old one was cleaned up
+    auto stmt2 = conn2.prepare_statement(
+        "invalid_conn_test",
+        "SELECT * FROM prepared_test WHERE value = $1", 
+        1
+    );
+    
+    EXPECT_TRUE(stmt2->is_valid());
+    stmt2.reset();
+    conn2.disconnect();
+}
+
 } // namespace 

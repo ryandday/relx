@@ -360,4 +360,182 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolConnectionValidation) {
     EXPECT_EQ(1, pool->idle_connections());
 }
 
+TEST_F(PostgreSQLConnectionPoolTest, TestPoolErrorHandling) {
+    // Test 1: Pool with invalid connection string
+    {
+        relx::connection::PostgreSQLConnectionPoolConfig bad_config;
+        bad_config.connection_params = {
+            .host = "invalid_host_12345",
+            .port = 12345, // Valid port number
+            .dbname = "nonexistent",
+            .user = "invalid",
+            .password = "invalid"
+        };
+        bad_config.initial_size = 1;
+        bad_config.max_size = 2;
+        
+        auto bad_pool = relx::connection::PostgreSQLConnectionPool::create(bad_config);
+        auto init_result = bad_pool->initialize();
+        EXPECT_FALSE(init_result); // Should fail to initialize
+        
+        if (!init_result) {
+            EXPECT_NE("", init_result.error().message);
+        }
+    }
+    
+    // Test 2: Pool with zero size
+    {
+        relx::connection::PostgreSQLConnectionPoolConfig zero_config;
+        zero_config.connection_params = {
+            .host = "localhost",
+            .port = 5434,
+            .dbname = "relx_test",
+            .user = "postgres",
+            .password = "postgres"
+        };
+        zero_config.initial_size = 0;
+        zero_config.max_size = 0;
+        
+        auto zero_pool = relx::connection::PostgreSQLConnectionPool::create(zero_config);
+        auto init_result = zero_pool->initialize();
+        EXPECT_TRUE(init_result); // Should succeed with 0 initial connections
+        
+        auto conn_result = zero_pool->get_connection();
+        EXPECT_FALSE(conn_result); // Should fail with zero max connections
+    }
+    
+    // Test 3: Pool exhaustion and recovery
+    {
+        relx::connection::PostgreSQLConnectionPoolConfig small_config;
+        small_config.connection_params = {
+            .host = "localhost",
+            .port = 5434,
+            .dbname = "relx_test",
+            .user = "postgres",
+            .password = "postgres"
+        };
+        small_config.initial_size = 1;
+        small_config.max_size = 1;
+        small_config.connection_timeout = std::chrono::milliseconds(100); // Short timeout
+        
+        auto small_pool = relx::connection::PostgreSQLConnectionPool::create(small_config);
+        ASSERT_TRUE(small_pool->initialize());
+        
+        // Get the only connection
+        auto conn1_result = small_pool->get_connection();
+        EXPECT_TRUE(conn1_result);
+        
+        // Try to get another connection (should fail or timeout)
+        auto conn2_result = small_pool->get_connection();
+        EXPECT_FALSE(conn2_result); // Should timeout
+        
+        // Return the first connection by letting it go out of scope
+        {
+            auto temp_conn = std::move(conn1_result);
+            // Connection automatically returned when temp_conn goes out of scope
+        }
+        
+        // Now should be able to get a connection again
+        auto conn3_result = small_pool->get_connection();
+        EXPECT_TRUE(conn3_result);
+    }
+}
+
+TEST_F(PostgreSQLConnectionPoolTest, TestPoolConnectionLifecycle) {
+    relx::connection::PostgreSQLConnectionPoolConfig config;
+    config.connection_params = {
+        .host = "localhost",
+        .port = 5434,
+        .dbname = "relx_test",
+        .user = "postgres",
+        .password = "postgres"
+    };
+    config.initial_size = 2;
+    config.max_size = 3;
+    
+    auto pool = relx::connection::PostgreSQLConnectionPool::create(config);
+    ASSERT_TRUE(pool->initialize());
+    
+    // Test connection reuse
+    {
+        auto conn1 = pool->get_connection();
+        EXPECT_TRUE(conn1);
+        
+        if (conn1) {
+            // Use the connection
+            create_test_table(*conn1);
+            
+            auto result = (*conn1)->execute_raw("INSERT INTO connection_pool_test (thread_id, value) VALUES (999, 888)");
+            EXPECT_TRUE(result);
+        }
+        
+        // Connection goes out of scope and should be returned to pool
+    }
+    
+    // Get a connection again - should be reused
+    {
+        auto conn2 = pool->get_connection();
+        EXPECT_TRUE(conn2);
+        
+        if (conn2) {
+            // Verify the previous data is still there (connection was reused)
+            auto result = (*conn2)->execute_raw("SELECT value FROM connection_pool_test WHERE thread_id = 999");
+            EXPECT_TRUE(result);
+            
+            if (result) {
+                EXPECT_EQ(1, result->size());
+                auto value = result->at(0).get<int>("value");
+                EXPECT_TRUE(value);
+                EXPECT_EQ(888, *value);
+            }
+        }
+    }
+}
+
+TEST_F(PostgreSQLConnectionPoolTest, TestPoolConnectionFailureRecovery) {
+    relx::connection::PostgreSQLConnectionPoolConfig config;
+    config.connection_params = {
+        .host = "localhost",
+        .port = 5434,
+        .dbname = "relx_test",
+        .user = "postgres",
+        .password = "postgres"
+    };
+    config.initial_size = 1;
+    config.max_size = 2;
+    
+    auto pool = relx::connection::PostgreSQLConnectionPool::create(config);
+    ASSERT_TRUE(pool->initialize());
+    
+    // Get a connection and simulate a failure by disconnecting it
+    auto conn = pool->get_connection();
+    EXPECT_TRUE(conn);
+    
+    if (conn) {
+        // Disconnect the connection to simulate failure
+        auto disconnect_result = (*conn)->disconnect();
+        EXPECT_TRUE(disconnect_result);
+        EXPECT_FALSE((*conn)->is_connected());
+        
+        // Try to use the failed connection
+        auto result = (*conn)->execute_raw("SELECT 1");
+        EXPECT_FALSE(result); // Should fail
+    }
+    
+    // Return the failed connection and get a new one
+    {
+        auto temp_conn = std::move(conn);
+        // Connection returned when temp_conn goes out of scope
+    }
+    
+    auto new_conn = pool->get_connection();
+    EXPECT_TRUE(new_conn);
+    
+    if (new_conn) {
+        // New connection should work properly
+        auto result = (*new_conn)->execute_raw("SELECT 1 as recovery_test");
+        EXPECT_TRUE(result);
+    }
+}
+
 } // namespace 

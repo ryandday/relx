@@ -498,4 +498,194 @@ TEST_F(AsyncPgIntegrationTest, ConnectionParamsConstructor) {
     });
 }
 
+TEST_F(AsyncPgIntegrationTest, TestAsyncConnectionErrorHandling) {
+    run_test([this]() -> boost::asio::awaitable<void> {
+        // Test 1: Connection with invalid parameters
+        {
+            auto bad_conn = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(
+                io_context, "invalid connection string"
+            );
+            
+            auto connect_result = co_await bad_conn->connect();
+            EXPECT_FALSE(connect_result);
+            EXPECT_FALSE(bad_conn->is_connected());
+            
+            // Try to execute on bad connection
+            auto exec_result = co_await bad_conn->execute_raw("SELECT 1");
+            EXPECT_FALSE(exec_result);
+        }
+        
+        // Test 2: Double connect (should be safe)
+        {
+            auto connect_result1 = co_await conn->connect();
+            EXPECT_TRUE(connect_result1);
+            
+            auto connect_result2 = co_await conn->connect(); // Should be safe
+            EXPECT_TRUE(connect_result2);
+            EXPECT_TRUE(conn->is_connected());
+        }
+        
+        // Test 3: Execute on disconnected connection
+        {
+            co_await conn->disconnect();
+            EXPECT_FALSE(conn->is_connected());
+            
+            auto exec_result = co_await conn->execute_raw("SELECT 1");
+            EXPECT_FALSE(exec_result);
+            EXPECT_NE("", exec_result.error().message);
+            
+            // Reconnect for further tests
+            co_await conn->connect();
+        }
+        
+        // Test 4: Transaction error handling
+        {
+            // Test begin transaction on disconnected connection
+            co_await conn->disconnect();
+            auto begin_result = co_await conn->begin_transaction();
+            EXPECT_FALSE(begin_result);
+            
+            // Reconnect
+            co_await conn->connect();
+            
+            // Test commit without active transaction
+            auto commit_result = co_await conn->commit_transaction();
+            EXPECT_FALSE(commit_result);
+            
+            // Test rollback without active transaction
+            auto rollback_result = co_await conn->rollback_transaction();
+            EXPECT_FALSE(rollback_result);
+            
+            // Test nested transaction (should fail)
+            auto begin_result1 = co_await conn->begin_transaction();
+            EXPECT_TRUE(begin_result1);
+            EXPECT_TRUE(conn->in_transaction());
+            
+            auto begin_result2 = co_await conn->begin_transaction(); // Should fail
+            EXPECT_FALSE(begin_result2);
+            
+            // Clean up transaction
+            auto rollback_result2 = co_await conn->rollback_transaction();
+            EXPECT_TRUE(rollback_result2);
+            EXPECT_FALSE(conn->in_transaction());
+        }
+        
+        co_return;
+    });
+}
+
+TEST_F(AsyncPgIntegrationTest, TestAsyncConnectionMoveSemantics) {
+    run_test([this]() -> boost::asio::awaitable<void> {
+        // Test move constructor
+        {
+            auto conn1 = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(
+                io_context, conn_string
+            );
+            
+            auto connect_result = co_await conn1->connect();
+            EXPECT_TRUE(connect_result);
+            EXPECT_TRUE(conn1->is_connected());
+            
+            // Move construct
+            auto conn2 = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(
+                std::move(*conn1)
+            );
+            
+            EXPECT_FALSE(conn1->is_connected()); // Original should be disconnected
+            EXPECT_TRUE(conn2->is_connected());  // Moved-to should be connected
+            
+            // Test that moved-to connection works
+            auto exec_result = co_await conn2->execute_raw("SELECT 1 as value");
+            EXPECT_TRUE(exec_result);
+            
+            co_await conn2->disconnect();
+        }
+        
+        // Test move assignment
+        {
+            auto conn1 = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(
+                io_context, conn_string
+            );
+            auto conn2 = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(
+                io_context, "dummy"
+            );
+            
+            auto connect_result = co_await conn1->connect();
+            EXPECT_TRUE(connect_result);
+            EXPECT_TRUE(conn1->is_connected());
+            
+            // Move assign
+            *conn2 = std::move(*conn1);
+            
+            EXPECT_FALSE(conn1->is_connected()); // Original should be disconnected
+            EXPECT_TRUE(conn2->is_connected());  // Moved-to should be connected
+            
+            // Test that moved-to connection works
+            auto exec_result = co_await conn2->execute_raw("SELECT 1 as value");
+            EXPECT_TRUE(exec_result);
+            
+            co_await conn2->disconnect();
+        }
+        
+        co_return;
+    });
+}
+
+TEST_F(AsyncPgIntegrationTest, TestAsyncTransactionIsolationLevels) {
+    run_test([this]() -> boost::asio::awaitable<void> {
+        co_await conn->connect();
+        
+        // Test all isolation levels
+        std::vector<relx::connection::IsolationLevel> levels = {
+            relx::connection::IsolationLevel::ReadUncommitted,
+            relx::connection::IsolationLevel::ReadCommitted,
+            relx::connection::IsolationLevel::RepeatableRead,
+            relx::connection::IsolationLevel::Serializable
+        };
+        
+        for (auto level : levels) {
+            auto begin_result = co_await conn->begin_transaction(level);
+            EXPECT_TRUE(begin_result);
+            EXPECT_TRUE(conn->in_transaction());
+            
+            // Execute a simple query within the transaction
+            auto exec_result = co_await conn->execute_raw("SELECT 1 as test_value");
+            EXPECT_TRUE(exec_result);
+            
+            auto rollback_result = co_await conn->rollback_transaction();
+            EXPECT_TRUE(rollback_result);
+            EXPECT_FALSE(conn->in_transaction());
+        }
+        
+        co_return;
+    });
+}
+
+TEST_F(AsyncPgIntegrationTest, TestAsyncConnectionDestructorCleanup) {
+    run_test([this]() -> boost::asio::awaitable<void> {
+        // Test that destructor properly handles connected state
+        {
+            auto temp_conn = std::make_unique<relx::connection::PostgreSQLAsyncConnection>(
+                io_context, conn_string
+            );
+            
+            auto connect_result = co_await temp_conn->connect();
+            EXPECT_TRUE(connect_result);
+            
+            // Start a transaction
+            auto begin_result = co_await temp_conn->begin_transaction();
+            EXPECT_TRUE(begin_result);
+            
+            // Let the connection go out of scope while in transaction
+            // Destructor should handle cleanup gracefully
+        } // temp_conn destructor called here
+        
+        // Test that we can still use other connections normally
+        auto exec_result = co_await conn->execute_raw("SELECT 1 as cleanup_test");
+        EXPECT_TRUE(exec_result);
+        
+        co_return;
+    });
+}
+
 } // namespace 
