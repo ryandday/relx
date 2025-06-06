@@ -24,6 +24,7 @@ if(RELX_DEV_MODE)
     set(RELX_ENABLE_INSTALL ON)
     
     # Configure libc++ for Clang on both Apple and Linux
+    # std::println doesn't work well with libstdc++
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")

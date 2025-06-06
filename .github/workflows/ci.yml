@@ -18,15 +18,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup GCC 15
-      uses: Dup4/actions-setup-gcc@v1
-      with:
-        version: 15
-
-    - name: Install system dependencies
+    - name: Install GCC 15 and system dependencies
       run: |
         sudo apt-get update
+        # Add toolchain repository for latest GCC
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        sudo apt-get update
         sudo apt-get install -y \
+          gcc-15 \
+          g++-15 \
           build-essential \
           cmake \
           ninja-build \
@@ -38,6 +38,9 @@ jobs:
           libpq-dev \
           postgresql-client \
           docker-compose
+        # Set GCC 15 as default
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100
 
     - name: Verify GCC version
       run: |
