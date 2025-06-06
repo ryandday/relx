@@ -57,7 +57,7 @@ template <std::size_t N>
 std::ostream& operator<<(std::ostream& os, const FixedString<N>& str) {
   return os << std::string_view(str);
 }
-}
+}  // namespace schema
 namespace literals {
 // Standard C++11 user-defined literal syntax
 template <char... Chars>

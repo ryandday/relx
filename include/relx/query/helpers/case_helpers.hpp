@@ -8,14 +8,13 @@ namespace relx::query {
 // Extension methods for CaseBuilder to work with literals in THEN clauses
 
 // For string literals
-inline auto when(CaseBuilder& builder, const ConditionExpr auto& condition,
-                         const char* value) {
+inline auto when(CaseBuilder& builder, const ConditionExpr auto& condition, const char* value) {
   return builder.when(condition, val(value));
 }
 
 // For string
 inline auto when(CaseBuilder& builder, const ConditionExpr auto& condition,
-                         const std::string& value) {
+                 const std::string& value) {
   return builder.when(condition, val(value));
 }
 
@@ -30,8 +29,7 @@ inline auto when(CaseBuilder& builder, const ConditionExpr auto& condition, long
 }
 
 // For long long integers
-inline auto when(CaseBuilder& builder, const ConditionExpr auto& condition,
-                         long long value) {
+inline auto when(CaseBuilder& builder, const ConditionExpr auto& condition, long long value) {
   return builder.when(condition, val(value));
 }
 

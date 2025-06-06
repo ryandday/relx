@@ -40,4 +40,4 @@ struct member_pointer_type<T C::*> {
 template <typename T>
 using member_pointer_type_t = typename member_pointer_type<T>::type;
 
-}  // namespace relx::schema 
+}  // namespace relx::schema

@@ -298,7 +298,7 @@ public:
 private:
 };
 
-}  // namespace relx::connection
+}  // namespace connection
 
 // Convenient imports from the connection namespace
 using relx::connection::Connection;

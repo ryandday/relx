@@ -510,7 +510,7 @@ auto operator/(ValueT&& value, const query::ArithmeticExpr<Left, Right>& right_e
       std::move(value_expr), "/", std::move(right_expr));
 }
 
-}  // namespace query
+}  // namespace relx::query
 
 // Arithmetic operators need to be in the schema namespace for ADL to find them
 namespace relx::schema {

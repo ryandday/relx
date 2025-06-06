@@ -1,9 +1,10 @@
 #pragma once
 
+#include "../schema/column.hpp"
+
 #include <chrono>
 #include <optional>
 #include <type_traits>
-#include "../schema/column.hpp"
 
 /// @brief Type checking concepts for date/time operations
 namespace relx::query::date_checking {
@@ -34,10 +35,12 @@ inline constexpr bool is_time_point_v = is_time_point<T>::value;
 
 /// @brief Check if a type is a date/time type
 template <typename T>
-concept DateTimeType = 
+concept DateTimeType =
     is_time_point_v<remove_optional_t<std::remove_cvref_t<T>>> ||
-    std::same_as<remove_optional_t<std::remove_cvref_t<T>>, std::chrono::system_clock::time_point> ||
-    std::same_as<remove_optional_t<std::remove_cvref_t<T>>, std::chrono::time_point<std::chrono::system_clock>> ||
+    std::same_as<remove_optional_t<std::remove_cvref_t<T>>,
+                 std::chrono::system_clock::time_point> ||
+    std::same_as<remove_optional_t<std::remove_cvref_t<T>>,
+                 std::chrono::time_point<std::chrono::system_clock>> ||
     std::same_as<remove_optional_t<std::remove_cvref_t<T>>, std::chrono::year_month_day> ||
     std::same_as<remove_optional_t<std::remove_cvref_t<T>>, std::chrono::year> ||
     std::same_as<remove_optional_t<std::remove_cvref_t<T>>, std::chrono::month> ||

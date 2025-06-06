@@ -204,7 +204,7 @@ void PostgreSQLConnectionPool::cleanup_idle_connections() {
     auto idle_time = now - pooled_conn.last_used;
 
     const bool should_close = idle_time > config_.max_idle_time &&
-                        (total_connections_ - closed) > config_.initial_size;
+                              (total_connections_ - closed) > config_.initial_size;
 
     if (should_close) {
       // Close this connection

@@ -1,13 +1,13 @@
 #pragma once
 
+#include "../schema/column.hpp"
 #include "arithmetic.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
 #include "core.hpp"
+#include "date_concepts.hpp"
 #include "function.hpp"
 #include "value.hpp"
-#include "date_concepts.hpp"
-#include "../schema/column.hpp"
 
 #include <chrono>
 #include <concepts>
@@ -482,7 +482,7 @@ auto date_sub(DateExpr date_expr, IntervalExpr interval_expr) {
 
 // Overload for column types with type checking
 template <typename T>
-requires date_checking::DateTimeColumn<T>
+  requires date_checking::DateTimeColumn<T>
 auto date_sub(const T& column, IntervalExpr interval_expr) {
   return date_sub(to_expr(column), std::move(interval_expr));
 }
@@ -688,7 +688,7 @@ auto month(Expr expr) {
 /// @param date_column Date column
 /// @return Extract expression for day
 template <typename T>
-requires date_checking::DateTimeColumn<T>
+  requires date_checking::DateTimeColumn<T>
 auto day(const T& date_column) {
   return extract("day", date_column);
 }
@@ -704,7 +704,7 @@ auto day(Expr expr) {
 /// @param date_column Date column
 /// @return Extract expression for day of week
 template <typename T>
-requires date_checking::DateTimeColumn<T>
+  requires date_checking::DateTimeColumn<T>
 auto day_of_week(const T& date_column) {
   return extract("dow", date_column);
 }
@@ -720,7 +720,7 @@ auto day_of_week(Expr expr) {
 /// @param date_column Date column
 /// @return Extract expression for day of year
 template <typename T>
-requires date_checking::DateTimeColumn<T>
+  requires date_checking::DateTimeColumn<T>
 auto day_of_year(const T& date_column) {
   return extract("doy", date_column);
 }
@@ -736,7 +736,7 @@ auto day_of_year(Expr expr) {
 /// @param date_column Date column
 /// @return Extract expression for hour
 template <typename T>
-requires date_checking::DateTimeColumn<T>
+  requires date_checking::DateTimeColumn<T>
 auto hour(const T& date_column) {
   return extract("hour", date_column);
 }
@@ -752,7 +752,7 @@ auto hour(Expr expr) {
 /// @param date_column Date column
 /// @return Extract expression for minute
 template <typename T>
-requires date_checking::DateTimeColumn<T>
+  requires date_checking::DateTimeColumn<T>
 auto minute(const T& date_column) {
   return extract("minute", date_column);
 }
@@ -768,7 +768,7 @@ auto minute(Expr expr) {
 /// @param date_column Date column
 /// @return Extract expression for second
 template <typename T>
-requires date_checking::DateTimeColumn<T>
+  requires date_checking::DateTimeColumn<T>
 auto second(const T& date_column) {
   return extract("second", date_column);
 }
@@ -783,7 +783,7 @@ auto second(Expr expr) {
 
 /// @brief Addition operator for date column + interval
 template <typename T>
-requires date_checking::DateTimeColumn<T>
+  requires date_checking::DateTimeColumn<T>
 auto operator+(const T& date_column, const IntervalExpr& interval_expr) {
   return DateArithmeticExpr<decltype(to_expr(date_column)), IntervalExpr>(to_expr(date_column), "+",
                                                                           interval_expr);
@@ -797,7 +797,7 @@ auto operator+(DateExpr date_expr, const IntervalExpr& interval_expr) {
 
 /// @brief Subtraction operator for date column - interval
 template <typename T>
-requires date_checking::DateTimeColumn<T>
+  requires date_checking::DateTimeColumn<T>
 auto operator-(const T& date_column, const IntervalExpr& interval_expr) {
   return DateArithmeticExpr<decltype(to_expr(date_column)), IntervalExpr>(to_expr(date_column), "-",
                                                                           interval_expr);

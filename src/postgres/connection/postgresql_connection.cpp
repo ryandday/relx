@@ -536,8 +536,8 @@ std::unique_ptr<PostgreSQLStatement> PostgreSQLConnection::prepare_statement(
 
   // Prepare the statement in PostgreSQL
   const PGResultWrapper result(PQprepare(pg_conn_, name.c_str(), pg_sql.c_str(), param_count,
-                                   nullptr  // Use default parameter types
-                                   ));
+                                         nullptr  // Use default parameter types
+                                         ));
 
   auto result_handler = handle_pg_result(result.get());
   if (!result_handler) {

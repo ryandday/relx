@@ -8,15 +8,15 @@
 #include "../query/value.hpp"
 #include "../schema/column.hpp"
 
+#include <chrono>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <vector>
-#include <chrono>
-#include <optional>
 
 namespace relx {
-     /// @brief Type compatibility utilities for column comparisons
+/// @brief Type compatibility utilities for column comparisons
 namespace type_checking {
 
 /// @brief Helper to extract the underlying type from optional

@@ -2,6 +2,7 @@
 
 #include "query/operators.hpp"
 #include "schema/check_constraint.hpp"
+#include "schema/chrono_traits.hpp"
 #include "schema/column.hpp"
 #include "schema/core.hpp"
 #include "schema/fixed_string.hpp"
@@ -10,7 +11,6 @@
 #include "schema/primary_key.hpp"
 #include "schema/table.hpp"
 #include "schema/unique_constraint.hpp"
-#include "schema/chrono_traits.hpp"
 
 /**
  * @brief relx - A type-safe SQL library

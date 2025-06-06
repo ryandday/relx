@@ -251,7 +251,8 @@ private:
   bool in_transaction_ = false;
 
   /// @brief Helper method to convert pgsql_async_wrapper::result to relx::result::ResultSet
-  static ConnectionResult<result::ResultSet> convert_result(const pgsql_async_wrapper::Result& pg_result);
+  static ConnectionResult<result::ResultSet> convert_result(
+      const pgsql_async_wrapper::Result& pg_result);
 
   /// @brief Convert SQL with ? placeholders to PostgreSQL's $n format
   /// @param sql SQL query with ? placeholders

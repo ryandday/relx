@@ -108,7 +108,7 @@ public:
     if (is_null()) {
       if constexpr (is_optional_v<T>) {
         return T{std::nullopt};
-      } 
+      }
       return std::unexpected(ResultError{"Cannot convert NULL to non-optional type"});
     }
 
@@ -119,21 +119,21 @@ public:
       // Always accept explicit boolean strings
       if (lower == "true") {
         return true;
-      } 
+      }
       if (lower == "false") {
         return false;
-      } 
+      }
       if (lower == "t") {  // PostgreSQL format
         return true;
-      } 
+      }
       if (lower == "f") {  // PostgreSQL format
         return false;
-      } 
+      }
       if (allow_numeric_bools) {
         // Only allow numeric conversion if explicitly allowed
         if (lower == "1") {
           return true;
-        } 
+        }
         if (lower == "0") {
           return false;
         }
@@ -279,8 +279,8 @@ private:
       start = 1;
     }
 
-    return str.length() > start &&
-           std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start), str.end(), [](char c) { return std::isdigit(c); });
+    return str.length() > start && std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start),
+                                               str.end(), [](char c) { return std::isdigit(c); });
   }
 
   static bool is_valid_unsigned_integer(const std::string& str) {
@@ -293,8 +293,8 @@ private:
       start = 1;
     }
 
-    return str.length() > start &&
-           std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start), str.end(), [](char c) { return std::isdigit(c); });
+    return str.length() > start && std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start),
+                                               str.end(), [](char c) { return std::isdigit(c); });
   }
 
   static bool is_valid_float(const std::string& str) {
@@ -388,7 +388,7 @@ public:
     for (size_t i = 0; i < column_names_.size(); ++i) {
       if (column_names_[i] == name && i < cells_.size()) {
         return &cells_[i];
-      } 
+      }
       if (column_names_[i] == name) {
         // Found the column name but missing the corresponding cell
         return std::unexpected(ResultError{"Column found but missing cell data: " + name});
