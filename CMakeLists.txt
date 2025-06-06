@@ -22,10 +22,18 @@ if(RELX_DEV_MODE)
     set(RELX_ENABLE_TESTS ON)
     set(RELX_ENABLE_POSTGRES_CLIENT ON)
     set(RELX_ENABLE_INSTALL ON)
-    if(APPLE)
+    
+    # Configure libc++ for Clang on both Apple and Linux
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
+        
+        # On Linux, we may need to link against libc++abi as well
+        if(NOT APPLE)
+            set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lc++abi")
+            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -lc++abi")
+        endif()
     endif()
 endif()
 

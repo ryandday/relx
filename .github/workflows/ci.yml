@@ -9,24 +9,24 @@ on:
 env:
   BUILD_TYPE: Debug
 
-# Updated to use latest compilers: GCC 14 and Clang 20
+# Updated to use latest compilers: GCC 15 and Clang 20
 jobs:
-  # Linux GCC 14 Build with Coverage
+  # Linux GCC 15 Build with Coverage
   linux-gcc:
     runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install GCC 14 and system dependencies
+    - name: Setup GCC 15
+      uses: Dup4/actions-setup-gcc@v1
+      with:
+        version: 15
+
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        # Add toolchain repository for latest GCC
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-        sudo apt-get update
         sudo apt-get install -y \
-          gcc-14 \
-          g++-14 \
           build-essential \
           cmake \
           ninja-build \
@@ -38,9 +38,6 @@ jobs:
           libpq-dev \
           postgresql-client \
           docker-compose
-        # Set GCC 14 as default
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
 
     - name: Verify GCC version
       run: |
@@ -60,7 +57,7 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
-  # Linux Clang 20 Build
+  # Linux Clang 20 Build with libc++
   linux-clang:
     runs-on: ubuntu-24.04
 
@@ -87,10 +84,14 @@ jobs:
           postgresql-client \
           docker-compose
 
-    - name: Setup Clang 20 environment
+    - name: Setup Clang 20 environment with libc++
       run: |
         echo "CC=clang-20" >> $GITHUB_ENV
         echo "CXX=clang++-20" >> $GITHUB_ENV
+        echo "CXXFLAGS=-stdlib=libc++" >> $GITHUB_ENV
+        echo "CMAKE_CXX_FLAGS=-stdlib=libc++" >> $GITHUB_ENV
+        echo "CMAKE_EXE_LINKER_FLAGS=-stdlib=libc++" >> $GITHUB_ENV
+        echo "CMAKE_SHARED_LINKER_FLAGS=-stdlib=libc++" >> $GITHUB_ENV
 
     - name: Verify Clang version
       run: |
@@ -117,16 +118,20 @@ jobs:
         sudo apt-get install -y \
           clang-20 \
           clang-tidy-20 \
+          libc++-20-dev \
+          libc++abi-20-dev \
           cmake \
           ninja-build \
           libboost-all-dev \
           libpq-dev \
           docker-compose
 
-    - name: Setup Clang 20 environment
+    - name: Setup Clang 20 environment with libc++
       run: |
         echo "CC=clang-20" >> $GITHUB_ENV
         echo "CXX=clang++-20" >> $GITHUB_ENV
+        echo "CXXFLAGS=-stdlib=libc++" >> $GITHUB_ENV
+        echo "CMAKE_CXX_FLAGS=-stdlib=libc++" >> $GITHUB_ENV
 
     - name: Build (required for clang-tidy)
       run: make build
