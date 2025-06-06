@@ -12,3 +12,11 @@ CMakeLists.txt.user
 Makefile
 cmake_install.cmake
 install_manifest.txt
+
+# Code coverage files
+*.gcda
+*.gcno
+*.gcov
+coverage.info
+coverage_raw.info
+coverage/

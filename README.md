@@ -26,6 +26,24 @@ Once C++26 reflection comes out (fingers crossed!) then there will be some break
 
 ## Getting Started
 
+### Installing Dependencies
+
+Before using relx in your project, you need to install the required dependencies:
+
+relx depends on Boost for compile-time reflection via Boost.PFR. The postgresql clients require libpq Install Boost using your system package manager:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install libboost-all-dev
+sudo apt-get install libpq-dev # Required if you plan to use PostgreSQL client libraries
+```
+
+**macOS (Homebrew):**
+```bash
+brew install boost
+brew install postgresql # Required if you plan to use PostgreSQL client libraries
+```
+
 ### Using relx in Your Project
 
 relx can be easily integrated into your C++ project using CMake FetchContent:

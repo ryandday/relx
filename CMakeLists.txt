@@ -6,6 +6,7 @@ option(RELX_ENABLE_TESTS "Enable building tests" OFF)
 option(RELX_ENABLE_POSTGRES_CLIENT "Enable PostgreSQL client library" OFF)
 option(RELX_ENABLE_INSTALL "Enable installation of library" OFF)
 option(RELX_DEV_MODE "Enable development mode" OFF)
+option(RELX_ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 
 if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_CXX_STANDARD 26)
@@ -22,6 +23,14 @@ if(RELX_DEV_MODE)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
     endif()
+endif()
+
+# Code coverage configuration
+if(RELX_ENABLE_COVERAGE)
+    include(cmake/CodeCoverage.cmake)
+    check_coverage_support()
+    enable_coverage_globally()
+    coverage_info()
 endif()
 
 # Find dependencies (Conan or system provided)
@@ -50,6 +59,24 @@ add_subdirectory(src)
 if(RELX_ENABLE_TESTS)
     enable_testing()
     add_subdirectory(test)
+    
+    # Setup coverage target if coverage is enabled
+    if(RELX_ENABLE_COVERAGE)
+        setup_target_for_coverage_lcov(
+            NAME coverage
+            EXECUTABLE ${CMAKE_CTEST_COMMAND}
+            DEPENDENCIES relx_tests
+            EXCLUDE
+                '*/test/*'
+                '*/tests/*'
+                '*/googletest/*'
+                '*/boost/*'
+                '*/build/*'
+                '*/CMakeFiles/*'
+                '/usr/*'
+                '*/_deps/*'
+        )
+    endif()
 endif()
 
 if(RELX_ENABLE_INSTALL)

@@ -17,6 +17,12 @@ build-release:
 	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release
 	cd $(BUILD_DIR) && make -j
 
+.PHONY: build-coverage
+build-coverage:
+	mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DRELX_ENABLE_COVERAGE=ON
+	cd $(BUILD_DIR) && make -j
+
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
@@ -24,6 +30,37 @@ clean:
 .PHONY: test
 test: build postgres-up
 	cd $(BUILD_DIR)/test && ./relx_tests
+
+.PHONY: coverage
+coverage: build-coverage postgres-up
+	cd $(BUILD_DIR) && make coverage
+
+.PHONY: coverage-clean
+coverage-clean:
+	@if [ -d "$(BUILD_DIR)" ]; then \
+		cd $(BUILD_DIR) && make coverage-clean; \
+	else \
+		echo "Build directory does not exist. Run 'make build-coverage' first."; \
+	fi
+
+.PHONY: coverage-show
+coverage-show: build-coverage postgres-up
+	cd $(BUILD_DIR) && make coverage-show
+
+.PHONY: coverage-open
+coverage-open: coverage
+	@if [ -f "$(BUILD_DIR)/coverage/html/index.html" ]; then \
+		if command -v open >/dev/null 2>&1; then \
+			open $(BUILD_DIR)/coverage/html/index.html; \
+		elif command -v xdg-open >/dev/null 2>&1; then \
+			xdg-open $(BUILD_DIR)/coverage/html/index.html; \
+		else \
+			echo "Coverage report generated at: $(BUILD_DIR)/coverage/html/index.html"; \
+			echo "Please open this file in your web browser."; \
+		fi; \
+	else \
+		echo "Coverage report not found. Run 'make coverage' first."; \
+	fi
 
 # Development helpers
 .PHONY: format
@@ -90,6 +127,8 @@ help:
 	@echo ""
 	@echo "Build targets:"
 	@echo "  build            - Build the project using system dependencies (default)"
+	@echo "  build-release    - Build the project in release mode"
+	@echo "  build-coverage   - Build the project with code coverage instrumentation"
 	@echo "  conan-build      - Build the project using Conan-managed dependencies"
 	@echo ""
 	@echo "Configuration targets:"
@@ -99,6 +138,12 @@ help:
 	@echo "Build and test:"
 	@echo "  clean            - Remove build directory"
 	@echo "  test             - Build and run the tests with CTest (starts PostgreSQL)"
+	@echo ""
+	@echo "Code coverage:"
+	@echo "  coverage         - Generate code coverage report"
+	@echo "  coverage-clean   - Clean coverage data files"
+	@echo "  coverage-show    - Generate coverage report and display summary"
+	@echo "  coverage-open    - Generate coverage report and open it in browser"
 	@echo ""
 	@echo "Code quality:"
 	@echo "  format           - Format code using clang-format"
