@@ -164,13 +164,15 @@ private:
         )";
         
         // Insert timezone test data
+        // The local_time should be offset from utc_time by the timezone offset
+        // so that local_time - utc_time = offset_hours * 3600 seconds
         auto insert_timezones = R"(
             INSERT INTO time_zones (zone_name, utc_time, local_time, offset_hours) VALUES
             ('UTC', '2024-01-01 12:00:00+00', '2024-01-01 12:00:00+00', 0),
-            ('EST', '2024-01-01 12:00:00+00', '2024-01-01 07:00:00-05', -5),
-            ('PST', '2024-01-01 12:00:00+00', '2024-01-01 04:00:00-08', -8),
-            ('JST', '2024-01-01 12:00:00+00', '2024-01-01 21:00:00+09', 9),
-            ('CEST', '2024-01-01 12:00:00+00', '2024-01-01 14:00:00+02', 2)
+            ('EST', '2024-01-01 12:00:00+00', '2024-01-01 07:00:00+00', -5),
+            ('PST', '2024-01-01 12:00:00+00', '2024-01-01 04:00:00+00', -8),
+            ('JST', '2024-01-01 12:00:00+00', '2024-01-01 21:00:00+00', 9),
+            ('CEST', '2024-01-01 12:00:00+00', '2024-01-01 14:00:00+00', 2)
         )";
         
         // Insert employee test data
@@ -484,6 +486,8 @@ TEST_F(DateTimeIntegrationTest, TimeZoneOperations) {
     .from(time_zones)
     .order_by(time_zones.offset_hours);
     
+
+    
     auto result = conn.execute(query);
     ASSERT_TRUE(result) << "Failed to execute timezone query: " << result.error().message;
     
@@ -496,6 +500,8 @@ TEST_F(DateTimeIntegrationTest, TimeZoneOperations) {
         auto local_time = row.get<std::chrono::system_clock::time_point>(2);
         auto offset_hours = row.get<int>(3);
         auto time_diff_seconds = row.get<double>(4);
+        
+
         
         EXPECT_TRUE(zone_name.has_value()) << "Zone name should not be null";
         EXPECT_TRUE(utc_time.has_value()) << "UTC time should not be null";

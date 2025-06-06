@@ -63,7 +63,7 @@ TEST_F(DateFunctionTest, DateDiffFunction) {
     auto query_hours = select_expr(date_diff("hour", emp.last_review, current_timestamp()))
         .from(emp);
     
-    EXPECT_EQ(query_hours.to_sql(), "SELECT EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP::timestamp - employees.last_review::timestamp))/3600 FROM employees");
+    EXPECT_EQ(query_hours.to_sql(), "SELECT EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - employees.last_review))/3600 FROM employees");
 }
 
 // Test 2: DATE_ADD and DATE_SUB functions
@@ -909,7 +909,7 @@ TEST_F(DateFunctionTest, CurrentDateWithAllFunctions) {
         "(employees.hire_date::date - CURRENT_DATE::date) AS days_from_current_to_hire, "
         "EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.birth_date)) AS months_from_birth_to_current, "
         "EXTRACT(YEAR FROM AGE(employees.termination_date, CURRENT_DATE)) AS years_from_current_to_termination, "
-        "EXTRACT(EPOCH FROM (CURRENT_DATE::timestamp - CURRENT_DATE::timestamp))/3600 AS should_be_zero_hours "
+        "EXTRACT(EPOCH FROM (CURRENT_DATE - CURRENT_DATE))/3600 AS should_be_zero_hours "
         "FROM employees");
     
     // Test current_date() with date_add and date_sub

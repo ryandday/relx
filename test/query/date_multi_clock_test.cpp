@@ -100,7 +100,7 @@ TEST_F(MultiClockDateTest, SteadyClockBasicFunctions) {
     auto diff_query = select_expr(date_diff("hour", steady_table.timestamp, now()))
         .from(steady_table);
     
-    EXPECT_EQ(diff_query.to_sql(), "SELECT EXTRACT(EPOCH FROM (NOW()::timestamp - steady_clock_events.timestamp::timestamp))/3600 FROM steady_clock_events");
+    EXPECT_EQ(diff_query.to_sql(), "SELECT EXTRACT(EPOCH FROM (NOW() - steady_clock_events.timestamp))/3600 FROM steady_clock_events");
     EXPECT_TRUE(diff_query.bind_params().empty());
     
     // Test extract
@@ -128,7 +128,7 @@ TEST_F(MultiClockDateTest, HighResClockBasicFunctions) {
     auto diff_query = select_expr(date_diff("minute", high_res_table.timestamp, current_timestamp()))
         .from(high_res_table);
     
-    EXPECT_EQ(diff_query.to_sql(), "SELECT EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP::timestamp - high_res_clock_events.timestamp::timestamp))/60 FROM high_res_clock_events");
+    EXPECT_EQ(diff_query.to_sql(), "SELECT EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - high_res_clock_events.timestamp))/60 FROM high_res_clock_events");
     EXPECT_TRUE(diff_query.bind_params().empty());
     
     // Test extract

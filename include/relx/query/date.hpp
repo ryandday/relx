@@ -37,13 +37,13 @@ public:
         // If we're dealing with dates, simple subtraction works
         return "(" + right_.to_sql() + "::date - " + left_.to_sql() + "::date)";
       } else if (unit_ == "second") {
-        return "EXTRACT(EPOCH FROM (" + right_.to_sql() + "::timestamp - " + left_.to_sql() + "::timestamp))";
+        return "EXTRACT(EPOCH FROM (" + right_.to_sql() + " - " + left_.to_sql() + "))";
       } else if (unit_ == "month") {
         return "EXTRACT(MONTH FROM AGE(" + right_.to_sql() + ", " + left_.to_sql() + "))";
       } else if (unit_ == "hour") {
-        return "EXTRACT(EPOCH FROM (" + right_.to_sql() + "::timestamp - " + left_.to_sql() + "::timestamp))/3600";
+        return "EXTRACT(EPOCH FROM (" + right_.to_sql() + " - " + left_.to_sql() + "))/3600";
       } else if (unit_ == "minute") {
-        return "EXTRACT(EPOCH FROM (" + right_.to_sql() + "::timestamp - " + left_.to_sql() + "::timestamp))/60";
+        return "EXTRACT(EPOCH FROM (" + right_.to_sql() + " - " + left_.to_sql() + "))/60";
       }
     }
     // Fallback to generic format for other functions
