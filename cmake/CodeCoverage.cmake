@@ -1,7 +1,7 @@
 # CodeCoverage.cmake - CMake module for code coverage support
 # 
 # This module provides functions and targets for generating code coverage reports
-# using gcov/lcov for GCC and Clang compilers.
+# using gcov/lcov for GCC and llvm-cov/lcov for Clang compilers.
 #
 # Usage:
 #   include(cmake/CodeCoverage.cmake)
@@ -23,14 +23,41 @@ function(check_coverage_support)
         message(FATAL_ERROR "Code coverage only supported with GCC or Clang compilers. Current compiler: ${CMAKE_CXX_COMPILER_ID}")
     endif()
     
-    # Find required tools
-    find_program(GCOV_PATH gcov)
+    # Find required tools based on compiler
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        # For Clang, we need llvm-cov instead of gcov
+        find_program(LLVM_COV_PATH llvm-cov)
+        if(NOT LLVM_COV_PATH)
+            # Try to find versioned llvm-cov
+            string(REGEX MATCH "[0-9]+" CLANG_VERSION ${CMAKE_CXX_COMPILER})
+            if(CLANG_VERSION)
+                find_program(LLVM_COV_PATH llvm-cov-${CLANG_VERSION})
+            endif()
+        endif()
+        
+        if(NOT LLVM_COV_PATH)
+            message(FATAL_ERROR "llvm-cov not found! Required for Clang code coverage.")
+        endif()
+        
+        # Create a wrapper script for llvm-cov to work with lcov
+        set(GCOV_PATH "${CMAKE_BINARY_DIR}/llvm-gcov-wrapper.sh" PARENT_SCOPE)
+        set(GCOV_PATH "${CMAKE_BINARY_DIR}/llvm-gcov-wrapper.sh")
+        file(WRITE "${GCOV_PATH}" "#!/bin/bash\nexec ${LLVM_COV_PATH} gcov \"$@\"\n")
+        execute_process(COMMAND chmod +x "${GCOV_PATH}")
+        
+        message(STATUS "Using llvm-cov for Clang coverage: ${LLVM_COV_PATH}")
+        message(STATUS "Created wrapper script: ${GCOV_PATH}")
+    else()
+        # For GCC, use traditional gcov
+        find_program(GCOV_PATH gcov)
+        if(NOT GCOV_PATH)
+            message(FATAL_ERROR "gcov not found! Required for GCC code coverage.")
+        endif()
+        set(GCOV_PATH ${GCOV_PATH} PARENT_SCOPE)
+    endif()
+    
     find_program(LCOV_PATH lcov)
     find_program(GENHTML_PATH genhtml)
-    
-    if(NOT GCOV_PATH)
-        message(FATAL_ERROR "gcov not found! Required for code coverage.")
-    endif()
     
     if(NOT LCOV_PATH)
         message(FATAL_ERROR "lcov not found! Please install lcov for code coverage reporting.")
@@ -41,7 +68,7 @@ function(check_coverage_support)
     endif()
     
     message(STATUS "Code coverage tools found:")
-    message(STATUS "  gcov: ${GCOV_PATH}")
+    message(STATUS "  gcov/llvm-cov: ${GCOV_PATH}")
     message(STATUS "  lcov: ${LCOV_PATH}")
     message(STATUS "  genhtml: ${GENHTML_PATH}")
 endfunction()
@@ -96,6 +123,11 @@ function(setup_target_for_coverage_lcov)
     
     if(NOT Coverage_BASE_DIRECTORY)
         set(Coverage_BASE_DIRECTORY ${CMAKE_BINARY_DIR})
+    endif()
+    
+    # Make sure GCOV_PATH is available
+    if(NOT GCOV_PATH)
+        message(FATAL_ERROR "GCOV_PATH not set. Make sure to call check_coverage_support() first.")
     endif()
     
     # Default exclusions
@@ -179,20 +211,22 @@ function(setup_target_for_coverage_lcov)
         # Run tests
         COMMAND ${Coverage_EXECUTABLE} --output-on-failure
         
+        # Debug output
+        COMMAND ${CMAKE_COMMAND} -E echo "Using gcov tool: ${GCOV_PATH}"
+        
         # Capture coverage data
         COMMAND ${LCOV_PATH} 
             --directory ${Coverage_BASE_DIRECTORY} 
             --capture 
             --output-file ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}_raw.info
-            # Since we use so many templates, we get a lot of these errors
-            --ignore-errors inconsistent,gcov,source,graph,path,empty,unsupported,format,count,unused,corrupt
-            --quiet
+            --gcov-tool ${GCOV_PATH}
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
         
         # Remove unwanted files from coverage
         COMMAND ${LCOV_PATH}
             ${EXCLUDE_ARGS}
             --output-file ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}.info
-            --ignore-errors inconsistent,gcov,source,graph,path,empty,unsupported,format,count,unused,corrupt
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
             --quiet
         
         # Generate HTML report
@@ -202,7 +236,7 @@ function(setup_target_for_coverage_lcov)
             --title "${Coverage_NAME} Coverage Report"
             --show-details
             --legend
-            --ignore-errors inconsistent,gcov,source,graph,path,empty,unsupported,format,count,unused,corrupt,category
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt,category
             --quiet
         
         # Print report location
@@ -234,25 +268,28 @@ function(setup_target_for_coverage_lcov)
         # Run tests
         COMMAND ${Coverage_EXECUTABLE} --output-on-failure
         
+        # Debug output
+        COMMAND ${CMAKE_COMMAND} -E echo "Using gcov tool: ${GCOV_PATH}"
+        
         # Capture coverage data
         COMMAND ${LCOV_PATH} 
             --directory ${Coverage_BASE_DIRECTORY} 
             --capture 
             --output-file ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}_raw.info
-            --ignore-errors inconsistent,gcov,source,graph,path,empty,unsupported,format,count,unused,corrupt
-            --quiet
+            --gcov-tool ${GCOV_PATH}
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
         
         # Remove unwanted files from coverage
         COMMAND ${LCOV_PATH}
             ${EXCLUDE_ARGS}
             --output-file ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}.info
-            --ignore-errors inconsistent,gcov,source,graph,path,empty,unsupported,format,count,unused,corrupt
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
             --quiet
         
         # Try to display summary (ignore errors if file is corrupted)
         COMMAND ${LCOV_PATH} 
             --summary ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}.info
-            --ignore-errors inconsistent,gcov,source,graph,path,empty,unsupported,format,count,unused,corrupt
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
             || echo "Coverage summary may be affected by template complexity, but report was generated successfully"
         
         # Print report location
@@ -317,7 +354,7 @@ function(coverage_info)
     message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
     
     if(GCOV_PATH)
-        message(STATUS "gcov: ${GCOV_PATH}")
+        message(STATUS "gcov/llvm-cov: ${GCOV_PATH}")
     endif()
     
     if(LCOV_PATH)
