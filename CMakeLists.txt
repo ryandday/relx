@@ -1,137 +1,97 @@
-cmake_minimum_required(VERSION 3.15)
+# Enhanced CMakeLists.txt with modern best practices
+cmake_minimum_required(VERSION 3.15...3.29)
 project(relx VERSION 0.1.0 LANGUAGES CXX)
 
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 26)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+option(RELX_ENABLE_TESTS "Enable building tests" OFF)
+option(RELX_ENABLE_POSTGRES_CLIENT "Enable PostgreSQL client library" OFF)
+option(RELX_ENABLE_INSTALL "Enable installation of library" OFF)
+option(RELX_DEV_MODE "Enable development mode" OFF)
 
-# Sanitizer flags
-option(ENABLE_SANITIZERS "Enable sanitizers" ON)
-if(ENABLE_SANITIZERS)
-  # set(SANITIZER_FLAGS "-fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer")
-  # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
-  # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${SANITIZER_FLAGS}")
-  # set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${SANITIZER_FLAGS}")
-  message(STATUS "Sanitizers enabled: ${SANITIZER_FLAGS}")
-endif()
+if(PROJECT_IS_TOP_LEVEL)
+    set(CMAKE_CXX_STANDARD 26)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+else()
 
-# Platform specific settings
-if(APPLE)
-  # On macOS, ensure all targets use libc++
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
+if(RELX_DEV_MODE)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+    set(RELX_ENABLE_TESTS ON)
+    set(RELX_ENABLE_POSTGRES_CLIENT ON)
+    set(RELX_ENABLE_INSTALL ON)
+    if(APPLE)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
+    endif()
 endif()
 
 # Find dependencies (Conan or system provided)
 find_package(Boost REQUIRED COMPONENTS system thread)
-find_package(PostgreSQL REQUIRED)
 
-# Set up Google Test with FetchContent
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.16.0
+# Create header-only library target
+add_library(relx INTERFACE)
+
+# Create alias target for consistent usage (internal vs external)
+add_library(relx::relx ALIAS relx)
+
+target_include_directories(relx INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
-
-# Add library
-add_library(${PROJECT_NAME} 
-  src/connection/postgresql_connection.cpp
-  src/connection/postgresql_connection_pool.cpp
-  src/connection/postgresql_errors.cpp
-  src/connection/postgresql_statement.cpp
-  src/connection/pgsql_async_wrapper.cpp
-  src/connection/postgresql_async_connection.cpp
-)
-target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE include/relx)
-target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost PostgreSQL::PostgreSQL)
-
-# compile_commands.json
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Enable testing
-enable_testing()
-
-# Add tests
-add_executable(relx_tests
-  test/main_test.cpp
-  # Schema tests
-  test/schema/fixed_string_test.cpp
-  test/schema/column_test.cpp
-  test/schema/table_test.cpp
-  test/schema/primary_key_test.cpp
-  test/schema/foreign_key_test.cpp
-  test/schema/index_test.cpp
-  test/schema/complex_schema_test.cpp
-  test/schema/concepts_test.cpp
-  test/schema/custom_column_types_test.cpp
-  test/schema/default_value_test.cpp
-  test/schema/check_constraint_test.cpp
-  test/schema/unique_constraint_test.cpp
-  test/schema/optional_column_test.cpp
-  test/schema/composite_foreign_key_test.cpp
-  test/schema/constraint_alias_test.cpp
-  # Query tests
-  test/query/query_test.cpp
-  test/query/basic_select_test.cpp
-  test/query/join_test.cpp
-  test/query/condition_test.cpp
-  test/query/aggregate_test.cpp
-  test/query/case_expression_test.cpp
-  test/query/string_function_test.cpp
-  test/query/arithmetic_test.cpp
-  test/query/date_test.cpp
-  test/query/date_multi_clock_test.cpp
-  test/query/update_query_test.cpp
-  test/query/delete_query_test.cpp
-  test/query/insert_query_test.cpp
-  test/query/select_all_test.cpp
-  test/query/distinct_select_test.cpp
-  test/column_like_test.cpp
-  # Result processing tests
-  test/result_test.cpp
-  test/advanced_query_test.cpp
-  test/type_safety_test.cpp
-  # Connection tests
-  test/connection/postgresql_connection_test.cpp
-  test/connection/postgresql_api_test.cpp
-  test/connection/postgresql_typed_params_test.cpp
-  test/connection/postgresql_binary_test.cpp
-  test/connection/postgresql_statement_test.cpp
-  test/connection/postgresql_connection_pool_test.cpp
-  test/connection/dto_mapping_test.cpp
-  test/connection/postgresql_async_wrapper_test.cpp
-  # PostgreSQL Integration tests
-  test/postgres_integration/basic_integration_test.cpp
-  test/postgres_integration/schema_integration_test.cpp
-  test/postgres_integration/join_integration_test.cpp
-  test/postgres_integration/dml_integration_test.cpp
-  # test/postgres_integration/connection_pool_integration_test.cpp
-  test/postgres_integration/query_integration_test.cpp
-  test/postgres_integration/dto_mapping_integration_test.cpp
-  test/postgres_integration/async_dto_mapping_test.cpp
-  # Additional comprehensive tests
-  test/query/edge_case_test.cpp
-  test/query/data_type_test.cpp
-  # Utility tests
-  test/utility/throw_if_failed_test.cpp
+target_link_libraries(relx INTERFACE
+    Boost::system
+    Boost::thread
 )
 
-# Link against both gtest and gtest_main libraries
-target_link_libraries(relx_tests PRIVATE 
-  ${PROJECT_NAME} 
-  gtest
-  gtest_main
-)
+target_compile_features(relx INTERFACE cxx_std_26)
 
-# Register test
-add_test(NAME relx_tests COMMAND relx_tests)
+add_subdirectory(src)
 
-# Add static_assert tests executable
-add_executable(static_assert_tests test/static_assert_tests.cpp)
-target_link_libraries(static_assert_tests PRIVATE ${PROJECT_NAME})
+if(RELX_ENABLE_TESTS)
+    enable_testing()
+    add_subdirectory(test)
+endif()
+
+if(RELX_ENABLE_INSTALL)
+    include(GNUInstallDirs)
+    include(CMakePackageConfigHelpers)
+
+    # Install the header-only interface library
+    install(TARGETS relx
+        EXPORT relxTargets
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+
+    # Install headers
+    install(DIRECTORY include/ 
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
+    )
+
+    # Create and install package config files
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/relxConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion
+    )
+
+    configure_package_config_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/relxConfig.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/relxConfig.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/relx
+    )
+
+    # Install package config files
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/relxConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/relxConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/relx
+    )
+
+    # Install targets
+    install(EXPORT relxTargets
+        FILE relxTargets.cmake
+        NAMESPACE relx::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/relx
+    )
+endif()

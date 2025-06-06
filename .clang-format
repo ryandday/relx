@@ -1,6 +1,4 @@
 # Configuration for clang-format
-# Based on LLVM style with customizations for C++23 relx project
-
 BasedOnStyle: LLVM
 
 # Language and standard

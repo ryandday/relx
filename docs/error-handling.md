@@ -1,6 +1,6 @@
 # Error Handling in relx
 
-relx provides robust error handling mechanisms using modern C++23 features like `std::expected`. This document explains how to handle errors in relx applications.
+relx provides robust error handling mechanisms using `std::expected`. This document explains how to handle errors in relx applications.
 
 ## Table of Contents
 
