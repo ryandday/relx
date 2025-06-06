@@ -51,16 +51,7 @@ The core library is header-only. relx also features two PostgreSQL clients for d
 
 - C++23 bleeding edge compiler (GCC 15, Clang 20)
 
-### Dependencies 
-Install with your system package manager or Conan:
-- **Boost** (header-only) - Required for all builds
-- **PostgreSQL** (libpq) - Required only for PostgreSQL client libraries
-
 ### Installing Dependencies
-
-Before using relx in your project, you need to install the required dependencies:
-
-relx depends on Boost for compile-time reflection via Boost.PFR. The postgresql clients require libpq Install Boost using your system package manager:
 
 **Ubuntu/Debian:**
 ```bash
@@ -87,7 +78,6 @@ FetchContent_Declare(
     GIT_TAG main  # or specify a specific tag/commit
 )
 
-# Configure relx options before making it available
 set(RELX_ENABLE_POSTGRES_CLIENT ON)  # Enable PostgreSQL client library
 FetchContent_MakeAvailable(relx)
 
