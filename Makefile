@@ -75,13 +75,18 @@ docs:
 
 .PHONY: docs-open
 docs-open: docs
-	@if [ -f "docs/api/html/index.html" ]; then \
+	@echo "Building local documentation site..."
+	@mkdir -p _site_local/api
+	@cp -r docs/api/html/* _site_local/api/
+	@cp docs/index.html _site_local/index.html
+	@echo "Documentation site built at _site_local/"
+	@if [ -f "_site_local/index.html" ]; then \
 		if command -v open >/dev/null 2>&1; then \
-			open docs/api/html/index.html; \
+			open _site_local/index.html; \
 		elif command -v xdg-open >/dev/null 2>&1; then \
-			xdg-open docs/api/html/index.html; \
+			xdg-open _site_local/index.html; \
 		else \
-			echo "Documentation generated at: docs/api/html/index.html"; \
+			echo "Documentation site ready at: _site_local/index.html"; \
 			echo "Please open this file in your web browser."; \
 		fi; \
 	else \
@@ -90,7 +95,7 @@ docs-open: docs
 
 .PHONY: docs-clean
 docs-clean:
-	rm -rf docs/api
+	rm -rf docs/api _site_local
 
 # Development helpers
 .PHONY: format
@@ -164,7 +169,7 @@ help:
 	@echo ""
 	@echo "Documentation:"
 	@echo "  docs             - Generate API documentation with Doxygen"
-	@echo "  docs-open        - Generate API documentation and open it in browser"  
+	@echo "  docs-open        - Generate documentation site and open it in browser"  
 	@echo "  docs-clean       - Remove generated documentation"
 	@echo ""
 	@echo "Code quality:"
