@@ -1,3 +1,9 @@
+---
+layout: default
+title: Advanced Examples
+nav_order: 6
+---
+
 # Advanced Examples
 
 This guide provides comprehensive examples of using relx for complex query scenarios and real-world applications.

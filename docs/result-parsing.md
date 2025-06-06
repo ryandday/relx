@@ -1,3 +1,9 @@
+---
+layout: default
+title: Result Parsing
+nav_order: 4
+---
+
 # Result Parsing
 
 relx provides multiple flexible ways to extract and process query results with compile-time type safety. This guide covers the various result parsing methods available in the library.

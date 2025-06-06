@@ -1,0 +1,38 @@
+title: relx Documentation
+description: Modern C++23 library for building and executing SQL queries with compile-time type safety
+baseurl: "/relx"  # Replace with your actual repo name if different
+url: "https://yourusername.github.io"  # Replace with your GitHub username
+
+# Jekyll configuration
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    css_class: 'highlight'
+
+# Theme
+theme: minima
+
+# Navigation
+header_pages:
+  - schema-definition.md
+  - query-building.md
+  - result-parsing.md
+  - error-handling.md
+  - advanced-examples.md
+  - performance.md
+  - development.md
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# Exclude files from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor/
+  - api/ 

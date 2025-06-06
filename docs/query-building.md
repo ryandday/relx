@@ -1,3 +1,9 @@
+---
+layout: default
+title: Query Building
+nav_order: 3
+---
+
 # Query Building in relx
 
 relx provides a fluent API for building SQL queries in a type-safe manner. This document explains how to construct various types of queries.

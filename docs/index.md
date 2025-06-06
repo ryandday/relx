@@ -2,6 +2,7 @@
 layout: default
 title: Home
 nav_order: 1
+permalink: /
 ---
 
 # relx Documentation
@@ -12,13 +13,13 @@ Welcome to the relx documentation. This documentation provides comprehensive gui
 
 | Guide | Description |
 |-------|-------------|
-| [Schema Definition](schema-definition.md) | Define tables, columns, and relationships |
-| [Query Building](query-building.md) | Build SQL queries with the fluent API |
-| [Result Parsing](result-parsing.md) | Process query results in a type-safe way |
-| [Error Handling](error-handling.md) | Working with errors and expected results |
-| [Advanced Examples](advanced-examples.md) | Complex query patterns and real-world examples |
-| [Performance Guide](performance.md) | Optimization tips and best practices |
-| [Development Guide](development.md) | Building, testing, and contributing |
+| [Schema Definition](schema-definition.html) | Define tables, columns, and relationships |
+| [Query Building](query-building.html) | Build SQL queries with the fluent API |
+| [Result Parsing](result-parsing.html) | Process query results in a type-safe way |
+| [Error Handling](error-handling.html) | Working with errors and expected results |
+| [Advanced Examples](advanced-examples.html) | Complex query patterns and real-world examples |
+| [Performance Guide](performance.html) | Optimization tips and best practices |
+| [Development Guide](development.html) | Building, testing, and contributing |
 
 ## Library Overview
 
@@ -116,8 +117,8 @@ relx is designed with several key components:
 
 ## Next Steps
 
-1. Start with [Schema Definition](schema-definition.md) to learn how to define your database structure
-2. Read [Query Building](query-building.md) to understand the fluent API
-3. Review [Result Parsing](result-parsing.md) for handling query results
-4. Check [Error Handling](error-handling.md) for robust error management
-5. Explore [Advanced Examples](advanced-examples.md) for complex scenarios
+1. Start with [Schema Definition](schema-definition.html) to learn how to define your database structure
+2. Read [Query Building](query-building.html) to understand the fluent API
+3. Review [Result Parsing](result-parsing.html) for handling query results
+4. Check [Error Handling](error-handling.html) for robust error management
+5. Explore [Advanced Examples](advanced-examples.html) for complex scenarios 
