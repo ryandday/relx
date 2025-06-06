@@ -1,4 +1,4 @@
-# relx - Modern C++ SQL Query Building Library
+# relx
 
 [![CI](https://github.com/ryandday/relx/workflows/CI/badge.svg)](https://github.com/ryandday/relx/actions)
 [![codecov](https://codecov.io/gh/ryandday/relx/branch/main/graph/badge.svg)](https://codecov.io/gh/ryandday/relx)
@@ -6,15 +6,15 @@
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-supported-336791.svg)](https://www.postgresql.org/)
 
+## Modern C++ SQL Query Building Library
+
 > 🚀 **Transform your SQL experience** - Build type-safe, compile-time validated SQL queries with modern C++23
 
 Working with SQL often means writing error prone raw strings. Refactoring is a pain, and in more complex applications you have to write extensive tests to make sure your stringly typed queries work in every situation.
 
 relx is a modern C++23 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
 
-The core library is header-only. relx also features two PostgreSQL clients for database access: an async client (with boost::asio) and a synchronous client. The PostgreSQL clients are not header-only and require linking against additional libraries.
-
-Once C++26 reflection comes out (fingers crossed!) then there will be some breaking API changes to this library that will make the API even better.
+The core library is header-only. relx also features two PostgreSQL clients for database access: an async client (with `boost::asio`) and a synchronous client. The PostgreSQL clients are not header-only and require linking against additional libraries.
 
 ## Table of Contents
 
