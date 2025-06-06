@@ -9,19 +9,24 @@ on:
 env:
   BUILD_TYPE: Debug
 
-# Keeping it simple for now
+# Updated to use latest compilers: GCC 15 and Clang 20
 jobs:
-  # Linux GCC Build with Coverage
+  # Linux GCC 15 Build with Coverage
   linux-gcc:
     runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install system dependencies
+    - name: Install GCC 15 and system dependencies
       run: |
         sudo apt-get update
+        # Add toolchain repository for latest GCC
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        sudo apt-get update
         sudo apt-get install -y \
+          gcc-15 \
+          g++-15 \
           build-essential \
           cmake \
           ninja-build \
@@ -33,6 +38,14 @@ jobs:
           libpq-dev \
           postgresql-client \
           docker-compose
+        # Set GCC 15 as default
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100
+
+    - name: Verify GCC version
+      run: |
+        gcc --version
+        g++ --version
 
     - name: Build with coverage
       run: make build-coverage
@@ -53,33 +66,42 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
-  # Linux Clang Build
+  # Linux Clang 20 Build
   linux-clang:
     runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install system dependencies
+    - name: Install Clang 20 and system dependencies
       run: |
         sudo apt-get update
+        # Add LLVM repository for latest Clang
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+        sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" -y
+        sudo apt-get update
         sudo apt-get install -y \
-          clang-18 \
-          libc++-18-dev \
-          libc++abi-18-dev \
+          clang-20 \
+          libc++-20-dev \
+          libc++abi-20-dev \
           cmake \
           ninja-build \
-          clang-tidy \
-          clang-format \
+          clang-tidy-20 \
+          clang-format-20 \
           libboost-all-dev \
           libpq-dev \
           postgresql-client \
           docker-compose
 
-    - name: Setup Clang environment
+    - name: Setup Clang 20 environment
       run: |
-        echo "CC=clang-18" >> $GITHUB_ENV
-        echo "CXX=clang++-18" >> $GITHUB_ENV
+        echo "CC=clang-20" >> $GITHUB_ENV
+        echo "CXX=clang++-20" >> $GITHUB_ENV
+
+    - name: Verify Clang version
+      run: |
+        clang-20 --version
+        clang++-20 --version
 
     - name: Build
       run: make build
@@ -87,29 +109,33 @@ jobs:
     - name: Run tests
       run: make test
 
-  # Clang-Tidy Check
+  # Clang-Tidy Check with Clang 20
   clang-tidy:
     runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install system dependencies
+    - name: Install Clang 20 and system dependencies
       run: |
         sudo apt-get update
+        # Add LLVM repository for latest Clang
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+        sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" -y
+        sudo apt-get update
         sudo apt-get install -y \
-          clang-18 \
-          clang-tidy \
+          clang-20 \
+          clang-tidy-20 \
           cmake \
           ninja-build \
           libboost-all-dev \
           libpq-dev \
           docker-compose
 
-    - name: Setup Clang environment
+    - name: Setup Clang 20 environment
       run: |
-        echo "CC=clang-18" >> $GITHUB_ENV
-        echo "CXX=clang++-18" >> $GITHUB_ENV
+        echo "CC=clang-20" >> $GITHUB_ENV
+        echo "CXX=clang++-20" >> $GITHUB_ENV
 
     - name: Build (required for clang-tidy)
       run: make build
@@ -117,17 +143,23 @@ jobs:
     - name: Run clang-tidy
       run: make tidy
 
-  # Format Check
+  # Format Check with Clang 20
   format-check:
     runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install clang-format
+    - name: Install clang-format 20
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang-format
+        # Add LLVM repository for latest Clang
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+        sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" -y
+        sudo apt-get update
+        sudo apt-get install -y clang-format-20
+        # Create symlink for compatibility with Makefile
+        sudo ln -sf /usr/bin/clang-format-20 /usr/bin/clang-format
 
     - name: Check formatting
       run: make format-check
