@@ -70,6 +70,7 @@ add_executable(relx_tests
     postgres_integration/query_integration_test.cpp
     postgres_integration/dto_mapping_integration_test.cpp
     postgres_integration/async_dto_mapping_test.cpp
+    postgres_integration/date_time_integration_test.cpp
     # Utility tests
     utility/throw_if_failed_test.cpp
 )

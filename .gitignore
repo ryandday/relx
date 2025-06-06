@@ -20,3 +20,6 @@ install_manifest.txt
 coverage.info
 coverage_raw.info
 coverage/
+
+# Documentation
+docs/api/

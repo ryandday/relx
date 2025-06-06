@@ -16,6 +16,11 @@ Once C++26 reflection comes out (fingers crossed!) then there will be some break
 - **Query Building**: Type-safe SELECT, INSERT, UPDATE, and DELETE operations
 - **Boilerplate/Macro Free**: Leverages Boost::pfr for simple schema definitions and automatic result parsing. With C++26 I will be transitioning this to using reflection, to get more compile time safety, remove the boost dependency, and make the API cleaner.
 
+## Documentation
+
+- **[User Guides](docs/)** - Comprehensive documentation and examples
+- **[API Documentation](https://ryandday.github.io/relx/)** - Auto-generated from source code (pretty messy currently)
+
 ## Requirements
 
 - C++23 compiler support

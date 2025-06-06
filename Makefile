@@ -62,6 +62,39 @@ coverage-open: coverage
 		echo "Coverage report not found. Run 'make coverage' first."; \
 	fi
 
+# Documentation
+.PHONY: docs
+docs:
+	@echo "Generating documentation with Doxygen..."
+	@if command -v doxygen >/dev/null 2>&1; then \
+		doxygen Doxyfile; \
+		echo "Documentation generated at docs/api/html/index.html"; \
+	else \
+		echo "Error: Doxygen not found. Please install Doxygen to generate documentation."; \
+		echo "On macOS: brew install doxygen"; \
+		echo "On Ubuntu/Debian: sudo apt-get install doxygen"; \
+		exit 1; \
+	fi
+
+.PHONY: docs-open
+docs-open: docs
+	@if [ -f "docs/api/html/index.html" ]; then \
+		if command -v open >/dev/null 2>&1; then \
+			open docs/api/html/index.html; \
+		elif command -v xdg-open >/dev/null 2>&1; then \
+			xdg-open docs/api/html/index.html; \
+		else \
+			echo "Documentation generated at: docs/api/html/index.html"; \
+			echo "Please open this file in your web browser."; \
+		fi; \
+	else \
+		echo "Documentation not found. Run 'make docs' first."; \
+	fi
+
+.PHONY: docs-clean
+docs-clean:
+	rm -rf docs/api
+
 # Development helpers
 .PHONY: format
 format:
@@ -144,6 +177,11 @@ help:
 	@echo "  coverage-clean   - Clean coverage data files"
 	@echo "  coverage-show    - Generate coverage report and display summary"
 	@echo "  coverage-open    - Generate coverage report and open it in browser"
+	@echo ""
+	@echo "Documentation:"
+	@echo "  docs             - Generate API documentation with Doxygen"
+	@echo "  docs-open        - Generate API documentation and open it in browser"  
+	@echo "  docs-clean       - Remove generated documentation"
 	@echo ""
 	@echo "Code quality:"
 	@echo "  format           - Format code using clang-format"

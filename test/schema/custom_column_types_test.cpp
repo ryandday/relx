@@ -78,32 +78,8 @@ struct relx::schema::column_traits<UUID> {
     }
 };
 
-// A custom timestamp type with column traits
+// A custom timestamp type - using the built-in column traits from chrono_traits.hpp
 using Timestamp = std::chrono::time_point<std::chrono::system_clock>;
-
-// Specialization of column_traits for Timestamp
-template <>
-struct relx::schema::column_traits<Timestamp> {
-    static constexpr auto sql_type_name = "TEXT";
-    static constexpr bool nullable = false;
-    
-    static std::string to_sql_string(const Timestamp& ts) {
-        // Convert to ISO format string 
-        // This is a simplified version - a real implementation would be more complete
-        auto time = std::chrono::system_clock::to_time_t(ts);
-        std::tm* tm = std::gmtime(&time);
-        
-        char buffer[30];
-        std::strftime(buffer, sizeof(buffer), "'%Y-%m-%dT%H:%M:%SZ'", tm);
-        return buffer;
-    }
-    
-    static Timestamp from_sql_string(const std::string& value) {
-        // Parse ISO format - a real implementation would be more complete
-        // Here we just return the current time for testing
-        return std::chrono::system_clock::now();
-    }
-};
 
 // Test table with custom column types
 struct CustomTypesTable {
@@ -168,11 +144,11 @@ TEST(CustomColumnTypesTest, UUIDType) {
 TEST(CustomColumnTypesTest, TimestampType) {
     column<CustomTypesTable, "created_at", Timestamp> timestamp_col;
     
-    // Test SQL type
-    EXPECT_EQ(std::string_view(timestamp_col.sql_type), "TEXT");
+    // Test SQL type - now using TIMESTAMPTZ from chrono_traits.hpp
+    EXPECT_EQ(std::string_view(timestamp_col.sql_type), "TIMESTAMPTZ");
     
     // Test SQL definition
-    EXPECT_EQ(timestamp_col.sql_definition(), "created_at TEXT NOT NULL");
+    EXPECT_EQ(timestamp_col.sql_definition(), "created_at TIMESTAMPTZ NOT NULL");
     
     // Get current time for testing
     Timestamp now = std::chrono::system_clock::now();
@@ -198,8 +174,8 @@ TEST(CustomColumnTypesTest, TableWithCustomTypes) {
     EXPECT_TRUE(sql.find("id INTEGER NOT NULL") != std::string::npos);
     EXPECT_TRUE(sql.find("role TEXT NOT NULL") != std::string::npos);
     EXPECT_TRUE(sql.find("uuid BLOB NOT NULL") != std::string::npos);
-    EXPECT_TRUE(sql.find("created_at TEXT NOT NULL") != std::string::npos);
-    EXPECT_TRUE(sql.find("updated_at TEXT") != std::string::npos);
+    EXPECT_TRUE(sql.find("created_at TIMESTAMPTZ NOT NULL") != std::string::npos);
+    EXPECT_TRUE(sql.find("updated_at TIMESTAMPTZ") != std::string::npos);
     
     // Check primary key constraint
     EXPECT_TRUE(sql.find("PRIMARY KEY (id)") != std::string::npos);
