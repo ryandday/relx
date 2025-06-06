@@ -19,7 +19,7 @@ Once C++26 reflection comes out (fingers crossed!) then there will be some break
 ## Documentation
 
 - **[User Guides](docs/)** - Comprehensive documentation and examples
-- **[API Documentation](https://ryandday.github.io/relx/)** - Auto-generated from source code (pretty messy currently)
+- **[API Documentation](https://ryandday.github.io/relx/)** - Auto-generated from source code
 
 ## Requirements
 
