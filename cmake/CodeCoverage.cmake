@@ -220,13 +220,13 @@ function(setup_target_for_coverage_lcov)
             --capture 
             --output-file ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}_raw.info
             --gcov-tool ${GCOV_PATH}
-            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,empty,format,count,unused,corrupt
         
         # Remove unwanted files from coverage
         COMMAND ${LCOV_PATH}
             ${EXCLUDE_ARGS}
             --output-file ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}.info
-            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,empty,format,count,unused,corrupt
             --quiet
         
         # Generate HTML report
@@ -236,7 +236,7 @@ function(setup_target_for_coverage_lcov)
             --title "${Coverage_NAME} Coverage Report"
             --show-details
             --legend
-            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt,category
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,empty,format,count,unused,corrupt,category
             --quiet
         
         # Print report location
@@ -277,19 +277,19 @@ function(setup_target_for_coverage_lcov)
             --capture 
             --output-file ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}_raw.info
             --gcov-tool ${GCOV_PATH}
-            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,empty,format,count,unused,corrupt
         
         # Remove unwanted files from coverage
         COMMAND ${LCOV_PATH}
             ${EXCLUDE_ARGS}
             --output-file ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}.info
-            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,empty,format,count,unused,corrupt
             --quiet
         
         # Try to display summary (ignore errors if file is corrupted)
         COMMAND ${LCOV_PATH} 
             --summary ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}.info
-            --ignore-errors inconsistent,unsupported,gcov,source,graph,path,empty,format,count,unused,corrupt
+            --ignore-errors inconsistent,unsupported,gcov,source,graph,empty,format,count,unused,corrupt
             || echo "Coverage summary may be affected by template complexity, but report was generated successfully"
         
         # Print report location
