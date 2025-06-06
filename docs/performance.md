@@ -1,9 +1,3 @@
----
-layout: default
-title: Performance Guide
-nav_order: 7
----
-
 # Performance Guide
 
 This guide covers performance best practices when using relx for building and executing SQL queries.

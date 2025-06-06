@@ -1,9 +1,3 @@
----
-layout: default
-title: Schema Definition
-nav_order: 2
----
-
 # Schema Definition in relx
 
 relx provides a type-safe way to define database schemas as C++ structures. This document explains how to define tables, columns, and relationships.

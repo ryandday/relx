@@ -1,9 +1,3 @@
----
-layout: default
-title: Development Guide
-nav_order: 8
----
-
 # relx Development Guide
 
 This guide covers building relx from source, running tests, alternative installation methods, and contributing to the project.

@@ -1,9 +1,3 @@
----
-layout: default
-title: relx Documentation
-description: Modern C++23 library for building and executing SQL queries with compile-time type safety
----
-
 # relx Documentation
 
 Welcome to the **relx** documentation. relx is a modern C++23 library that provides type-safe SQL query building and execution with compile-time validation.

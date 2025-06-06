@@ -1,9 +1,3 @@
----
-layout: default
-title: Home
-nav_order: 1
----
-
 # relx Documentation
 
 Welcome to the relx documentation. This documentation provides comprehensive guides and examples for using the relx C++ query building library.

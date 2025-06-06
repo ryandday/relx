@@ -1,9 +1,3 @@
----
-layout: default
-title: Error Handling
-nav_order: 5
----
-
 # Error Handling
 
 relx provides robust error handling mechanisms using C++23's `std::expected`. This guide explains how to handle errors effectively in relx applications.
