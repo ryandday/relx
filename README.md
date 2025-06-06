@@ -2,11 +2,11 @@
 
 Working with SQL often means writing error prone raw strings. Refactoring is a pain, and in more complex applications you have to write extensive tests to make sure your stringly typed queries work in every situation.
 
-relx is a modern C++23 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
+relx is a modern C++23 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a header-only fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
 
-Currently features two postgresql clients for database access, an async client (with boost::asio) and a synchronous client.
+In addition to the header only library, it features two postgresql clients for database access, an async client (with boost::asio) and a synchronous client.
 
-Once C++26 comes out with reflection (fingers crossed!) then there will be some breaking API changes. But they will make this library better.
+Once C++26 comes out with reflection (fingers crossed!) then there will be some breaking API changes.
 
 ## Key Features
 
@@ -20,14 +20,9 @@ Once C++26 comes out with reflection (fingers crossed!) then there will be some 
 
 - C++23 compiler support
 
-## Dependencies
+## Dependencies (install with system package manager or with conan)
 - Boost (header-only)
-- Google Test (for testing)
-
-### Can use two options for dependencies
-
-- Conan 2.0+ 
-- System installed 
+- Postgresql (requi)
 
 ## Getting Started
 
@@ -38,9 +33,11 @@ Once C++26 comes out with reflection (fingers crossed!) then there will be some 
 git clone https://github.com/ryandday/relx.git
 cd relx
 
+# install Boost and dependencies on your target platform
+
 # A makefile is provided with all the common commands needed to build and test
 # This one will run conan, cmake, and make to build the project.
-make build
+make build-dev
 
 # Run tests - will start a docker postgres container before tests run.
 make test

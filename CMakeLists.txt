@@ -10,7 +10,7 @@ option(RELX_DEV_MODE "Enable development mode" OFF)
 if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_CXX_STANDARD 26)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
-else()
+endif()
 
 if(RELX_DEV_MODE)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

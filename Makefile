@@ -2,37 +2,28 @@
 BUILD_DIR := build
 BUILD_TYPE ?= Debug
 
-# Default build using system dependencies
-.PHONY: build
-build: configure
-	cd $(BUILD_DIR) && make -j
+# Make commands persist their working directory within each target
+.ONESHELL:
 
-.PHONY: build-dev
-build-debug: configure
+.PHONY: build
+build:
+	mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON
 	cd $(BUILD_DIR) && make -j
 
 .PHONY: build-release
-build-release: configure
+build-release: 
+	mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release
 	cd $(BUILD_DIR) && make -j
-
-.PHONY: configure
-configure:
-	mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
 
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: build-tests
-build-tests:
-	cd $(BUILD_DIR) && cmake --build . --target relx_tests --parallel 4
-
 .PHONY: test
-test: build-tests postgres-up
-	cd $(BUILD_DIR) && ./relx_tests
+test: build postgres-up
+	cd $(BUILD_DIR)/test && ./relx_tests
 
 # Development helpers
 .PHONY: format
@@ -98,12 +89,12 @@ help:
 	@echo "Available targets:"
 	@echo ""
 	@echo "Build targets:"
-	@echo "  build            - Build the project"
-	@echo "  build-debug      - Build the project in debug mode"
-	@echo "  build-release    - Build the project in release mode"
+	@echo "  build            - Build the project using system dependencies (default)"
+	@echo "  conan-build      - Build the project using Conan-managed dependencies"
 	@echo ""
 	@echo "Configuration targets:"
-	@echo "  configure        - Configure project with CMake"
+	@echo "  configure-system - Configure project with CMake using system dependencies"
+	@echo "  configure-conan  - Configure project with CMake using Conan dependencies"
 	@echo ""
 	@echo "Build and test:"
 	@echo "  clean            - Remove build directory"
