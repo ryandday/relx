@@ -70,10 +70,15 @@ jobs:
           # Copy API documentation to the api subdirectory
           cp -r docs/api/html/* _site/api/
           
-          # Copy the custom landing page as the main index
-          cp docs/index.html _site/index.html
+          # Extract version from CMakeLists.txt and update the landing page
+          echo "Extracting version from CMakeLists.txt..."
+          VERSION=$(grep -E '^project\(relx VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | sed -E 's/.*VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          echo "Found version: $VERSION"
           
-          echo "Documentation site prepared"
+          # Update the HTML with the extracted version
+          sed "s/<span class=\"badge\">v[^<]*</<span class=\"badge\">v$VERSION</g" docs/index.html > _site/index.html
+          
+          echo "Documentation site prepared with version $VERSION"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

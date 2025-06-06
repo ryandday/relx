@@ -11,7 +11,6 @@ option(RELX_ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_CXX_STANDARD 23)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    
 endif()
 
 # Disable C++26 extension warnings, as we will be using C++26 features as they are released

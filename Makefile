@@ -78,7 +78,10 @@ docs-open: docs
 	@echo "Building local documentation site..."
 	@mkdir -p _site_local/api
 	@cp -r docs/api/html/* _site_local/api/
-	@cp docs/index.html _site_local/index.html
+	@echo "Extracting version from CMakeLists.txt..."
+	@VERSION=$$(grep -E '^project\(relx VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | sed -E 's/.*VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/'); \
+	echo "Found version: $$VERSION"; \
+	sed "s/<span class=\"badge\">v[^<]*</<span class=\"badge\">v$$VERSION</g" docs/index.html > _site_local/index.html
 	@echo "Documentation site built at _site_local/"
 	@if [ -f "_site_local/index.html" ]; then \
 		if command -v open >/dev/null 2>&1; then \
