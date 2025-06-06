@@ -184,6 +184,7 @@ function(setup_target_for_coverage_lcov)
             --directory ${Coverage_BASE_DIRECTORY} 
             --capture 
             --output-file ${Coverage_BASE_DIRECTORY}/coverage/${Coverage_NAME}_raw.info
+            # Since we use so many templates, we get a lot of these errors
             --ignore-errors inconsistent,gcov,source,graph,path,empty,unsupported,format,count,unused,corrupt
             --quiet
         

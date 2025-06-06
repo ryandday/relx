@@ -47,13 +47,7 @@ jobs:
         gcc --version
         g++ --version
 
-    - name: Build with coverage
-      run: make build-coverage
-
-    - name: Run tests
-      run: make test
-
-    - name: Generate coverage report
+    - name: Build, run tests, and generate coverage report
       run: make coverage
 
     - name: Upload coverage to Codecov
@@ -103,10 +97,7 @@ jobs:
         clang-20 --version
         clang++-20 --version
 
-    - name: Build
-      run: make build
-
-    - name: Run tests
+    - name: Build and Run tests
       run: make test
 
   # Clang-Tidy Check with Clang 20
