@@ -49,7 +49,7 @@ The core library is header-only. relx also features two PostgreSQL clients for d
 
 ### Requirements
 
-- C++23 compiler support (GCC 11+, Clang 14+, MSVC 19.29+)
+- C++23 bleeding edge compiler (GCC 15, Clang 20)
 
 ### Dependencies 
 Install with your system package manager or Conan:
