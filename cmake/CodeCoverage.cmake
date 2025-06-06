@@ -236,7 +236,7 @@ function(setup_target_for_coverage_lcov)
             --title "${Coverage_NAME} Coverage Report"
             --show-details
             --legend
-            --ignore-errors inconsistent,unsupported,gcov,source,graph,empty,format,count,unused,corrupt,category
+            --ignore-errors inconsistent,source,category
             --quiet
         
         # Print report location
