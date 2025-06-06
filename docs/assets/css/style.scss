@@ -1,0 +1,270 @@
+@import "{{ site.theme }}";
+
+// Custom variables
+$primary-color: #2c3e50;
+$accent-color: #3498db;
+$secondary-color: #ecf0f1;
+$text-color: #2c3e50;
+$link-color: #3498db;
+$code-bg: #f8f9fa;
+$border-color: #e1e8ed;
+
+// Typography improvements
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.6;
+  color: $text-color;
+}
+
+// Header styling
+.page-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 3rem 0 2rem;
+  
+  .project-name {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  
+  .project-tagline {
+    font-size: 1.25rem;
+    font-weight: 300;
+    opacity: 0.9;
+    margin-bottom: 2rem;
+  }
+}
+
+// Navigation improvements
+.main-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  
+  // Add a table of contents style navigation
+  .nav-list {
+    background: $secondary-color;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+    border-left: 4px solid $accent-color;
+    
+    h2 {
+      margin-top: 0;
+      color: $primary-color;
+      font-size: 1.25rem;
+    }
+    
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      
+      li {
+        margin: 0.5rem 0;
+        
+        a {
+          color: $link-color;
+          text-decoration: none;
+          padding: 0.25rem 0;
+          display: block;
+          border-radius: 4px;
+          transition: all 0.2s ease;
+          
+          &:hover {
+            background: rgba($accent-color, 0.1);
+            padding-left: 0.5rem;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Code block improvements
+pre {
+  background: $code-bg;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  
+  code {
+    background: none;
+    padding: 0;
+    border: none;
+  }
+}
+
+code {
+  background: $code-bg;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.9em;
+  border: 1px solid $border-color;
+}
+
+// Table improvements
+table {
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  
+  th, td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid $border-color;
+  }
+  
+  th {
+    background: $primary-color;
+    color: white;
+    font-weight: 600;
+  }
+  
+  tr:hover {
+    background: rgba($accent-color, 0.05);
+  }
+}
+
+// Alert/callout boxes
+.alert {
+  padding: 1rem 1.5rem;
+  margin: 1.5rem 0;
+  border-radius: 6px;
+  border-left: 4px solid;
+  
+  &.info {
+    background: #e8f4f8;
+    border-color: $accent-color;
+    color: #2c3e50;
+  }
+  
+  &.warning {
+    background: #fff3cd;
+    border-color: #ffc107;
+    color: #856404;
+  }
+  
+  &.danger {
+    background: #f8d7da;
+    border-color: #dc3545;
+    color: #721c24;
+  }
+  
+  &.success {
+    background: #d4edda;
+    border-color: #28a745;
+    color: #155724;
+  }
+}
+
+// Section dividers
+.section-divider {
+  border: none;
+  height: 2px;
+  background: linear-gradient(to right, transparent, $border-color, transparent);
+  margin: 3rem 0;
+}
+
+// Improved headings
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  line-height: 1.25;
+  
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+h1 {
+  font-size: 2.5rem;
+  color: $primary-color;
+  border-bottom: 3px solid $accent-color;
+  padding-bottom: 0.5rem;
+}
+
+h2 {
+  font-size: 2rem;
+  color: $primary-color;
+  border-bottom: 2px solid $border-color;
+  padding-bottom: 0.25rem;
+}
+
+h3 {
+  font-size: 1.5rem;
+  color: $primary-color;
+}
+
+// Link improvements
+a {
+  color: $link-color;
+  text-decoration: none;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// Button-like links
+.btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: $accent-color;
+  color: white;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: darken($accent-color, 10%);
+    text-decoration: none;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  }
+}
+
+// Responsive improvements
+@media (max-width: 768px) {
+  .page-header {
+    padding: 2rem 0 1.5rem;
+    
+    .project-name {
+      font-size: 2rem;
+    }
+    
+    .project-tagline {
+      font-size: 1rem;
+    }
+  }
+  
+  .main-content {
+    padding: 1rem;
+  }
+  
+  table {
+    font-size: 0.9rem;
+    
+    th, td {
+      padding: 0.5rem;
+    }
+  }
+}
+
+// Syntax highlighting improvements
+.highlight {
+  .c { color: #6a737d; } // Comments
+  .k { color: #d73a49; } // Keywords
+  .s { color: #032f62; } // Strings
+  .n { color: #24292e; } // Names
+  .o { color: #d73a49; } // Operators
+  .p { color: #24292e; } // Punctuation
+} 

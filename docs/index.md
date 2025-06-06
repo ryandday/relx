@@ -1,37 +1,75 @@
 ---
 layout: default
-title: Home
-nav_order: 1
-permalink: /
+title: relx Documentation
+description: Modern C++23 library for building and executing SQL queries with compile-time type safety
 ---
 
 # relx Documentation
 
-Welcome to the relx documentation. This documentation provides comprehensive guides and examples for using the relx C++ query building library.
+Welcome to the **relx** documentation. relx is a modern C++23 library that provides type-safe SQL query building and execution with compile-time validation.
 
-## Quick Navigation
+<div class="alert info">
+<strong>✨ New to relx?</strong> Start with the <a href="schema-definition.html">Schema Definition</a> guide to learn the basics, then move on to <a href="query-building.html">Query Building</a>.
+</div>
 
-| Guide | Description |
-|-------|-------------|
-| [Schema Definition](schema-definition.html) | Define tables, columns, and relationships |
-| [Query Building](query-building.html) | Build SQL queries with the fluent API |
-| [Result Parsing](result-parsing.html) | Process query results in a type-safe way |
-| [Error Handling](error-handling.html) | Working with errors and expected results |
-| [Advanced Examples](advanced-examples.html) | Complex query patterns and real-world examples |
-| [Performance Guide](performance.html) | Optimization tips and best practices |
-| [Development Guide](development.html) | Building, testing, and contributing |
+<div class="nav-list">
+<h2>📚 Documentation Guide</h2>
 
-## Library Overview
+### Core Concepts
+- [**Schema Definition**](schema-definition.html) - Define tables, columns, and relationships
+- [**Query Building**](query-building.html) - Build SQL queries with the fluent API  
+- [**Result Parsing**](result-parsing.html) - Process query results in a type-safe way
+- [**Error Handling**](error-handling.html) - Working with errors and expected results
 
-relx is a modern C++23 library for building and executing SQL queries with compile-time type safety. Key capabilities:
+### Advanced Topics
+- [**Advanced Examples**](advanced-examples.html) - Complex query patterns and real-world examples
+- [**Performance Guide**](performance.html) - Optimization tips and best practices
 
-- **Schema Definition**: Define database schemas as C++ structures
-- **Type-Safe Queries**: Build SQL queries with a fluent, chainable API
-- **Compile-Time Validation**: Catch SQL errors at compile time
-- **Database Execution**: Execute queries against PostgreSQL databases
-- **Result Mapping**: Process results with automatic type conversion
+### Development
+- [**Development Guide**](development.html) - Building, testing, and contributing to relx
+</div>
 
-## Getting Started Example
+---
+
+## 🎯 Key Features
+
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Description</th>
+<th>Benefit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Schema Definition</strong></td>
+<td>Define database schemas as C++ structures</td>
+<td>Single source of truth, compile-time validation</td>
+</tr>
+<tr>
+<td><strong>Type-Safe Queries</strong></td>
+<td>Build SQL queries with a fluent, chainable API</td>
+<td>Catch errors at compile time, not runtime</td>
+</tr>
+<tr>
+<td><strong>Automatic Mapping</strong></td>
+<td>Map query results directly to C++ types</td>
+<td>Reduce boilerplate, eliminate mapping errors</td>
+</tr>
+<tr>
+<td><strong>Modern C++23</strong></td>
+<td>Uses concepts, ranges, and latest language features</td>
+<td>Clean, expressive, and performant code</td>
+</tr>
+</tbody>
+</table>
+
+---
+
+## 🚀 Quick Start Example
+
+Here's a complete example showing how to define a schema, create tables, and query data:
 
 ```cpp
 #include <relx/schema.hpp>
@@ -106,19 +144,48 @@ int main() {
 }
 ```
 
-## Architecture Overview
+<hr class="section-divider">
 
-relx is designed with several key components:
+## 🏗️ Architecture Overview
 
-- **Core Library** (header-only): Schema definitions, query building, SQL generation
-- **PostgreSQL Client**: Synchronous database operations
-- **PostgreSQL Async Client**: Asynchronous operations with Boost.Asio
-- **Connection Pool**: Managed connection pooling for high-concurrency applications
+relx is designed with modularity and performance in mind:
 
-## Next Steps
+<div class="alert success">
+<strong>Header-Only Core:</strong> The core query building and schema definition components are header-only for easy integration and optimal compile-time optimization.
+</div>
 
-1. Start with [Schema Definition](schema-definition.html) to learn how to define your database structure
-2. Read [Query Building](query-building.html) to understand the fluent API
-3. Review [Result Parsing](result-parsing.html) for handling query results
-4. Check [Error Handling](error-handling.html) for robust error management
-5. Explore [Advanced Examples](advanced-examples.html) for complex scenarios 
+### Components
+
+- **🎯 Core Library** (header-only): Schema definitions, query building, SQL generation
+- **🐘 PostgreSQL Client**: Synchronous database operations with libpq
+- **⚡ PostgreSQL Async Client**: Asynchronous operations with Boost.Asio  
+- **🔄 Connection Pool**: Managed connection pooling for high-concurrency applications
+
+### Design Principles
+
+- **Compile-time Safety**: Catch SQL errors before they reach production
+- **Zero-cost Abstractions**: High-level API with no runtime overhead
+- **Modern C++**: Leverages C++23 features for clean, expressive code
+- **Database Agnostic Core**: Easy to extend for other database backends
+
+<hr class="section-divider">
+
+## 📖 Learning Path
+
+<div class="alert info">
+<strong>Recommended Learning Order:</strong>
+</div>
+
+1. **[Schema Definition](schema-definition.html)** - Learn how to define your database structure as C++ types
+2. **[Query Building](query-building.html)** - Master the fluent API for building type-safe queries  
+3. **[Result Parsing](result-parsing.html)** - Understand how to work with query results
+4. **[Error Handling](error-handling.html)** - Build robust applications with proper error management
+5. **[Advanced Examples](advanced-examples.html)** - Explore complex real-world scenarios
+
+<div class="alert warning">
+<strong>Prerequisites:</strong> This library requires C++23 support. Make sure you have GCC 11+, Clang 14+, or MSVC 19.29+.
+</div>
+
+---
+
+Ready to get started? Head over to the [**Schema Definition**](schema-definition.html) guide! 🎉 

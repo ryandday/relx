@@ -11,9 +11,11 @@ kramdown:
   syntax_highlighter: rouge
   syntax_highlighter_opts:
     css_class: 'highlight'
+    block:
+      line_numbers: true
 
-# Theme
-theme: minima
+# Theme - using Cayman for better documentation appearance
+remote_theme: pages-themes/cayman@v0.2.0
 
 # Navigation
 header_pages:
@@ -29,10 +31,42 @@ header_pages:
 plugins:
   - jekyll-feed
   - jekyll-sitemap
+  - jekyll-seo-tag
+  - jekyll-remote-theme
+
+# GitHub metadata
+repository: yourusername/relx
+
+# SEO and social
+author: relx Team
+twitter:
+  username: # Add if you have one
+  card: summary
+
+logo: # Add a logo path if you have one
 
 # Exclude files from processing
 exclude:
   - Gemfile
   - Gemfile.lock
   - vendor/
-  - api/ 
+  - api/
+
+# Collections for better organization
+collections:
+  guides:
+    output: true
+    permalink: /:collection/:name/
+
+# Default front matter
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
+  - scope:
+      path: ""
+      type: "guides"
+    values:
+      layout: "default" 
