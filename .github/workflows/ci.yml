@@ -11,57 +11,82 @@ env:
 
 # Updated to use latest compilers: GCC 15 and Clang 20
 jobs:
-  # Linux GCC 15 Build with Coverage
-  linux-gcc:
+  # Format Check with Clang 20
+  format-check:
     runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install GCC 15 and system dependencies
+    - name: Install clang-format 20
       run: |
         sudo apt-get update
-        # Add toolchain repository for latest GCC
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        # Add LLVM repository for latest Clang
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+        sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" -y
         sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          cmake \
-          ninja-build \
-          lcov \
-          gcovr \
-          clang-tidy \
-          clang-format \
-          libboost-all-dev \
-          libpq-dev \
-          postgresql-client \
-          docker-compose
-        sudo apt-get install -y gcc-15 g++-15
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100 --slave /usr/bin/g++ g++ /usr/bin/g++-15
-        sudo update-alternatives --set gcc /usr/bin/gcc-15
-        sudo update-alternatives --set g++ /usr/bin/g++-15
+        sudo apt-get install -y clang-format-20
+        # Create symlink for compatibility with Makefile
+        sudo ln -sf /usr/bin/clang-format-20 /usr/bin/clang-format
 
-    - name: Verify GCC version
-      run: |
-        gcc --version
-        g++ --version
+    - name: Check formatting
+      run: make format-check
 
-    - name: Build, run tests, and generate coverage report
-      run: make coverage
+  # Once gcc15 is packaged better we will enable this
+  # It has better std::println support than gcc14.
+  # Linux GCC 15 Build with Coverage
+  # linux-gcc:
+  #   runs-on: ubuntu-24.04
+  #   needs: format-check
 
-    - name: Upload coverage to Codecov
-      if: github.ref == 'refs/heads/main'
-      uses: codecov/codecov-action@v4
-      with:
-        files: ./build/coverage/coverage.info
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+  #   steps:
+  #   - uses: actions/checkout@v4
+
+  #   - name: Install GCC 15 and system dependencies
+  #     run: |
+  #       sudo apt-get update
+  #       # Add toolchain repository for latest GCC
+  #       sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+  #       sudo apt-get update
+  #       sudo apt-get install -y \
+  #         build-essential \
+  #         cmake \
+  #         ninja-build \
+  #         lcov \
+  #         gcovr \
+  #         clang-tidy \
+  #         clang-format \
+  #         libboost-all-dev \
+  #         libpq-dev \
+  #         postgresql-client \
+  #         docker-compose
+  #       sudo apt-get install -y gcc-15 g++-15
+  #       sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100 --slave /usr/bin/g++ g++ /usr/bin/g++-15
+  #       sudo update-alternatives --set gcc /usr/bin/gcc-15
+  #       sudo update-alternatives --set g++ /usr/bin/g++-15
+
+  #   - name: Verify GCC version
+  #     run: |
+  #       gcc --version
+  #       g++ --version
+
+  #   - name: Build, run tests, and generate coverage report
+  #     run: make coverage
+
+  #   - name: Upload coverage to Codecov
+  #     if: github.ref == 'refs/heads/main'
+  #     uses: codecov/codecov-action@v4
+  #     with:
+  #       files: ./build/coverage/coverage.info
+  #       flags: unittests
+  #       name: codecov-umbrella
+  #       fail_ci_if_error: true
+  #       token: ${{ secrets.CODECOV_TOKEN }}
 
   # Linux Clang 20 Build
   linux-clang:
     runs-on: ubuntu-24.04
+    needs: format-check
 
     steps:
     - uses: actions/checkout@v4
@@ -102,6 +127,7 @@ jobs:
   # Clang-Tidy Check with Clang 20
   clang-tidy:
     runs-on: ubuntu-24.04
+    needs: format-check
 
     steps:
     - uses: actions/checkout@v4
@@ -132,24 +158,3 @@ jobs:
 
     - name: Run clang-tidy
       run: make tidy
-
-  # Format Check with Clang 20
-  format-check:
-    runs-on: ubuntu-24.04
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install clang-format 20
-      run: |
-        sudo apt-get update
-        # Add LLVM repository for latest Clang
-        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-        sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" -y
-        sudo apt-get update
-        sudo apt-get install -y clang-format-20
-        # Create symlink for compatibility with Makefile
-        sudo ln -sf /usr/bin/clang-format-20 /usr/bin/clang-format
-
-    - name: Check formatting
-      run: make format-check
