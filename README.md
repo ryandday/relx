@@ -3,6 +3,10 @@
 [![CI](https://github.com/ryandday/relx/workflows/CI/badge.svg)](https://github.com/ryandday/relx/actions)
 [![codecov](https://codecov.io/gh/ryandday/relx/branch/main/graph/badge.svg)](https://codecov.io/gh/ryandday/relx)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-supported-336791.svg)](https://www.postgresql.org/)
+
+> 🚀 **Transform your SQL experience** - Build type-safe, compile-time validated SQL queries with modern C++23
 
 Working with SQL often means writing error prone raw strings. Refactoring is a pain, and in more complex applications you have to write extensive tests to make sure your stringly typed queries work in every situation.
 
@@ -12,28 +16,45 @@ The core library is header-only. relx also features two PostgreSQL clients for d
 
 Once C++26 reflection comes out (fingers crossed!) then there will be some breaking API changes to this library that will make the API even better.
 
+## Table of Contents
+
+- [Key Features](#key-features)
+- [Documentation](#documentation)
+- [Quick Start](#quick-start)
+- [Schema Features](#schema-features)
+- [Advanced Features](#advanced-features)
+- [Supported Databases](#supported-databases)
+- [Docker Development Environment](#docker-development-environment)
+- [License](#license)
+
 ## Key Features
 
-- **Type Safety**: SQL queries are validated at compile time
-- **Fluent Interface**: Build SQL using intuitive, chainable method calls
-- **Schema Definition**: Strongly typed table and column definitions
-- **Query Building**: Type-safe SELECT, INSERT, UPDATE, and DELETE operations
-- **Boilerplate/Macro Free**: Leverages Boost::pfr for simple schema definitions and automatic result parsing. With C++26 I will be transitioning this to using reflection, to get more compile time safety, remove the boost dependency, and make the API cleaner.
+| Feature | Description | Benefit |
+|---------|-------------|---------|
+| **Type Safety** | SQL queries are validated at compile time | Catch errors before runtime, no more SQL typos |
+| **Fluent Interface** | Build SQL using intuitive, chainable method calls | Write readable, maintainable query code |
+| **Schema Definition** | Strongly typed table and column definitions | Database schema as code with full IntelliSense |
+| **Query Building** | Type-safe SELECT, INSERT, UPDATE, and DELETE operations | Zero SQL injection risk, compile-time validation |
+| **Boilerplate/Macro Free** | Leverages Boost::pfr for simple schema definitions | Clean, readable code without preprocessor magic |
+| **Header-Only Core** | Core library requires no compilation | Easy integration, fast build times |
+
+> **Future-Ready**: With C++26 reflection coming (fingers crossed!), we'll transition from Boost::pfr to standard reflection for even better compile-time safety and cleaner APIs.
 
 ## Documentation
 
 - **[User Guides](docs/)** - Comprehensive documentation and examples
 - **[API Documentation](https://ryandday.github.io/relx/)** - Auto-generated from source code
 
-## Requirements
+## Quick Start
 
-- C++23 compiler support
+### Requirements
 
-## Dependencies (install with system package manager or with conan)
-- Boost (header-only)
-- Postgresql (required only if building postgres client)
+- C++23 compiler support (GCC 11+, Clang 14+, MSVC 19.29+)
 
-## Getting Started
+### Dependencies 
+Install with your system package manager or Conan:
+- **Boost** (header-only) - Required for all builds
+- **PostgreSQL** (libpq) - Required only for PostgreSQL client libraries
 
 ### Installing Dependencies
 
@@ -283,19 +304,23 @@ For more advanced examples, see our [documentation](docs/README.md).
 
 relx provides a rich set of schema definition features:
 
-- **Tables**: Define database tables with strongly typed columns
-- **Columns**: Specify column names, types, and constraints
-- **Primary Keys**: Single-column and composite primary keys
-- **Foreign Keys**: Define relationships between tables
-- **Indexes**: Create regular and unique indexes
-- **Constraints**: Check constraints, unique constraints, default values
-- **Nullable Columns**: Support for NULL values via std::optional
+| Feature | Description | Example |
+|---------|-------------|---------|
+| **Tables** | Define database tables with strongly typed columns | `struct Users { static constexpr auto table_name = "users"; ... };` |
+| **Columns** | Specify column names, types, and constraints | `relx::column<Users, "id", int, relx::primary_key> id;` |
+| **Primary Keys** | Single-column and composite primary keys | `relx::primary_key<&Users::id>` |
+| **Foreign Keys** | Define relationships between tables | `relx::foreign_key<&Posts::user_id, &Users::id>` |
+| **Indexes** | Create regular and unique indexes | `relx::unique_constraint<&Users::email>` |
+| **Constraints** | Check constraints, unique constraints, default values | `relx::check_constraint</* condition */>` |
+| **Nullable Columns** | Support for NULL values via std::optional | `relx::column<Users, "age", std::optional<int>>` |
 
 ## Advanced Features
 
 - **Transaction Support**: RAII-based transaction management
-- **Connection Pooling**: Efficient database connection management
+- **Connection Pooling**: Efficient database connection management  
 - **Result Set Processing**: Strongly typed result access
+- **Async Operations**: Non-blocking I/O with Boost.Asio
+- **Type Safety**: Compile-time SQL validation
 
 ## Supported Databases
 
