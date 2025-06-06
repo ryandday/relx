@@ -7,21 +7,18 @@ BUILD_TYPE ?= Debug
 
 .PHONY: build
 build:
-	mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON
-	cd $(BUILD_DIR) && make -j
+	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON
+	cmake --build $(BUILD_DIR) -j
 
 .PHONY: build-release
 build-release: 
-	mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release
-	cd $(BUILD_DIR) && make -j
+	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
+	cmake --build $(BUILD_DIR) -j
 
 .PHONY: build-coverage
 build-coverage:
-	mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DRELX_ENABLE_COVERAGE=ON
-	cd $(BUILD_DIR) && make -j
+	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DRELX_ENABLE_COVERAGE=ON
+	cmake --build $(BUILD_DIR) -j
 
 .PHONY: clean
 clean:
@@ -29,23 +26,23 @@ clean:
 
 .PHONY: test
 test: build postgres-up
-	cd $(BUILD_DIR)/test && ./relx_tests
+	./$(BUILD_DIR)/test/relx_tests
 
 .PHONY: coverage
 coverage: build-coverage postgres-up
-	cd $(BUILD_DIR) && make coverage
+	cmake --build $(BUILD_DIR) --target coverage
 
 .PHONY: coverage-clean
 coverage-clean:
 	@if [ -d "$(BUILD_DIR)" ]; then \
-		cd $(BUILD_DIR) && make coverage-clean; \
+		cmake --build $(BUILD_DIR) --target coverage-clean; \
 	else \
 		echo "Build directory does not exist. Run 'make build-coverage' first."; \
 	fi
 
 .PHONY: coverage-show
 coverage-show: build-coverage postgres-up
-	cd $(BUILD_DIR) && make coverage-show
+	cmake --build $(BUILD_DIR) --target coverage-show
 
 .PHONY: coverage-open
 coverage-open: coverage
@@ -109,14 +106,9 @@ format-check:
 .PHONY: tidy
 tidy:
 	@echo "Running clang-tidy on source files..."
-	cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
-			xargs -n1 -P$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) -I{} \
-			clang-tidy -p . --header-filter='.*/(include|test)/.*\.(h|hpp)$$' --fix {}; \
-	else \
-		cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
-			xargs -n1 -P$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) -I{} \
-			clang-tidy -p . --header-filter='.*/(include|test)/.*\.(h|hpp)$$' {}; \
-	fi
+	find src include -name "*.cpp" -o -name "*.hpp" | \
+		xargs -n1 -P$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) -I{} \
+		clang-tidy -p $(BUILD_DIR) --header-filter='.*/(include|test)/.*\.(h|hpp)$$' {}
 
 .PHONY: postgres-up
 postgres-up:
