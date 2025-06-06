@@ -78,6 +78,7 @@ jobs:
         run: |
           # Create a combined site with both API docs and manual docs
           mkdir -p _site
+          mkdir -p _site/api
           
           # Copy Jekyll-built markdown docs to _site
           cp -r docs/_site/* _site/
