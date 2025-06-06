@@ -2,9 +2,9 @@
 
 Working with SQL often means writing error prone raw strings. Refactoring is a pain, and in more complex applications you have to write extensive tests to make sure your stringly typed queries work in every situation.
 
-relx is a modern C++23 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a header-only fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
+relx is a modern C++23 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
 
-In addition to the header only library, it features two postgresql clients for database access, an async client (with boost::asio) and a synchronous client.
+relx features two postgresql clients for database access, an async client (with boost::asio) and a synchronous client. 
 
 Once C++26 comes out with reflection (fingers crossed!) then there will be some breaking API changes.
 
@@ -22,26 +22,33 @@ Once C++26 comes out with reflection (fingers crossed!) then there will be some 
 
 ## Dependencies (install with system package manager or with conan)
 - Boost (header-only)
-- Postgresql (requi)
+- Postgresql (required only if building postgres client)
 
 ## Getting Started
 
-### Building the Project
+### Using relx in Your Project
 
-```bash
-# Clone the repository
-git clone https://github.com/ryandday/relx.git
-cd relx
+relx can be easily integrated into your C++ project using CMake FetchContent:
 
-# install Boost and dependencies on your target platform
+```cmake
+# Fetch relx
+include(FetchContent)
+FetchContent_Declare(
+    relx
+    GIT_REPOSITORY https://github.com/ryandday/relx.git
+    GIT_TAG main  # or specify a specific tag/commit
+)
 
-# A makefile is provided with all the common commands needed to build and test
-# This one will run conan, cmake, and make to build the project.
-make build-dev
+# Configure relx options before making it available
+set(RELX_ENABLE_POSTGRES_CLIENT ON)  # Enable PostgreSQL client library
+FetchContent_MakeAvailable(relx)
 
-# Run tests - will start a docker postgres container before tests run.
-make test
+# Your executable
+add_executable(my_app main.cpp)
+target_link_libraries(my_app relx::relx)
 ```
+
+> **Note**: For alternative installation methods, building from source, running tests, and development instructions, see [docs/development.md](docs/development.md).
 
 ### Basic Usage
 
