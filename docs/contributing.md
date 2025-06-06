@@ -29,23 +29,6 @@ Thank you for your interest in contributing to relx! This document provides guid
    make test
    ```
 
-## Documentation
-
-### Generating Documentation Locally
-
-The project uses **Doxygen** to auto-generate API documentation from source code comments.
-
-```bash
-# Generate documentation
-make docs
-
-# Generate and open documentation in browser
-make docs-open
-
-# Clean generated documentation
-make docs-clean
-```
-
 ### Documentation Standards
 
 When contributing code, please ensure:
@@ -96,6 +79,23 @@ Documentation is automatically built and deployed to GitHub Pages when changes a
 - Add tests for all new functionality
 - Ensure existing tests pass: `make test`
 - Test coverage can be generated with: `make coverage`
+
+## Documentation
+
+### Generating Documentation Locally
+
+The project uses **Doxygen** to auto-generate API documentation from source code comments.
+
+```bash
+# Generate documentation
+make docs
+
+# Generate and open documentation in browser
+make docs-open
+
+# Clean generated documentation
+make docs-clean
+```
 
 ## Pull Request Process
 
