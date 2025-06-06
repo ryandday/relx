@@ -83,7 +83,7 @@ jobs:
   #       fail_ci_if_error: true
   #       token: ${{ secrets.CODECOV_TOKEN }}
 
-  # Linux Clang 20 Build
+  # Linux Clang 20 Build with Coverage
   linux-clang:
     runs-on: ubuntu-24.04
     needs: format-check
@@ -106,6 +106,8 @@ jobs:
           ninja-build \
           clang-tidy-20 \
           clang-format-20 \
+          lcov \
+          gcovr \
           libboost-all-dev \
           libpq-dev \
           postgresql-client \
@@ -121,8 +123,18 @@ jobs:
         clang-20 --version
         clang++-20 --version
 
-    - name: Build and Run tests
-      run: make test
+    - name: Build, run tests, and generate coverage report
+      run: make coverage
+
+    - name: Upload coverage to Codecov
+      if: github.ref == 'refs/heads/main'
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./build/coverage/coverage.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
 
   # Clang-Tidy Check with Clang 20
   clang-tidy:
@@ -140,12 +152,16 @@ jobs:
         sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" -y
         sudo apt-get update
         sudo apt-get install -y \
+          build-essential \
           clang-20 \
+          libc++-20-dev \
+          libc++abi-20-dev \
           clang-tidy-20 \
           cmake \
           ninja-build \
           libboost-all-dev \
           libpq-dev \
+          postgresql-client \
           docker-compose
 
     - name: Setup Clang 20 environment
