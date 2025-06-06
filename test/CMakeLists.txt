@@ -29,6 +29,7 @@ add_executable(relx_tests
     schema/optional_column_test.cpp
     schema/composite_foreign_key_test.cpp
     schema/constraint_alias_test.cpp
+    schema/column_like_test.cpp
     # Query tests
     query/query_test.cpp
     query/basic_select_test.cpp
@@ -47,11 +48,11 @@ add_executable(relx_tests
     query/distinct_select_test.cpp
     query/edge_case_test.cpp
     query/data_type_test.cpp
-    column_like_test.cpp
+    query/advanced_query_test.cpp
     # Result processing tests
-    result_test.cpp
-    advanced_query_test.cpp
-    type_safety_test.cpp
+    result/result_test.cpp
+    # Type safety tests
+    types/type_safety_test.cpp
     # Connection tests
     connection/postgresql_connection_test.cpp
     connection/postgresql_api_test.cpp
