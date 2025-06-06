@@ -60,14 +60,6 @@ When contributing code, please ensure:
 
 3. **Update user guides** in the `docs/` directory when adding new features.
 
-### Documentation Deployment
-
-Documentation is automatically built and deployed to GitHub Pages when changes are pushed to the `main` branch. The workflow:
-
-1. **Doxygen** generates API documentation from source code
-2. **GitHub Actions** builds and deploys to GitHub Pages  
-3. **Available at**: https://ryandday.github.io/relx/
-
 ## Code Style
 
 - Use the provided `.clang-format` configuration
