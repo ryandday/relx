@@ -9,9 +9,13 @@ option(RELX_DEV_MODE "Enable development mode" OFF)
 option(RELX_ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 
 if(PROJECT_IS_TOP_LEVEL)
-    set(CMAKE_CXX_STANDARD 26)
+    set(CMAKE_CXX_STANDARD 23)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    
 endif()
+
+# Disable C++26 extension warnings, as we will be using C++26 features as they are released
+add_compile_options(-Wno-c++26-extensions)
 
 if(RELX_DEV_MODE)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -52,7 +56,7 @@ target_link_libraries(relx INTERFACE
     Boost::thread
 )
 
-target_compile_features(relx INTERFACE cxx_std_26)
+target_compile_features(relx INTERFACE cxx_std_23)
 
 add_subdirectory(src)
 
