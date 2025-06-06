@@ -2,29 +2,29 @@
 BUILD_DIR := build
 BUILD_TYPE ?= Debug
 
+# Default build using system dependencies
 .PHONY: build
 build: configure
 	cd $(BUILD_DIR) && make -j
 
-# Conan commands
-.PHONY: conan-install
-conan-install:
-	mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && conan install .. --build=missing
+.PHONY: build-dev
+build-debug: configure
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON
+	cd $(BUILD_DIR) && make -j
 
-# Build commands
+.PHONY: build-release
+build-release: configure
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release
+	cd $(BUILD_DIR) && make -j
+
 .PHONY: configure
-configure: conan-install
+configure:
+	mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
 
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
-
-# Run the executable
-.PHONY: run
-run: build
-	./$(BUILD_DIR)/schema_example
 
 .PHONY: build-tests
 build-tests:
@@ -48,9 +48,7 @@ format-check:
 .PHONY: tidy
 tidy:
 	@echo "Running clang-tidy on source files..."
-	@if [ "$(TIDY_FIX)" = "1" ]; then \
-		echo "Running with automatic fixes enabled..."; \
-		cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
+	cd $(BUILD_DIR) && find ../src ../include -name "*.cpp" -o -name "*.hpp" | \
 			xargs -n1 -P$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) -I{} \
 			clang-tidy -p . --header-filter='.*/(include|test)/.*\.(h|hpp)$$' --fix {}; \
 	else \
@@ -59,11 +57,9 @@ tidy:
 			clang-tidy -p . --header-filter='.*/(include|test)/.*\.(h|hpp)$$' {}; \
 	fi
 
-# Docker Compose commands
 .PHONY: postgres-up
 postgres-up:
 	docker-compose up -d postgres
-	# Wait for PostgreSQL container to be healthy (includes database initialization)
 	@echo "Waiting for PostgreSQL to be ready..."
 	@timeout=60; \
 	while [ $$timeout -gt 0 ]; do \
@@ -80,7 +76,6 @@ postgres-up:
 		docker-compose logs postgres; \
 		exit 1; \
 	fi
-	# Verify database connection
 	@echo "Verifying database connection..."
 	@docker-compose exec -T postgres psql -U postgres -d relx_test -c "SELECT 'Database is ready!' as status;" || \
 	(echo "Failed to connect to relx_test database"; docker-compose logs postgres; exit 1)
@@ -101,15 +96,28 @@ postgres-clean:
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  build            - Build the project"
+	@echo ""
+	@echo "Build targets:"
+	@echo "  build            - Build the project using system dependencies (default)"
+	@echo "  conan-build      - Build the project using Conan-managed dependencies"
+	@echo ""
+	@echo "Configuration targets:"
+	@echo "  configure-system - Configure project with CMake using system dependencies"
+	@echo "  configure-conan  - Configure project with CMake using Conan dependencies"
+	@echo ""
+	@echo "Dependency management:"
 	@echo "  conan-install    - Install dependencies using Conan"
-	@echo "  configure        - Configure project with CMake"
+	@echo ""
+	@echo "Build and test:"
 	@echo "  clean            - Remove build directory"
-	@echo "  run              - Build and run the application"
 	@echo "  test             - Build and run the tests with CTest (starts PostgreSQL)"
+	@echo ""
+	@echo "Code quality:"
 	@echo "  format           - Format code using clang-format"
 	@echo "  format-check     - Check code formatting"
-	@echo "  tidy             - Run clang-tidy on source files (set TIDY_FIX=1 for auto-fixes)"
+	@echo "  tidy             - Run clang-tidy on source files"
+	@echo ""
+	@echo "PostgreSQL for testing:"
 	@echo "  postgres-up      - Start PostgreSQL container"
 	@echo "  postgres-down    - Stop PostgreSQL container"
 	@echo "  postgres-logs    - Show PostgreSQL container logs"
