@@ -1,83 +1,119 @@
-# Error Handling in relx
+# Error Handling
 
-relx provides robust error handling mechanisms using `std::expected`. This document explains how to handle errors in relx applications.
+relx provides robust error handling mechanisms using C++23's `std::expected`. This guide explains how to handle errors effectively in relx applications.
 
 ## Table of Contents
 
-- [Error Handling Pattern](#error-handling-pattern)
+- [Error Handling Philosophy](#error-handling-philosophy)
 - [Error Types](#error-types)
 - [Working with std::expected](#working-with-stdexpected)
 - [Exception Utilities](#exception-utilities)
-- [Working with Optional Values](#working-with-optional-values)
-- [Exception Handling](#exception-handling)
-- [Error Propagation](#error-propagation)
+- [Error Propagation Patterns](#error-propagation-patterns)
 - [Debugging and Logging](#debugging-and-logging)
+- [Best Practices](#best-practices)
 
-## Error Handling Pattern
+## Error Handling Philosophy
 
-relx follows a consistent error handling pattern using `std::expected` for operations that might fail. This approach provides several benefits:
+relx follows a modern C++ error handling approach using `std::expected` for operations that might fail. This design provides several key benefits:
 
-1. Errors are handled explicitly, not through exceptions
-2. Error information is preserved and can be inspected
-3. The pattern encourages proper error handling
+- **Explicit Error Handling**: Errors must be handled explicitly, preventing silent failures
+- **Type Safety**: Error information is preserved and strongly typed
+- **Performance**: No exception overhead for expected failure cases
+- **Composability**: Error handling operations can be chained and transformed
 
-Here's a simple example:
+### Basic Error Handling Pattern
 
 ```cpp
-// Connect to a database
-relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=mydb user=postgres password=postgres");
-auto conn_result = conn.connect();
+#include <relx/postgresql.hpp>
+#include <iostream>
 
-if (!conn_result) {
-    // Handle connection error
-    std::print("Connection error: {}", conn_result.error().message);
-    return;
-}
-
-// Execute a query
-Users users;
-auto query = relx::select(users.id, users.name).from(users);
-auto result = conn.execute(query);
-
-if (!result) {
-    // Handle query error
-    std::print("Query error: {}", result.error().message);
-    return;
-}
-
-// Process results
-for (const auto& row : *result) {
-    // Process each row
+int main() {
+    // Connection setup
+    relx::PostgreSQLConnectionParams params{
+        .host = "localhost",
+        .port = 5432,
+        .dbname = "mydb",
+        .user = "postgres",
+        .password = "postgres",
+        .application_name = "error_example"
+    };
+    
+    relx::PostgreSQLConnection conn(params);
+    
+    // Connect with error checking
+    auto connect_result = conn.connect();
+    if (!connect_result) {
+        std::println("Connection failed: {}", connect_result.error().message);
+        return 1;
+    }
+    
+    // Execute query with error checking
+    Users users;
+    auto query = relx::select(users.id, users.name).from(users);
+    
+    auto query_result = conn.execute(query);
+    if (!query_result) {
+        std::println("Query failed: {}", query_result.error().message);
+        return 1;
+    }
+    
+    // Process successful results
+    for (const auto& row : *query_result) {
+        // Process each row
+    }
+    
+    return 0;
 }
 ```
 
 ## Error Types
 
-relx defines several error types for different operations:
+relx defines specific error types for different failure categories:
 
 ### ConnectionError
 
-Represents errors related to database connections:
+Represents database connection-related failures:
 
 ```cpp
 struct ConnectionError {
-    std::string message;
-    int error_code;
-    std::string source;
+    std::string message;        // Human-readable error description
+    int error_code;            // Database-specific error code
+    std::string source;        // Source of the error (e.g., "PostgreSQL")
+    
+    // Additional context may be included
+    std::optional<std::string> detail;
+    std::optional<std::string> hint;
 };
 ```
+
+**Common Connection Errors:**
+- Authentication failures
+- Network connectivity issues
+- Database not found
+- Permission denied
 
 ### QueryError
 
-Represents errors in query execution:
+Represents SQL query execution failures:
 
 ```cpp
 struct QueryError {
-    std::string message;
-    int error_code;
-    std::string query_string;
+    std::string message;        // Error description
+    int error_code;            // SQL error code
+    std::string query_string;  // The SQL that caused the error
+    
+    // Additional PostgreSQL-specific information
+    std::optional<std::string> severity;
+    std::optional<std::string> state_code;
+    std::optional<int> position;  // Error position in query
 };
 ```
+
+**Common Query Errors:**
+- SQL syntax errors
+- Constraint violations
+- Data type mismatches
+- Permission issues
 
 ### ResultError
 
@@ -85,313 +121,384 @@ Represents errors when processing query results:
 
 ```cpp
 struct ResultError {
-    std::string message;
+    std::string message;        // Error description
+    std::optional<std::string> column_name;  // Column that caused error
+    std::optional<int> row_index;           // Row index if applicable
 };
 ```
 
+**Common Result Errors:**
+- Type conversion failures
+- Missing columns
+- Null value access
+
 ## Working with std::expected
 
-relx uses `std::expected<T, E>` (C++23) for functions that may fail. Here's how to work with it:
+All fallible operations in relx return `std::expected<T, ErrorType>` where `T` is the success type and `ErrorType` is the specific error type.
 
 ### Checking for Success
 
 ```cpp
 auto result = conn.execute(query);
 
+// Method 1: Boolean conversion
 if (result) {
-    // Success case - result contains a value
-    // Use *result to access the value
+    // Success - access value with *result
     const auto& rows = *result;
+    std::println("Found {} rows", rows.size());
+} else {
+    // Error - access error with result.error()
+    const auto& error = result.error();
+    std::println("Query failed: {}", error.message);
+}
+
+// Method 2: has_value() check
+if (result.has_value()) {
+    const auto& rows = result.value();
     // Process rows...
 } else {
-    // Error case - result contains an error
-    // Use result.error() to access the error
-    auto error = result.error();
-    std::print("Error: {}", error.message);
+    const auto& error = result.error();
+    // Handle error...
 }
 ```
 
-### Using Value or Error
+### Value Access Methods
 
 ```cpp
 auto result = conn.execute(query);
 
-// Using .value() (will throw std::bad_expected_access if there's an error)
+// Safe access with error checking
+if (result) {
+    const auto& rows = *result;  // Dereference operator
+    // or
+    const auto& rows = result.value();  // Explicit value() call
+}
+
+// Unsafe access (throws std::bad_expected_access on error)
 try {
     const auto& rows = result.value();
     // Process rows...
 } catch (const std::bad_expected_access<QueryError>& e) {
-    std::print("Error: {}", result.error().message);
-}
-
-// Alternative: Using .error() (only valid if there's an error)
-if (!result) {
-    auto error = result.error();
-    std::print("Error: {}", error.message);
+    std::println("Unexpected error: {}", result.error().message);
 }
 ```
 
-### Using and_then for Chaining Operations
+### Monadic Operations
+
+C++23's `std::expected` supports monadic operations for functional-style error handling:
 
 ```cpp
-auto result = conn.execute(query)
-    .and_then([](auto&& rows) -> std::expected<std::vector<User>, QueryError> {
-        std::vector<User> users;
-        // Transform rows to user objects
+// Transform successful results
+auto processed_result = conn.execute(query)
+    .transform([](const auto& rows) -> std::vector<UserDTO> {
+        std::vector<UserDTO> users;
         for (const auto& row : rows) {
-            // ... process row
-            users.push_back(User{/*...*/});
+            // Transform rows to DTOs
+            users.emplace_back(/* ... */);
         }
         return users;
     });
-```
 
-### Using transform for Transforming Values
-
-```cpp
-auto result = conn.execute(query)
-    .transform([](auto&& rows) {
-        std::vector<User> users;
-        // Transform rows to user objects
-        for (const auto& row : rows) {
-            // ... process row
-            users.push_back(User{/*...*/});
+// Chain operations that might fail
+auto chained_result = conn.execute(query)
+    .and_then([&conn](const auto& rows) -> relx::ConnectionResult<int> {
+        if (rows.empty()) {
+            return std::unexpected(QueryError{
+                .message = "No rows found",
+                .error_code = 0,
+                .query_string = "..."
+            });
         }
-        return users;
+        
+        // Perform another operation
+        return conn.execute(another_query);
     });
-```
 
-### Using or_else for Error Handling
-
-```cpp
-auto result = conn.execute(query)
-    .or_else([](const QueryError& error) -> std::expected<ResultSet, QueryError> {
-        if (error.error_code == PQERR_BUSY) {  // PostgreSQL error code
-            // Retry the query or return a default result
-            return ResultSet{};  // Empty result set
+// Handle errors with alternatives
+auto with_fallback = conn.execute(query)
+    .or_else([&conn](const QueryError& error) -> relx::ConnectionResult<ResultSet> {
+        if (error.error_code == SOME_RECOVERABLE_ERROR) {
+            // Try a fallback query
+            return conn.execute(fallback_query);
         }
-        // Propagate other errors
+        // Propagate unrecoverable errors
         return std::unexpected(error);
     });
 ```
 
 ## Exception Utilities
 
-While relx primarily uses `std::expected` for error handling, it also provides utility functions to easily convert to exception-based error handling when preferred:
-
-### value_or_throw
-
-For operations that return a value, use `value_or_throw` to extract the value or throw an exception if there's an error:
-
-```cpp
-// Connect to database
-relx::PostgreSQLConnection conn(conn_params);
-auto conn_result = conn.connect();
-
-// Will throw RelxException if connection fails
-relx::throw_if_failed(conn_result);
-
-// Execute a query
-// Can also pass a context message that it will use in the exception statement if desired
-auto users = relx::value_or_throw(
-    conn.execute<UserDTO>(query),
-    "Failed to fetch users"
-);
-
-// If successful, users now contains the query results
-// If an error occurred, an exception was thrown with the error details
-for (const auto& user : users) {
-    std::println("User: {}", user.name);
-}
-```
+While `std::expected` is the primary error handling mechanism, relx provides utilities for exception-based error handling when needed.
 
 ### throw_if_failed
 
-For operations that don't return a value (void result type), use `throw_if_failed`:
+Converts `std::expected` results to exceptions:
 
 ```cpp
-// Begin a transaction
-auto tx_result = conn.begin_transaction();
-// Will throw RelxException if starting the transaction fails
-relx::throw_if_failed(tx_result);
+#include <relx/error.hpp>
 
-// Execute an update query
-auto update_result = conn.execute(update_query);
-relx::throw_if_failed(update_result, "Failed to update user");
-
-// Commit the transaction
-relx::throw_if_failed(conn.commit(), "Failed to commit transaction");
-```
-
-### Benefits of Exception Utilities
-
-These utility functions provide several advantages:
-
-1. **Source location tracking**: Automatically captures file and line number where the error occurred
-2. **Descriptive error messages**: Formats error details with context
-3. **Simplified error flow**: Reduces boilerplate error handling code
-4. **Consistent handling**: Standardizes error handling across the application
-5. **Context preservation**: Allows adding custom context to error messages
-
-### When to Use
-
-- Use `value_or_throw` when you need the value from an expected and want to handle errors with exceptions
-- Use `throw_if_failed` for void operations where you're only interested in success/failure
-- Both functions are particularly useful in code paths where detailed error handling isn't needed
-- Great for applications where exceptions are the preferred error handling mechanism
-
-## Working with Optional Values
-
-For columns that may contain NULL values, relx uses `std::optional<T>` and provides a similar error handling pattern:
-
-```cpp
-struct User {
-    int id;
-    std::string name;
-    std::optional<std::string> bio;
-};
-
-// Execute a query
-auto result = conn.execute(query);
-if (!result) {
-    // Handle error
-    return;
-}
-
-// Process results
-std::vector<User> users;
-for (const auto& row : *result) {
-    auto id = row.get<int>("id");
-    auto name = row.get<std::string>("name");
-    auto bio = row.get<std::optional<std::string>>("bio");
+try {
+    // These will throw relx::RelxException if they fail
+    relx::throw_if_failed(conn.connect());
+    relx::throw_if_failed(conn.execute(create_table_query));
+    relx::throw_if_failed(conn.execute(insert_query));
     
-    if (!id || !name) {
-        // Handle missing required fields
-        std::print("Missing required field");
-        continue;
-    }
+    std::println("All operations successful");
     
-    User user{*id, *name, bio.value_or(std::nullopt)};
-    users.push_back(user);
+} catch (const relx::RelxException& e) {
+    std::println("Operation failed: {}", e.what());
+    return 1;
 }
 ```
 
-## Exception Handling
+### value_or_throw
 
-While relx primarily uses `std::expected` for error handling, some operations might still throw exceptions:
-
-1. Out-of-memory conditions
-2. Programming errors (invalid arguments, assertions)
-3. Calling `.value()` on an `std::expected` that contains an error
-4. Using `throw_if_failed` or `value_or_throw` on an error result
-
-Here's how to handle these cases:
+Extracts values from `std::expected` or throws exceptions:
 
 ```cpp
 try {
-    // Connect to the database
-    relx::PostgreSQLConnection conn("host=localhost port=5432 dbname=mydb user=postgres password=postgres");
+    // Extract successful results or throw
+    auto users = relx::value_or_throw(
+        conn.execute<UserDTO>(query),
+        "Failed to fetch users"  // Optional context message
+    );
     
-    // This will throw if connection fails
-    relx::throw_if_failed(conn.connect(), "Failed to connect");
+    // Process users knowing the operation succeeded
+    for (const auto& user : users) {
+        std::println("User: {}", user.name);
+    }
     
-    // Execute a query and get results directly
-    auto rows = relx::value_or_throw(conn.execute(query), "Query execution failed");
-    
-    // Process rows...
 } catch (const relx::RelxException& e) {
-    std::print("relx error: {}", e.what());
-} catch (const std::bad_alloc& e) {
-    std::print("Out of memory");
-} catch (const std::exception& e) {
-    std::print("Unexpected error: {}", e.what());
+    std::println("Error: {}", e.what());
 }
 ```
 
-## Error Propagation
+### Custom Exception Context
 
-When building larger applications, you'll often want to propagate errors up the call stack:
+Add context to exceptions for better debugging:
 
 ```cpp
-std::expected<std::vector<User>, QueryError> get_active_users(relx::Connection& conn) {
-    Users u;
+try {
+    auto result = conn.execute<UserDTO>(query);
+    auto users = relx::value_or_throw(
+        std::move(result),
+        "Failed to fetch users from database"
+    );
     
-    auto query = relx::select(u.id, u.name, u.email)
-        .from(u)
-        .where(u.is_active == true);
+    // Process users...
     
-    auto result = conn.execute(query);
+} catch (const relx::RelxException& e) {
+    std::println("Database operation failed: {}", e.what());
+    // Log additional context
+    std::println("Query: {}", query.to_sql());
+}
+```
+
+## Error Propagation Patterns
+
+### Early Return Pattern
+
+```cpp
+relx::ConnectionResult<std::vector<UserDTO>> fetch_active_users(
+    relx::PostgreSQLConnection& conn
+) {
+    Users users;
+    auto query = relx::select(users.id, users.name, users.email)
+        .from(users)
+        .where(users.is_active == true);
+    
+    auto result = conn.execute<UserDTO>(query);
     if (!result) {
+        // Propagate error
         return std::unexpected(result.error());
     }
     
-    std::vector<User> users;
-    for (const auto& row : *result) {
-        auto id = row.get<int>("id");
-        auto name = row.get<std::string>("name");
-        auto email = row.get<std::string>("email");
-        
-        if (!id || !name || !email) {
-            return std::unexpected(QueryError{
-                "Failed to extract user data",
-                -1,
-                query.to_sql()
-            });
-        }
-        
-        users.push_back(User{*id, *name, *email});
+    return *result;
+}
+```
+
+### Error Context Enhancement
+
+```cpp
+relx::ConnectionResult<UserStats> calculate_user_stats(
+    relx::PostgreSQLConnection& conn,
+    int user_id
+) {
+    auto user_result = fetch_user(conn, user_id);
+    if (!user_result) {
+        // Enhance error context
+        auto error = user_result.error();
+        error.message = fmt::format(
+            "Failed to calculate stats for user {}: {}",
+            user_id, error.message
+        );
+        return std::unexpected(error);
     }
     
-    return users;
-}
-
-// Usage
-auto users_result = get_active_users(conn);
-if (!users_result) {
-    std::print("Error: {}", users_result.error().message);
-    return;
-}
-
-for (const auto& user : *users_result) {
-    std::print("User: {}", user.name);
+    // Continue with calculations...
+    return UserStats{/* ... */};
 }
 ```
 
 ## Debugging and Logging
 
-relx provides several ways to debug and log errors:
-
-### Query String Inspection
-
-You can inspect the generated SQL and parameters:
+### Error Information Extraction
 
 ```cpp
-Users u;
-auto query = relx::select(u.id, u.name)
-    .from(u)
-    .where(u.age > 18);
+void log_error(const relx::ConnectionError& error) {
+    std::println("Connection Error:");
+    std::println("  Message: {}", error.message);
+    std::println("  Code: {}", error.error_code);
+    std::println("  Source: {}", error.source);
+    
+    if (error.detail) {
+        std::println("  Detail: {}", *error.detail);
+    }
+    if (error.hint) {
+        std::println("  Hint: {}", *error.hint);
+    }
+}
 
-// Get the SQL string
-std::string sql = query.to_sql();
-std::print("SQL: {}", sql);
-
-// Get the parameters
-auto params = query.bind_params();
-for (const auto& param: params) {
-    std::println("Param:{}", param)
+void log_error(const relx::QueryError& error) {
+    std::println("Query Error:");
+    std::println("  Message: {}", error.message);
+    std::println("  Code: {}", error.error_code);
+    std::println("  Query: {}", error.query_string);
+    
+    if (error.position) {
+        std::println("  Position: {}", *error.position);
+    }
+    if (error.state_code) {
+        std::println("  State: {}", *error.state_code);
+    }
 }
 ```
 
-### Error Inspection
+### Comprehensive Error Handling
 
-Detailed error information is available:
+```cpp
+template<typename T>
+void handle_result(const relx::ConnectionResult<T>& result, const std::string& operation) {
+    if (!result) {
+        const auto& error = result.error();
+        
+        std::println("Operation '{}' failed:", operation);
+        
+        // Type-specific error handling
+        if constexpr (std::is_same_v<decltype(error), const relx::ConnectionError&>) {
+            log_error(error);
+        } else if constexpr (std::is_same_v<decltype(error), const relx::QueryError&>) {
+            log_error(error);
+        } else {
+            std::println("  Error: {}", error.message);
+        }
+    }
+}
+
+// Usage
+auto result = conn.execute(query);
+handle_result(result, "fetch users");
+```
+
+## Best Practices
+
+### 1. Always Check Results
+
+```cpp
+// Good: Check every result
+auto result = conn.execute(query);
+if (!result) {
+    // Handle error appropriately
+    return handle_error(result.error());
+}
+
+// Bad: Ignoring potential errors
+auto result = conn.execute(query);
+// Assuming success without checking
+```
+
+### 2. Use Appropriate Error Handling
+
+```cpp
+// For libraries: Return std::expected
+relx::ConnectionResult<User> fetch_user(int id) {
+    auto result = conn.execute<UserDTO>(query);
+    if (!result) {
+        return std::unexpected(result.error());
+    }
+    return convert_to_user(*result);
+}
+
+// For applications: Use exceptions when appropriate
+void application_logic() {
+    try {
+        auto user = relx::value_or_throw(fetch_user(123));
+        process_user(user);
+    } catch (const relx::RelxException& e) {
+        show_user_error(e.what());
+    }
+}
+```
+
+### 3. Provide Context
+
+```cpp
+// Good: Add meaningful context
+auto users = relx::value_or_throw(
+    conn.execute<UserDTO>(query),
+    "Failed to load user list for dashboard"
+);
+
+// Better: Include relevant parameters
+auto users = relx::value_or_throw(
+    conn.execute<UserDTO>(query),
+    fmt::format("Failed to load users for department {}", dept_id)
+);
+```
+
+### 4. Handle Specific Error Types
 
 ```cpp
 auto result = conn.execute(query);
 if (!result) {
-    auto error = result.error();
-    std::print("Error message: {}", error.message);
-    std::print("Error code: {}", error.error_code);
-    std::print("Query: {}", error.query_string);
+    const auto& error = result.error();
+    
+    switch (error.error_code) {
+        case UNIQUE_VIOLATION:
+            return handle_duplicate_user();
+        case FOREIGN_KEY_VIOLATION:
+            return handle_invalid_reference();
+        default:
+            return handle_general_error(error);
+    }
+}
+```
+
+### 5. Clean Resource Management
+
+```cpp
+relx::ConnectionResult<void> perform_transaction() {
+    auto transaction = conn.begin_transaction();
+    
+    try {
+        relx::throw_if_failed(conn.execute(query1));
+        relx::throw_if_failed(conn.execute(query2));
+        relx::throw_if_failed(transaction.commit());
+        
+        return {}; // Success
+        
+    } catch (const relx::RelxException& e) {
+        auto rollback_result = transaction.rollback();
+        if (!rollback_result) {
+            // Log rollback failure but return original error
+            std::println("Rollback failed: {}", rollback_result.error().message);
+        }
+        
+        return std::unexpected(QueryError{
+            .message = e.what(),
+            .error_code = 0,
+            .query_string = "transaction"
+        });
+    }
 }
 ```
