@@ -136,10 +136,11 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
-  # Clang-Tidy Check with Clang 20
+  # Clang-Tidy Check with Clang 20 (only on push to main)
   clang-tidy:
     runs-on: ubuntu-24.04
     needs: format-check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
     - uses: actions/checkout@v4
