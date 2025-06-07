@@ -33,56 +33,28 @@ jobs:
     - name: Check formatting
       run: make format-check
 
-  # Once gcc15 is packaged better we will enable this
-  # It has better std::println support than gcc14.
-  # Linux GCC 15 Build with Coverage
-  # linux-gcc:
-  #   runs-on: ubuntu-24.04
-  #   needs: format-check
+  # Linux GCC Build 
+  linux-gcc:
+    runs-on: ubuntu-24.04
+    needs: format-check
 
-  #   steps:
-  #   - uses: actions/checkout@v4
+    steps:
+    - uses: actions/checkout@v4
 
-  #   - name: Install GCC 15 and system dependencies
-  #     run: |
-  #       sudo apt-get update
-  #       # Add toolchain repository for latest GCC
-  #       sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-  #       sudo apt-get update
-  #       sudo apt-get install -y \
-  #         build-essential \
-  #         cmake \
-  #         ninja-build \
-  #         lcov \
-  #         gcovr \
-  #         clang-tidy \
-  #         clang-format \
-  #         libboost-all-dev \
-  #         libpq-dev \
-  #         postgresql-client \
-  #         docker-compose
-  #       sudo apt-get install -y gcc-15 g++-15
-  #       sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100 --slave /usr/bin/g++ g++ /usr/bin/g++-15
-  #       sudo update-alternatives --set gcc /usr/bin/gcc-15
-  #       sudo update-alternatives --set g++ /usr/bin/g++-15
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          libboost-all-dev \
+          libpq-dev \
+          postgresql-client \
+          docker-compose
 
-  #   - name: Verify GCC version
-  #     run: |
-  #       gcc --version
-  #       g++ --version
-
-  #   - name: Build, run tests, and generate coverage report
-  #     run: make coverage
-
-  #   - name: Upload coverage to Codecov
-  #     if: github.ref == 'refs/heads/main'
-  #     uses: codecov/codecov-action@v4
-  #     with:
-  #       files: ./build/coverage/coverage.info
-  #       flags: unittests
-  #       name: codecov-umbrella
-  #       fail_ci_if_error: true
-  #       token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Build and run tests
+      run: make test
 
   # Linux Clang 20 Build with Coverage
   linux-clang:
@@ -136,6 +108,46 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
+
+  # macOS Build and Test
+  macos:
+    runs-on: macos-latest
+    needs: format-check
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        brew update
+        brew install cmake ninja boost postgresql
+
+    - name: Run tests
+      run: make test
+
+  # Windows Build and Test
+  windows:
+    runs-on: windows-latest
+    needs: format-check
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        # Install vcpkg for dependencies
+        git clone https://github.com/Microsoft/vcpkg.git
+        .\vcpkg\bootstrap-vcpkg.bat
+        .\vcpkg\vcpkg install boost-pfr boost-describe boost-test libpq --triplet x64-windows
+
+    - name: Setup MSVC environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Run tests
+      run: make test
+      shell: cmd
 
   # Clang-Tidy Check with Clang 20 (only when PR merges)
   clang-tidy:
