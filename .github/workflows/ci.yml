@@ -145,8 +145,11 @@ jobs:
       with:
         arch: x64
 
-    - name: Run tests
-      run: make test
+    - name: Build and run tests
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DCMAKE_TOOLCHAIN_FILE=.\vcpkg\scripts\buildsystems\vcpkg.cmake
+        cmake --build build --parallel
+        ctest --test-dir build --output-on-failure
       shell: cmd
 
   # Clang-Tidy Check with Clang 20 (only when PR merges)
