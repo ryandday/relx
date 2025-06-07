@@ -613,4 +613,340 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingEarlyDestruction) {
         
         co_await conn.disconnect();
     });
-} 
+}
+
+// Test bool return with sync functions - early termination
+TEST_F(PostgreSQLAsyncStreamingTest, BoolReturnSyncEarlyTermination) {
+    connection::PostgreSQLAsyncConnection conn(io_context, conn_string);
+    
+    run_test([&]() -> asio::awaitable<void> {
+        auto connect_result = co_await conn.connect();
+        EXPECT_TRUE(connect_result);
+        
+        // Create test table with sequential data
+        auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        EXPECT_TRUE(drop_result);
+        
+        auto create_result = co_await conn.execute_raw(R"(
+            CREATE TABLE loop_control_test (
+                id SERIAL PRIMARY KEY,
+                value INTEGER NOT NULL
+            )
+        )");
+        EXPECT_TRUE(create_result);
+
+        auto insert_result = co_await conn.execute_raw(R"(
+            INSERT INTO loop_control_test (value) VALUES 
+            (10), (20), (30), (40), (50)
+        )");
+        EXPECT_TRUE(insert_result);
+
+        // Test early termination with sync function returning loop_control
+        auto streaming_result = connection::create_async_streaming_result(
+            conn, "SELECT value FROM loop_control_test ORDER BY value");
+
+        std::vector<int> processed_values;
+        co_await streaming_result.for_each([&processed_values](const auto& lazy_row) -> bool {
+            auto value_result = lazy_row.template get<int>("value");
+            if (value_result) {
+                processed_values.push_back(*value_result);
+                
+                // Return true to break after processing value 30
+                return *value_result >= 30;
+            }
+            return false;  // Continue processing
+        });
+
+        // Should have processed values 10, 20, 30 but not 40, 50
+        EXPECT_EQ(processed_values.size(), 3);
+        EXPECT_EQ(processed_values.at(0), 10);
+        EXPECT_EQ(processed_values.at(1), 20);
+        EXPECT_EQ(processed_values.at(2), 30);
+        
+        // Clean up (optional - may fail if connection state was reset)
+        auto cleanup_result1 = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        // Don't assert cleanup success as it may fail due to connection state reset
+        
+        co_await conn.disconnect();
+    });
+}
+
+// Test void return with sync functions - continue processing all
+TEST_F(PostgreSQLAsyncStreamingTest, VoidReturnSyncContinueAll) {
+    connection::PostgreSQLAsyncConnection conn(io_context, conn_string);
+    
+    run_test([&]() -> asio::awaitable<void> {
+        auto connect_result = co_await conn.connect();
+        EXPECT_TRUE(connect_result);
+        
+        // Create test table with sequential data
+        auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        EXPECT_TRUE(drop_result);
+        
+        auto create_result = co_await conn.execute_raw(R"(
+            CREATE TABLE loop_control_test (
+                id SERIAL PRIMARY KEY,
+                value INTEGER NOT NULL
+            )
+        )");
+        EXPECT_TRUE(create_result);
+
+        auto insert_result = co_await conn.execute_raw(R"(
+            INSERT INTO loop_control_test (value) VALUES 
+            (100), (200), (300)
+        )");
+        EXPECT_TRUE(insert_result);
+
+        // Test processing all with sync function returning loop_control
+        auto streaming_result = connection::create_async_streaming_result(
+            conn, "SELECT value FROM loop_control_test ORDER BY value");
+
+        std::vector<int> processed_values;
+        co_await streaming_result.for_each([&processed_values](const auto& lazy_row) {
+            auto value_result = lazy_row.template get<int>("value");
+            if (value_result) {
+                processed_values.push_back(*value_result);
+            }
+            // No return needed - void function continues processing
+        });
+
+        // Should have processed all values
+        EXPECT_EQ(processed_values.size(), 3);
+        EXPECT_EQ(processed_values.at(0), 100);
+        EXPECT_EQ(processed_values.at(1), 200);
+        EXPECT_EQ(processed_values.at(2), 300);
+        
+        // Clean up (optional - may fail if connection state was reset)
+        auto cleanup_result2 = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        // Don't assert cleanup success as it may fail due to connection state reset
+        
+        co_await conn.disconnect();
+    });
+}
+
+// Test bool return with async functions - early termination
+TEST_F(PostgreSQLAsyncStreamingTest, BoolReturnAsyncEarlyTermination) {
+    connection::PostgreSQLAsyncConnection conn(io_context, conn_string);
+    
+    run_test([&]() -> asio::awaitable<void> {
+        auto connect_result = co_await conn.connect();
+        EXPECT_TRUE(connect_result);
+        
+        // Create test table with sequential data
+        auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        EXPECT_TRUE(drop_result);
+        
+        auto create_result = co_await conn.execute_raw(R"(
+            CREATE TABLE loop_control_test (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL
+            )
+        )");
+        EXPECT_TRUE(create_result);
+
+        auto insert_result = co_await conn.execute_raw(R"(
+            INSERT INTO loop_control_test (name) VALUES 
+            ('Alice'), ('Bob'), ('Charlie'), ('David'), ('Eve')
+        )");
+        EXPECT_TRUE(insert_result);
+
+        // Test early termination with async function returning loop_control
+        auto streaming_result = connection::create_async_streaming_result(
+            conn, "SELECT name FROM loop_control_test ORDER BY name");
+
+        std::vector<std::string> processed_names;
+        co_await streaming_result.for_each([&processed_names](const auto& lazy_row) -> asio::awaitable<bool> {
+            // Simulate some async work
+            asio::steady_timer timer(co_await asio::this_coro::executor);
+            timer.expires_after(std::chrono::milliseconds(1));
+            co_await timer.async_wait(asio::use_awaitable);
+            
+            auto name_result = lazy_row.template get<std::string>("name");
+            if (name_result) {
+                processed_names.push_back(*name_result);
+                
+                // Return true to break after processing "Bob"
+                if (*name_result == "Bob") {
+                    co_return true;
+                }
+            }
+            co_return false;  // Continue processing
+        });
+
+        // Should have processed "Alice" and "Bob" but not the rest
+        EXPECT_EQ(processed_names.size(), 2);
+        EXPECT_EQ(processed_names.at(0), "Alice");
+        EXPECT_EQ(processed_names.at(1), "Bob");
+        
+        // Clean up (optional - may fail if connection state was reset)
+        auto cleanup_result3 = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        // Don't assert cleanup success as it may fail due to connection state reset
+        
+        co_await conn.disconnect();
+    });
+}
+
+// Test void return with async functions - continue processing all
+TEST_F(PostgreSQLAsyncStreamingTest, VoidReturnAsyncContinueAll) {
+    connection::PostgreSQLAsyncConnection conn(io_context, conn_string);
+    
+    run_test([&]() -> asio::awaitable<void> {
+        auto connect_result = co_await conn.connect();
+        EXPECT_TRUE(connect_result);
+        
+        // Create test table with sequential data
+        auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        EXPECT_TRUE(drop_result);
+        
+        auto create_result = co_await conn.execute_raw(R"(
+            CREATE TABLE loop_control_test (
+                id SERIAL PRIMARY KEY,
+                category VARCHAR(50) NOT NULL
+            )
+        )");
+        EXPECT_TRUE(create_result);
+
+        auto insert_result = co_await conn.execute_raw(R"(
+            INSERT INTO loop_control_test (category) VALUES 
+            ('A'), ('B'), ('C'), ('D')
+        )");
+        EXPECT_TRUE(insert_result);
+
+        // Test processing all with async function returning loop_control
+        auto streaming_result = connection::create_async_streaming_result(
+            conn, "SELECT category FROM loop_control_test ORDER BY category");
+
+        std::vector<std::string> processed_categories;
+        co_await streaming_result.for_each([&processed_categories](const auto& lazy_row) -> asio::awaitable<void> {
+            // Simulate some async work
+            asio::steady_timer timer(co_await asio::this_coro::executor);
+            timer.expires_after(std::chrono::milliseconds(1));
+            co_await timer.async_wait(asio::use_awaitable);
+            
+            auto category_result = lazy_row.template get<std::string>("category");
+            if (category_result) {
+                processed_categories.push_back(*category_result);
+            }
+            // No return needed - void async function continues processing
+        });
+
+        // Should have processed all categories
+        EXPECT_EQ(processed_categories.size(), 4);
+        EXPECT_EQ(processed_categories.at(0), "A");
+        EXPECT_EQ(processed_categories.at(1), "B");
+        EXPECT_EQ(processed_categories.at(2), "C");
+        EXPECT_EQ(processed_categories.at(3), "D");
+        
+        // Clean up (optional - may fail if connection state was reset)
+        auto cleanup_result4 = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        // Don't assert cleanup success as it may fail due to connection state reset
+        
+        co_await conn.disconnect();
+    });
+}
+
+// Test bool return with immediate break
+TEST_F(PostgreSQLAsyncStreamingTest, BoolReturnImmediateBreak) {
+    connection::PostgreSQLAsyncConnection conn(io_context, conn_string);
+    
+    run_test([&]() -> asio::awaitable<void> {
+        auto connect_result = co_await conn.connect();
+        EXPECT_TRUE(connect_result);
+        
+        // Create test table with sequential data
+        auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        EXPECT_TRUE(drop_result);
+        
+        auto create_result = co_await conn.execute_raw(R"(
+            CREATE TABLE loop_control_test (
+                id SERIAL PRIMARY KEY,
+                value INTEGER NOT NULL
+            )
+        )");
+        EXPECT_TRUE(create_result);
+
+        auto insert_result = co_await conn.execute_raw(R"(
+            INSERT INTO loop_control_test (value) VALUES 
+            (1), (2), (3), (4), (5)
+        )");
+        EXPECT_TRUE(insert_result);
+
+        // Test immediate break on first row
+        auto streaming_result = connection::create_async_streaming_result(
+            conn, "SELECT value FROM loop_control_test ORDER BY value");
+
+        std::vector<int> processed_values;
+        co_await streaming_result.for_each([&processed_values](const auto& lazy_row) -> bool {
+            auto value_result = lazy_row.template get<int>("value");
+            if (value_result) {
+                processed_values.push_back(*value_result);
+            }
+            // Always break immediately - return true to break
+            return true;
+        });
+
+        // Should have processed only the first value
+        EXPECT_EQ(processed_values.size(), 1);
+        EXPECT_EQ(processed_values.at(0), 1);
+        
+        // Clean up (optional - may fail if connection state was reset)
+        auto cleanup_result5 = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        // Don't assert cleanup success as it may fail due to connection state reset
+        
+        co_await conn.disconnect();
+    });
+}
+
+// Test void functions (traditional behavior)
+TEST_F(PostgreSQLAsyncStreamingTest, VoidReturnTraditionalBehavior) {
+    connection::PostgreSQLAsyncConnection conn(io_context, conn_string);
+    
+    run_test([&]() -> asio::awaitable<void> {
+        auto connect_result = co_await conn.connect();
+        EXPECT_TRUE(connect_result);
+        
+        // Create test table with sequential data
+        auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        EXPECT_TRUE(drop_result);
+        
+        auto create_result = co_await conn.execute_raw(R"(
+            CREATE TABLE loop_control_test (
+                id SERIAL PRIMARY KEY,
+                description VARCHAR(100) NOT NULL
+            )
+        )");
+        EXPECT_TRUE(create_result);
+
+        auto insert_result = co_await conn.execute_raw(R"(
+            INSERT INTO loop_control_test (description) VALUES 
+            ('First'), ('Second'), ('Third')
+        )");
+        EXPECT_TRUE(insert_result);
+
+        // Test traditional void function (should process all)
+        auto streaming_result = connection::create_async_streaming_result(
+            conn, "SELECT description FROM loop_control_test ORDER BY description");
+
+        std::vector<std::string> processed_descriptions;
+        co_await streaming_result.for_each([&processed_descriptions](const auto& lazy_row) {
+            // Traditional void return - no loop control
+            auto desc_result = lazy_row.template get<std::string>("description");
+            if (desc_result) {
+                processed_descriptions.push_back(*desc_result);
+            }
+        });
+
+        // Should have processed all descriptions (void functions always continue)
+        EXPECT_EQ(processed_descriptions.size(), 3);
+        EXPECT_EQ(processed_descriptions.at(0), "First");
+        EXPECT_EQ(processed_descriptions.at(1), "Second");
+        EXPECT_EQ(processed_descriptions.at(2), "Third");
+        
+        // Clean up (optional - may fail if connection state was reset)
+        auto cleanup_result6 = co_await conn.execute_raw("DROP TABLE IF EXISTS loop_control_test");
+        // Don't assert cleanup success as it may fail due to connection state reset
+        
+        co_await conn.disconnect();
+    });
+}
+

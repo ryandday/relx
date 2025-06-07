@@ -7,6 +7,7 @@ relx provides multiple flexible ways to extract and process query results with c
 - [Basic Result Processing](#basic-result-processing)
 - [DTO Mapping](#dto-mapping)
 - [Structured Binding Support](#structured-binding-support)
+- [Lazy Result Parsing](#lazy-result-parsing)
 - [Column Access Methods](#column-access-methods)
 - [Handling Nullable Values](#handling-nullable-values)
 - [Error Handling](#error-handling)
@@ -145,6 +146,73 @@ for (const auto& [id, name, bio] : result->as<int, std::string, std::optional<st
     std::println("User {} ({}): {}", id, name, bio.value_or("No bio"));
 }
 ```
+
+## Lazy Result Parsing
+
+Lazy parsing defers type conversion until data is actually accessed, reducing memory usage and improving performance for partial result processing.
+
+### Basic Lazy Result Set
+
+```cpp
+#include <relx/results/lazy_result.hpp>
+
+// Execute query and get lazy result set  
+auto result = conn.execute_lazy(query);
+if (result) {
+    // Iterate over lazy rows - no parsing happens yet
+    for (const auto& lazy_row : *result) {
+        // Data is parsed only when accessed
+        auto id = lazy_row.get<int>("id");
+        auto name = lazy_row.get<std::string>("name");
+        
+        if (id && name) {
+            std::println("User {}: {}", *id, *name);
+            
+            // Only parse expensive columns if needed
+            if (*id > 100) {
+                auto bio = lazy_row.get<std::string>("bio");
+                if (bio) {
+                    std::println("  Bio: {}", *bio);
+                }
+            }
+        }
+    }
+}
+```
+
+### Conditional Data Processing
+
+```cpp
+// Only parse expensive columns when needed
+for (const auto& lazy_row : *result) {
+    auto user_type = lazy_row.get<std::string>("user_type");
+    
+    if (user_type && *user_type == "premium") {
+        // Only parse large text fields for premium users
+        auto preferences = lazy_row.get<std::string>("preferences");
+        auto profile_data = lazy_row.get<std::string>("profile_data");
+        
+        process_premium_user(preferences.value_or(""), profile_data.value_or(""));
+    } else {
+        // Basic processing for regular users
+        auto name = lazy_row.get<std::string>("name");
+        if (name) {
+            process_regular_user(*name);
+        }
+    }
+}
+```
+
+### Benefits of Lazy Parsing
+
+- **Memory Efficient**: Only parsed data you actually use
+- **Performance**: Avoid unnecessary type conversions  
+- **Flexibility**: Process different rows differently based on content
+- **Streaming Ready**: Works seamlessly with streaming result sets
+
+<div class="alert info">
+<strong>💡 Tip:</strong> For large result sets or streaming scenarios, see the comprehensive <a href="streaming-results.html">Streaming Results</a> guide.
+</div>
 
 ## Column Access Methods
 

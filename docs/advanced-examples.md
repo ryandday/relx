@@ -11,6 +11,7 @@ This guide provides comprehensive examples of using relx for complex query scena
 - [Case Expressions](#case-expressions)
 - [Window Functions](#window-functions)
 - [Transaction Management](#transaction-management)
+- [Streaming and Async Processing](#streaming-and-async-processing)
 - [Real-World Application Examples](#real-world-application-examples)
 
 ## Schema Setup
@@ -495,6 +496,356 @@ relx::ConnectionResult<int> create_blog_post_with_tags(
     }
 }
 ```
+
+## Streaming and Async Processing
+
+For processing large datasets or real-time scenarios, relx provides streaming capabilities with both synchronous and asynchronous options.
+
+struct Users {
+    static constexpr auto table_name = "users";
+    
+    relx::column<Users, "id", int, relx::primary_key> id;
+    relx::column<Users, "name", std::string> name;
+    relx::column<Users, "email", std::string> email;
+    relx::column<Users, "created_at", std::string> created_at;
+    relx::column<Users, "profile_data", std::string> profile_data;
+};
+
+### Large Dataset Processing with Streaming
+
+```cpp
+#include <relx/connection/postgresql_streaming_source.hpp>
+#include <relx/schema.hpp>
+#include <relx/query.hpp>
+
+void process_large_user_export(relx::PostgreSQLConnection& conn) {
+    Users users;
+    std::string cutoff_date = "2024-01-01";
+    
+    // Build query using relx API
+    auto query = relx::select(users.id, users.name, users.email, users.created_at, users.profile_data)
+        .from(users)
+        .where(users.created_at >= cutoff_date)
+        .order_by(users.created_at, users.id);
+    
+    // Stream millions of users without loading them all into memory
+    auto streaming_result = relx::connection::create_streaming_result(conn, query);
+    
+    std::ofstream export_file("user_export.csv");
+    export_file << "ID,Name,Email,Created,ProfileSize\n";
+    
+    int processed_count = 0;
+    streaming_result.for_each([&](const auto& lazy_row) {
+        auto id = lazy_row.get<int>("id");
+        auto name = lazy_row.get<std::string>("name");
+        auto email = lazy_row.get<std::string>("email");
+        auto created_at = lazy_row.get<std::string>("created_at");
+        auto profile_data = lazy_row.get<std::string>("profile_data");
+        
+        if (id && name && email && created_at) {
+            // Only parse profile_data if we need its size
+            size_t profile_size = profile_data ? profile_data->size() : 0;
+            
+            export_file << *id << ","
+                       << "\"" << *name << "\","
+                       << "\"" << *email << "\","
+                       << *created_at << ","
+                       << profile_size << "\n";
+            
+            processed_count++;
+            if (processed_count % 10000 == 0) {
+                std::println("Processed {} users", processed_count);
+            }
+        }
+    });
+    
+    std::println("Export complete: {} users processed", processed_count);
+}
+```
+
+struct Employees {
+    static constexpr auto table_name = "employees";
+    
+    relx::column<Employees, "id", int, relx::primary_key> id;
+    relx::column<Employees, "name", std::string> name;
+    relx::column<Employees, "email", std::string> email;
+    relx::column<Employees, "department_id", int> department_id;
+    relx::column<Employees, "salary", double> salary;
+    relx::column<Employees, "hire_date", std::string> hire_date;
+    relx::column<Employees, "active", bool> active;
+    relx::column<Employees, "created_at", std::string> created_at;
+};
+
+### Asynchronous Batch Processing
+
+```cpp
+#include <relx/connection/postgresql_async_streaming_source.hpp>
+#include <relx/connection/postgresql_async_connection.hpp>
+#include <boost/asio.hpp>
+
+boost::asio::awaitable<void> async_data_migration(
+    boost::asio::io_context& io_context,
+    const std::string& source_conn_string,
+    const std::string& dest_conn_string
+) {
+    relx::connection::PostgreSQLAsyncConnection source_conn(io_context, source_conn_string);
+    relx::connection::PostgreSQLAsyncConnection dest_conn(io_context, dest_conn_string);
+    
+    // Connect to both databases
+    auto source_result = co_await source_conn.connect();
+    auto dest_result = co_await dest_conn.connect();
+    
+    if (!source_result || !dest_result) {
+        std::println("Connection failed");
+        co_return;
+    }
+    
+    Employees employees;
+    
+    // Build query using relx API
+    auto query = relx::select(employees.id, employees.name, employees.email, 
+                             employees.department_id, employees.salary, employees.hire_date)
+        .from(employees)
+        .where(employees.active == true)
+        .order_by(employees.id);
+    
+    // Stream data from source and batch insert to destination
+    auto streaming_result = relx::connection::create_async_streaming_result(source_conn, query);
+    
+    std::vector<std::string> batch;
+    const size_t BATCH_SIZE = 1000;
+    int total_migrated = 0;
+    
+    co_await streaming_result.for_each([&](const auto& lazy_row) -> boost::asio::awaitable<void> {
+        auto id = lazy_row.get<int>("id");
+        auto name = lazy_row.get<std::string>("name");
+        auto email = lazy_row.get<std::string>("email");
+        auto dept_id = lazy_row.get<int>("department_id");
+        auto salary = lazy_row.get<double>("salary");
+        auto hire_date = lazy_row.get<std::string>("hire_date");
+        
+        if (id && name && email && dept_id && salary && hire_date) {
+            // Build INSERT statement
+            std::string insert_values = std::format(
+                "({}, '{}', '{}', {}, {}, '{}')",
+                *id, *name, *email, *dept_id, *salary, *hire_date
+            );
+            batch.push_back(insert_values);
+            
+            // Execute batch when full
+            if (batch.size() >= BATCH_SIZE) {
+                std::string batch_insert = 
+                    "INSERT INTO employees_new (id, name, email, department_id, salary, hire_date) VALUES " +
+                    std::accumulate(batch.begin(), batch.end(), std::string{},
+                        [](const std::string& a, const std::string& b) {
+                            return a.empty() ? b : a + ", " + b;
+                        });
+                
+                auto insert_result = co_await dest_conn.execute_raw(batch_insert);
+                if (insert_result) {
+                    total_migrated += batch.size();
+                    std::println("Migrated {} employees so far", total_migrated);
+                } else {
+                    std::println("Batch insert failed: {}", insert_result.error().message);
+                }
+                
+                batch.clear();
+            }
+        }
+        
+        co_return;
+    });
+    
+    // Process remaining batch
+    if (!batch.empty()) {
+        std::string final_insert = 
+            "INSERT INTO employees_new (id, name, email, department_id, salary, hire_date) VALUES " +
+            std::accumulate(batch.begin(), batch.end(), std::string{},
+                [](const std::string& a, const std::string& b) {
+                    return a.empty() ? b : a + ", " + b;
+                });
+        
+        auto insert_result = co_await dest_conn.execute_raw(final_insert);
+        if (insert_result) {
+            total_migrated += batch.size();
+        }
+    }
+    
+    std::println("Migration complete: {} employees migrated", total_migrated);
+    
+    co_await source_conn.disconnect();
+    co_await dest_conn.disconnect();
+}
+```
+
+struct UserEvents {
+    static constexpr auto table_name = "user_events";
+    
+    relx::column<UserEvents, "event_id", int, relx::primary_key> event_id;
+    relx::column<UserEvents, "user_id", int> user_id;
+    relx::column<UserEvents, "event_type", std::string> event_type;
+    relx::column<UserEvents, "event_data", std::string> event_data;
+    relx::column<UserEvents, "timestamp", std::string> timestamp;
+    relx::column<UserEvents, "processed", bool> processed;
+};
+
+### Real-time Data Processing Pipeline
+
+```cpp
+boost::asio::awaitable<void> real_time_analytics_pipeline(
+    boost::asio::io_context& io_context,
+    const std::string& conn_string
+) {
+    relx::connection::PostgreSQLAsyncConnection conn(io_context, conn_string);
+    
+    auto connect_result = co_await conn.connect();
+    if (!connect_result) {
+        std::println("Failed to connect: {}", connect_result.error().message);
+        co_return;
+    }
+    
+    UserEvents user_events;
+    
+    // Build query using relx API
+    auto query = relx::select(user_events.event_id, user_events.user_id, user_events.event_type, 
+                             user_events.event_data, user_events.timestamp)
+        .from(user_events)
+        .where(user_events.processed == false)
+        .order_by(user_events.timestamp)
+        .for_update_skip_locked();  // PostgreSQL-specific: avoid blocking
+    
+    // Process streaming events in real-time
+    auto streaming_result = relx::connection::create_async_streaming_result(conn, query);
+    
+    struct EventMetrics {
+        std::unordered_map<std::string, int> event_counts;
+        std::unordered_map<int, int> user_activity;
+        int total_events = 0;
+    } metrics;
+    
+    co_await streaming_result.for_each([&](const auto& lazy_row) -> boost::asio::awaitable<void> {
+        auto event_id = lazy_row.get<int>("event_id");
+        auto user_id = lazy_row.get<int>("user_id");
+        auto event_type = lazy_row.get<std::string>("event_type");
+        auto event_data = lazy_row.get<std::string>("event_data");
+        auto timestamp = lazy_row.get<std::string>("timestamp");
+        
+        if (event_id && user_id && event_type && timestamp) {
+            // Update metrics
+            metrics.event_counts[*event_type]++;
+            metrics.user_activity[*user_id]++;
+            metrics.total_events++;
+            
+            // Process specific event types
+            if (*event_type == "purchase") {
+                // Handle purchase event
+                std::println("Processing purchase by user {}", *user_id);
+                
+                // Update user statistics
+                auto update_result = co_await conn.execute_raw(
+                    "UPDATE user_stats SET total_purchases = total_purchases + 1, "
+                    "last_purchase = $1 WHERE user_id = $2",
+                    {*timestamp, std::to_string(*user_id)}
+                );
+                
+                if (!update_result) {
+                    std::println("Failed to update user stats: {}", 
+                               update_result.error().message);
+                }
+            } else if (*event_type == "page_view") {
+                // Handle page view - lightweight processing
+                if (event_data) {
+                    // Parse page information from JSON data
+                    // ... (JSON parsing logic)
+                }
+            }
+            
+            // Mark event as processed
+            auto mark_processed = co_await conn.execute_raw(
+                "UPDATE user_events SET processed = true WHERE event_id = $1",
+                {std::to_string(*event_id)}
+            );
+            
+            // Print periodic statistics
+            if (metrics.total_events % 100 == 0) {
+                std::println("Processed {} events. Event types:", metrics.total_events);
+                for (const auto& [type, count] : metrics.event_counts) {
+                    std::println("  {}: {}", type, count);
+                }
+            }
+        }
+        
+        co_return;
+    });
+    
+    std::println("Real-time processing complete. Final metrics:");
+    std::println("Total events: {}", metrics.total_events);
+    std::println("Active users: {}", metrics.user_activity.size());
+    
+    co_await conn.disconnect();
+}
+```
+
+### Memory-Efficient Report Generation
+
+```cpp
+void generate_large_report(relx::PostgreSQLConnection& conn) {
+    Employees employees;
+    std::string cutoff_date = "2020-01-01";
+    
+    // Build aggregation query using relx API
+    auto query = relx::select(
+        relx::function("DATE", employees.created_at).as("date"),
+        employees.department_id,
+        relx::function("COUNT", "*").as("user_count"),
+        relx::function("AVG", employees.salary).as("avg_salary"),
+        relx::function("SUM", relx::case_when(employees.active).then(1).else_(0)).as("active_count")
+    )
+    .from(employees)
+    .where(employees.created_at >= cutoff_date)
+    .group_by(relx::function("DATE", employees.created_at), employees.department_id)
+    .order_by(relx::column_ref("date"), employees.department_id);
+    
+    // Generate a report from millions of rows without memory issues
+    auto streaming_result = relx::connection::create_streaming_result(conn, query);
+    
+    std::ofstream report("daily_department_report.csv");
+    report << "Date,Department,UserCount,AvgSalary,ActiveCount,ActiveRate\n";
+    
+    streaming_result.for_each([&](const auto& lazy_row) {
+        auto date = lazy_row.get<std::string>("date");
+        auto dept_id = lazy_row.get<int>("department_id");
+        auto user_count = lazy_row.get<int>("user_count");
+        auto avg_salary = lazy_row.get<double>("avg_salary");
+        auto active_count = lazy_row.get<int>("active_count");
+        
+        if (date && dept_id && user_count && avg_salary && active_count) {
+            double active_rate = static_cast<double>(*active_count) / *user_count * 100.0;
+            
+            report << *date << ","
+                   << *dept_id << ","
+                   << *user_count << ","
+                   << std::fixed << std::setprecision(2) << *avg_salary << ","
+                   << *active_count << ","
+                   << std::fixed << std::setprecision(1) << active_rate << "\n";
+        }
+    });
+    
+    std::println("Report generation complete");
+}
+```
+
+### Benefits of Streaming Approach
+
+- **Constant Memory Usage**: Process datasets larger than available RAM
+- **Better Performance**: Start processing immediately, don't wait for full result
+- **Automatic Cleanup**: RAII ensures connection state is properly managed
+- **Exception Safety**: Proper cleanup even if processing fails
+- **Backpressure Handling**: Process data at your own pace with async streaming
+
+<div class="alert info">
+<strong>💡 For more details:</strong> See the comprehensive <a href="streaming-results.html">Streaming Results</a> guide for complete documentation and additional examples.
+</div>
 
 ## Real-World Application Examples
 

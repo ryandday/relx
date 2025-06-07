@@ -9,6 +9,7 @@ Welcome to the relx documentation. This documentation provides comprehensive gui
 | [Schema Definition](schema-definition.md) | Define tables, columns, and relationships |
 | [Query Building](query-building.md) | Build SQL queries with the fluent API |
 | [Result Parsing](result-parsing.md) | Process query results in a type-safe way |
+| [Streaming Results](streaming-results.md) | Efficient processing of large result sets with lazy parsing |
 | [Error Handling](error-handling.md) | Working with errors and expected results |
 | [Advanced Examples](advanced-examples.md) | Complex query patterns and real-world examples |
 | [Performance Guide](performance.md) | Optimization tips and best practices |
@@ -23,6 +24,7 @@ relx is a modern C++23 library for building and executing SQL queries with compi
 - **Compile-Time Validation**: Catch SQL errors at compile time
 - **Database Execution**: Execute queries against PostgreSQL databases
 - **Result Mapping**: Process results with automatic type conversion
+- **Streaming Results**: Handle large datasets with constant memory usage and lazy parsing
 
 ## Getting Started Example
 
@@ -113,5 +115,6 @@ relx is designed with several key components:
 1. Start with [Schema Definition](schema-definition.md) to learn how to define your database structure
 2. Read [Query Building](query-building.md) to understand the fluent API
 3. Review [Result Parsing](result-parsing.md) for handling query results
-4. Check [Error Handling](error-handling.md) for robust error management
-5. Explore [Advanced Examples](advanced-examples.md) for complex scenarios
+4. Learn [Streaming Results](streaming-results.md) for efficient large dataset processing
+5. Check [Error Handling](error-handling.md) for robust error management
+6. Explore [Advanced Examples](advanced-examples.md) for complex scenarios

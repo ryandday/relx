@@ -13,6 +13,7 @@ Welcome to the **relx** documentation. relx is a modern C++23 library that provi
 - [**Schema Definition**](schema-definition.html) - Define tables, columns, and relationships
 - [**Query Building**](query-building.html) - Build SQL queries with the fluent API  
 - [**Result Parsing**](result-parsing.html) - Process query results in a type-safe way
+- [**Streaming Results**](streaming-results.html) - Efficient processing of large result sets with lazy parsing
 - [**Error Handling**](error-handling.html) - Working with errors and expected results
 
 ### Advanced Topics
@@ -50,6 +51,11 @@ Welcome to the **relx** documentation. relx is a modern C++23 library that provi
 <td><strong>Automatic Mapping</strong></td>
 <td>Map query results directly to C++ types</td>
 <td>Reduce boilerplate, eliminate mapping errors</td>
+</tr>
+<tr>
+<td><strong>Streaming Results</strong></td>
+<td>Process large result sets with constant memory usage</td>
+<td>Handle millions of rows efficiently, automatic cleanup</td>
 </tr>
 <tr>
 <td><strong>Modern C++23</strong></td>
@@ -173,8 +179,9 @@ relx is designed with modularity and performance in mind:
 1. **[Schema Definition](schema-definition.html)** - Learn how to define your database structure as C++ types
 2. **[Query Building](query-building.html)** - Master the fluent API for building type-safe queries  
 3. **[Result Parsing](result-parsing.html)** - Understand how to work with query results
-4. **[Error Handling](error-handling.html)** - Build robust applications with proper error management
-5. **[Advanced Examples](advanced-examples.html)** - Explore complex real-world scenarios
+4. **[Streaming Results](streaming-results.html)** - Efficiently process large datasets with lazy parsing
+5. **[Error Handling](error-handling.html)** - Build robust applications with proper error management
+6. **[Advanced Examples](advanced-examples.html)** - Explore complex real-world scenarios
 
 <div class="alert warning">
 <strong>Prerequisites:</strong> This library requires C++23 support. Make sure you have GCC 11+, Clang 14+, or MSVC 19.29+.

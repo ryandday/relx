@@ -17,6 +17,16 @@ using PGconn = pg_conn;
 
 namespace relx::connection {
 
+/// @brief Helper trait to detect if a type is boost::asio::awaitable
+template <typename T>
+struct is_awaitable : std::false_type {};
+
+template <typename T>
+struct is_awaitable<boost::asio::awaitable<T>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_awaitable_v = is_awaitable<T>::value;
+
 /// @brief Async PostgreSQL streaming data source for processing large result sets
 /// @details This class implements an async-compatible data source interface.
 /// It uses PostgreSQL's single-row mode with async operations to fetch results incrementally.
@@ -118,7 +128,8 @@ public:
   /// @brief Iterator that reads data on demand asynchronously
   class async_streaming_iterator {
   public:
-    async_streaming_iterator(DataSource& source, AsyncStreamingResultSet& result_set, bool at_end = false)
+    async_streaming_iterator(DataSource& source, AsyncStreamingResultSet& result_set,
+                             bool at_end = false)
         : source_(source), result_set_(result_set), current_row_(), at_end_(at_end) {}
 
     /// @brief Get the current row (must be called after advance())
@@ -168,9 +179,9 @@ public:
   AsyncStreamingResultSet& operator=(const AsyncStreamingResultSet&) = delete;
 
   // Allow move operations
-  AsyncStreamingResultSet(AsyncStreamingResultSet&& other) noexcept 
-    : source_(std::move(other.source_)), reset_called_(other.reset_called_) {
-    other.reset_called_ = true; // Prevent cleanup in moved-from object
+  AsyncStreamingResultSet(AsyncStreamingResultSet&& other) noexcept
+      : source_(std::move(other.source_)), reset_called_(other.reset_called_) {
+    other.reset_called_ = true;  // Prevent cleanup in moved-from object
   }
 
   AsyncStreamingResultSet& operator=(AsyncStreamingResultSet&& other) noexcept {
@@ -182,10 +193,10 @@ public:
           source_.get_connection().reset_connection_state_sync();
         }
       }
-      
+
       source_ = std::move(other.source_);
       reset_called_ = other.reset_called_;
-      other.reset_called_ = true; // Prevent cleanup in moved-from object
+      other.reset_called_ = true;  // Prevent cleanup in moved-from object
     }
     return *this;
   }
@@ -197,6 +208,80 @@ public:
   async_streaming_iterator end() { return async_streaming_iterator(source_, *this, true); }
 
   /// @brief Process all rows with an async callback
+  /// @details This method is the recommended way to iterate over async streaming results.
+  ///
+  /// **Why for_each is needed instead of range-based for loops:**
+  ///
+  /// Async streaming cannot use standard C++ range-based for loops because:
+  /// 1. Each row fetch is an async operation that must be awaited
+  /// 2. Range-based for loops expect synchronous iterators with immediate `operator++()`
+  /// 3. The async `advance()` method returns `boost::asio::awaitable<void>`
+  ///
+  /// **Usage Examples:**
+  /// ```cpp
+  /// // Basic processing (void return):
+  /// co_await result.for_each([](const auto& row) {
+  ///     auto id = row.get<int>("id");
+  ///     std::cout << "Processing ID: " << id << std::endl;
+  /// });
+  ///
+  /// // Early termination (bool return - true breaks):
+  /// co_await result.for_each([](const auto& row) -> bool {
+  ///     auto id = row.get<int>("id");
+  ///     std::cout << "Processing ID: " << id << std::endl;
+  ///     return id > 1000; // Break when ID exceeds 1000
+  /// });
+  ///
+  /// // Async processing:
+  /// co_await result.for_each([](const auto& row) -> boost::asio::awaitable<void> {
+  ///     auto id = row.get<int>("id");
+  ///     co_await some_async_operation(id);
+  /// });
+  ///
+  /// // Async processing with early termination:
+  /// co_await result.for_each([](const auto& row) -> boost::asio::awaitable<bool> {
+  ///     auto id = row.get<int>("id");
+  ///     co_await some_async_operation(id);
+  ///     return should_stop_processing(id); // Return true to break
+  /// });
+  /// ```
+  ///
+  /// **Manual Iteration (for finer-grained control):**
+  ///
+  /// If you need more control over the iteration process, you can use manual iteration:
+  /// ```cpp
+  /// auto it = result.begin();
+  /// co_await it.advance(); // Get first row
+  ///
+  /// while (!it.is_at_end()) {
+  ///     const auto& row = *it;
+  ///
+  ///     // Your custom processing logic here
+  ///     auto id = row.get<int>("id");
+  ///
+  ///     // Custom break conditions
+  ///     if (some_complex_condition(row)) {
+  ///         break;
+  ///     }
+  ///
+  ///     // Custom error handling
+  ///     try {
+  ///         co_await it.advance();
+  ///     } catch (const std::exception& e) {
+  ///         // Handle iteration errors
+  ///         break;
+  ///     }
+  /// }
+  /// ```
+  ///
+  /// @tparam Func Function type - can be sync/async, void/bool return
+  /// @param func Callback function to process each row
+  ///   - Signature: `void(const LazyRow&)` - Process each row
+  ///   - Signature: `bool(const LazyRow&)` - Process each row, return true to break
+  ///   - Signature: `boost::asio::awaitable<void>(const LazyRow&)` - Async processing
+  ///   - Signature: `boost::asio::awaitable<bool>(const LazyRow&)` - Async processing with early
+  ///   termination
+  /// @return Awaitable that resolves when all rows are processed or early termination occurs
   template <typename Func>
   boost::asio::awaitable<void> for_each(Func&& func) {
     auto it = begin();
@@ -205,14 +290,45 @@ public:
     co_await it.advance();
 
     while (!it.is_at_end()) {
-      if constexpr (std::is_invocable_v<Func, decltype(*it)>) {
-        func(*it);
+      // Handle different function signatures
+      using ReturnType = std::invoke_result_t<Func, decltype(*it)>;
+
+      if constexpr (is_awaitable_v<ReturnType>) {
+        // Asynchronous function - return type is boost::asio::awaitable<T>
+
+        // Extract the value type from the awaitable
+        using AwaitableValueType = typename ReturnType::value_type;
+
+        if constexpr (std::is_same_v<AwaitableValueType, bool>) {
+          // Async function returning bool - check for early termination
+          bool result = co_await func(*it);
+          if (result) {
+            // Early termination - need to manually reset connection state
+            co_await auto_reset_connection_state();
+            co_return;
+          }
+        } else {
+          // Async function returning void - just await it
+          co_await func(*it);
+        }
       } else {
-        co_await func(*it);
+        // Synchronous function
+        if constexpr (std::is_same_v<ReturnType, bool>) {
+          // Sync function returning bool - check for early termination
+          if (func(*it)) {
+            // Early termination - need to manually reset connection state
+            co_await auto_reset_connection_state();
+            co_return;
+          }
+        } else {
+          // Sync function returning void
+          func(*it);
+        }
       }
+
       co_await it.advance();
     }
-    
+
     // Connection state reset is automatically called when iterator reaches end via advance()
   }
 
@@ -232,7 +348,7 @@ public:
       if constexpr (std::is_same_v<DataSource, PostgreSQLAsyncStreamingSource>) {
         auto reset_result = co_await source_.get_connection().reset_connection_state();
         // Note: We don't propagate reset errors since streaming operation was successful
-        (void)reset_result; // Silence unused variable warning
+        (void)reset_result;  // Silence unused variable warning
       }
     }
   }
