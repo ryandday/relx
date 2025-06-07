@@ -100,18 +100,17 @@ MigrationResult<TableMetadata> extract_table_metadata(const Table& table_instanc
         // Extract column metadata
         ColumnMetadata col_meta;
         col_meta.name = std::string(field_type::name);
-        
+
         try {
           col_meta.sql_definition = field.sql_definition();
         } catch (const std::exception& e) {
-          error = MigrationError::make(
-            MigrationErrorType::MIGRATION_GENERATION_FAILED,
-            "Failed to get SQL definition for column '" + col_meta.name + "': " + e.what(),
-            std::string(Table::table_name)
-          );
+          error = MigrationError::make(MigrationErrorType::MIGRATION_GENERATION_FAILED,
+                                       "Failed to get SQL definition for column '" + col_meta.name +
+                                           "': " + e.what(),
+                                       std::string(Table::table_name));
           return;
         }
-        
+
         col_meta.sql_type = std::string(field_type::sql_type);
         col_meta.nullable = field_type::nullable;
 
@@ -119,15 +118,14 @@ MigrationResult<TableMetadata> extract_table_metadata(const Table& table_instanc
       } else if constexpr (schema::is_constraint<field_type>) {
         // Extract constraint metadata
         ConstraintMetadata constraint_meta;
-        
+
         try {
           constraint_meta.sql_definition = field.sql_definition();
         } catch (const std::exception& e) {
-          error = MigrationError::make(
-            MigrationErrorType::MIGRATION_GENERATION_FAILED,
-            "Failed to get SQL definition for constraint: " + std::string(e.what()),
-            std::string(Table::table_name)
-          );
+          error = MigrationError::make(MigrationErrorType::MIGRATION_GENERATION_FAILED,
+                                       "Failed to get SQL definition for constraint: " +
+                                           std::string(e.what()),
+                                       std::string(Table::table_name));
           return;
         }
 
@@ -170,20 +168,20 @@ MigrationResult<TableMetadata> extract_table_metadata(const Table& table_instanc
 
     return metadata;
   } catch (const std::exception& e) {
-    return std::unexpected(MigrationError::make(
-      MigrationErrorType::MIGRATION_GENERATION_FAILED,
-      "Failed to extract table metadata: " + std::string(e.what()),
-      std::string(Table::table_name)
-    ));
+    return std::unexpected(
+        MigrationError::make(MigrationErrorType::MIGRATION_GENERATION_FAILED,
+                             "Failed to extract table metadata: " + std::string(e.what()),
+                             std::string(Table::table_name)));
   }
 }
 
 /// @brief Generate migration from table metadata differences
-/// @param old_metadata Metadata for the old table version  
+/// @param old_metadata Metadata for the old table version
 /// @param new_metadata Metadata for the new table version
 /// @param options Migration options including column/constraint mappings
 /// @return Migration containing the necessary operations
-MigrationResult<Migration> diff_tables(const TableMetadata& old_metadata, const TableMetadata& new_metadata,
+MigrationResult<Migration> diff_tables(const TableMetadata& old_metadata,
+                                       const TableMetadata& new_metadata,
                                        const MigrationOptions& options = {});
 
 /// @brief Generate migration from old table to new table
@@ -203,7 +201,7 @@ MigrationResult<Migration> generate_migration(const OldTable& old_table, const N
   if (!old_metadata_result) {
     return std::unexpected(old_metadata_result.error());
   }
-  
+
   auto new_metadata_result = extract_table_metadata(new_table);
   if (!new_metadata_result) {
     return std::unexpected(new_metadata_result.error());
@@ -247,22 +245,17 @@ public:
 
   MigrationResult<std::string> to_sql() const override {
     if (column_.sql_definition.empty()) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Column SQL definition cannot be empty",
-        table_name_ + "." + column_.name
-      ));
+      return std::unexpected(MigrationError::make(MigrationErrorType::VALIDATION_FAILED,
+                                                  "Column SQL definition cannot be empty",
+                                                  table_name_ + "." + column_.name));
     }
     return "ALTER TABLE " + table_name_ + " ADD COLUMN " + column_.sql_definition + ";";
   }
 
   MigrationResult<std::string> rollback_sql() const override {
     if (column_.name.empty()) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Column name cannot be empty",
-        table_name_
-      ));
+      return std::unexpected(MigrationError::make(MigrationErrorType::VALIDATION_FAILED,
+                                                  "Column name cannot be empty", table_name_));
     }
     return "ALTER TABLE " + table_name_ + " DROP COLUMN " + column_.name + ";";
   }
@@ -283,22 +276,17 @@ public:
 
   MigrationResult<std::string> to_sql() const override {
     if (column_.name.empty()) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Column name cannot be empty",
-        table_name_
-      ));
+      return std::unexpected(MigrationError::make(MigrationErrorType::VALIDATION_FAILED,
+                                                  "Column name cannot be empty", table_name_));
     }
     return "ALTER TABLE " + table_name_ + " DROP COLUMN " + column_.name + ";";
   }
 
   MigrationResult<std::string> rollback_sql() const override {
     if (column_.sql_definition.empty()) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Column SQL definition cannot be empty",
-        table_name_ + "." + column_.name
-      ));
+      return std::unexpected(MigrationError::make(MigrationErrorType::VALIDATION_FAILED,
+                                                  "Column SQL definition cannot be empty",
+                                                  table_name_ + "." + column_.name));
     }
     return "ALTER TABLE " + table_name_ + " ADD COLUMN " + column_.sql_definition + ";";
   }

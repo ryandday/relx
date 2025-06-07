@@ -1,20 +1,20 @@
-#include <relx/migrations/diff.hpp>
-#include <relx/migrations/constraint_operations.hpp>
 #include <unordered_set>
+
+#include <relx/migrations/constraint_operations.hpp>
+#include <relx/migrations/diff.hpp>
 
 namespace relx::migrations {
 
-MigrationResult<Migration> diff_tables(const TableMetadata& old_metadata, const TableMetadata& new_metadata,
-                                     const MigrationOptions& options) {
+MigrationResult<Migration> diff_tables(const TableMetadata& old_metadata,
+                                       const TableMetadata& new_metadata,
+                                       const MigrationOptions& options) {
   // Validate table names match for migration generation
   if (old_metadata.table_name != new_metadata.table_name) {
     return std::unexpected(MigrationError::make(
-      MigrationErrorType::VALIDATION_FAILED,
-      "Table names must match for migration generation",
-      old_metadata.table_name + " vs " + new_metadata.table_name
-    ));
+        MigrationErrorType::VALIDATION_FAILED, "Table names must match for migration generation",
+        old_metadata.table_name + " vs " + new_metadata.table_name));
   }
-  
+
   Migration migration("diff_" + old_metadata.table_name + "_to_" + new_metadata.table_name);
 
   // Track which columns have been processed to handle renames
@@ -81,18 +81,16 @@ MigrationResult<Migration> diff_tables(const TableMetadata& old_metadata, const 
     } else {
       // Column mapping references non-existent columns
       if (old_it == old_metadata.columns.end()) {
-        return std::unexpected(MigrationError::make(
-          MigrationErrorType::COLUMN_NOT_FOUND,
-          "Column '" + old_name + "' not found in old table definition",
-          old_metadata.table_name
-        ));
+        return std::unexpected(
+            MigrationError::make(MigrationErrorType::COLUMN_NOT_FOUND,
+                                 "Column '" + old_name + "' not found in old table definition",
+                                 old_metadata.table_name));
       }
       if (new_it == new_metadata.columns.end()) {
-        return std::unexpected(MigrationError::make(
-          MigrationErrorType::COLUMN_NOT_FOUND,
-          "Column '" + new_name + "' not found in new table definition",
-          new_metadata.table_name
-        ));
+        return std::unexpected(
+            MigrationError::make(MigrationErrorType::COLUMN_NOT_FOUND,
+                                 "Column '" + new_name + "' not found in new table definition",
+                                 new_metadata.table_name));
       }
     }
   }
@@ -162,4 +160,4 @@ MigrationResult<Migration> diff_tables(const TableMetadata& old_metadata, const 
   return migration;
 }
 
-}  // namespace relx::migrations 
+}  // namespace relx::migrations

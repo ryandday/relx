@@ -32,13 +32,13 @@ struct MigrationError {
   MigrationErrorType type;
   std::string message;
   std::string context;  ///< Additional context (table name, column name, etc.)
-  
+
   /// @brief Create a MigrationError with automatic formatting
-  static MigrationError make(MigrationErrorType type, const std::string& message, 
-                            const std::string& context = "") {
+  static MigrationError make(MigrationErrorType type, const std::string& message,
+                             const std::string& context = "") {
     return MigrationError{type, message, context};
   }
-  
+
   /// @brief Get a formatted error message
   std::string format() const {
     if (context.empty()) {
@@ -75,11 +75,11 @@ public:
   virtual MigrationResult<std::string> to_sql() const = 0;
   virtual MigrationResult<std::string> rollback_sql() const = 0;
   virtual OperationType type() const = 0;
-  virtual MigrationResult<std::vector<std::string>> bind_params() const { 
-    return std::vector<std::string>{}; 
+  virtual MigrationResult<std::vector<std::string>> bind_params() const {
+    return std::vector<std::string>{};
   }
-  virtual MigrationResult<std::vector<std::string>> rollback_bind_params() const { 
-    return std::vector<std::string>{}; 
+  virtual MigrationResult<std::vector<std::string>> rollback_bind_params() const {
+    return std::vector<std::string>{};
   }
 };
 
@@ -92,15 +92,14 @@ private:
 public:
   explicit CreateTableOperation(const Table& table) : table_(table) {}
 
-  MigrationResult<std::string> to_sql() const override { 
+  MigrationResult<std::string> to_sql() const override {
     try {
       return schema::create_table(table_).to_sql();
     } catch (const std::exception& e) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::SQL_GENERATION_FAILED,
-        "Failed to generate CREATE TABLE SQL: " + std::string(e.what()),
-        std::string(Table::table_name)
-      ));
+      return std::unexpected(
+          MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
+                               "Failed to generate CREATE TABLE SQL: " + std::string(e.what()),
+                               std::string(Table::table_name)));
     }
   }
 
@@ -108,11 +107,10 @@ public:
     try {
       return schema::drop_table(table_).if_exists().to_sql();
     } catch (const std::exception& e) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::SQL_GENERATION_FAILED,
-        "Failed to generate DROP TABLE SQL: " + std::string(e.what()),
-        std::string(Table::table_name)
-      ));
+      return std::unexpected(
+          MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
+                               "Failed to generate DROP TABLE SQL: " + std::string(e.what()),
+                               std::string(Table::table_name)));
     }
   }
 
@@ -128,15 +126,14 @@ private:
 public:
   explicit DropTableOperation(const Table& table) : table_(table) {}
 
-  MigrationResult<std::string> to_sql() const override { 
+  MigrationResult<std::string> to_sql() const override {
     try {
       return schema::drop_table(table_).if_exists().to_sql();
     } catch (const std::exception& e) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::SQL_GENERATION_FAILED,
-        "Failed to generate DROP TABLE SQL: " + std::string(e.what()),
-        std::string(Table::table_name)
-      ));
+      return std::unexpected(
+          MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
+                               "Failed to generate DROP TABLE SQL: " + std::string(e.what()),
+                               std::string(Table::table_name)));
     }
   }
 
@@ -144,11 +141,10 @@ public:
     try {
       return schema::create_table(table_).to_sql();
     } catch (const std::exception& e) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::SQL_GENERATION_FAILED,
-        "Failed to generate CREATE TABLE SQL: " + std::string(e.what()),
-        std::string(Table::table_name)
-      ));
+      return std::unexpected(
+          MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
+                               "Failed to generate CREATE TABLE SQL: " + std::string(e.what()),
+                               std::string(Table::table_name)));
     }
   }
 
@@ -170,11 +166,10 @@ public:
     try {
       return "ALTER TABLE " + table_name_ + " ADD COLUMN " + column_.sql_definition() + ";";
     } catch (const std::exception& e) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::SQL_GENERATION_FAILED,
-        "Failed to generate ADD COLUMN SQL: " + std::string(e.what()),
-        table_name_ + "." + std::string(Column::name)
-      ));
+      return std::unexpected(
+          MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
+                               "Failed to generate ADD COLUMN SQL: " + std::string(e.what()),
+                               table_name_ + "." + std::string(Column::name)));
     }
   }
 
@@ -182,11 +177,10 @@ public:
     try {
       return "ALTER TABLE " + table_name_ + " DROP COLUMN " + std::string(Column::name) + ";";
     } catch (const std::exception& e) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::SQL_GENERATION_FAILED,
-        "Failed to generate DROP COLUMN SQL: " + std::string(e.what()),
-        table_name_ + "." + std::string(Column::name)
-      ));
+      return std::unexpected(
+          MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
+                               "Failed to generate DROP COLUMN SQL: " + std::string(e.what()),
+                               table_name_ + "." + std::string(Column::name)));
     }
   }
 
@@ -208,11 +202,10 @@ public:
     try {
       return "ALTER TABLE " + table_name_ + " DROP COLUMN " + std::string(Column::name) + ";";
     } catch (const std::exception& e) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::SQL_GENERATION_FAILED,
-        "Failed to generate DROP COLUMN SQL: " + std::string(e.what()),
-        table_name_ + "." + std::string(Column::name)
-      ));
+      return std::unexpected(
+          MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
+                               "Failed to generate DROP COLUMN SQL: " + std::string(e.what()),
+                               table_name_ + "." + std::string(Column::name)));
     }
   }
 
@@ -220,11 +213,10 @@ public:
     try {
       return "ALTER TABLE " + table_name_ + " ADD COLUMN " + column_.sql_definition() + ";";
     } catch (const std::exception& e) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::SQL_GENERATION_FAILED,
-        "Failed to generate ADD COLUMN SQL: " + std::string(e.what()),
-        table_name_ + "." + std::string(Column::name)
-      ));
+      return std::unexpected(
+          MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
+                               "Failed to generate ADD COLUMN SQL: " + std::string(e.what()),
+                               table_name_ + "." + std::string(Column::name)));
     }
   }
 
@@ -246,10 +238,8 @@ public:
   MigrationResult<std::string> to_sql() const override {
     if (old_name_.empty() || new_name_.empty()) {
       return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Column names cannot be empty",
-        table_name_ + "." + old_name_ + " -> " + new_name_
-      ));
+          MigrationErrorType::VALIDATION_FAILED, "Column names cannot be empty",
+          table_name_ + "." + old_name_ + " -> " + new_name_));
     }
     return "ALTER TABLE " + table_name_ + " RENAME COLUMN " + old_name_ + " TO " + new_name_ + ";";
   }
@@ -257,10 +247,8 @@ public:
   MigrationResult<std::string> rollback_sql() const override {
     if (old_name_.empty() || new_name_.empty()) {
       return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Column names cannot be empty",
-        table_name_ + "." + new_name_ + " -> " + old_name_
-      ));
+          MigrationErrorType::VALIDATION_FAILED, "Column names cannot be empty",
+          table_name_ + "." + new_name_ + " -> " + old_name_));
     }
     return "ALTER TABLE " + table_name_ + " RENAME COLUMN " + new_name_ + " TO " + old_name_ + ";";
   }
@@ -283,23 +271,21 @@ public:
   MigrationResult<std::string> to_sql() const override {
     if (old_name_.empty() || new_name_.empty()) {
       return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Constraint names cannot be empty",
-        table_name_ + " constraint: " + old_name_ + " -> " + new_name_
-      ));
+          MigrationErrorType::VALIDATION_FAILED, "Constraint names cannot be empty",
+          table_name_ + " constraint: " + old_name_ + " -> " + new_name_));
     }
-    return "ALTER TABLE " + table_name_ + " RENAME CONSTRAINT " + old_name_ + " TO " + new_name_ + ";";
+    return "ALTER TABLE " + table_name_ + " RENAME CONSTRAINT " + old_name_ + " TO " + new_name_ +
+           ";";
   }
 
   MigrationResult<std::string> rollback_sql() const override {
     if (old_name_.empty() || new_name_.empty()) {
       return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Constraint names cannot be empty",
-        table_name_ + " constraint: " + new_name_ + " -> " + old_name_
-      ));
+          MigrationErrorType::VALIDATION_FAILED, "Constraint names cannot be empty",
+          table_name_ + " constraint: " + new_name_ + " -> " + old_name_));
     }
-    return "ALTER TABLE " + table_name_ + " RENAME CONSTRAINT " + new_name_ + " TO " + old_name_ + ";";
+    return "ALTER TABLE " + table_name_ + " RENAME CONSTRAINT " + new_name_ + " TO " + old_name_ +
+           ";";
   }
 
   OperationType type() const override { return OperationType::RENAME_CONSTRAINT; }
@@ -323,22 +309,18 @@ public:
 
   MigrationResult<std::string> to_sql() const override {
     if (forward_transform_.empty()) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Forward transformation cannot be empty",
-        table_name_ + "." + target_column_
-      ));
+      return std::unexpected(MigrationError::make(MigrationErrorType::VALIDATION_FAILED,
+                                                  "Forward transformation cannot be empty",
+                                                  table_name_ + "." + target_column_));
     }
     return "UPDATE " + table_name_ + " SET " + target_column_ + " = " + forward_transform_ + ";";
   }
 
   MigrationResult<std::string> rollback_sql() const override {
     if (backward_transform_.empty()) {
-      return std::unexpected(MigrationError::make(
-        MigrationErrorType::VALIDATION_FAILED,
-        "Backward transformation cannot be empty",
-        table_name_ + "." + source_column_
-      ));
+      return std::unexpected(MigrationError::make(MigrationErrorType::VALIDATION_FAILED,
+                                                  "Backward transformation cannot be empty",
+                                                  table_name_ + "." + source_column_));
     }
     return "UPDATE " + table_name_ + " SET " + source_column_ + " = " + backward_transform_ + ";";
   }
@@ -365,7 +347,7 @@ public:
   MigrationResult<std::vector<std::string>> forward_sql() const {
     std::vector<std::string> sqls;
     sqls.reserve(operations_.size());
-    
+
     for (const auto& op : operations_) {
       auto sql_result = op->to_sql();
       if (!sql_result) {
@@ -380,7 +362,7 @@ public:
   MigrationResult<std::vector<std::string>> rollback_sql() const {
     std::vector<std::string> sqls;
     sqls.reserve(operations_.size());
-    
+
     // Rollback operations should be in reverse order
     for (auto it = operations_.rbegin(); it != operations_.rend(); ++it) {
       auto sql_result = (*it)->rollback_sql();
