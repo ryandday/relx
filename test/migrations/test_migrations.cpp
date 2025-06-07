@@ -55,7 +55,10 @@ struct SimpleTable {
 
 TEST(MigrationsTest, ExtractTableMetadata) {
     UsersV1 users_v1;
-    auto metadata = migrations::extract_table_metadata(users_v1);
+    auto metadata_result = migrations::extract_table_metadata(users_v1);
+    
+    ASSERT_TRUE(metadata_result) << "Failed to extract metadata: " << metadata_result.error().format();
+    const auto& metadata = *metadata_result;
     
     EXPECT_EQ(metadata.table_name, "users");
     EXPECT_EQ(metadata.columns.size(), 3);
@@ -66,10 +69,10 @@ TEST(MigrationsTest, ExtractTableMetadata) {
     ASSERT_TRUE(metadata.columns.contains("email"));
     
     // Check column properties
-    EXPECT_EQ(metadata.columns["id"].name, "id");
-    EXPECT_FALSE(metadata.columns["id"].nullable);
-    EXPECT_EQ(metadata.columns["name"].name, "name");
-    EXPECT_EQ(metadata.columns["email"].name, "email");
+    EXPECT_EQ(metadata.columns.at("id").name, "id");
+    EXPECT_FALSE(metadata.columns.at("id").nullable);
+    EXPECT_EQ(metadata.columns.at("name").name, "name");
+    EXPECT_EQ(metadata.columns.at("email").name, "email");
     
     // Check that constraints are extracted
     EXPECT_GT(metadata.constraints.size(), 0);
@@ -79,12 +82,17 @@ TEST(MigrationsTest, GenerateAddColumnMigration) {
     UsersV1 old_users;
     UsersV2 new_users;
     
-    auto migration = relx::migrations::generate_migration(old_users, new_users);
+    auto migration_result = relx::migrations::generate_migration(old_users, new_users);
+    
+    ASSERT_TRUE(migration_result) << "Failed to generate migration: " << migration_result.error().format();
+    const auto& migration = *migration_result;
     
     EXPECT_FALSE(migration.empty());
     EXPECT_EQ(migration.size(), 2); // Should have 2 new columns
     
-    auto forward_sqls = migration.forward_sql();
+    auto forward_result = migration.forward_sql();
+    ASSERT_TRUE(forward_result) << "Failed to generate forward SQL: " << forward_result.error().format();
+    const auto& forward_sqls = *forward_result;
     ASSERT_EQ(forward_sqls.size(), 2);
     
     // Check exact SQL for adding columns
@@ -92,7 +100,9 @@ TEST(MigrationsTest, GenerateAddColumnMigration) {
     EXPECT_EQ(forward_sqls[1], "ALTER TABLE users ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;");
     
     // Check rollback SQL - should drop columns in reverse order
-    auto rollback_sqls = migration.rollback_sql();
+    auto rollback_result = migration.rollback_sql();
+    ASSERT_TRUE(rollback_result) << "Failed to generate rollback SQL: " << rollback_result.error().format();
+    const auto& rollback_sqls = *rollback_result;
     ASSERT_EQ(rollback_sqls.size(), 2);
     
     EXPECT_EQ(rollback_sqls[0], "ALTER TABLE users DROP COLUMN created_at;");
@@ -103,12 +113,17 @@ TEST(MigrationsTest, GenerateDropColumnMigration) {
     UsersV2 old_users;
     UsersV3 new_users;
     
-    auto migration = relx::migrations::generate_migration(old_users, new_users);
+    auto migration_result = relx::migrations::generate_migration(old_users, new_users);
+    
+    ASSERT_TRUE(migration_result) << "Failed to generate migration: " << migration_result.error().format();
+    const auto& migration = *migration_result;
     
     EXPECT_FALSE(migration.empty());
     EXPECT_EQ(migration.size(), 2); // Should drop unique constraint AND column (email)
     
-    auto forward_sqls = migration.forward_sql();
+    auto forward_result = migration.forward_sql();
+    ASSERT_TRUE(forward_result) << "Failed to generate forward SQL: " << forward_result.error().format();
+    const auto& forward_sqls = *forward_result;
     ASSERT_EQ(forward_sqls.size(), 2);
     
     // Check that we drop both the constraint and the column
@@ -128,7 +143,9 @@ TEST(MigrationsTest, GenerateDropColumnMigration) {
     EXPECT_TRUE(found_drop_column);
     
     // Check rollback SQL adds them back
-    auto rollback_sqls = migration.rollback_sql();
+    auto rollback_result = migration.rollback_sql();
+    ASSERT_TRUE(rollback_result) << "Failed to generate rollback SQL: " << rollback_result.error().format();
+    const auto& rollback_sqls = *rollback_result;
     ASSERT_EQ(rollback_sqls.size(), 2);
     
     bool found_add_constraint = false;
@@ -150,12 +167,17 @@ TEST(MigrationsTest, GenerateDropColumnMigration) {
 TEST(MigrationsTest, GenerateCreateTableMigration) {
     SimpleTable simple_table;
     
-    auto migration = relx::migrations::generate_create_table_migration(simple_table);
+    auto migration_result = relx::migrations::generate_create_table_migration(simple_table);
+    
+    ASSERT_TRUE(migration_result) << "Failed to generate create migration: " << migration_result.error().format();
+    const auto& migration = *migration_result;
     
     EXPECT_FALSE(migration.empty());
     EXPECT_EQ(migration.size(), 1);
     
-    auto forward_sqls = migration.forward_sql();
+    auto forward_result = migration.forward_sql();
+    ASSERT_TRUE(forward_result) << "Failed to generate forward SQL: " << forward_result.error().format();
+    const auto& forward_sqls = *forward_result;
     ASSERT_EQ(forward_sqls.size(), 1);
     
     // Check exact SQL for table creation
@@ -167,7 +189,9 @@ TEST(MigrationsTest, GenerateCreateTableMigration) {
     EXPECT_EQ(forward_sqls[0], expected_create);
     
     // Check rollback drops the table
-    auto rollback_sqls = migration.rollback_sql();
+    auto rollback_result = migration.rollback_sql();
+    ASSERT_TRUE(rollback_result) << "Failed to generate rollback SQL: " << rollback_result.error().format();
+    const auto& rollback_sqls = *rollback_result;
     ASSERT_EQ(rollback_sqls.size(), 1);
     
     EXPECT_EQ(rollback_sqls[0], "DROP TABLE IF EXISTS simple_table;");
@@ -176,19 +200,26 @@ TEST(MigrationsTest, GenerateCreateTableMigration) {
 TEST(MigrationsTest, GenerateDropTableMigration) {
     SimpleTable simple_table;
     
-    auto migration = migrations::generate_drop_table_migration(simple_table);
+    auto migration_result = migrations::generate_drop_table_migration(simple_table);
+    
+    ASSERT_TRUE(migration_result) << "Failed to generate drop migration: " << migration_result.error().format();
+    const auto& migration = *migration_result;
     
     EXPECT_FALSE(migration.empty());
     EXPECT_EQ(migration.size(), 1);
     
-    auto forward_sqls = migration.forward_sql();
+    auto forward_result = migration.forward_sql();
+    ASSERT_TRUE(forward_result) << "Failed to generate forward SQL: " << forward_result.error().format();
+    const auto& forward_sqls = *forward_result;
     ASSERT_EQ(forward_sqls.size(), 1);
     
     // Check exact SQL for table drop
     EXPECT_EQ(forward_sqls[0], "DROP TABLE IF EXISTS simple_table;");
     
     // Check rollback creates the table
-    auto rollback_sqls = migration.rollback_sql();
+    auto rollback_result = migration.rollback_sql();
+    ASSERT_TRUE(rollback_result) << "Failed to generate rollback SQL: " << rollback_result.error().format();
+    const auto& rollback_sqls = *rollback_result;
     ASSERT_EQ(rollback_sqls.size(), 1);
     
     std::string expected_create = "CREATE TABLE simple_table (\n"
@@ -203,15 +234,22 @@ TEST(MigrationsTest, EmptyMigrationForIdenticalTables) {
     UsersV1 users1;
     UsersV1 users2;
     
-    auto migration = migrations::generate_migration(users1, users2);
+    auto migration_result = migrations::generate_migration(users1, users2);
+    
+    ASSERT_TRUE(migration_result) << "Failed to generate migration: " << migration_result.error().format();
+    const auto& migration = *migration_result;
     
     EXPECT_TRUE(migration.empty());
     EXPECT_EQ(migration.size(), 0);
     
-    auto forward_sqls = migration.forward_sql();
+    auto forward_result = migration.forward_sql();
+    ASSERT_TRUE(forward_result) << "Failed to generate forward SQL: " << forward_result.error().format();
+    const auto& forward_sqls = *forward_result;
     EXPECT_EQ(forward_sqls.size(), 0);
     
-    auto rollback_sqls = migration.rollback_sql();
+    auto rollback_result = migration.rollback_sql();
+    ASSERT_TRUE(rollback_result) << "Failed to generate rollback SQL: " << rollback_result.error().format();
+    const auto& rollback_sqls = *rollback_result;
     EXPECT_EQ(rollback_sqls.size(), 0);
 }
 
@@ -219,14 +257,20 @@ TEST(MigrationsTest, MigrationNaming) {
     UsersV1 old_users;
     UsersV2 new_users;
     
-    auto migration = migrations::generate_migration(old_users, new_users);
+    auto migration_result = migrations::generate_migration(old_users, new_users);
+    ASSERT_TRUE(migration_result) << "Failed to generate migration: " << migration_result.error().format();
+    const auto& migration = *migration_result;
     
     EXPECT_EQ(migration.name(), "diff_users_to_users");
     
-    auto create_migration = migrations::generate_create_table_migration(old_users);
+    auto create_result = migrations::generate_create_table_migration(old_users);
+    ASSERT_TRUE(create_result) << "Failed to generate create migration: " << create_result.error().format();
+    const auto& create_migration = *create_result;
     EXPECT_EQ(create_migration.name(), "create_users");
     
-    auto drop_migration = migrations::generate_drop_table_migration(old_users);
+    auto drop_result = migrations::generate_drop_table_migration(old_users);
+    ASSERT_TRUE(drop_result) << "Failed to generate drop migration: " << drop_result.error().format();
+    const auto& drop_migration = *drop_result;
     EXPECT_EQ(drop_migration.name(), "drop_users");
 }
 
@@ -236,21 +280,28 @@ TEST(MigrationsTest, DemoUsage) {
     UsersV2 new_users;
     
     // Generate migration from V1 to V2
-    auto migration = migrations::generate_migration(old_users, new_users);
+    auto migration_result = migrations::generate_migration(old_users, new_users);
+    
+    ASSERT_TRUE(migration_result) << "Failed to generate migration: " << migration_result.error().format();
+    const auto& migration = *migration_result;
     
     std::cout << "\n=== Migration Demo ===\n";
     std::cout << "Migration: " << migration.name() << "\n";
     std::cout << "Operations: " << migration.size() << "\n\n";
     
     // Show forward migration SQL
-    auto forward_sqls = migration.forward_sql();
+    auto forward_result = migration.forward_sql();
+    ASSERT_TRUE(forward_result) << "Failed to generate forward SQL: " << forward_result.error().format();
+    const auto& forward_sqls = *forward_result;
     std::cout << "Forward Migration SQL:\n";
     for (size_t i = 0; i < forward_sqls.size(); ++i) {
         std::cout << (i + 1) << ". " << forward_sqls[i] << "\n";
     }
     
     // Show rollback migration SQL
-    auto rollback_sqls = migration.rollback_sql();
+    auto rollback_result = migration.rollback_sql();
+    ASSERT_TRUE(rollback_result) << "Failed to generate rollback SQL: " << rollback_result.error().format();
+    const auto& rollback_sqls = *rollback_result;
     std::cout << "\nRollback Migration SQL:\n";
     for (size_t i = 0; i < rollback_sqls.size(); ++i) {
         std::cout << (i + 1) << ". " << rollback_sqls[i] << "\n";
@@ -355,9 +406,17 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     OriginalTable orig_table;
     ModifiedTypeTable mod_table;
     
-    auto type_migration = migrations::generate_migration(orig_table, mod_table);
-    auto type_forward = type_migration.forward_sql();
-    auto type_rollback = type_migration.rollback_sql();
+    auto type_migration_result = migrations::generate_migration(orig_table, mod_table);
+    ASSERT_TRUE(type_migration_result) << "Failed to generate type migration: " << type_migration_result.error().format();
+    const auto& type_migration = *type_migration_result;
+    
+    auto type_forward_result = type_migration.forward_sql();
+    ASSERT_TRUE(type_forward_result) << "Failed to generate type forward SQL: " << type_forward_result.error().format();
+    const auto& type_forward = *type_forward_result;
+    
+    auto type_rollback_result = type_migration.rollback_sql();
+    ASSERT_TRUE(type_rollback_result) << "Failed to generate type rollback SQL: " << type_rollback_result.error().format();
+    const auto& type_rollback = *type_rollback_result;
     
     std::cout << "Type change migration operations: " << type_migration.size() << std::endl;
     std::cout << "Forward SQL count: " << type_forward.size() << std::endl;
@@ -376,9 +435,17 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     TableWithoutConstraints table_no_constraints;
     TableWithConstraints table_with_constraints;
     
-    auto constraint_migration = migrations::generate_migration(table_no_constraints, table_with_constraints);
-    auto constraint_forward = constraint_migration.forward_sql();
-    auto constraint_rollback = constraint_migration.rollback_sql();
+    auto constraint_migration_result = migrations::generate_migration(table_no_constraints, table_with_constraints);
+    ASSERT_TRUE(constraint_migration_result) << "Failed to generate constraint migration: " << constraint_migration_result.error().format();
+    const auto& constraint_migration = *constraint_migration_result;
+    
+    auto constraint_forward_result = constraint_migration.forward_sql();
+    ASSERT_TRUE(constraint_forward_result) << "Failed to generate constraint forward SQL: " << constraint_forward_result.error().format();
+    const auto& constraint_forward = *constraint_forward_result;
+    
+    auto constraint_rollback_result = constraint_migration.rollback_sql();
+    ASSERT_TRUE(constraint_rollback_result) << "Failed to generate constraint rollback SQL: " << constraint_rollback_result.error().format();
+    const auto& constraint_rollback = *constraint_rollback_result;
     
     std::cout << "Constraint migration operations: " << constraint_migration.size() << std::endl;
     std::cout << "Forward SQL count: " << constraint_forward.size() << std::endl;
@@ -397,9 +464,17 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     NullableTable nullable_table;
     NonNullableTable non_nullable_table;
     
-    auto nullable_migration = migrations::generate_migration(nullable_table, non_nullable_table);
-    auto nullable_forward = nullable_migration.forward_sql();
-    auto nullable_rollback = nullable_migration.rollback_sql();
+    auto nullable_migration_result = migrations::generate_migration(nullable_table, non_nullable_table);
+    ASSERT_TRUE(nullable_migration_result) << "Failed to generate nullable migration: " << nullable_migration_result.error().format();
+    const auto& nullable_migration = *nullable_migration_result;
+    
+    auto nullable_forward_result = nullable_migration.forward_sql();
+    ASSERT_TRUE(nullable_forward_result) << "Failed to generate nullable forward SQL: " << nullable_forward_result.error().format();
+    const auto& nullable_forward = *nullable_forward_result;
+    
+    auto nullable_rollback_result = nullable_migration.rollback_sql();
+    ASSERT_TRUE(nullable_rollback_result) << "Failed to generate nullable rollback SQL: " << nullable_rollback_result.error().format();
+    const auto& nullable_rollback = *nullable_rollback_result;
     
     std::cout << "Nullability migration operations: " << nullable_migration.size() << std::endl;
     std::cout << "Forward SQL count: " << nullable_forward.size() << std::endl;
@@ -418,9 +493,17 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     TableNoDefaults table_no_defaults;
     TableWithDefaults table_with_defaults;
     
-    auto defaults_migration = migrations::generate_migration(table_no_defaults, table_with_defaults);
-    auto defaults_forward = defaults_migration.forward_sql();
-    auto defaults_rollback = defaults_migration.rollback_sql();
+    auto defaults_migration_result = migrations::generate_migration(table_no_defaults, table_with_defaults);
+    ASSERT_TRUE(defaults_migration_result) << "Failed to generate defaults migration: " << defaults_migration_result.error().format();
+    const auto& defaults_migration = *defaults_migration_result;
+    
+    auto defaults_forward_result = defaults_migration.forward_sql();
+    ASSERT_TRUE(defaults_forward_result) << "Failed to generate defaults forward SQL: " << defaults_forward_result.error().format();
+    const auto& defaults_forward = *defaults_forward_result;
+    
+    auto defaults_rollback_result = defaults_migration.rollback_sql();
+    ASSERT_TRUE(defaults_rollback_result) << "Failed to generate defaults rollback SQL: " << defaults_rollback_result.error().format();
+    const auto& defaults_rollback = *defaults_rollback_result;
     
     std::cout << "Defaults migration operations: " << defaults_migration.size() << std::endl;
     std::cout << "Forward SQL count: " << defaults_forward.size() << std::endl;
@@ -483,9 +566,17 @@ TEST(MigrationsTest, TestDropConstraintOperations) {
     TableWithoutConstraints table_no_constraints;
     
     // Test dropping constraints (going from constraints to no constraints)
-    auto drop_constraint_migration = migrations::generate_migration(table_with_constraints, table_no_constraints);
-    auto drop_forward = drop_constraint_migration.forward_sql();
-    auto drop_rollback = drop_constraint_migration.rollback_sql();
+    auto drop_constraint_migration_result = migrations::generate_migration(table_with_constraints, table_no_constraints);
+    ASSERT_TRUE(drop_constraint_migration_result) << "Failed to generate drop constraint migration: " << drop_constraint_migration_result.error().format();
+    const auto& drop_constraint_migration = *drop_constraint_migration_result;
+    
+    auto drop_forward_result = drop_constraint_migration.forward_sql();
+    ASSERT_TRUE(drop_forward_result) << "Failed to generate drop forward SQL: " << drop_forward_result.error().format();
+    const auto& drop_forward = *drop_forward_result;
+    
+    auto drop_rollback_result = drop_constraint_migration.rollback_sql();
+    ASSERT_TRUE(drop_rollback_result) << "Failed to generate drop rollback SQL: " << drop_rollback_result.error().format();
+    const auto& drop_rollback = *drop_rollback_result;
     
     std::cout << "Drop constraint operations: " << drop_constraint_migration.size() << std::endl;
     std::cout << "Forward SQL count: " << drop_forward.size() << std::endl;
@@ -526,9 +617,17 @@ TEST(MigrationsTest, TestIndexOperations) {
     TableWithIndex table_with_index;
     
     // Test adding index (via unique constraint)
-    auto add_index_migration = migrations::generate_migration(table_no_index, table_with_index);
-    auto add_index_forward = add_index_migration.forward_sql();
-    auto add_index_rollback = add_index_migration.rollback_sql();
+    auto add_index_migration_result = migrations::generate_migration(table_no_index, table_with_index);
+    ASSERT_TRUE(add_index_migration_result) << "Failed to generate add index migration: " << add_index_migration_result.error().format();
+    const auto& add_index_migration = *add_index_migration_result;
+    
+    auto add_index_forward_result = add_index_migration.forward_sql();
+    ASSERT_TRUE(add_index_forward_result) << "Failed to generate add index forward SQL: " << add_index_forward_result.error().format();
+    const auto& add_index_forward = *add_index_forward_result;
+    
+    auto add_index_rollback_result = add_index_migration.rollback_sql();
+    ASSERT_TRUE(add_index_rollback_result) << "Failed to generate add index rollback SQL: " << add_index_rollback_result.error().format();
+    const auto& add_index_rollback = *add_index_rollback_result;
     
     std::cout << "Add index migration operations: " << add_index_migration.size() << std::endl;
     std::cout << "Forward SQL count: " << add_index_forward.size() << std::endl;
@@ -539,9 +638,17 @@ TEST(MigrationsTest, TestIndexOperations) {
     }
     
     // Test dropping index (via unique constraint)
-    auto drop_index_migration = migrations::generate_migration(table_with_index, table_no_index);
-    auto drop_index_forward = drop_index_migration.forward_sql();
-    auto drop_index_rollback = drop_index_migration.rollback_sql();
+    auto drop_index_migration_result = migrations::generate_migration(table_with_index, table_no_index);
+    ASSERT_TRUE(drop_index_migration_result) << "Failed to generate drop index migration: " << drop_index_migration_result.error().format();
+    const auto& drop_index_migration = *drop_index_migration_result;
+    
+    auto drop_index_forward_result = drop_index_migration.forward_sql();
+    ASSERT_TRUE(drop_index_forward_result) << "Failed to generate drop index forward SQL: " << drop_index_forward_result.error().format();
+    const auto& drop_index_forward = *drop_index_forward_result;
+    
+    auto drop_index_rollback_result = drop_index_migration.rollback_sql();
+    ASSERT_TRUE(drop_index_rollback_result) << "Failed to generate drop index rollback SQL: " << drop_index_rollback_result.error().format();
+    const auto& drop_index_rollback = *drop_index_rollback_result;
     
     std::cout << "Drop index migration operations: " << drop_index_migration.size() << std::endl;
     std::cout << "Forward SQL count: " << drop_index_forward.size() << std::endl;
@@ -604,9 +711,17 @@ TEST(MigrationsTest, TestColumnRenaming) {
     
     // Test 1: Without mappings - should see drop/add operations (data loss)
     std::cout << "\n1. Migration WITHOUT column mappings (data loss):" << std::endl;
-    auto migration_without_mappings = migrations::generate_migration(old_table, new_table);
-    auto forward_no_mappings = migration_without_mappings.forward_sql();
-    auto rollback_no_mappings = migration_without_mappings.rollback_sql();
+    auto migration_without_mappings_result = migrations::generate_migration(old_table, new_table);
+    ASSERT_TRUE(migration_without_mappings_result) << "Failed to generate migration without mappings: " << migration_without_mappings_result.error().format();
+    const auto& migration_without_mappings = *migration_without_mappings_result;
+    
+    auto forward_no_mappings_result = migration_without_mappings.forward_sql();
+    ASSERT_TRUE(forward_no_mappings_result) << "Failed to generate forward SQL without mappings: " << forward_no_mappings_result.error().format();
+    const auto& forward_no_mappings = *forward_no_mappings_result;
+    
+    auto rollback_no_mappings_result = migration_without_mappings.rollback_sql();
+    ASSERT_TRUE(rollback_no_mappings_result) << "Failed to generate rollback SQL without mappings: " << rollback_no_mappings_result.error().format();
+    const auto& rollback_no_mappings = *rollback_no_mappings_result;
     
     std::cout << "Operations without mappings: " << migration_without_mappings.size() << std::endl;
     for (size_t i = 0; i < forward_no_mappings.size(); ++i) {
@@ -626,9 +741,17 @@ TEST(MigrationsTest, TestColumnRenaming) {
         {"phone", "phone_number"}
     };
     
-    auto migration_with_mappings = migrations::generate_migration(old_table, new_table, options);
-    auto forward_with_mappings = migration_with_mappings.forward_sql();
-    auto rollback_with_mappings = migration_with_mappings.rollback_sql();
+    auto migration_with_mappings_result = migrations::generate_migration(old_table, new_table, options);
+    ASSERT_TRUE(migration_with_mappings_result) << "Failed to generate migration with mappings: " << migration_with_mappings_result.error().format();
+    const auto& migration_with_mappings = *migration_with_mappings_result;
+    
+    auto forward_with_mappings_result = migration_with_mappings.forward_sql();
+    ASSERT_TRUE(forward_with_mappings_result) << "Failed to generate forward SQL with mappings: " << forward_with_mappings_result.error().format();
+    const auto& forward_with_mappings = *forward_with_mappings_result;
+    
+    auto rollback_with_mappings_result = migration_with_mappings.rollback_sql();
+    ASSERT_TRUE(rollback_with_mappings_result) << "Failed to generate rollback SQL with mappings: " << rollback_with_mappings_result.error().format();
+    const auto& rollback_with_mappings = *rollback_with_mappings_result;
     
     std::cout << "Operations with mappings: " << migration_with_mappings.size() << std::endl;
     for (size_t i = 0; i < forward_with_mappings.size(); ++i) {
@@ -683,9 +806,17 @@ TEST(MigrationsTest, TestColumnRenameWithTypeChange) {
         {"price_cents", "price_dollars"}
     };
     
-    auto migration = migrations::generate_migration(old_table, new_table, options);
-    auto forward_sql = migration.forward_sql();
-    auto rollback_sql = migration.rollback_sql();
+    auto migration_result = migrations::generate_migration(old_table, new_table, options);
+    ASSERT_TRUE(migration_result) << "Failed to generate migration: " << migration_result.error().format();
+    const auto& migration = *migration_result;
+    
+    auto forward_sql_result = migration.forward_sql();
+    ASSERT_TRUE(forward_sql_result) << "Failed to generate forward SQL: " << forward_sql_result.error().format();
+    const auto& forward_sql = *forward_sql_result;
+    
+    auto rollback_sql_result = migration.rollback_sql();
+    ASSERT_TRUE(rollback_sql_result) << "Failed to generate rollback SQL: " << rollback_sql_result.error().format();
+    const auto& rollback_sql = *rollback_sql_result;
     
     std::cout << "Rename + type change operations: " << migration.size() << std::endl;
     for (size_t i = 0; i < forward_sql.size(); ++i) {
@@ -724,9 +855,17 @@ TEST(MigrationsTest, TestBidirectionalTransformations) {
         }}
     };
     
-    auto migration = migrations::generate_migration(old_table, new_table, options);
-    auto forward_sql = migration.forward_sql();
-    auto rollback_sql = migration.rollback_sql();
+    auto migration_result = migrations::generate_migration(old_table, new_table, options);
+    ASSERT_TRUE(migration_result) << "Failed to generate migration: " << migration_result.error().format();
+    const auto& migration = *migration_result;
+    
+    auto forward_sql_result = migration.forward_sql();
+    ASSERT_TRUE(forward_sql_result) << "Failed to generate forward SQL: " << forward_sql_result.error().format();
+    const auto& forward_sql = *forward_sql_result;
+    
+    auto rollback_sql_result = migration.rollback_sql();
+    ASSERT_TRUE(rollback_sql_result) << "Failed to generate rollback SQL: " << rollback_sql_result.error().format();
+    const auto& rollback_sql = *rollback_sql_result;
     
     std::cout << "Bidirectional transformation operations: " << migration.size() << std::endl;
     for (size_t i = 0; i < forward_sql.size(); ++i) {

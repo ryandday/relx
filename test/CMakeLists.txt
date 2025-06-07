@@ -33,6 +33,7 @@ add_executable(relx_tests
     schema/timezone_parsing_test.cpp
     # Migration tests
     migrations/test_migrations.cpp
+    migrations/test_command_line_tools.cpp
     # Query tests
     query/query_test.cpp
     query/basic_select_test.cpp
@@ -86,6 +87,7 @@ add_executable(relx_tests
 # Link against both gtest and gtest_main libraries
 target_link_libraries(relx_tests PRIVATE 
     relx_postgresql 
+    relx_migrations
     gtest
     gtest_main
 )

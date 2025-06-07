@@ -17,7 +17,15 @@ public:
   AddConstraintOperation(std::string table_name, const ConstraintMetadata& constraint)
       : table_name_(std::move(table_name)), constraint_(constraint) {}
 
-  std::string to_sql() const override {
+  MigrationResult<std::string> to_sql() const override {
+    if (constraint_.sql_definition.empty()) {
+      return std::unexpected(MigrationError::make(
+        MigrationErrorType::VALIDATION_FAILED,
+        "Constraint SQL definition cannot be empty",
+        table_name_ + " constraint: " + constraint_.name
+      ));
+    }
+    
     if (constraint_.type == "INDEX") {
       // Indexes use CREATE INDEX syntax, not ALTER TABLE
       return "CREATE " + constraint_.sql_definition + ";";
@@ -26,7 +34,15 @@ public:
     }
   }
 
-  std::string rollback_sql() const override {
+  MigrationResult<std::string> rollback_sql() const override {
+    if (constraint_.name.empty()) {
+      return std::unexpected(MigrationError::make(
+        MigrationErrorType::VALIDATION_FAILED,
+        "Constraint name cannot be empty for rollback",
+        table_name_
+      ));
+    }
+    
     if (constraint_.type == "INDEX") {
       return "DROP INDEX IF EXISTS " + constraint_.name + ";";
     } else if (constraint_.type == "PRIMARY_KEY") {
@@ -51,7 +67,15 @@ public:
   DropConstraintOperation(std::string table_name, const ConstraintMetadata& constraint)
       : table_name_(std::move(table_name)), constraint_(constraint) {}
 
-  std::string to_sql() const override {
+  MigrationResult<std::string> to_sql() const override {
+    if (constraint_.name.empty()) {
+      return std::unexpected(MigrationError::make(
+        MigrationErrorType::VALIDATION_FAILED,
+        "Constraint name cannot be empty",
+        table_name_
+      ));
+    }
+    
     if (constraint_.type == "INDEX") {
       return "DROP INDEX IF EXISTS " + constraint_.name + ";";
     } else if (constraint_.type == "PRIMARY_KEY") {
@@ -61,7 +85,15 @@ public:
     }
   }
 
-  std::string rollback_sql() const override {
+  MigrationResult<std::string> rollback_sql() const override {
+    if (constraint_.sql_definition.empty()) {
+      return std::unexpected(MigrationError::make(
+        MigrationErrorType::VALIDATION_FAILED,
+        "Constraint SQL definition cannot be empty for rollback",
+        table_name_ + " constraint: " + constraint_.name
+      ));
+    }
+    
     if (constraint_.type == "INDEX") {
       return "CREATE " + constraint_.sql_definition + ";";
     } else {
@@ -86,13 +118,29 @@ public:
                         const ColumnMetadata& new_column)
       : table_name_(std::move(table_name)), old_column_(old_column), new_column_(new_column) {}
 
-  std::string to_sql() const override {
+  MigrationResult<std::string> to_sql() const override {
+    if (new_column_.name.empty() || new_column_.sql_type.empty()) {
+      return std::unexpected(MigrationError::make(
+        MigrationErrorType::VALIDATION_FAILED,
+        "Column name and SQL type cannot be empty",
+        table_name_ + "." + new_column_.name
+      ));
+    }
+    
     // PostgreSQL syntax - other databases may vary
     return "ALTER TABLE " + table_name_ + " ALTER COLUMN " + new_column_.name + " TYPE " +
            new_column_.sql_type + ";";
   }
 
-  std::string rollback_sql() const override {
+  MigrationResult<std::string> rollback_sql() const override {
+    if (old_column_.name.empty() || old_column_.sql_type.empty()) {
+      return std::unexpected(MigrationError::make(
+        MigrationErrorType::VALIDATION_FAILED,
+        "Original column name and SQL type cannot be empty",
+        table_name_ + "." + old_column_.name
+      ));
+    }
+    
     return "ALTER TABLE " + table_name_ + " ALTER COLUMN " + old_column_.name + " TYPE " +
            old_column_.sql_type + ";";
   }

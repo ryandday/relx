@@ -3,6 +3,7 @@
 #include "migrations/constraint_operations.hpp"
 #include "migrations/core.hpp"
 #include "migrations/diff.hpp"
+#include "migrations/command_line_tools.hpp"
 #include "schema.hpp"
 
 /**
