@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 
@@ -558,9 +559,8 @@ TEST_F(CommandLineToolsTest, RunMigrationToolWithFileOutput) {
   std::string output = get_captured_output();
   EXPECT_TRUE(output.find("Migration written to: test_migration.sql") != std::string::npos);
 
-  // Clean up - delete the test file if it was created
-  // Note: We're not actually testing file creation here since that would require
-  // filesystem operations, but we're testing that the command processes correctly
+  // Clean up - delete the test file that was created
+  std::filesystem::remove("test_migration.sql");
 }
 
 // =============================================================================
