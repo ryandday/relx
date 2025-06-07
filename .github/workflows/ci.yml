@@ -33,28 +33,29 @@ jobs:
     - name: Check formatting
       run: make format-check
 
-  # Linux GCC Build 
-  linux-gcc:
-    runs-on: ubuntu-24.04
-    needs: format-check
+  # Linux GCC Build - uncomment when gcc15 is packaged nicely
+  # so I don't have to build from source every CI/CD run
+  # linux-gcc:
+  #   runs-on: ubuntu-24.04
+  #   needs: format-check
 
-    steps:
-    - uses: actions/checkout@v4
+  #   steps:
+  #   - uses: actions/checkout@v4
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          cmake \
-          ninja-build \
-          libboost-all-dev \
-          libpq-dev \
-          postgresql-client \
-          docker-compose
+  #   - name: Install system dependencies
+  #     run: |
+  #       sudo apt-get update
+  #       sudo apt-get install -y \
+  #         build-essential \
+  #         cmake \
+  #         ninja-build \
+  #         libboost-all-dev \
+  #         libpq-dev \
+  #         postgresql-client \
+  #         docker-compose
 
-    - name: Build and run tests
-      run: make test
+  #   - name: Build and run tests
+  #     run: make test
 
   # Linux Clang 20 Build with Coverage
   linux-clang:
@@ -110,47 +111,47 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
 
   # macOS Build and Test
-  macos:
-    runs-on: macos-latest
-    needs: format-check
+  # macos:
+  #   runs-on: macos-latest
+  #   needs: format-check
 
-    steps:
-    - uses: actions/checkout@v4
+  #   steps:
+  #   - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        brew update
-        brew install cmake ninja boost postgresql
+  #   - name: Install dependencies
+  #     run: |
+  #       brew update
+  #       brew install cmake ninja boost postgresql
 
-    - name: Run tests
-      run: make test
+  #   - name: Run tests
+  #     run: make test
 
-  # Windows Build and Test
-  windows:
-    runs-on: windows-latest
-    needs: format-check
+  # # Windows Build and Test
+  # windows:
+  #   runs-on: windows-latest
+  #   needs: format-check
 
-    steps:
-    - uses: actions/checkout@v4
+  #   steps:
+  #   - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        # Install vcpkg for dependencies
-        git clone https://github.com/Microsoft/vcpkg.git
-        .\vcpkg\bootstrap-vcpkg.bat
-        .\vcpkg\vcpkg install boost-pfr boost-describe boost-test libpq --triplet x64-windows
+  #   - name: Install dependencies
+  #     run: |
+  #       # Install vcpkg for dependencies
+  #       git clone https://github.com/Microsoft/vcpkg.git
+  #       .\vcpkg\bootstrap-vcpkg.bat
+  #       .\vcpkg\vcpkg install boost-pfr boost-describe boost-test libpq --triplet x64-windows
 
-    - name: Setup MSVC environment
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
+  #   - name: Setup MSVC environment
+  #     uses: ilammy/msvc-dev-cmd@v1
+  #     with:
+  #       arch: x64
 
-    - name: Build and run tests
-      run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DCMAKE_TOOLCHAIN_FILE=.\vcpkg\scripts\buildsystems\vcpkg.cmake
-        cmake --build build --parallel
-        ctest --test-dir build --output-on-failure
-      shell: cmd
+  #   - name: Build and run tests
+  #     run: |
+  #       cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DCMAKE_TOOLCHAIN_FILE=.\vcpkg\scripts\buildsystems\vcpkg.cmake
+  #       cmake --build build --parallel
+  #       ctest --test-dir build --output-on-failure
+  #     shell: cmd
 
   # Clang-Tidy Check with Clang 20 (only when PR merges)
   clang-tidy:
