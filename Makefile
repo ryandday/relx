@@ -103,12 +103,12 @@ docs-clean:
 # Development helpers
 .PHONY: format
 format:
-	find src include -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | xargs clang-format -i
+	find src include test -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | xargs clang-format -i
 
 .PHONY: format-check
 format-check:
 	@echo "Checking code formatting..."
-	@find src include -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | \
+	@find src include test -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | \
 		xargs clang-format --dry-run --Werror
 
 .PHONY: tidy
