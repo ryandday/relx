@@ -1,29 +1,30 @@
 #pragma once
 
+#include "migrations/constraint_operations.hpp"
 #include "migrations/core.hpp"
 #include "migrations/diff.hpp"
-#include "migrations/constraint_operations.hpp"
 #include "schema.hpp"
 
 /**
  * @brief relx::migrations - Database Schema Migration Library
  *
  * This library provides automatic database migration generation by diffing table structures.
- * 
+ *
  * ## Core API (Most Users)
- * 
+ *
  * The main functions you'll need for 99% of use cases:
  * - `generate_migration(old_table, new_table, options)` - Diff two table versions
- * - `generate_create_table_migration(table)` - Create table migration  
+ * - `generate_create_table_migration(table)` - Create table migration
  * - `generate_drop_table_migration(table)` - Drop table migration
- * 
- * Plus `Migration` (for .forward_sql()/.rollback_sql()) and `MigrationOptions` (for column mappings).
+ *
+ * Plus `Migration` (for .forward_sql()/.rollback_sql()) and `MigrationOptions` (for column
+ * mappings).
  *
  * ## Advanced API (Power Users)
- * 
+ *
  * Available in `relx::migrations::advanced::` namespace for:
  * - Building custom migrations
- * - Testing individual components  
+ * - Testing individual components
  * - Introspecting migration operations
  * - Extending the migration system
  *
@@ -36,35 +37,35 @@
  * // Define your old table version
  * struct UsersV1 {
  *     static constexpr auto table_name = "users";
- *     
+ *
  *     relx::column<UsersV1, "id", int, relx::primary_key> id;
  *     relx::column<UsersV1, "name", std::string> name;
  *     relx::column<UsersV1, "email", std::string> email;
- *     
+ *
  *     relx::unique_constraint<&UsersV1::email> unique_email;
  * };
  *
  * // Define your new table version
  * struct UsersV2 {
  *     static constexpr auto table_name = "users";
- *     
+ *
  *     relx::column<UsersV2, "id", int, relx::primary_key> id;
  *     relx::column<UsersV2, "name", std::string> name;
  *     relx::column<UsersV2, "email", std::string> email;
  *     relx::column<UsersV2, "age", std::optional<int>> age;  // New column
- *     relx::column<UsersV2, "created_at", std::string, 
+ *     relx::column<UsersV2, "created_at", std::string,
  *                  relx::string_default<"CURRENT_TIMESTAMP", true>> created_at;  // New column
- *     
+ *
  *     relx::unique_constraint<&UsersV2::email> unique_email;
  * };
  *
  * int main() {
  *     UsersV1 old_users;
  *     UsersV2 new_users;
- *     
+ *
  *     // Generate migration from V1 to V2
  *     auto migration = relx::migrations::generate_migration(old_users, new_users);
- *     
+ *
  *     // Get forward migration SQL
  *     auto forward_sqls = migration.forward_sql();
  *     for (const auto& sql : forward_sqls) {
@@ -73,7 +74,7 @@
  *     // Output:
  *     // Forward: ALTER TABLE users ADD COLUMN age INTEGER;
  *     // Forward: ALTER TABLE users ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;
- *     
+ *
  *     // Get rollback migration SQL
  *     auto rollback_sqls = migration.rollback_sql();
  *     for (const auto& sql : rollback_sqls) {
@@ -82,12 +83,12 @@
  *     // Output:
  *     // Rollback: ALTER TABLE users DROP COLUMN created_at;
  *     // Rollback: ALTER TABLE users DROP COLUMN age;
- *     
+ *
  *     // Check if migration has operations
  *     if (!migration.empty()) {
  *         std::println("Migration '{}' has {} operations", migration.name(), migration.size());
  *     }
- *     
+ *
  *     return 0;
  * }
  * ```
@@ -104,7 +105,7 @@
  *     relx::column<EmployeesV1, "email_addr", std::string> email_addr;
  * };
  *
- * // New table structure with renamed columns  
+ * // New table structure with renamed columns
  * struct EmployeesV2 {
  *     static constexpr auto table_name = "employees";
  *     relx::column<EmployeesV2, "given_name", std::string> given_name;  // renamed
@@ -148,7 +149,7 @@
  * };
  *
  * struct ProductsV2 {
- *     static constexpr auto table_name = "products";  
+ *     static constexpr auto table_name = "products";
  *     relx::column<ProductsV2, "price_dollars", std::string> price_dollars;  // string dollars
  * };
  *
@@ -158,7 +159,8 @@
  * relx::migrations::MigrationOptions options;
  * options.column_mappings = {{"price_cents", "price_dollars"}};
  * options.column_transformations = {
- *     {"price_cents", {"CAST(price_cents / 100.0 AS TEXT)", "CAST(REPLACE(price_dollars, '$', '') AS DECIMAL) * 100"}}
+ *     {"price_cents", {"CAST(price_cents / 100.0 AS TEXT)", "CAST(REPLACE(price_dollars, '$', '')
+ * AS DECIMAL) * 100"}}
  * };
  *
  * auto migration = relx::migrations::generate_migration(old_products, new_products, options);
@@ -209,14 +211,14 @@ namespace relx {
 
 // Re-export migration functionality in the relx namespace for easier access
 namespace migrations {
-    // Main migration functions
-    using ::relx::migrations::generate_migration;
-    using ::relx::migrations::generate_create_table_migration;
-    using ::relx::migrations::generate_drop_table_migration;
-    
-    // Essential types for using the API
-    using ::relx::migrations::Migration;
-    using ::relx::migrations::MigrationOptions;
-}
+// Main migration functions
+using ::relx::migrations::generate_create_table_migration;
+using ::relx::migrations::generate_drop_table_migration;
+using ::relx::migrations::generate_migration;
 
-} // namespace relx 
+// Essential types for using the API
+using ::relx::migrations::Migration;
+using ::relx::migrations::MigrationOptions;
+}  // namespace migrations
+
+}  // namespace relx

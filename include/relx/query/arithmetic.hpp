@@ -723,8 +723,8 @@ auto operator+(const query::ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Addition operator for column with ArithmeticExpr
-template <typename TableT, fixed_string Name, typename T, typename... Modifiers, query::SqlExpr Left,
-          query::SqlExpr Right>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers,
+          query::SqlExpr Left, query::SqlExpr Right>
 auto operator+(const column<TableT, Name, T, Modifiers...>& left,
                const query::ArithmeticExpr<Left, Right>& right_expr) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T>;
@@ -770,8 +770,8 @@ auto operator-(const query::ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Subtraction operator for column with ArithmeticExpr
-template <typename TableT, fixed_string Name, typename T, typename... Modifiers, query::SqlExpr Left,
-          query::SqlExpr Right>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers,
+          query::SqlExpr Left, query::SqlExpr Right>
 auto operator-(const column<TableT, Name, T, Modifiers...>& left,
                const query::ArithmeticExpr<Left, Right>& right_expr) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T>;
@@ -822,8 +822,8 @@ auto operator*(const query::ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Multiplication operator for column with ArithmeticExpr
-template <typename TableT, fixed_string Name, typename T, typename... Modifiers, query::SqlExpr Left,
-          query::SqlExpr Right>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers,
+          query::SqlExpr Left, query::SqlExpr Right>
 auto operator*(const column<TableT, Name, T, Modifiers...>& left,
                const query::ArithmeticExpr<Left, Right>& right_expr) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T>;
@@ -869,8 +869,8 @@ auto operator/(const query::ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Division operator for column with ArithmeticExpr
-template <typename TableT, fixed_string Name, typename T, typename... Modifiers, query::SqlExpr Left,
-          query::SqlExpr Right>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers,
+          query::SqlExpr Left, query::SqlExpr Right>
 auto operator/(const column<TableT, Name, T, Modifiers...>& left,
                const query::ArithmeticExpr<Left, Right>& right_expr) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T>;

@@ -1,9 +1,9 @@
 #pragma once
 
+#include "../utils/error_handling.hpp"
 #include "column.hpp"
 #include "meta.hpp"
 #include "table.hpp"
-#include "../utils/error_handling.hpp"
 
 #include <string_view>
 #include <type_traits>

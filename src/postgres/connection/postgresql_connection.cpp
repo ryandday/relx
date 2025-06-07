@@ -62,8 +62,6 @@ private:
   PGresult* result_;
 };
 
-
-
 PostgreSQLConnection::PostgreSQLConnection(std::string_view connection_string)
     : connection_string_(connection_string) {}
 
@@ -329,7 +327,8 @@ ConnectionResult<void> PostgreSQLConnection::begin_transaction(IsolationLevel is
   }
 
   // Map isolation level to PostgreSQL transaction type
-  const std::string isolation_level_str = sql_utils::isolation_level_to_postgresql_string(static_cast<int>(isolation_level));
+  const std::string isolation_level_str = sql_utils::isolation_level_to_postgresql_string(
+      static_cast<int>(isolation_level));
 
   // Execute the transaction begin statement with isolation level
   const std::string begin_sql = "BEGIN ISOLATION LEVEL " + isolation_level_str;

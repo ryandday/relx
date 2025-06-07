@@ -22,9 +22,9 @@ public:
       : raw_data_(raw_data), start_pos_(start_pos), end_pos_(end_pos) {}
 
   /// @brief Check if the cell contains a NULL value
-  bool is_null() const { 
+  bool is_null() const {
     auto value = get_raw_value();
-    return value == "NULL"; 
+    return value == "NULL";
   }
 
   /// @brief Get the raw string value (parsed on demand)
@@ -57,22 +57,24 @@ class LazyRow {
 public:
   /// @brief Default constructor
   LazyRow() : raw_data_(""), column_names_({}), cells_parsed_(false), owns_data_(false) {}
-  
+
   /// @brief Constructs a lazy row with raw data and column information
   LazyRow(std::string_view raw_data, std::vector<std::string> column_names = {})
-      : raw_data_(raw_data), column_names_(std::move(column_names)), cells_parsed_(false), owns_data_(false) {}
-  
+      : raw_data_(raw_data), column_names_(std::move(column_names)), cells_parsed_(false),
+        owns_data_(false) {}
+
   /// @brief Constructs a lazy row that owns its data (for streaming)
   LazyRow(std::string owned_data, std::vector<std::string> column_names)
-      : raw_data_(), owned_data_(std::move(owned_data)), column_names_(std::move(column_names)), 
+      : raw_data_(), owned_data_(std::move(owned_data)), column_names_(std::move(column_names)),
         cells_parsed_(false), owns_data_(true) {
     raw_data_ = owned_data_;
   }
 
   /// @brief Copy constructor
   LazyRow(const LazyRow& other)
-      : raw_data_(other.raw_data_), owned_data_(other.owned_data_), column_names_(other.column_names_),
-        cell_positions_(other.cell_positions_), cells_parsed_(other.cells_parsed_), owns_data_(other.owns_data_) {
+      : raw_data_(other.raw_data_), owned_data_(other.owned_data_),
+        column_names_(other.column_names_), cell_positions_(other.cell_positions_),
+        cells_parsed_(other.cells_parsed_), owns_data_(other.owns_data_) {
     if (owns_data_) {
       // If this row owns its data, update raw_data_ to point to our copy
       raw_data_ = owned_data_;
@@ -88,7 +90,7 @@ public:
       cell_positions_ = other.cell_positions_;
       cells_parsed_ = other.cells_parsed_;
       owns_data_ = other.owns_data_;
-      
+
       if (owns_data_) {
         // If this row owns its data, update raw_data_ to point to our copy
         raw_data_ = owned_data_;
@@ -99,13 +101,15 @@ public:
 
   /// @brief Move constructor
   LazyRow(LazyRow&& other) noexcept
-      : raw_data_(other.raw_data_), owned_data_(std::move(other.owned_data_)), column_names_(std::move(other.column_names_)),
-        cell_positions_(std::move(other.cell_positions_)), cells_parsed_(other.cells_parsed_), owns_data_(other.owns_data_) {
+      : raw_data_(other.raw_data_), owned_data_(std::move(other.owned_data_)),
+        column_names_(std::move(other.column_names_)),
+        cell_positions_(std::move(other.cell_positions_)), cells_parsed_(other.cells_parsed_),
+        owns_data_(other.owns_data_) {
     if (owns_data_) {
       // If this row owns its data, update raw_data_ to point to our moved data
       raw_data_ = owned_data_;
     }
-    other.owns_data_ = false; // Other object no longer owns data
+    other.owns_data_ = false;  // Other object no longer owns data
   }
 
   /// @brief Move assignment operator
@@ -117,13 +121,13 @@ public:
       cell_positions_ = std::move(other.cell_positions_);
       cells_parsed_ = other.cells_parsed_;
       owns_data_ = other.owns_data_;
-      
+
       if (owns_data_) {
         // If this row owns its data, update raw_data_ to point to our moved data
         raw_data_ = owned_data_;
       }
-      
-      other.owns_data_ = false; // Other object no longer owns data
+
+      other.owns_data_ = false;  // Other object no longer owns data
     }
     return *this;
   }
@@ -131,11 +135,11 @@ public:
   /// @brief Get a cell by index (parsed on demand)
   ResultProcessingResult<LazyCell> get_cell(size_t index) const {
     ensure_cells_parsed();
-    
+
     if (index >= cell_positions_.size()) {
       return std::unexpected(ResultError{"Cell index out of range"});
     }
-    
+
     const auto& [start, end] = cell_positions_[index];
     return LazyCell(raw_data_, start, end);
   }
@@ -198,7 +202,7 @@ public:
 
 private:
   mutable std::string_view raw_data_;
-  std::string owned_data_; // For cases where the LazyRow owns the data
+  std::string owned_data_;  // For cases where the LazyRow owns the data
   std::vector<std::string> column_names_;
   mutable std::vector<std::pair<size_t, size_t>> cell_positions_;
   mutable bool cells_parsed_;
@@ -210,7 +214,7 @@ private:
     // Parse cell positions from raw data
     size_t pos = 0;
     size_t start = 0;
-    
+
     while (pos < raw_data_.size()) {
       if (raw_data_[pos] == '|') {
         cell_positions_.emplace_back(start, pos);
@@ -218,12 +222,12 @@ private:
       }
       ++pos;
     }
-    
+
     // Add the last cell
     if (start < raw_data_.size()) {
       cell_positions_.emplace_back(start, raw_data_.size());
     }
-    
+
     cells_parsed_ = true;
   }
 };
@@ -232,8 +236,7 @@ private:
 class LazyResultSet {
 public:
   /// @brief Constructs a lazy result set with raw data
-  LazyResultSet(std::string raw_data)
-      : raw_data_(std::move(raw_data)), rows_parsed_(false) {}
+  LazyResultSet(std::string raw_data) : raw_data_(std::move(raw_data)), rows_parsed_(false) {}
 
   /// @brief Get the number of rows (requires parsing row boundaries)
   size_t size() const {
@@ -242,27 +245,23 @@ public:
   }
 
   /// @brief Check if the result set is empty
-  bool empty() const {
-    return size() == 0;
-  }
+  bool empty() const { return size() == 0; }
 
   /// @brief Get a row by index (parsed on demand)
   LazyRow at(size_t index) const {
     ensure_rows_parsed();
-    
+
     if (index >= row_positions_.size()) {
       throw std::out_of_range("Row index out of range");
     }
-    
+
     const auto& [start, end] = row_positions_[index];
     std::string_view row_data(raw_data_.data() + start, end - start);
     return LazyRow(row_data, column_names_);
   }
 
   /// @brief Access a row by index using the subscript operator
-  LazyRow operator[](size_t index) const {
-    return at(index);
-  }
+  LazyRow operator[](size_t index) const { return at(index); }
 
   /// @brief Get the column names
   const std::vector<std::string>& column_names() const {
@@ -276,52 +275,44 @@ public:
     iterator(const LazyResultSet& result_set, size_t index)
         : result_set_(result_set), index_(index) {}
 
-    LazyRow operator*() const {
-      return result_set_.at(index_);
-    }
+    LazyRow operator*() const { return result_set_.at(index_); }
 
     iterator& operator++() {
       ++index_;
       return *this;
     }
 
-    bool operator!=(const iterator& other) const {
-      return index_ != other.index_;
-    }
+    bool operator!=(const iterator& other) const { return index_ != other.index_; }
 
   private:
     const LazyResultSet& result_set_;
     size_t index_;
   };
 
-  iterator begin() const {
-    return iterator(*this, 0);
-  }
+  iterator begin() const { return iterator(*this, 0); }
 
-  iterator end() const {
-    return iterator(*this, size());
-  }
+  iterator end() const { return iterator(*this, size()); }
 
   /// @brief Transform to regular ResultSet if needed
   ResultSet to_result_set() const {
     std::vector<Row> rows;
     rows.reserve(size());
-    
+
     for (size_t i = 0; i < size(); ++i) {
       auto lazy_row = at(i);
       std::vector<Cell> cells;
       cells.reserve(lazy_row.size());
-      
+
       for (size_t j = 0; j < lazy_row.size(); ++j) {
         auto lazy_cell = lazy_row.get_cell(j);
         if (lazy_cell) {
           cells.emplace_back(lazy_cell->get_raw_value());
         }
       }
-      
+
       rows.emplace_back(std::move(cells), column_names_);
     }
-    
+
     return ResultSet(std::move(rows), column_names_);
   }
 
@@ -338,12 +329,12 @@ private:
     size_t pos = 0;
     size_t line_start = 0;
     bool first_line = true;
-    
+
     while (pos <= raw_data_.size()) {
       if (pos == raw_data_.size() || raw_data_[pos] == '\n') {
         if (pos > line_start) {
           std::string_view line(raw_data_.data() + line_start, pos - line_start);
-          
+
           if (first_line) {
             // Parse header line for column names
             parse_column_names(line);
@@ -357,14 +348,14 @@ private:
       }
       ++pos;
     }
-    
+
     rows_parsed_ = true;
   }
 
   void parse_column_names(std::string_view header_line) const {
     size_t pos = 0;
     size_t start = 0;
-    
+
     while (pos < header_line.size()) {
       if (header_line[pos] == '|') {
         if (pos > start) {
@@ -374,7 +365,7 @@ private:
       }
       ++pos;
     }
-    
+
     // Add the last column
     if (start < header_line.size()) {
       column_names_.emplace_back(header_line.substr(start));
@@ -392,4 +383,4 @@ LazyResultSet parse_lazy(const Query& /*query*/, std::string raw_results) {
   return LazyResultSet(std::move(raw_results));
 }
 
-}  // namespace relx::result 
+}  // namespace relx::result

@@ -1,4 +1,5 @@
 #include "relx/connection/sql_utils.hpp"
+
 #include "relx/results.hpp"
 
 #include <libpq-fe.h>
@@ -7,15 +8,15 @@ namespace relx::connection::sql_utils {
 
 std::string convert_placeholders_to_postgresql(const std::string& sql) {
   std::string result;
-  result.reserve(sql.size() + 32); // Reserve some extra space for parameter numbers
-  
+  result.reserve(sql.size() + 32);  // Reserve some extra space for parameter numbers
+
   int placeholder_count = 1;
   bool in_single_quotes = false;
   bool in_double_quotes = false;
-  
+
   for (size_t i = 0; i < sql.size(); ++i) {
     const char current = sql[i];
-    
+
     // Handle single quotes (string literals)
     if (current == '\'' && !in_double_quotes) {
       // Check if this is an escaped quote (two single quotes in a row)
@@ -29,7 +30,7 @@ std::string convert_placeholders_to_postgresql(const std::string& sql) {
         in_single_quotes = !in_single_quotes;
       }
     }
-    // Handle double quotes (quoted identifiers) 
+    // Handle double quotes (quoted identifiers)
     else if (current == '"' && !in_single_quotes) {
       // Check if this is an escaped quote (two double quotes in a row)
       if (i + 1 < sql.size() && sql[i + 1] == '"') {
@@ -49,23 +50,23 @@ std::string convert_placeholders_to_postgresql(const std::string& sql) {
       result += std::to_string(placeholder_count++);
       continue;
     }
-    
+
     // For all other characters, just add them to the result
     result += current;
   }
-  
+
   return result;
 }
 
 std::string isolation_level_to_postgresql_string(int isolation_level) {
   switch (isolation_level) {
-  case 0: // IsolationLevel::ReadUncommitted
+  case 0:  // IsolationLevel::ReadUncommitted
     return "READ UNCOMMITTED";
-  case 1: // IsolationLevel::ReadCommitted  
+  case 1:  // IsolationLevel::ReadCommitted
     return "READ COMMITTED";
-  case 2: // IsolationLevel::RepeatableRead
+  case 2:  // IsolationLevel::RepeatableRead
     return "REPEATABLE READ";
-  case 3: // IsolationLevel::Serializable
+  case 3:  // IsolationLevel::Serializable
     return "SERIALIZABLE";
   default:
     return "READ COMMITTED";
@@ -101,7 +102,6 @@ static std::string convert_pg_bytea_to_binary(const std::string& hex_value) {
 }
 
 result::ResultSet process_postgresql_result(PGresult* pg_result, bool convert_bytea) {
-  
   std::vector<std::string> column_names;
   std::vector<result::Row> rows;
 
@@ -153,4 +153,4 @@ result::ResultSet process_postgresql_result(PGresult* pg_result, bool convert_by
   return result::ResultSet(std::move(rows), std::move(column_names));
 }
 
-} // namespace relx::connection::sql_utils 
+}  // namespace relx::connection::sql_utils

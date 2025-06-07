@@ -10,7 +10,7 @@
 namespace relx::result {
 
 /// @brief Streaming result set for very large datasets
-template<typename DataSource>
+template <typename DataSource>
 class StreamingResultSet {
 public:
   /// @brief Iterator that reads data on demand
@@ -23,18 +23,14 @@ public:
       }
     }
 
-    LazyRow operator*() const {
-      return current_row_;
-    }
+    LazyRow operator*() const { return current_row_; }
 
     streaming_iterator& operator++() {
       advance();
       return *this;
     }
 
-    bool operator!=(const streaming_iterator& other) const {
-      return at_end_ != other.at_end_;
-    }
+    bool operator!=(const streaming_iterator& other) const { return at_end_ != other.at_end_; }
 
   private:
     DataSource& source_;
@@ -53,16 +49,12 @@ public:
 
   StreamingResultSet(DataSource source) : source_(std::move(source)) {}
 
-  streaming_iterator begin() {
-    return streaming_iterator(source_);
-  }
+  streaming_iterator begin() { return streaming_iterator(source_); }
 
-  streaming_iterator end() {
-    return streaming_iterator(source_, true);
-  }
+  streaming_iterator end() { return streaming_iterator(source_, true); }
 
 private:
   DataSource source_;
 };
 
-}  // namespace relx::result 
+}  // namespace relx::result

@@ -92,8 +92,8 @@
 namespace relx {
 // Connection types
 using connection::Connection;
-using connection::PostgreSQLConnection;
 using connection::PostgreSQLAsyncConnection;
+using connection::PostgreSQLConnection;
 using connection::PostgreSQLConnectionParams;
 using connection::PostgreSQLConnectionPool;
 using connection::PostgreSQLConnectionPoolConfig;

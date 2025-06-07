@@ -1,8 +1,8 @@
 #pragma once
 
+#include "../utils/error_handling.hpp"
 #include "column.hpp"
 #include "meta.hpp"
-#include "../utils/error_handling.hpp"
 
 #include <array>
 #include <string_view>

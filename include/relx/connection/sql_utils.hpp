@@ -16,7 +16,7 @@ namespace relx::connection::sql_utils {
 /// @brief Convert ? placeholders to PostgreSQL $1, $2, etc. format
 /// @details This function properly handles SQL syntax by respecting:
 /// - Single quotes (string literals): 'Don''t replace ? here'
-/// - Double quotes (quoted identifiers): "weird?column" 
+/// - Double quotes (quoted identifiers): "weird?column"
 /// - Escaped quotes: '' and ""
 /// Only replaces ? that appear outside of quoted contexts.
 /// @param sql The SQL string with ? placeholders
@@ -34,4 +34,4 @@ std::string isolation_level_to_postgresql_string(int isolation_level);
 /// @return ResultSet containing the processed data
 result::ResultSet process_postgresql_result(PGresult* pg_result, bool convert_bytea = false);
 
-} // namespace relx::connection::sql_utils 
+}  // namespace relx::connection::sql_utils

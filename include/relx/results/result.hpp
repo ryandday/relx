@@ -805,8 +805,6 @@ private:
   std::vector<std::string> column_names_;
 };
 
-
-
 /// @brief Parse raw results from a database into a typed ResultSet (eager parsing)
 /// @tparam Query The query type
 /// @param query The query that was executed
@@ -884,8 +882,6 @@ ResultProcessingResult<ResultSet> parse(const Query& /*query*/, const std::strin
     return std::unexpected(ResultError{std::string("Error parsing results: ") + e.what()});
   }
 }
-
-
 
 }  // namespace relx::result
 

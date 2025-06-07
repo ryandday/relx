@@ -1,7 +1,7 @@
 #pragma once
 
-#include "postgresql_connection.hpp"
 #include "../results/streaming_result.hpp"
+#include "postgresql_connection.hpp"
 
 #include <memory>
 #include <optional>
@@ -25,15 +25,15 @@ public:
   /// @param sql The SQL query string to execute
   /// @param params Optional query parameters
   PostgreSQLStreamingSource(PostgreSQLConnection& connection, std::string sql,
-                           std::vector<std::string> params = {});
-  
+                            std::vector<std::string> params = {});
+
   /// @brief Constructor with connection and binary query parameters
-  /// @param connection PostgreSQL connection to use for queries  
+  /// @param connection PostgreSQL connection to use for queries
   /// @param sql The SQL query string to execute
   /// @param params Query parameters
   /// @param is_binary Vector indicating which parameters are binary
   PostgreSQLStreamingSource(PostgreSQLConnection& connection, std::string sql,
-                           std::vector<std::string> params, std::vector<bool> is_binary);
+                            std::vector<std::string> params, std::vector<bool> is_binary);
 
   /// @brief Destructor that cleans up any active query
   ~PostgreSQLStreamingSource();
@@ -73,36 +73,36 @@ private:
   std::vector<std::string> params_;
   std::vector<bool> is_binary_;
   bool use_binary_;
-  
+
   std::vector<std::string> column_names_;
   std::vector<bool> is_bytea_column_;
   bool initialized_;
   bool finished_;
   bool convert_bytea_;
-  
+
   // We need to track the active query state
   bool query_active_;
-  
+
   // Cache for the first row (since we consume it during metadata processing)
   std::optional<std::string> first_row_cached_;
-  
+
   /// @brief Helper method to start the streaming query
   ConnectionResult<void> start_query();
-  
+
   /// @brief Helper method to process column metadata from the first result
   /// @param pg_result PGresult pointer to extract metadata from
   void process_column_metadata(struct pg_result* pg_result);
-  
+
   /// @brief Helper method to format a single row as a string
   /// @param pg_result PGresult pointer containing the row data
   /// @return Formatted row string or nullopt if no data
   std::optional<std::string> format_row(struct pg_result* pg_result);
-  
+
   /// @brief Helper method to convert PostgreSQL BYTEA hex format to binary
   /// @param hex_value The hex-encoded BYTEA value from PostgreSQL
   /// @return Binary string representation
   std::string convert_pg_bytea_to_binary(const std::string& hex_value) const;
-  
+
   /// @brief Helper method to clean up any active query
   void cleanup();
 };
@@ -110,20 +110,19 @@ private:
 /// @brief Create a streaming result set from a PostgreSQL connection and query
 /// @param connection PostgreSQL connection to use
 /// @param sql SQL query to execute
-/// @param params Optional query parameters  
+/// @param params Optional query parameters
 /// @return StreamingResultSet for processing large result sets incrementally
-template<typename... Args>
+template <typename... Args>
 result::StreamingResultSet<PostgreSQLStreamingSource> create_streaming_result(
     PostgreSQLConnection& connection, const std::string& sql, Args&&... args) {
-  
   // Convert parameters to strings (similar to execute_typed)
   std::vector<std::string> param_strings;
   if constexpr (sizeof...(Args) > 0) {
     param_strings.reserve(sizeof...(Args));
-    
+
     auto add_param = [&param_strings](auto&& param) {
       using ParamType = std::remove_cvref_t<decltype(param)>;
-      
+
       if constexpr (std::is_same_v<ParamType, std::nullptr_t>) {
         param_strings.push_back("NULL");
       } else if constexpr (std::is_same_v<ParamType, std::string> ||
@@ -140,12 +139,12 @@ result::StreamingResultSet<PostgreSQLStreamingSource> create_streaming_result(
         param_strings.push_back(ss.str());
       }
     };
-    
+
     (add_param(std::forward<Args>(args)), ...);
   }
-  
+
   return result::StreamingResultSet<PostgreSQLStreamingSource>(
       PostgreSQLStreamingSource(connection, sql, std::move(param_strings)));
 }
 
-}  // namespace relx::connection 
+}  // namespace relx::connection

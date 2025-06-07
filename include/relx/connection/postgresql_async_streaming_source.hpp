@@ -1,7 +1,7 @@
 #pragma once
 
-#include "postgresql_async_connection.hpp"
 #include "../results/streaming_result.hpp"
+#include "postgresql_async_connection.hpp"
 
 #include <memory>
 #include <optional>
@@ -27,7 +27,7 @@ public:
   /// @param sql The SQL query string to execute
   /// @param params Optional query parameters
   PostgreSQLAsyncStreamingSource(PostgreSQLAsyncConnection& connection, std::string sql,
-                                std::vector<std::string> params = {});
+                                 std::vector<std::string> params = {});
 
   /// @brief Destructor that cleans up any active query
   ~PostgreSQLAsyncStreamingSource();
@@ -65,46 +65,46 @@ private:
   PostgreSQLAsyncConnection& connection_;
   std::string sql_;
   std::vector<std::string> params_;
-  
+
   std::vector<std::string> column_names_;
   std::vector<bool> is_bytea_column_;
   bool initialized_;
   bool finished_;
   bool convert_bytea_;
-  
+
   // Track query state
   bool query_active_;
-  
+
   // Cache for the first row (since we consume it during metadata processing)
   std::optional<std::string> first_row_cached_;
-  
+
   // Streaming state for proper result management
-  std::unique_ptr<struct pg_result, void(*)(struct pg_result*)> current_result_;
+  std::unique_ptr<struct pg_result, void (*)(struct pg_result*)> current_result_;
   size_t current_row_index_;
   bool has_pending_results_;
-  
+
   /// @brief Helper method to start the streaming query asynchronously
   boost::asio::awaitable<ConnectionResult<void>> start_query();
-  
+
   /// @brief Helper method to process column metadata from a PGresult
   void process_column_metadata_from_pg_result(struct pg_result* pg_result);
-  
+
   /// @brief Helper method to format a single row from a PGresult as a string
   /// @param pg_result The PGresult containing a single row
   /// @return Formatted row string
   std::string format_single_row(struct pg_result* pg_result);
-  
+
   /// @brief Helper method to convert PostgreSQL BYTEA hex format to binary
   /// @param hex_value The hex-encoded BYTEA value from PostgreSQL
   /// @return Binary string representation
   std::string convert_pg_bytea_to_binary(const std::string& hex_value) const;
-  
+
   /// @brief Helper method to clean up any active query
   void cleanup();
 };
 
 /// @brief Async streaming result set that yields rows asynchronously
-template<typename DataSource>
+template <typename DataSource>
 class AsyncStreamingResultSet {
 public:
   /// @brief Iterator that reads data on demand asynchronously
@@ -114,16 +114,14 @@ public:
         : source_(source), current_row_(), at_end_(at_end) {}
 
     /// @brief Get the current row (must be called after advance())
-    const auto& operator*() const {
-      return current_row_;
-    }
+    const auto& operator*() const { return current_row_; }
 
     /// @brief Advance to the next row asynchronously
     boost::asio::awaitable<void> advance() {
       if (at_end_) {
         co_return;
       }
-      
+
       auto next_row_data = co_await source_.get_next_row();
       if (next_row_data) {
         current_row_ = result::LazyRow(std::move(*next_row_data), source_.get_column_names());
@@ -143,23 +141,19 @@ public:
   AsyncStreamingResultSet(DataSource source) : source_(std::move(source)) {}
 
   /// @brief Begin async iteration
-  async_streaming_iterator begin() {
-    return async_streaming_iterator(source_);
-  }
+  async_streaming_iterator begin() { return async_streaming_iterator(source_); }
 
   /// @brief End marker for async iteration
-  async_streaming_iterator end() {
-    return async_streaming_iterator(source_, true);
-  }
+  async_streaming_iterator end() { return async_streaming_iterator(source_, true); }
 
   /// @brief Process all rows with an async callback
-  template<typename Func>
+  template <typename Func>
   boost::asio::awaitable<void> for_each(Func&& func) {
     auto it = begin();
-    
+
     // Advance to first row
     co_await it.advance();
-    
+
     while (!it.is_at_end()) {
       if constexpr (std::is_invocable_v<Func, decltype(*it)>) {
         func(*it);
@@ -177,20 +171,19 @@ private:
 /// @brief Create an async streaming result set from a PostgreSQL async connection and query
 /// @param connection Async PostgreSQL connection to use
 /// @param sql SQL query to execute
-/// @param params Optional query parameters  
+/// @param params Optional query parameters
 /// @return AsyncStreamingResultSet for processing large result sets incrementally
-template<typename... Args>
+template <typename... Args>
 AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource> create_async_streaming_result(
     PostgreSQLAsyncConnection& connection, const std::string& sql, Args&&... args) {
-  
   // Convert parameters to strings (similar to execute_typed)
   std::vector<std::string> param_strings;
   if constexpr (sizeof...(Args) > 0) {
     param_strings.reserve(sizeof...(Args));
-    
+
     auto add_param = [&param_strings](auto&& param) {
       using ParamType = std::remove_cvref_t<decltype(param)>;
-      
+
       if constexpr (std::is_same_v<ParamType, std::nullptr_t>) {
         param_strings.push_back("NULL");
       } else if constexpr (std::is_same_v<ParamType, std::string> ||
@@ -207,12 +200,12 @@ AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource> create_async_streaming_r
         param_strings.push_back(ss.str());
       }
     };
-    
+
     (add_param(std::forward<Args>(args)), ...);
   }
-  
+
   return AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource>(
       PostgreSQLAsyncStreamingSource(connection, sql, std::move(param_strings)));
 }
 
-}  // namespace relx::connection 
+}  // namespace relx::connection

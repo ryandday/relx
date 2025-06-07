@@ -171,8 +171,8 @@ using namespace query::literals;  // Enables 42_sql, "string"_sql, etc.
 // These are implementation details that power users might need
 // Most users should not use these directly
 namespace detail {
-    using query::to_expr;
-    using query::to_table;
-}
+using query::to_expr;
+using query::to_table;
+}  // namespace detail
 
 }  // namespace relx
