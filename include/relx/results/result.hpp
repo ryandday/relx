@@ -2,7 +2,6 @@
 
 #include "../query/core.hpp"
 #include "../query/meta.hpp"
-#include "../schema/column.hpp"
 #include "../schema/core.hpp"
 #include "../schema/table.hpp"
 
@@ -10,8 +9,7 @@
 #include <concepts>
 #include <expected>
 #include <functional>
-#include <map>
-#include <memory>
+#include <iostream>
 #include <optional>
 #include <ranges>
 #include <sstream>
@@ -21,7 +19,6 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace relx::result {
@@ -795,7 +792,7 @@ public:
     std::string result;
     for (const auto& row : rows_) {
       result += row.to_string();
-      std::println("");
+      std::cout << '\n';
     }
     return result;
   }
