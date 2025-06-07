@@ -15,7 +15,190 @@ The `relx::migrations` system provides automatic database migration generation b
 - ✅ **Type-Safe**: Leverages C++ templates for compile-time validation
 - ✅ **CLI Tool Support**: Built-in command line interface utilities
 
-## Quick Start
+## Quick Start - CLI Tool
+
+The fastest way to get started is by building a command-line migration tool. This provides a complete interface for managing database schema evolution.
+
+### Basic CLI Tool Setup
+
+```cpp
+#include <relx/migrations.hpp>
+#include <relx/schema.hpp>
+
+using namespace relx;
+
+// Define your table versions
+struct UsersV1 {
+    static constexpr auto table_name = "users";
+    
+    column<UsersV1, "id", int, primary_key> id;
+    column<UsersV1, "email", std::string> email;
+    column<UsersV1, "name", std::string> name;
+    
+    unique_constraint<&UsersV1::email> unique_email;
+};
+
+struct UsersV2 {
+    static constexpr auto table_name = "users";
+    
+    column<UsersV2, "id", int, primary_key> id;
+    column<UsersV2, "email", std::string> email;
+    column<UsersV2, "full_name", std::string> full_name;  // renamed from name
+    column<UsersV2, "age", std::optional<int>> age;       // new nullable column
+    column<UsersV2, "created_at", std::string, string_default<"CURRENT_TIMESTAMP">> created_at;  // new with default
+    column<UsersV2, "is_active", bool, default_value<true>> is_active;                 // new boolean with default
+ 
+    unique_constraint<&UsersV2::email> unique_email;
+};
+
+struct UsersV3 {
+    static constexpr auto table_name = "users";
+    
+    column<UsersV3, "id", int, primary_key> id;
+    column<UsersV3, "email", std::string> email;
+    column<UsersV3, "full_name", std::string> full_name;
+    column<UsersV3, "birth_year", int> birth_year;        // changed from age to birth_year
+    column<UsersV3, "created_at", std::string, 
+           string_default<"CURRENT_TIMESTAMP", true>> created_at;
+    
+    unique_constraint<&UsersV3::email> unique_email;
+    table_check_constraint<"birth_year > 1900 AND birth_year <= EXTRACT(YEAR FROM CURRENT_DATE)"> valid_birth_year;
+};
+
+// Migration generator functions
+migrations::MigrationResult<migrations::Migration> generate_migration_between_versions(const std::string& from, const std::string& to) {
+    migrations::MigrationOptions options;
+    
+    if (from == "v1" && to == "v2") {
+        // Handle name -> full_name rename
+        options.column_mappings = {{"name", "full_name"}};
+        
+        UsersV1 old_table;
+        UsersV2 new_table;
+        return migrations::generate_migration(old_table, new_table, options);
+    }
+    else if (from == "v2" && to == "v3") {
+        // Handle age -> birth_year transformation
+        options.column_mappings = {{"age", "birth_year"}};
+        options.column_transformations = {
+            {"age", {
+                "EXTRACT(YEAR FROM CURRENT_DATE) - age",  // forward: age -> birth_year
+                "EXTRACT(YEAR FROM CURRENT_DATE) - birth_year"  // backward: birth_year -> age
+            }}
+        };
+        
+        UsersV2 old_table;
+        UsersV3 new_table;
+        return migrations::generate_migration(old_table, new_table, options);
+    }
+    else {
+        return std::unexpected(migrations::MigrationError::make(
+            migrations::MigrationErrorType::UNSUPPORTED_OPERATION,
+            "Unsupported migration path: " + from + " -> " + to
+        ));
+    }
+}
+
+migrations::MigrationResult<migrations::Migration> generate_create_migration(const std::string& version) {
+    if (version == "v1") {
+        UsersV1 table;
+        return migrations::generate_create_table_migration(table);
+    }
+    else {
+        return std::unexpected(migrations::MigrationError::make(
+            migrations::MigrationErrorType::UNSUPPORTED_OPERATION,
+            "Unsupported version: " + version
+        ));
+    }
+}
+
+migrations::MigrationResult<migrations::Migration> generate_drop_migration(const std::string& version) {
+    if (version == "v3") {
+        UsersV3 table;
+        return migrations::generate_drop_table_migration(table);
+    }
+    else {
+        return std::unexpected(migrations::MigrationError::make(
+            migrations::MigrationErrorType::UNSUPPORTED_OPERATION,
+            "Unsupported version: " + version
+        ));
+    }
+}
+
+int main(int argc, char* argv[]) {
+    std::vector<std::string> supported_versions = {"v1", "v2", "v3"};
+    
+    // Full functionality CLI tool with CREATE, DROP, and GENERATE capabilities
+    return migrations::cli::run_migration_tool(
+        argc, argv,
+        supported_versions,
+        generate_migration_between_versions,
+        generate_create_migration,        // Optional: provides --create functionality
+        generate_drop_migration           // Optional: provides --drop functionality
+    );
+}
+```
+
+### CLI Tool Usage Patterns
+
+The CLI utility supports several configuration patterns:
+
+#### Full Functionality (Recommended)
+```cpp
+// Provides --generate, --create, and --drop commands
+return migrations::cli::run_migration_tool(
+    argc, argv,
+    supported_versions,
+    generate_migration_between_versions,
+    generate_create_migration,
+    generate_drop_migration
+);
+```
+
+#### Generate-Only Tool
+```cpp
+// Only --generate command available
+// --create and --drop commands will throw errors
+return migrations::cli::run_migration_tool(
+    argc, argv,
+    supported_versions,
+    generate_migration_between_versions
+);
+```
+
+#### Create-Only Tool
+```cpp
+// Only --generate and --create commands available
+// --drop command will throw error
+return migrations::cli::run_migration_tool(
+    argc, argv,
+    supported_versions,
+    generate_migration_between_versions,
+    generate_create_migration
+);
+```
+
+### Command Line Usage
+
+Once built, your migration tool supports these commands:
+
+```bash
+# Generate migration between versions
+./migration_tool --generate --from v1 --to v2
+
+# Create a new table for a specific version
+./migration_tool --create --version v2
+
+# Generate drop migration for a specific version
+./migration_tool --drop --version v2
+
+# Show help
+./migration_tool --help
+```
+
+## Programmatic API Usage
+
+If you prefer to use the migration system programmatically without the CLI, here's how:
 
 ```cpp
 #include <relx/migrations.hpp>
@@ -426,22 +609,6 @@ void apply_migration(const Migration& migration) {
 }
 ```
 
-### 7. Keep Migration History
-
-Store applied migrations to track schema evolution:
-
-```cpp
-struct MigrationRecord {
-    std::string name;
-    std::string applied_at;
-    std::vector<std::string> forward_sql;
-    std::vector<std::string> rollback_sql;
-};
-
-// Track what migrations have been applied
-std::vector<MigrationRecord> applied_migrations;
-```
-
 ## Common Patterns
 
 ### Incremental Schema Evolution
@@ -527,7 +694,6 @@ For large tables, consider:
 
 1. **Batch operations**: Break large UPDATEs into smaller batches
 2. **Online migrations**: Use database-specific online migration features
-3. **Staged rollouts**: Apply migrations during maintenance windows
 
 ### Index Management
 
@@ -547,222 +713,6 @@ find_package(relx REQUIRED)
 
 add_executable(migration_tool migration_tool.cpp)
 target_link_libraries(migration_tool relx::migrations)
-```
-
-### CI/CD Pipeline
-
-```bash
-#!/bin/bash
-# migration_check.sh
-
-# Generate and review migrations
-./migration_tool --generate --from=v1 --to=v2 --output=migration.sql
-
-# Validate migration
-./migration_tool --validate migration.sql
-
-# Apply in test environment
-./migration_tool --apply migration.sql --database=test
-
-# Run tests
-make test
-```
-
-## CLI Tool Integration
-
-The migrations system includes utilities for building command-line migration tools. This allows you to create standalone executables for managing database schema evolution.
-
-### Basic CLI Tool Setup
-
-```cpp
-#include <relx/migrations.hpp>
-#include <relx/schema.hpp>
-
-using namespace relx;
-
-// Define your table versions
-struct UsersV1 {
-    static constexpr auto table_name = "users";
-    
-    column<UsersV1, "id", int, primary_key> id;
-    column<UsersV1, "email", std::string> email;
-    column<UsersV1, "name", std::string> name;
-    
-    unique_constraint<&UsersV1::email> unique_email;
-};
-
-struct UsersV2 {
-    static constexpr auto table_name = "users";
-    
-    column<UsersV2, "id", int, primary_key> id;
-    column<UsersV2, "email", std::string> email;
-    column<UsersV2, "full_name", std::string> full_name;  // renamed from name
-    column<UsersV2, "age", std::optional<int>> age;       // new nullable column
-    column<UsersV2, "created_at", std::string, string_default<"CURRENT_TIMESTAMP">> created_at;  // new with default
-    column<UsersV2, "is_active", bool, default_value<true>> is_active;                 // new boolean with default
- 
-    unique_constraint<&UsersV2::email> unique_email;
-};
-
-struct UsersV3 {
-    static constexpr auto table_name = "users";
-    
-    column<UsersV3, "id", int, primary_key> id;
-    column<UsersV3, "email", std::string> email;
-    column<UsersV3, "full_name", std::string> full_name;
-    column<UsersV3, "birth_year", int> birth_year;        // changed from age to birth_year
-    column<UsersV3, "created_at", std::string, 
-           string_default<"CURRENT_TIMESTAMP", true>> created_at;
-    
-    unique_constraint<&UsersV3::email> unique_email;
-    table_check_constraint<"birth_year > 1900 AND birth_year <= EXTRACT(YEAR FROM CURRENT_DATE)"> valid_birth_year;
-};
-
-// Migration generator functions
-migrations::MigrationResult<migrations::Migration> generate_migration_between_versions(const std::string& from, const std::string& to) {
-    migrations::MigrationOptions options;
-    
-    if (from == "v1" && to == "v2") {
-        // Handle name -> full_name rename
-        options.column_mappings = {{"name", "full_name"}};
-        
-        UsersV1 old_table;
-        UsersV2 new_table;
-        return migrations::generate_migration(old_table, new_table, options);
-    }
-    else if (from == "v2" && to == "v3") {
-        // Handle age -> birth_year transformation
-        options.column_mappings = {{"age", "birth_year"}};
-        options.column_transformations = {
-            {"age", {
-                "EXTRACT(YEAR FROM CURRENT_DATE) - age",  // forward: age -> birth_year
-                "EXTRACT(YEAR FROM CURRENT_DATE) - birth_year"  // backward: birth_year -> age
-            }}
-        };
-        
-        UsersV2 old_table;
-        UsersV3 new_table;
-        return migrations::generate_migration(old_table, new_table, options);
-    }
-    else {
-        return std::unexpected(migrations::MigrationError::make(
-            migrations::MigrationErrorType::UNSUPPORTED_OPERATION,
-            "Unsupported migration path: " + from + " -> " + to
-        ));
-    }
-}
-
-migrations::MigrationResult<migrations::Migration> generate_create_migration(const std::string& version) {
-    if (version == "v1") {
-        UsersV1 table;
-        return migrations::generate_create_table_migration(table);
-    }
-    else if (version == "v2") {
-        UsersV2 table;
-        return migrations::generate_create_table_migration(table);
-    }
-    else if (version == "v3") {
-        UsersV3 table;
-        return migrations::generate_create_table_migration(table);
-    }
-    else {
-        return std::unexpected(migrations::MigrationError::make(
-            migrations::MigrationErrorType::UNSUPPORTED_OPERATION,
-            "Unsupported version: " + version
-        ));
-    }
-}
-
-migrations::MigrationResult<migrations::Migration> generate_drop_migration(const std::string& version) {
-    if (version == "v1") {
-        UsersV1 table;
-        return migrations::generate_drop_table_migration(table);
-    }
-    else if (version == "v2") {
-        UsersV2 table;
-        return migrations::generate_drop_table_migration(table);
-    }
-    else if (version == "v3") {
-        UsersV3 table;
-        return migrations::generate_drop_table_migration(table);
-    }
-    else {
-        return std::unexpected(migrations::MigrationError::make(
-            migrations::MigrationErrorType::UNSUPPORTED_OPERATION,
-            "Unsupported version: " + version
-        ));
-    }
-}
-
-int main(int argc, char* argv[]) {
-    std::vector<std::string> supported_versions = {"v1", "v2", "v3"};
-    
-    // Full functionality CLI tool with CREATE, DROP, and GENERATE capabilities
-    return migrations::cli::run_migration_tool(
-        argc, argv,
-        supported_versions,
-        generate_migration_between_versions,
-        generate_create_migration,        // Optional: provides --create functionality
-        generate_drop_migration           // Optional: provides --drop functionality
-    );
-}
-```
-
-### CLI Tool Usage Patterns
-
-The CLI utility supports several configuration patterns:
-
-#### Full Functionality (Recommended)
-```cpp
-// Provides --generate, --create, and --drop commands
-return migrations::cli::run_migration_tool(
-    argc, argv,
-    supported_versions,
-    generate_migration_between_versions,
-    generate_create_migration,
-    generate_drop_migration
-);
-```
-
-#### Generate-Only Tool
-```cpp
-// Only --generate command available
-// --create and --drop commands will throw errors
-return migrations::cli::run_migration_tool(
-    argc, argv,
-    supported_versions,
-    generate_migration_between_versions
-);
-```
-
-#### Create-Only Tool
-```cpp
-// Only --generate and --create commands available
-// --drop command will throw error
-return migrations::cli::run_migration_tool(
-    argc, argv,
-    supported_versions,
-    generate_migration_between_versions,
-    generate_create_migration
-);
-```
-
-### Command Line Usage
-
-Once built, your migration tool supports these commands:
-
-```bash
-# Generate migration between versions
-./migration_tool --generate --from v1 --to v2
-
-# Create a new table for a specific version
-./migration_tool --create --version v2
-
-# Generate drop migration for a specific version
-./migration_tool --drop --version v2
-
-# Show help
-./migration_tool --help
 ```
 
 The `relx::migrations` system provides a powerful, type-safe way to manage database schema evolution in C++. By leveraging compile-time table definitions and automatic migration generation, it reduces the risk of schema migration errors while providing full control over the migration process. 
