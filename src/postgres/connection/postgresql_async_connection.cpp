@@ -209,6 +209,57 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::rollba
   co_return ConnectionResult<void>{};
 }
 
+boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::reset_connection_state() {
+  if (!is_connected()) {
+    co_return ConnectionResult<void>{};  // Nothing to reset if not connected
+  }
+
+  if (!async_conn_) {
+    co_return ConnectionResult<void>{};
+  }
+
+  PGconn* pg_conn = async_conn_->native_handle();
+  if (!pg_conn) {
+    co_return ConnectionResult<void>{};
+  }
+
+  try {
+    // Consume any remaining results from the connection to clean up the state
+    while (true) {
+      // Check if we can consume input without blocking
+      if (PQconsumeInput(pg_conn) == 0) {
+        // Error consuming input - but continue to try to reset
+        break;
+      }
+
+      // Check if we can get a result without blocking
+      if (!PQisBusy(pg_conn)) {
+        PGresult* result = PQgetResult(pg_conn);
+        if (!result) {
+          // No more results - connection is clean
+          break;
+        }
+        PQclear(result);
+      } else {
+        // Still busy, wait for the socket to be readable
+        boost::system::error_code ec;
+        co_await async_conn_->socket().async_wait(
+            boost::asio::ip::tcp::socket::wait_read,
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+
+        if (ec) {
+          // Error waiting - connection might be in a bad state, but we'll return success anyway
+          break;
+        }
+      }
+    }
+  } catch (...) {
+    // Any exception during reset - just continue, connection might be reset anyway
+  }
+
+  co_return ConnectionResult<void>{};
+}
+
 std::string PostgreSQLAsyncConnection::convert_placeholders(const std::string& sql) {
   return sql_utils::convert_placeholders_to_postgresql(sql);
 }

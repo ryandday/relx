@@ -243,6 +243,10 @@ public:
   /// Get the IO context associated with this connection
   boost::asio::io_context& get_io_context() const { return io_context_; }
 
+  /// @brief Reset connection state after streaming operations
+  /// @return Awaitable that resolves when the connection is ready for new commands
+  boost::asio::awaitable<ConnectionResult<void>> reset_connection_state();
+
 private:
   boost::asio::io_context& io_context_;
   std::string connection_string_;

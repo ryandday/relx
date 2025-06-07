@@ -374,4 +374,58 @@ void PostgreSQLAsyncStreamingSource::cleanup() {
   finished_ = true;
 }
 
+boost::asio::awaitable<void> PostgreSQLAsyncStreamingSource::async_cleanup() {
+  if (!query_active_) {
+    co_return;
+  }
+
+  PGconn* pg_conn = connection_.get_async_conn().native_handle();
+  if (!pg_conn) {
+    query_active_ = false;
+    finished_ = true;
+    co_return;
+  }
+
+  try {
+    // Asynchronously consume any remaining results to clean up the connection state
+    while (query_active_) {
+      // Check if we can consume input without blocking
+      if (PQconsumeInput(pg_conn) == 0) {
+        // Error consuming input, just clean up and exit
+        break;
+      }
+
+      // Check if we can get a result without blocking
+      if (!PQisBusy(pg_conn)) {
+        PGresult* result = PQgetResult(pg_conn);
+        if (!result) {
+          // No more results - cleanup is complete
+          break;
+        }
+        PQclear(result);
+      } else {
+        // Still busy, wait for the socket to be readable
+        boost::system::error_code ec;
+        co_await connection_.get_async_conn().socket().async_wait(
+            boost::asio::ip::tcp::socket::wait_read,
+            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+
+        if (ec) {
+          // Error waiting, just break out
+          break;
+        }
+      }
+    }
+  } catch (...) {
+    // Any exception during cleanup - just mark as finished
+  }
+
+  // Mark cleanup as complete
+  query_active_ = false;
+  current_result_.reset();
+  current_row_index_ = 0;
+  has_pending_results_ = false;
+  finished_ = true;
+}
+
 }  // namespace relx::connection

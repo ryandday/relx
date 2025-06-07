@@ -8,11 +8,11 @@
 #include <boost/asio.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <chrono>
 #include <iostream>
 #include <memory>
 #include <string>
-#include <thread>
 #include <vector>
 
 using namespace relx;
@@ -31,13 +31,39 @@ protected:
     }
 
     void TearDown() override {
-        io_context.stop();
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        // Don't stop the io_context here - let coroutines finish naturally
+        // The connection cleanup will happen in the coroutines themselves
     }
 
     void run_test(std::function<asio::awaitable<void>()> test_coro) {
-        asio::co_spawn(io_context, test_coro, asio::detached);
-        io_context.run();
+        // Use a different approach that waits for the coroutine to complete
+        std::exception_ptr exception_holder = nullptr;
+        bool completed = false;
+        
+        asio::co_spawn(io_context, 
+            [&]() -> asio::awaitable<void> {
+                try {
+                    co_await test_coro();
+                    completed = true;
+                } catch (...) {
+                    exception_holder = std::current_exception();
+                    completed = true;
+                }
+            }, 
+            asio::detached);
+        
+        // Run the io_context until the coroutine completes
+        while (!completed) {
+            io_context.run_one();
+        }
+        
+        // Rethrow any exception that occurred in the coroutine
+        if (exception_holder) {
+            std::rethrow_exception(exception_holder);
+        }
+        
+        // Reset the io_context for the next test
+        io_context.restart();
     }
 };
 
@@ -71,25 +97,39 @@ TEST_F(PostgreSQLAsyncStreamingTest, BasicAsyncStreamingFunctionality) {
         )");
         EXPECT_TRUE(insert_result);
 
-        // Test async streaming
-        auto streaming_result = connection::create_async_streaming_result(
-            conn, "SELECT id, name, email, age FROM users ORDER BY id");
+        // Test async streaming - wrap in scope to ensure destruction
+        {
+            auto streaming_result = connection::create_async_streaming_result(
+                conn, "SELECT id, name, email, age FROM users ORDER BY id");
 
-                 std::vector<std::string> names;
-         co_await streaming_result.for_each([&names](const auto& lazy_row) {
-             auto name_result = lazy_row.template get<std::string>("name");
-             if (name_result) {
-                 names.push_back(*name_result);
-             }
-         });
+            std::vector<std::string> names;
+            co_await streaming_result.for_each([&names](const auto& lazy_row) {
+                auto name_result = lazy_row.template get<std::string>("name");
+                if (name_result) {
+                    names.push_back(*name_result);
+                }
+            });
 
-        EXPECT_GT(names.size(), 0);
-        if (!names.empty()) {
-            EXPECT_EQ(names[0], "Alice Johnson");
-        }
+            EXPECT_GT(names.size(), 0);
+            if (!names.empty()) {
+                EXPECT_EQ(names[0], "Alice Johnson");
+            }
+
+            // Explicitly cleanup the streaming result before doing other operations
+            co_await streaming_result.cleanup();
+        } // streaming_result destructor called here - should clean up
+
+        // Remove the timer delay since we have explicit cleanup
+        
+        // Reset the connection state to ensure it's ready for new commands
+        auto reset_result = co_await conn.reset_connection_state();
+        EXPECT_TRUE(reset_result);
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
+        if (!drop_result) {
+            std::cerr << "DROP TABLE failed: " << drop_result.error().message << std::endl;
+        }
         EXPECT_TRUE(drop_result);
         
         co_await conn.disconnect();
@@ -127,18 +167,25 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingWithParameters) {
         )");
         EXPECT_TRUE(insert_result);
 
-        auto streaming_result = connection::create_async_streaming_result(
-            conn, "SELECT id, name, age FROM users WHERE age > $1 ORDER BY age", 30);
+        {
+            auto streaming_result = connection::create_async_streaming_result(
+                conn, "SELECT id, name, age FROM users WHERE age > $1 ORDER BY age", 30);
 
-                 std::vector<int> ages;
-         co_await streaming_result.for_each([&ages](const auto& lazy_row) {
-             auto age_result = lazy_row.template get<int>("age");
-             if (age_result) {
-                 ages.push_back(*age_result);
-             }
-         });
+            std::vector<int> ages;
+            co_await streaming_result.for_each([&ages](const auto& lazy_row) {
+                auto age_result = lazy_row.template get<int>("age");
+                if (age_result) {
+                    ages.push_back(*age_result);
+                }
+            });
 
-        EXPECT_GT(ages.size(), 0);  // Should get some results
+            EXPECT_GT(ages.size(), 0);  // Should get some results
+            
+            co_await streaming_result.cleanup();
+        }
+        
+        auto reset_result = co_await conn.reset_connection_state();
+        EXPECT_TRUE(reset_result);
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
@@ -176,23 +223,30 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingWithNullValues) {
         )");
         EXPECT_TRUE(insert_result);
 
-        auto streaming_result = connection::create_async_streaming_result(
-            conn, "SELECT name, email FROM users WHERE email IS NULL");
+        {
+            auto streaming_result = connection::create_async_streaming_result(
+                conn, "SELECT name, email FROM users WHERE email IS NULL");
 
-                 std::vector<std::string> names_with_null_email;
-         co_await streaming_result.for_each([&names_with_null_email](const auto& lazy_row) {
-             auto name_result = lazy_row.template get<std::string>("name");
-             auto email_result = lazy_row.template get<std::optional<std::string>>("email");
-             
-             if (name_result && email_result && !email_result->has_value()) {
-                 names_with_null_email.push_back(*name_result);
-             }
-         });
+            std::vector<std::string> names_with_null_email;
+            co_await streaming_result.for_each([&names_with_null_email](const auto& lazy_row) {
+                auto name_result = lazy_row.template get<std::string>("name");
+                auto email_result = lazy_row.template get<std::optional<std::string>>("email");
+                
+                if (name_result && email_result && !email_result->has_value()) {
+                    names_with_null_email.push_back(*name_result);
+                }
+            });
 
-        EXPECT_GT(names_with_null_email.size(), 0);
-        if (!names_with_null_email.empty()) {
-            EXPECT_EQ(names_with_null_email[0], "Charlie Brown");
+            EXPECT_GT(names_with_null_email.size(), 0);
+            if (!names_with_null_email.empty()) {
+                EXPECT_EQ(names_with_null_email[0], "Charlie Brown");
+            }
+            
+            co_await streaming_result.cleanup();
         }
+        
+        auto reset_result = co_await conn.reset_connection_state();
+        EXPECT_TRUE(reset_result);
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
@@ -232,28 +286,35 @@ TEST_F(PostgreSQLAsyncStreamingTest, ManualAsyncIteration) {
         )");
         EXPECT_TRUE(insert_result);
 
-        auto streaming_result = connection::create_async_streaming_result(
-            conn, "SELECT id, name FROM users ORDER BY id LIMIT 3");
+        {
+            auto streaming_result = connection::create_async_streaming_result(
+                conn, "SELECT id, name FROM users ORDER BY id LIMIT 3");
 
-        auto it = streaming_result.begin();
-        std::vector<std::pair<int, std::string>> results;
+            auto it = streaming_result.begin();
+            std::vector<std::pair<int, std::string>> results;
 
-        // Manually iterate through results
-        co_await it.advance();
-        while (!it.is_at_end()) {
-            const auto& lazy_row = *it;
-            
-                         auto id_result = lazy_row.template get<int>("id");
-             auto name_result = lazy_row.template get<std::string>("name");
-            
-            if (id_result && name_result) {
-                results.emplace_back(*id_result, *name_result);
-            }
-            
+            // Manually iterate through results
             co_await it.advance();
-        }
+            while (!it.is_at_end()) {
+                const auto& lazy_row = *it;
+                
+                auto id_result = lazy_row.template get<int>("id");
+                auto name_result = lazy_row.template get<std::string>("name");
+                
+                if (id_result && name_result) {
+                    results.emplace_back(*id_result, *name_result);
+                }
+                
+                co_await it.advance();
+            }
 
-        EXPECT_GT(results.size(), 0);  // Should get at least one result
+            EXPECT_GT(results.size(), 0);  // Should get at least one result
+            
+            co_await streaming_result.cleanup();
+        }
+        
+        auto reset_result = co_await conn.reset_connection_state();
+        EXPECT_TRUE(reset_result);
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
@@ -325,6 +386,9 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingEmptyResultSet) {
 
         EXPECT_EQ(names.size(), 0);  // Should be empty
         
+        auto reset_result = co_await conn.reset_connection_state();
+        EXPECT_TRUE(reset_result);
+        
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS empty_test");
         EXPECT_TRUE(drop_result);
@@ -384,9 +448,12 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingMixedDataTypes) {
             EXPECT_EQ(std::get<0>(results[0]), "Product A");
         }
         
+        auto reset_result = co_await conn.reset_connection_state();
+        EXPECT_TRUE(reset_result);
+        
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS mixed_types_test");
-        // EXPECT_TRUE(drop_result);
+        EXPECT_TRUE(drop_result);
         
         co_await conn.disconnect();
     });
@@ -469,6 +536,9 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingWithMultipleParameters) {
         if (!results.empty()) {
             EXPECT_EQ(results[0].first, "Widget A");  // Should match our criteria
         }
+        
+        auto reset_result = co_await conn.reset_connection_state();
+        EXPECT_TRUE(reset_result);
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS param_test");

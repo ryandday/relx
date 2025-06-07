@@ -61,6 +61,10 @@ public:
   /// @return True if more rows are available, false if end of results or error
   bool has_more_rows() const { return !finished_; }
 
+  /// @brief Explicitly cleanup any active query asynchronously
+  /// @return Awaitable that resolves when cleanup is complete
+  boost::asio::awaitable<void> async_cleanup();
+
 private:
   PostgreSQLAsyncConnection& connection_;
   std::string sql_;
@@ -162,6 +166,12 @@ public:
       }
       co_await it.advance();
     }
+  }
+
+  /// @brief Explicitly cleanup the streaming source
+  /// @return Awaitable that resolves when cleanup is complete
+  boost::asio::awaitable<void> cleanup() {
+    co_await source_.async_cleanup();
   }
 
 private:
