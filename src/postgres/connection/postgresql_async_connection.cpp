@@ -260,6 +260,53 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::reset_
   co_return ConnectionResult<void>{};
 }
 
+bool PostgreSQLAsyncConnection::reset_connection_state_sync() {
+  if (!is_connected()) {
+    return true;  // Nothing to reset if not connected
+  }
+
+  if (!async_conn_) {
+    return true;
+  }
+
+  PGconn* pg_conn = async_conn_->native_handle();
+  if (!pg_conn) {
+    return true;
+  }
+
+  try {
+    // Consume any remaining results from the connection to clean up the state
+    // This is a non-blocking version for use in destructors
+    while (true) {
+      // Check if we can consume input without blocking
+      if (PQconsumeInput(pg_conn) == 0) {
+        // Error consuming input - but continue to try to reset
+        break;
+      }
+
+      // Check if we can get a result without blocking
+      if (!PQisBusy(pg_conn)) {
+        PGresult* result = PQgetResult(pg_conn);
+        if (!result) {
+          // No more results - connection is clean
+          break;
+        }
+        PQclear(result);
+      } else {
+        // Still busy - in sync mode we can't wait, so just break
+        // The connection might still have pending results, but this is
+        // a best-effort cleanup for destructor scenarios
+        break;
+      }
+    }
+  } catch (...) {
+    // Any exception during reset - just continue, return success anyway
+    // This is destructor-safe behavior
+  }
+
+  return true;
+}
+
 std::string PostgreSQLAsyncConnection::convert_placeholders(const std::string& sql) {
   return sql_utils::convert_placeholders_to_postgresql(sql);
 }

@@ -115,15 +115,12 @@ TEST_F(PostgreSQLAsyncStreamingTest, BasicAsyncStreamingFunctionality) {
                 EXPECT_EQ(names[0], "Alice Johnson");
             }
 
-            // Explicitly cleanup the streaming result before doing other operations
-            co_await streaming_result.cleanup();
+            // No manual cleanup needed - automatic reset will be called when streaming completes
         } // streaming_result destructor called here - should clean up
 
-        // Remove the timer delay since we have explicit cleanup
+        // Remove the timer delay since we have automatic cleanup
         
-        // Reset the connection state to ensure it's ready for new commands
-        auto reset_result = co_await conn.reset_connection_state();
-        EXPECT_TRUE(reset_result);
+        // No manual reset needed - it's done automatically when streaming completes
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
@@ -131,8 +128,6 @@ TEST_F(PostgreSQLAsyncStreamingTest, BasicAsyncStreamingFunctionality) {
             std::cerr << "DROP TABLE failed: " << drop_result.error().message << std::endl;
         }
         EXPECT_TRUE(drop_result);
-        
-        co_await conn.disconnect();
     });
 }
 
@@ -181,11 +176,10 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingWithParameters) {
 
             EXPECT_GT(ages.size(), 0);  // Should get some results
             
-            co_await streaming_result.cleanup();
+            // No manual cleanup needed - automatic reset will be called when streaming completes
         }
         
-        auto reset_result = co_await conn.reset_connection_state();
-        EXPECT_TRUE(reset_result);
+        // No manual reset needed - it's done automatically when streaming completes
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
@@ -242,11 +236,10 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingWithNullValues) {
                 EXPECT_EQ(names_with_null_email[0], "Charlie Brown");
             }
             
-            co_await streaming_result.cleanup();
+            // No manual cleanup needed - automatic reset will be called when streaming completes
         }
         
-        auto reset_result = co_await conn.reset_connection_state();
-        EXPECT_TRUE(reset_result);
+        // No manual reset needed - it's done automatically when streaming completes
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
@@ -310,11 +303,10 @@ TEST_F(PostgreSQLAsyncStreamingTest, ManualAsyncIteration) {
 
             EXPECT_GT(results.size(), 0);  // Should get at least one result
             
-            co_await streaming_result.cleanup();
+            // No manual cleanup needed - automatic reset will be called when streaming completes
         }
         
-        auto reset_result = co_await conn.reset_connection_state();
-        EXPECT_TRUE(reset_result);
+        // No manual reset needed - it's done automatically when streaming completes
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
@@ -386,8 +378,7 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingEmptyResultSet) {
 
         EXPECT_EQ(names.size(), 0);  // Should be empty
         
-        auto reset_result = co_await conn.reset_connection_state();
-        EXPECT_TRUE(reset_result);
+        // No manual reset needed - it's done automatically when streaming completes
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS empty_test");
@@ -448,8 +439,7 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingMixedDataTypes) {
             EXPECT_EQ(std::get<0>(results[0]), "Product A");
         }
         
-        auto reset_result = co_await conn.reset_connection_state();
-        EXPECT_TRUE(reset_result);
+        // No manual reset needed - it's done automatically when streaming completes
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS mixed_types_test");
@@ -537,11 +527,88 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingWithMultipleParameters) {
             EXPECT_EQ(results[0].first, "Widget A");  // Should match our criteria
         }
         
-        auto reset_result = co_await conn.reset_connection_state();
-        EXPECT_TRUE(reset_result);
+        // No manual reset needed - it's done automatically when streaming completes
         
         // Clean up
         auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS param_test");
+        EXPECT_TRUE(drop_result);
+        
+        co_await conn.disconnect();
+    });
+}
+
+// Test automatic cleanup when result set goes out of scope
+TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingEarlyDestruction) {
+    connection::PostgreSQLAsyncConnection conn(io_context, conn_string);
+    
+    run_test([&]() -> asio::awaitable<void> {
+        auto connect_result = co_await conn.connect();
+        EXPECT_TRUE(connect_result);
+        
+        // Create test table
+        auto create_result = co_await conn.execute_raw(R"(
+            CREATE TABLE IF NOT EXISTS early_destruction_test (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                value INTEGER
+            )
+        )");
+        EXPECT_TRUE(create_result);
+
+        auto clear_result = co_await conn.execute_raw("DELETE FROM early_destruction_test");
+        EXPECT_TRUE(clear_result);
+
+        auto insert_result = co_await conn.execute_raw(R"(
+            INSERT INTO early_destruction_test (name, value) VALUES 
+            ('Item 1', 100),
+            ('Item 2', 200),
+            ('Item 3', 300),
+            ('Item 4', 400),
+            ('Item 5', 500)
+        )");
+        EXPECT_TRUE(insert_result);
+
+        // Test early destruction - streaming result goes out of scope without completing iteration
+        {
+            auto streaming_result = connection::create_async_streaming_result(
+                conn, "SELECT name, value FROM early_destruction_test ORDER BY id");
+
+            auto it = streaming_result.begin();
+            
+            // Only process the first result, then let it go out of scope
+            co_await it.advance();
+            if (!it.is_at_end()) {
+                const auto& lazy_row = *it;
+                auto name_result = lazy_row.template get<std::string>("name");
+                EXPECT_TRUE(name_result.has_value());
+                if (name_result) {
+                    EXPECT_EQ(*name_result, "Item 1");
+                }
+            }
+            
+            // streaming_result will be destroyed here, should trigger automatic cleanup
+        }
+        
+        // Immediately test that the connection is ready for new operations
+        // This verifies that the destructor cleaned up the connection state
+        auto test_result = co_await conn.execute_raw("SELECT COUNT(*) as count FROM early_destruction_test");
+        EXPECT_TRUE(test_result);
+        
+        if (test_result) {
+            const auto& result_set = *test_result;
+            EXPECT_GT(result_set.size(), 0);
+            if (result_set.size() > 0) {
+                const auto& row = result_set.at(0);
+                auto count_cell = row.get_cell("count");
+                EXPECT_TRUE(count_cell.has_value());
+                if (count_cell) {
+                    EXPECT_EQ((*count_cell)->raw_value(), "5");
+                }
+            }
+        }
+        
+        // Clean up
+        auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS early_destruction_test");
         EXPECT_TRUE(drop_result);
         
         co_await conn.disconnect();

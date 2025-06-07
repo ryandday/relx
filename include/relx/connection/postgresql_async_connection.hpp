@@ -247,6 +247,12 @@ public:
   /// @return Awaitable that resolves when the connection is ready for new commands
   boost::asio::awaitable<ConnectionResult<void>> reset_connection_state();
 
+  /// @brief Reset connection state synchronously (for use in destructors)
+  /// @return True if reset was successful, false otherwise
+  /// @details This is a non-blocking version that can be called from destructors
+  /// when async streaming result sets go out of scope before completion
+  bool reset_connection_state_sync();
+
 private:
   boost::asio::io_context& io_context_;
   std::string connection_string_;

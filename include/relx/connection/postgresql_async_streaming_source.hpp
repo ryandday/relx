@@ -65,6 +65,10 @@ public:
   /// @return Awaitable that resolves when cleanup is complete
   boost::asio::awaitable<void> async_cleanup();
 
+  /// @brief Get reference to the underlying connection
+  /// @return Reference to the PostgreSQL async connection
+  PostgreSQLAsyncConnection& get_connection() { return connection_; }
+
 private:
   PostgreSQLAsyncConnection& connection_;
   std::string sql_;
@@ -114,8 +118,8 @@ public:
   /// @brief Iterator that reads data on demand asynchronously
   class async_streaming_iterator {
   public:
-    async_streaming_iterator(DataSource& source, bool at_end = false)
-        : source_(source), current_row_(), at_end_(at_end) {}
+    async_streaming_iterator(DataSource& source, AsyncStreamingResultSet& result_set, bool at_end = false)
+        : source_(source), result_set_(result_set), current_row_(), at_end_(at_end) {}
 
     /// @brief Get the current row (must be called after advance())
     const auto& operator*() const { return current_row_; }
@@ -131,6 +135,8 @@ public:
         current_row_ = result::LazyRow(std::move(*next_row_data), source_.get_column_names());
       } else {
         at_end_ = true;
+        // Automatically reset connection state when streaming completes
+        co_await result_set_.auto_reset_connection_state();
       }
     }
 
@@ -138,17 +144,57 @@ public:
 
   private:
     DataSource& source_;
+    AsyncStreamingResultSet& result_set_;
     result::LazyRow current_row_;
     bool at_end_;
   };
 
-  AsyncStreamingResultSet(DataSource source) : source_(std::move(source)) {}
+  AsyncStreamingResultSet(DataSource source) : source_(std::move(source)), reset_called_(false) {}
+
+  /// @brief Destructor that ensures cleanup when result set goes out of scope
+  ~AsyncStreamingResultSet() {
+    // Call synchronous cleanup for RAII when going out of scope
+    if (!reset_called_) {
+      reset_called_ = true;
+      // Only call reset for PostgreSQL async streaming sources
+      if constexpr (std::is_same_v<DataSource, PostgreSQLAsyncStreamingSource>) {
+        source_.get_connection().reset_connection_state_sync();
+      }
+    }
+  }
+
+  // Disable copy operations to ensure single ownership
+  AsyncStreamingResultSet(const AsyncStreamingResultSet&) = delete;
+  AsyncStreamingResultSet& operator=(const AsyncStreamingResultSet&) = delete;
+
+  // Allow move operations
+  AsyncStreamingResultSet(AsyncStreamingResultSet&& other) noexcept 
+    : source_(std::move(other.source_)), reset_called_(other.reset_called_) {
+    other.reset_called_ = true; // Prevent cleanup in moved-from object
+  }
+
+  AsyncStreamingResultSet& operator=(AsyncStreamingResultSet&& other) noexcept {
+    if (this != &other) {
+      // Cleanup current object before move
+      if (!reset_called_) {
+        reset_called_ = true;
+        if constexpr (std::is_same_v<DataSource, PostgreSQLAsyncStreamingSource>) {
+          source_.get_connection().reset_connection_state_sync();
+        }
+      }
+      
+      source_ = std::move(other.source_);
+      reset_called_ = other.reset_called_;
+      other.reset_called_ = true; // Prevent cleanup in moved-from object
+    }
+    return *this;
+  }
 
   /// @brief Begin async iteration
-  async_streaming_iterator begin() { return async_streaming_iterator(source_); }
+  async_streaming_iterator begin() { return async_streaming_iterator(source_, *this); }
 
   /// @brief End marker for async iteration
-  async_streaming_iterator end() { return async_streaming_iterator(source_, true); }
+  async_streaming_iterator end() { return async_streaming_iterator(source_, *this, true); }
 
   /// @brief Process all rows with an async callback
   template <typename Func>
@@ -166,16 +212,34 @@ public:
       }
       co_await it.advance();
     }
+    
+    // Connection state reset is automatically called when iterator reaches end via advance()
   }
 
   /// @brief Explicitly cleanup the streaming source
   /// @return Awaitable that resolves when cleanup is complete
   boost::asio::awaitable<void> cleanup() {
     co_await source_.async_cleanup();
+    co_await auto_reset_connection_state();
+  }
+
+  /// @brief Internal method to automatically reset connection state (called only once)
+  /// @return Awaitable that resolves when reset is complete
+  boost::asio::awaitable<void> auto_reset_connection_state() {
+    if (!reset_called_) {
+      reset_called_ = true;
+      // Only call reset for PostgreSQL async streaming sources
+      if constexpr (std::is_same_v<DataSource, PostgreSQLAsyncStreamingSource>) {
+        auto reset_result = co_await source_.get_connection().reset_connection_state();
+        // Note: We don't propagate reset errors since streaming operation was successful
+        (void)reset_result; // Silence unused variable warning
+      }
+    }
   }
 
 private:
   DataSource source_;
+  bool reset_called_;
 };
 
 /// @brief Create an async streaming result set from a PostgreSQL async connection and query
