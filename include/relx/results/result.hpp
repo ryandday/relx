@@ -172,9 +172,6 @@ private:
   template <typename T>
   static constexpr bool is_optional_v = false;
 
-  template <typename T>
-  static constexpr bool is_optional_v<std::optional<T>> = true;
-
   // String helpers
   static std::string to_lower(std::string str) {
     std::transform(str.begin(), str.end(), str.begin(),
@@ -343,6 +340,10 @@ private:
     return std::optional<T>{*result};
   }
 };
+
+// Specialization for Cell::is_optional_v
+template <typename T>
+constexpr bool Cell::is_optional_v<std::optional<T>> = true;
 
 /// @brief Represents a single row from a database result
 class Row {

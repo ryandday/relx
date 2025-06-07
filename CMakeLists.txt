@@ -13,8 +13,10 @@ if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
-# Disable C++26 extension warnings, as we will be using C++26 features as they are released
-add_compile_options(-Wno-c++26-extensions)
+# Disable C++26 extension warnings for Clang, as we will be using C++26 features as they are released
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(-Wno-c++26-extensions)
+endif()
 
 if(RELX_DEV_MODE)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
