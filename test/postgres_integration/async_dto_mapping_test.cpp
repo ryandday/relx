@@ -123,7 +123,7 @@ protected:
                 });
             } 
             catch (const std::exception& e) {
-                std::println(stderr, "Async cleanup failed: {} ", e.what());
+                std::cerr << "Async cleanup failed: " << e.what() << std::endl;
                 
                 // Fallback to synchronous cleanup
                 try {
@@ -136,7 +136,7 @@ protected:
                     }
                 }
                 catch (const std::exception& e) {
-                    std::println(stderr, "Synchronous fallback cleanup failed: {} ", e.what());
+                    std::cerr << "Synchronous fallback cleanup failed: " << e.what() << std::endl;
                 }
             }
         }

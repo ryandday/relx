@@ -103,7 +103,7 @@ TEST_F(PostgresIntegrationTest, TestBasicConnection) {
     const auto& version_row = (*version_result)[0];
     auto version = version_row.get<std::string>(0);
     ASSERT_TRUE(version);
-    std::println("PostgreSQL version: {}", *version);
+    std::cout << "PostgreSQL version: " << *version << std::endl;
     
     // Disconnect
     conn.disconnect();

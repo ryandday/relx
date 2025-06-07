@@ -196,9 +196,6 @@ TEST_F(SchemaIntegrationTest, CreateTables) {
     ASSERT_TRUE(tables) << "Failed to query tables: " << tables.error().message;
     
     auto& rows = *tables;
-    for (auto& row : rows) {
-        std::println(stderr, "row: {}", row.get<std::string>(0).value_or("NULL"));
-    }
     ASSERT_EQ(5, rows.size()) << "Expected 5 tables to be created";
     
     std::vector<std::string> expected_tables = {"categories", "customers", "inventory", "orders", "products"};

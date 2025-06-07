@@ -155,6 +155,5 @@ using EmptyCol = column<SimpleTable, "", int>;
 static_assert(std::string_view(EmptyCol::name) == "", "Empty fixed_string should work");
 
 int main() {
-    std::println("All static assertions passed!");
     return 0;
 } 

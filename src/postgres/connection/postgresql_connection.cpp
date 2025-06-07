@@ -161,9 +161,9 @@ constexpr bool ultra_verbose = false;
 ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     const std::string& sql, const std::vector<std::string>& params) {
   if constexpr (ultra_verbose) {
-    std::println("Executing raw SQL: {}", sql);
+    std::cout << "Executing raw SQL: " << sql << std::endl;
     for (const auto& param : params) {
-      std::println("Param: {}", param);
+      std::cout << "Param: " << param << std::endl;
     }
   }
 
@@ -229,7 +229,8 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
 
   case PGRES_NONFATAL_ERROR:
     // Log the warning but continue processing
-    std::print("PostgreSQL warning: {}", PQresultErrorMessage(pg_result.get()));
+    // TODO more customizable user behavior for this
+    std::cerr << "PostgreSQL warning: " << PQresultErrorMessage(pg_result.get()) << std::endl;
     break;
 
   case PGRES_COPY_IN:

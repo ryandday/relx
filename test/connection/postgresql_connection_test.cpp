@@ -211,7 +211,6 @@ TEST_F(PostgreSQLConnectionTest, TestErrorHandling) {
     
     // Note: If the PostgreSQL connection implementation doesn't properly detect SQL errors,
     // this test will be skipped. This is a known limitation that should be fixed in the future.
-    std::println("Note: The PostgreSQL error handling implementation might not detect certain SQL errors correctly.");
     
     // 1. Test not connected state, which should always error
     relx::PostgreSQLConnection newConn(conn_string);
@@ -219,7 +218,6 @@ TEST_F(PostgreSQLConnectionTest, TestErrorHandling) {
     auto result = newConn.execute_raw("SELECT 1;");
     ASSERT_FALSE(result);
     ASSERT_NE("", result.error().message);
-    std::println("Not connected error: {}", result.error().message);
     
     // Clean up
     conn.disconnect();
@@ -508,24 +506,24 @@ TEST_F(PostgreSQLConnectionTest, TestBooleanColumn) {
     ASSERT_TRUE(all_result) << "Failed to query all records: " << all_result.error().message;
     
     // Print values for debugging
-    std::println("Boolean values as stored in PostgreSQL:");
+    std::cout << "Boolean values as stored in PostgreSQL:" << std::endl;
     for (const auto& row : *all_result) {
         auto name = row.get<std::string>("name");
         auto active_value = row.get<std::string>("active");
         ASSERT_TRUE(name.has_value());
         ASSERT_TRUE(active_value.has_value());
-        std::println("  {}: '{}'", *name, *active_value);
+        std::cout << "  " << *name << ": '" << *active_value << "'" << std::endl;
     }
     
     // Test querying by boolean value
-    std::println("\nTesting queries with boolean conditions:");
+    std::cout << "\nTesting queries with boolean conditions:" << std::endl;
     
     // Test true conditions
     auto true_result = conn.execute_raw("SELECT COUNT(*) FROM users WHERE active = true");
     ASSERT_TRUE(true_result) << "Failed to query with boolean condition: " << true_result.error().message;
     auto true_count = (*true_result)[0].get<int>(0);
     ASSERT_TRUE(true_count.has_value());
-    std::println("  Records with active=true: {}", *true_count);
+    std::cout << "  Records with active=true: " << *true_count << std::endl;
     EXPECT_EQ(3, *true_count);
     
     // Test false conditions
@@ -533,7 +531,7 @@ TEST_F(PostgreSQLConnectionTest, TestBooleanColumn) {
     ASSERT_TRUE(false_result) << "Failed to query with boolean condition: " << false_result.error().message;
     auto false_count = (*false_result)[0].get<int>(0);
     ASSERT_TRUE(false_count.has_value());
-    std::println("  Records with active=false: {}", *false_count);
+    std::cout << "  Records with active=false: " << *false_count << std::endl;
     EXPECT_EQ(3, *false_count);
     
     // Test updating boolean values
@@ -544,7 +542,7 @@ TEST_F(PostgreSQLConnectionTest, TestBooleanColumn) {
     ASSERT_TRUE(update_result) << "Failed to update boolean value: " << update_result.error().message;
     auto updated_active_str = (*update_result)[0].get<std::string>(0);
     ASSERT_TRUE(updated_active_str.has_value());
-    std::println("\nUpdated TrueAsT to: '{}'", *updated_active_str);
+    std::cout << "\nUpdated TrueAsT to: '" << *updated_active_str << "'" << std::endl;
     EXPECT_EQ("f", *updated_active_str);
     
     // Verify the NOT operator for booleans works correctly
@@ -554,7 +552,7 @@ TEST_F(PostgreSQLConnectionTest, TestBooleanColumn) {
     auto inverted = (*not_result)[0].get<std::string>("inverted");
     ASSERT_TRUE(original.has_value());
     ASSERT_TRUE(inverted.has_value());
-    std::println("NOT operator test: '{}' -> '{}'", *original, *inverted);
+    std::cout << "NOT operator test: '" << *original << "' -> '" << *inverted << "'" << std::endl;
     
     // Clean up
     conn.disconnect();
