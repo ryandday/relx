@@ -20,7 +20,9 @@ This library is a work in progress. Contributions, issues, and usability feedbac
 
 ## Motivation 
 
-This library was born from my desire for a C++ SQL library that offers the expressiveness of high-level languages without sacrificing C++'s performance and control. I didn't want crazy template parameters, macros, or member pointers, just a simple builder API. I also wanted out-of-the-box async capabilities, because async is the only practical approach for web applications handling massive amounts of concurrent users.
+This library was born from my desire for a C++ SQL library that offers the expressiveness of high-level languages without sacrificing C++'s performance and control.
+I didn't want crazy template parameters, macros, or member pointers, just a simple builder API. 
+I also wanted two features out-of-the-box: async capabilities, because async is the only practical approach for web applications handling massive amounts of concurrent users, and lazy loading of rows in case I have a big query.
 
 ## Table of Contents
 
