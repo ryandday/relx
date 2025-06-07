@@ -2,6 +2,7 @@
 
 #include "column.hpp"
 #include "meta.hpp"
+#include "../utils/error_handling.hpp"
 
 #include <array>
 #include <string_view>
@@ -211,7 +212,7 @@ private:
   template <size_t Index>
   std::string get_ref_table_name_impl() const {
     // Should never reach here if parameters are correct
-    return "unknown_table";
+    throw RelxException("Unknown table name");
   }
 
   // Helper to extract the class type from a member pointer

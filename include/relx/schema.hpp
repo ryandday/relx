@@ -161,14 +161,14 @@ namespace relx {
  */
 
 // Re-export all schema types in the relx namespace
+// These types are lowercase to look nicer
 using schema::autoincrement;
 using schema::column;
-using schema::column_traits;
 using schema::composite_unique_constraint;
 using schema::create_table;
 using schema::default_value;
 using schema::drop_table;
-using schema::FixedString;
+using schema::fixed_string;
 using schema::foreign_key;
 using schema::identity;
 using schema::index;

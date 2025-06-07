@@ -24,7 +24,7 @@ struct extract_arithmetic_type {
   using type = T;
 };
 
-template <typename TableT, schema::FixedString Name, typename ColumnT, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename ColumnT, typename... Modifiers>
 struct extract_arithmetic_type<schema::column<TableT, Name, ColumnT, Modifiers...>> {
   using type = ColumnT;
 };
@@ -112,8 +112,8 @@ private:
 };
 
 /// @brief Addition operator for columns with type checking
-template <typename TableT1, schema::FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, schema::FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, schema::fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, schema::fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator+(const schema::column<TableT1, Name1, T1, Modifiers1...>& left,
                const schema::column<TableT2, Name2, T2, Modifiers2...>& right) {
   // Extract base types, removing optional wrapper if present
@@ -132,7 +132,7 @@ auto operator+(const schema::column<TableT1, Name1, T1, Modifiers1...>& left,
 }
 
 /// @brief Addition operator for column with value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator+(const schema::column<TableT, Name, T, Modifiers...>& left, ValueT&& value) {
@@ -150,7 +150,7 @@ auto operator+(const schema::column<TableT, Name, T, Modifiers...>& left, ValueT
 }
 
 /// @brief Addition operator for value with column (reversed)
-template <typename ValueT, typename TableT, schema::FixedString Name, typename T,
+template <typename ValueT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator+(ValueT&& value, const schema::column<TableT, Name, T, Modifiers...>& right) {
@@ -158,8 +158,8 @@ auto operator+(ValueT&& value, const schema::column<TableT, Name, T, Modifiers..
 }
 
 /// @brief Subtraction operator for columns
-template <typename TableT1, schema::FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, schema::FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, schema::fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, schema::fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator-(const schema::column<TableT1, Name1, T1, Modifiers1...>& left,
                const schema::column<TableT2, Name2, T2, Modifiers2...>& right) {
   using LeftBaseType = arithmetic_checking::remove_optional_t<T1>;
@@ -177,7 +177,7 @@ auto operator-(const schema::column<TableT1, Name1, T1, Modifiers1...>& left,
 }
 
 /// @brief Subtraction operator for column with value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator-(const schema::column<TableT, Name, T, Modifiers...>& left, ValueT&& value) {
@@ -195,7 +195,7 @@ auto operator-(const schema::column<TableT, Name, T, Modifiers...>& left, ValueT
 }
 
 /// @brief Subtraction operator for value with column (reversed)
-template <typename ValueT, typename TableT, schema::FixedString Name, typename T,
+template <typename ValueT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator-(ValueT&& value, const schema::column<TableT, Name, T, Modifiers...>& right) {
@@ -212,8 +212,8 @@ auto operator-(ValueT&& value, const schema::column<TableT, Name, T, Modifiers..
 }
 
 /// @brief Multiplication operator for columns
-template <typename TableT1, schema::FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, schema::FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, schema::fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, schema::fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator*(const schema::column<TableT1, Name1, T1, Modifiers1...>& left,
                const schema::column<TableT2, Name2, T2, Modifiers2...>& right) {
   using LeftBaseType = arithmetic_checking::remove_optional_t<T1>;
@@ -231,7 +231,7 @@ auto operator*(const schema::column<TableT1, Name1, T1, Modifiers1...>& left,
 }
 
 /// @brief Multiplication operator for column with value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator*(const schema::column<TableT, Name, T, Modifiers...>& left, ValueT&& value) {
@@ -249,7 +249,7 @@ auto operator*(const schema::column<TableT, Name, T, Modifiers...>& left, ValueT
 }
 
 /// @brief Multiplication operator for value with column (reversed)
-template <typename ValueT, typename TableT, schema::FixedString Name, typename T,
+template <typename ValueT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator*(ValueT&& value, const schema::column<TableT, Name, T, Modifiers...>& right) {
@@ -257,8 +257,8 @@ auto operator*(ValueT&& value, const schema::column<TableT, Name, T, Modifiers..
 }
 
 /// @brief Division operator for columns
-template <typename TableT1, schema::FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, schema::FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, schema::fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, schema::fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator/(const schema::column<TableT1, Name1, T1, Modifiers1...>& left,
                const schema::column<TableT2, Name2, T2, Modifiers2...>& right) {
   using LeftBaseType = arithmetic_checking::remove_optional_t<T1>;
@@ -276,7 +276,7 @@ auto operator/(const schema::column<TableT1, Name1, T1, Modifiers1...>& left,
 }
 
 /// @brief Division operator for column with value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator/(const schema::column<TableT, Name, T, Modifiers...>& left, ValueT&& value) {
@@ -294,7 +294,7 @@ auto operator/(const schema::column<TableT, Name, T, Modifiers...>& left, ValueT
 }
 
 /// @brief Division operator for value with column (reversed)
-template <typename ValueT, typename TableT, schema::FixedString Name, typename T,
+template <typename ValueT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator/(ValueT&& value, const schema::column<TableT, Name, T, Modifiers...>& right) {
@@ -313,7 +313,7 @@ auto operator/(ValueT&& value, const schema::column<TableT, Name, T, Modifiers..
 // Arithmetic operators for ArithmeticExpr to support chaining
 
 /// @brief Addition operator for ArithmeticExpr with column
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
 auto operator+(const ArithmeticExpr<Left, Right>& left_expr,
                const schema::column<TableT, Name, T, Modifiers...>& right) {
@@ -327,7 +327,7 @@ auto operator+(const ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Addition operator for column with ArithmeticExpr
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           SqlExpr Left, SqlExpr Right>
 auto operator+(const schema::column<TableT, Name, T, Modifiers...>& left,
                const ArithmeticExpr<Left, Right>& right_expr) {
@@ -360,7 +360,7 @@ auto operator+(ValueT&& value, const ArithmeticExpr<Left, Right>& right_expr) {
 }
 
 /// @brief Subtraction operator for ArithmeticExpr with column
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
 auto operator-(const ArithmeticExpr<Left, Right>& left_expr,
                const schema::column<TableT, Name, T, Modifiers...>& right) {
@@ -374,7 +374,7 @@ auto operator-(const ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Subtraction operator for column with ArithmeticExpr
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           SqlExpr Left, SqlExpr Right>
 auto operator-(const schema::column<TableT, Name, T, Modifiers...>& left,
                const ArithmeticExpr<Left, Right>& right_expr) {
@@ -412,7 +412,7 @@ auto operator-(ValueT&& value, const ArithmeticExpr<Left, Right>& right_expr) {
 }
 
 /// @brief Multiplication operator for ArithmeticExpr with column
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
 auto operator*(const ArithmeticExpr<Left, Right>& left_expr,
                const schema::column<TableT, Name, T, Modifiers...>& right) {
@@ -426,7 +426,7 @@ auto operator*(const ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Multiplication operator for column with ArithmeticExpr
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           SqlExpr Left, SqlExpr Right>
 auto operator*(const schema::column<TableT, Name, T, Modifiers...>& left,
                const ArithmeticExpr<Left, Right>& right_expr) {
@@ -459,7 +459,7 @@ auto operator*(ValueT&& value, const ArithmeticExpr<Left, Right>& right_expr) {
 }
 
 /// @brief Division operator for ArithmeticExpr with column
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
 auto operator/(const ArithmeticExpr<Left, Right>& left_expr,
                const schema::column<TableT, Name, T, Modifiers...>& right) {
@@ -473,7 +473,7 @@ auto operator/(const ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Division operator for column with ArithmeticExpr
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           SqlExpr Left, SqlExpr Right>
 auto operator/(const schema::column<TableT, Name, T, Modifiers...>& left,
                const ArithmeticExpr<Left, Right>& right_expr) {
@@ -516,8 +516,8 @@ auto operator/(ValueT&& value, const query::ArithmeticExpr<Left, Right>& right_e
 namespace relx::schema {
 
 /// @brief Addition operator for columns with type checking
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator+(const column<TableT1, Name1, T1, Modifiers1...>& left,
                const column<TableT2, Name2, T2, Modifiers2...>& right) {
   // Extract base types, removing optional wrapper if present
@@ -536,7 +536,7 @@ auto operator+(const column<TableT1, Name1, T1, Modifiers1...>& left,
 }
 
 /// @brief Addition operator for column with value
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueT>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueT>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator+(const column<TableT, Name, T, Modifiers...>& left, ValueT&& value) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T>;
@@ -553,15 +553,15 @@ auto operator+(const column<TableT, Name, T, Modifiers...>& left, ValueT&& value
 }
 
 /// @brief Addition operator for value with column (reversed)
-template <typename ValueT, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueT, typename TableT, fixed_string Name, typename T, typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator+(ValueT&& value, const column<TableT, Name, T, Modifiers...>& right) {
   return right + std::forward<ValueT>(value);
 }
 
 /// @brief Subtraction operator for columns
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator-(const column<TableT1, Name1, T1, Modifiers1...>& left,
                const column<TableT2, Name2, T2, Modifiers2...>& right) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T1>;
@@ -579,7 +579,7 @@ auto operator-(const column<TableT1, Name1, T1, Modifiers1...>& left,
 }
 
 /// @brief Subtraction operator for column with value
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueT>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueT>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator-(const column<TableT, Name, T, Modifiers...>& left, ValueT&& value) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T>;
@@ -596,7 +596,7 @@ auto operator-(const column<TableT, Name, T, Modifiers...>& left, ValueT&& value
 }
 
 /// @brief Subtraction operator for value with column (reversed)
-template <typename ValueT, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueT, typename TableT, fixed_string Name, typename T, typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator-(ValueT&& value, const column<TableT, Name, T, Modifiers...>& right) {
   using RightBaseType = query::arithmetic_checking::remove_optional_t<T>;
@@ -612,8 +612,8 @@ auto operator-(ValueT&& value, const column<TableT, Name, T, Modifiers...>& righ
 }
 
 /// @brief Multiplication operator for columns
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator*(const column<TableT1, Name1, T1, Modifiers1...>& left,
                const column<TableT2, Name2, T2, Modifiers2...>& right) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T1>;
@@ -631,7 +631,7 @@ auto operator*(const column<TableT1, Name1, T1, Modifiers1...>& left,
 }
 
 /// @brief Multiplication operator for column with value
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueT>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueT>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator*(const column<TableT, Name, T, Modifiers...>& left, ValueT&& value) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T>;
@@ -648,15 +648,15 @@ auto operator*(const column<TableT, Name, T, Modifiers...>& left, ValueT&& value
 }
 
 /// @brief Multiplication operator for value with column (reversed)
-template <typename ValueT, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueT, typename TableT, fixed_string Name, typename T, typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator*(ValueT&& value, const column<TableT, Name, T, Modifiers...>& right) {
   return right * std::forward<ValueT>(value);
 }
 
 /// @brief Division operator for columns
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator/(const column<TableT1, Name1, T1, Modifiers1...>& left,
                const column<TableT2, Name2, T2, Modifiers2...>& right) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T1>;
@@ -674,7 +674,7 @@ auto operator/(const column<TableT1, Name1, T1, Modifiers1...>& left,
 }
 
 /// @brief Division operator for column with value
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueT>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueT>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator/(const column<TableT, Name, T, Modifiers...>& left, ValueT&& value) {
   using LeftBaseType = query::arithmetic_checking::remove_optional_t<T>;
@@ -691,7 +691,7 @@ auto operator/(const column<TableT, Name, T, Modifiers...>& left, ValueT&& value
 }
 
 /// @brief Division operator for value with column (reversed)
-template <typename ValueT, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueT, typename TableT, fixed_string Name, typename T, typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<ValueT>>
 auto operator/(ValueT&& value, const column<TableT, Name, T, Modifiers...>& right) {
   using RightBaseType = query::arithmetic_checking::remove_optional_t<T>;
@@ -709,7 +709,7 @@ auto operator/(ValueT&& value, const column<TableT, Name, T, Modifiers...>& righ
 // Arithmetic operators for ArithmeticExpr to support chaining (in schema namespace for ADL)
 
 /// @brief Addition operator for ArithmeticExpr with column
-template <query::SqlExpr Left, query::SqlExpr Right, typename TableT, FixedString Name, typename T,
+template <query::SqlExpr Left, query::SqlExpr Right, typename TableT, fixed_string Name, typename T,
           typename... Modifiers>
 auto operator+(const query::ArithmeticExpr<Left, Right>& left_expr,
                const column<TableT, Name, T, Modifiers...>& right) {
@@ -723,7 +723,7 @@ auto operator+(const query::ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Addition operator for column with ArithmeticExpr
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, query::SqlExpr Left,
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, query::SqlExpr Left,
           query::SqlExpr Right>
 auto operator+(const column<TableT, Name, T, Modifiers...>& left,
                const query::ArithmeticExpr<Left, Right>& right_expr) {
@@ -756,7 +756,7 @@ auto operator+(ValueT&& value, const query::ArithmeticExpr<Left, Right>& right_e
 }
 
 /// @brief Subtraction operator for ArithmeticExpr with column
-template <query::SqlExpr Left, query::SqlExpr Right, typename TableT, FixedString Name, typename T,
+template <query::SqlExpr Left, query::SqlExpr Right, typename TableT, fixed_string Name, typename T,
           typename... Modifiers>
 auto operator-(const query::ArithmeticExpr<Left, Right>& left_expr,
                const column<TableT, Name, T, Modifiers...>& right) {
@@ -770,7 +770,7 @@ auto operator-(const query::ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Subtraction operator for column with ArithmeticExpr
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, query::SqlExpr Left,
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, query::SqlExpr Left,
           query::SqlExpr Right>
 auto operator-(const column<TableT, Name, T, Modifiers...>& left,
                const query::ArithmeticExpr<Left, Right>& right_expr) {
@@ -808,7 +808,7 @@ auto operator-(ValueT&& value, const query::ArithmeticExpr<Left, Right>& right_e
 }
 
 /// @brief Multiplication operator for ArithmeticExpr with column
-template <query::SqlExpr Left, query::SqlExpr Right, typename TableT, FixedString Name, typename T,
+template <query::SqlExpr Left, query::SqlExpr Right, typename TableT, fixed_string Name, typename T,
           typename... Modifiers>
 auto operator*(const query::ArithmeticExpr<Left, Right>& left_expr,
                const column<TableT, Name, T, Modifiers...>& right) {
@@ -822,7 +822,7 @@ auto operator*(const query::ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Multiplication operator for column with ArithmeticExpr
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, query::SqlExpr Left,
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, query::SqlExpr Left,
           query::SqlExpr Right>
 auto operator*(const column<TableT, Name, T, Modifiers...>& left,
                const query::ArithmeticExpr<Left, Right>& right_expr) {
@@ -855,7 +855,7 @@ auto operator*(ValueT&& value, const query::ArithmeticExpr<Left, Right>& right_e
 }
 
 /// @brief Division operator for ArithmeticExpr with column
-template <query::SqlExpr Left, query::SqlExpr Right, typename TableT, FixedString Name, typename T,
+template <query::SqlExpr Left, query::SqlExpr Right, typename TableT, fixed_string Name, typename T,
           typename... Modifiers>
 auto operator/(const query::ArithmeticExpr<Left, Right>& left_expr,
                const column<TableT, Name, T, Modifiers...>& right) {
@@ -869,7 +869,7 @@ auto operator/(const query::ArithmeticExpr<Left, Right>& left_expr,
 }
 
 /// @brief Division operator for column with ArithmeticExpr
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, query::SqlExpr Left,
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, query::SqlExpr Left,
           query::SqlExpr Right>
 auto operator/(const column<TableT, Name, T, Modifiers...>& left,
                const query::ArithmeticExpr<Left, Right>& right_expr) {

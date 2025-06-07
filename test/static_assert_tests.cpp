@@ -143,16 +143,16 @@ static_assert(!StringLike<NotAString>, "NotAString should not satisfy StringLike
 static_assert(Container<std::string>, "std::string should satisfy Container");
 static_assert(!Container<int>, "int should not satisfy Container");
 
-// FixedString tests
+// fixed_string tests
 using IdCol = column<SimpleTable, "id", int>;
-static_assert(std::string_view(IdCol::name) == "id", "FixedString name should be 'id'");
+static_assert(std::string_view(IdCol::name) == "id", "fixed_string name should be 'id'");
 
 using LongNameCol = column<SimpleTable, "very_long_column_name_for_testing", int>;
 static_assert(std::string_view(LongNameCol::name) == "very_long_column_name_for_testing", 
-             "FixedString should work with longer names");
+             "fixed_string should work with longer names");
 
 using EmptyCol = column<SimpleTable, "", int>;
-static_assert(std::string_view(EmptyCol::name) == "", "Empty FixedString should work");
+static_assert(std::string_view(EmptyCol::name) == "", "Empty fixed_string should work");
 
 int main() {
     std::println("All static assertions passed!");

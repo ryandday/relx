@@ -22,10 +22,10 @@ namespace schema {
  * };
  */
 template <std::size_t N>
-struct FixedString {
-  constexpr FixedString(const char (&str)[N]) : value{} { std::copy_n(str, N, value); }
+struct fixed_string {
+  constexpr fixed_string(const char (&str)[N]) : value{} { std::copy_n(str, N, value); }
 
-  constexpr FixedString(const FixedString&) = default;
+  constexpr fixed_string(const fixed_string&) = default;
 
   char value[N];
 
@@ -42,19 +42,19 @@ struct FixedString {
   constexpr bool empty() const { return size() == 0; }
 
   template <std::size_t M>
-  constexpr bool operator==(const FixedString<M>& other) const {
+  constexpr bool operator==(const fixed_string<M>& other) const {
     return std::string_view(*this) == std::string_view(other);
   }
 
   template <std::size_t M>
-  constexpr bool operator!=(const FixedString<M>& other) const {
+  constexpr bool operator!=(const fixed_string<M>& other) const {
     return !(*this == other);
   }
 };
 
 // Output stream operator
 template <std::size_t N>
-std::ostream& operator<<(std::ostream& os, const FixedString<N>& str) {
+std::ostream& operator<<(std::ostream& os, const fixed_string<N>& str) {
   return os << std::string_view(str);
 }
 }  // namespace schema
@@ -63,7 +63,7 @@ namespace literals {
 template <char... Chars>
 constexpr auto operator""_fs() {
   constexpr char str[] = {Chars..., '\0'};
-  return schema::FixedString<sizeof...(Chars) + 1>(str);
+  return schema::fixed_string<sizeof...(Chars) + 1>(str);
 }
 }  // namespace literals
 

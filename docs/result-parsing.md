@@ -21,7 +21,7 @@ Query execution returns a `ConnectionResult<ResultSet>`, which is a type alias f
 ```cpp
 #include <relx/schema.hpp>
 #include <relx/query.hpp>
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 
 // Define schema
 struct Users {

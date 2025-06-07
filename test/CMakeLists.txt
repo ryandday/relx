@@ -30,6 +30,9 @@ add_executable(relx_tests
     schema/composite_foreign_key_test.cpp
     schema/constraint_alias_test.cpp
     schema/column_like_test.cpp
+    schema/timezone_parsing_test.cpp
+    # Migration tests
+    migrations/test_migrations.cpp
     # Query tests
     query/query_test.cpp
     query/basic_select_test.cpp
@@ -51,6 +54,7 @@ add_executable(relx_tests
     query/advanced_query_test.cpp
     # Result processing tests
     result/result_test.cpp
+    result/lazy_parsing_test.cpp
     # Type safety tests
     types/type_safety_test.cpp
     # Connection tests
@@ -60,8 +64,11 @@ add_executable(relx_tests
     connection/postgresql_binary_test.cpp
     connection/postgresql_statement_test.cpp
     connection/postgresql_connection_pool_test.cpp
+    connection/postgresql_placeholder_test.cpp
     connection/dto_mapping_test.cpp
     connection/postgresql_async_wrapper_test.cpp
+    connection/postgresql_streaming_test.cpp
+    connection/postgresql_async_streaming_test.cpp
     # PostgreSQL Integration tests
     postgres_integration/basic_integration_test.cpp
     postgres_integration/schema_integration_test.cpp

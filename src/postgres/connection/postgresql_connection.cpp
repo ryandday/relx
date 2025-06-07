@@ -2,6 +2,7 @@
 
 #include "relx/connection/meta.hpp"
 #include "relx/connection/postgresql_statement.hpp"
+#include "relx/connection/sql_utils.hpp"
 
 #include <iostream>
 #include <regex>
@@ -61,33 +62,7 @@ private:
   PGresult* result_;
 };
 
-// Helper function to convert PostgreSQL hex BYTEA format to binary
-static std::string convert_pg_bytea_to_binary(const std::string& hex_value) {
-  // Check if this is a PostgreSQL hex-encoded BYTEA value (starts with \x)
-  if (hex_value.size() >= 2 && hex_value.substr(0, 2) == "\\x") {
-    std::string binary_result;
-    binary_result.reserve((hex_value.size() - 2) / 2);
 
-    // Skip the \x prefix and process each hex byte
-    for (size_t i = 2; i < hex_value.size(); i += 2) {
-      if (i + 1 < hex_value.size()) {
-        try {
-          const std::string hex_byte = hex_value.substr(i, 2);
-          const char byte = static_cast<char>(std::stoi(hex_byte, nullptr, 16));
-          binary_result.push_back(byte);
-        } catch (const std::exception&) {
-          // If conversion fails, just return the original value
-          return hex_value;
-        }
-      }
-    }
-
-    return binary_result;
-  }
-
-  // If not in hex format, return as is
-  return hex_value;
-}
 
 PostgreSQLConnection::PostgreSQLConnection(std::string_view connection_string)
     : connection_string_(connection_string) {}
@@ -279,40 +254,8 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
                                            .error_code = static_cast<int>(status)});
   }
 
-  // Create result set
-  std::vector<std::string> column_names;
-  std::vector<result::Row> rows;
-
-  // Get column names
-  const int column_count = PQnfields(pg_result.get());
-  column_names.reserve(column_count);
-  for (int i = 0; i < column_count; i++) {
-    const char* name = PQfname(pg_result.get(), i);
-    column_names.push_back(name ? name : "");
-  }
-
-  // Process rows
-  const int row_count = PQntuples(pg_result.get());
-  rows.reserve(row_count);
-
-  for (int row_idx = 0; row_idx < row_count; row_idx++) {
-    std::vector<result::Cell> cells;
-    cells.reserve(column_count);
-
-    for (int col_idx = 0; col_idx < column_count; col_idx++) {
-      if (PQgetisnull(pg_result.get(), row_idx, col_idx)) {
-        cells.emplace_back("NULL");
-      } else {
-        const char* value = PQgetvalue(pg_result.get(), row_idx, col_idx);
-        cells.emplace_back(value ? value : "");
-      }
-    }
-
-    rows.push_back(result::Row(std::move(cells), column_names));
-  }
-
-  // Create the result set from the data we collected
-  return result::ResultSet(std::move(rows), std::move(column_names));
+  // Process result using shared utility function
+  return sql_utils::process_postgresql_result(pg_result.get(), false);
 }
 
 ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
@@ -366,54 +309,8 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
     return std::unexpected(result_handler.error());
   }
 
-  // Process the result set - same as in execute_raw
-  std::vector<std::string> column_names;
-  std::vector<result::Row> rows;
-
-  // Get column names
-  const int column_count = PQnfields(pg_result.get());
-  column_names.reserve(column_count);
-  for (int i = 0; i < column_count; i++) {
-    const char* name = PQfname(pg_result.get(), i);
-    column_names.push_back(name ? name : "");
-  }
-
-  // Process rows
-  const int row_count = PQntuples(pg_result.get());
-  rows.reserve(row_count);
-
-  // Get column types to identify BYTEA columns
-  std::vector<bool> is_bytea_column(column_count, false);
-  for (int i = 0; i < column_count; i++) {
-    // PostgreSQL BYTEA type OID is 17
-    is_bytea_column[i] = (PQftype(pg_result.get(), i) == 17);
-  }
-
-  for (int row_idx = 0; row_idx < row_count; row_idx++) {
-    std::vector<result::Cell> cells;
-    cells.reserve(column_count);
-
-    for (int col_idx = 0; col_idx < column_count; col_idx++) {
-      if (PQgetisnull(pg_result.get(), row_idx, col_idx)) {
-        cells.emplace_back("NULL");
-      } else {
-        const char* value = PQgetvalue(pg_result.get(), row_idx, col_idx);
-        std::string cell_value = value ? value : "";
-
-        // Automatically convert BYTEA data from hex to binary
-        if (is_bytea_column[col_idx]) {
-          cell_value = convert_pg_bytea_to_binary(cell_value);
-        }
-
-        cells.emplace_back(std::move(cell_value));
-      }
-    }
-
-    rows.push_back(result::Row(std::move(cells), column_names));
-  }
-
-  // Create the result set from the data we collected
-  return result::ResultSet(std::move(rows), std::move(column_names));
+  // Process result using shared utility function with BYTEA conversion
+  return sql_utils::process_postgresql_result(pg_result.get(), true);
 }
 
 bool PostgreSQLConnection::is_connected() const {
@@ -432,24 +329,7 @@ ConnectionResult<void> PostgreSQLConnection::begin_transaction(IsolationLevel is
   }
 
   // Map isolation level to PostgreSQL transaction type
-  std::string isolation_level_str;
-  switch (isolation_level) {
-  case IsolationLevel::ReadUncommitted:
-    isolation_level_str = "READ UNCOMMITTED";
-    break;
-  case IsolationLevel::ReadCommitted:
-    isolation_level_str = "READ COMMITTED";
-    break;
-  case IsolationLevel::RepeatableRead:
-    isolation_level_str = "REPEATABLE READ";
-    break;
-  case IsolationLevel::Serializable:
-    isolation_level_str = "SERIALIZABLE";
-    break;
-  default:
-    isolation_level_str = "READ COMMITTED";
-    break;
-  }
+  const std::string isolation_level_str = sql_utils::isolation_level_to_postgresql_string(static_cast<int>(isolation_level));
 
   // Execute the transaction begin statement with isolation level
   const std::string begin_sql = "BEGIN ISOLATION LEVEL " + isolation_level_str;
@@ -509,20 +389,7 @@ bool PostgreSQLConnection::in_transaction() const {
 }
 
 std::string PostgreSQLConnection::convert_placeholders(const std::string& sql) {
-  const std::regex placeholder_regex("\\?");
-  std::string result;
-  std::string::const_iterator search_start(sql.cbegin());
-  std::smatch match;
-  int placeholder_count = 1;
-
-  while (std::regex_search(search_start, sql.cend(), match, placeholder_regex)) {
-    result.append(search_start, match[0].first);
-    result.append("$" + std::to_string(placeholder_count++));
-    search_start = match[0].second;
-  }
-
-  result.append(search_start, sql.cend());
-  return result;
+  return sql_utils::convert_placeholders_to_postgresql(sql);
 }
 
 std::unique_ptr<PostgreSQLStatement> PostgreSQLConnection::prepare_statement(

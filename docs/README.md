@@ -29,7 +29,7 @@ relx is a modern C++23 library for building and executing SQL queries with compi
 ```cpp
 #include <relx/schema.hpp>
 #include <relx/query.hpp>
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 #include <iostream>
 
 // Define a schema

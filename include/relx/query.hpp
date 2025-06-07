@@ -134,8 +134,6 @@ using query::on;
 using query::select;
 using query::select_expr;
 using query::sum;
-using query::to_expr;
-using query::to_table;
 using query::update;
 using query::val;
 
@@ -168,5 +166,13 @@ using query::year;
 
 // User-defined literals
 using namespace query::literals;  // Enables 42_sql, "string"_sql, etc.
+
+// ===== INTERNAL/ADVANCED API =====
+// These are implementation details that power users might need
+// Most users should not use these directly
+namespace detail {
+    using query::to_expr;
+    using query::to_table;
+}
 
 }  // namespace relx

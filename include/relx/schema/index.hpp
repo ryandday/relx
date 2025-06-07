@@ -3,6 +3,7 @@
 #include "column.hpp"
 #include "meta.hpp"
 #include "table.hpp"
+#include "../utils/error_handling.hpp"
 
 #include <string_view>
 #include <type_traits>
@@ -126,7 +127,8 @@ private:
           typename std::remove_reference_t<typename table_for_column<first_col_ptr_t>::type>;
       return std::string(table_t::table_name);
     }
-    return "unknown_table";
+    // Should never reach here if parameters are correct
+    throw RelxException("Unknown table name");
   }
 
   // Helper type to extract the table type from a column pointer

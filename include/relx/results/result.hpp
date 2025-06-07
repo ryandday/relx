@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../query/core.hpp"
+#include "../query/meta.hpp"
 #include "../schema/column.hpp"
 #include "../schema/core.hpp"
 #include "../schema/table.hpp"
@@ -25,18 +26,6 @@
 
 namespace relx::result {
 
-// Helper type to extract class type from member pointer
-template <typename T>
-struct class_of_t;
-
-template <typename Class, typename T>
-struct class_of_t<T Class::*> {
-  using type = Class;
-};
-
-template <typename T>
-using class_of_t_t = typename class_of_t<T>::type;
-
 /// @brief Error type for result processing operations
 struct ResultError {
   std::string message;
@@ -55,7 +44,7 @@ static constexpr auto class_of(T C::*) {
 /// @brief Gets the column name from a column member pointer
 template <auto MemberPtr>
 constexpr std::string_view get_column_name() {
-  using Class = class_of_t_t<decltype(MemberPtr)>;
+  using Class = query::class_of_t_t<decltype(MemberPtr)>;
   using ColumnType = std::remove_reference_t<decltype(std::declval<Class>().*MemberPtr)>;
   return ColumnType::column_name;
 }
@@ -508,7 +497,7 @@ public:
   /// @return The parsed value
   template <auto MemberPtr>
   auto get() const {
-    using Class = class_of_t_t<decltype(MemberPtr)>;
+    using Class = query::class_of_t_t<decltype(MemberPtr)>;
     using ColumnType = std::remove_reference_t<decltype(std::declval<Class>().*MemberPtr)>;
     using ValueType = typename ColumnType::value_type;
 
@@ -524,7 +513,7 @@ public:
   /// @return The parsed value as an optional
   template <auto MemberPtr>
   auto get_optional() const {
-    using Class = class_of_t_t<decltype(MemberPtr)>;
+    using Class = query::class_of_t_t<decltype(MemberPtr)>;
     using ColumnType = std::remove_reference_t<decltype(std::declval<Class>().*MemberPtr)>;
     using ValueType = typename ColumnType::value_type;
 
@@ -816,7 +805,9 @@ private:
   std::vector<std::string> column_names_;
 };
 
-/// @brief Parse raw results from a database into a typed ResultSet
+
+
+/// @brief Parse raw results from a database into a typed ResultSet (eager parsing)
 /// @tparam Query The query type
 /// @param query The query that was executed
 /// @param raw_results The raw results as CSV or similar format
@@ -894,6 +885,8 @@ ResultProcessingResult<ResultSet> parse(const Query& /*query*/, const std::strin
   }
 }
 
+
+
 }  // namespace relx::result
 
 // Structured binding support
@@ -907,3 +900,7 @@ struct tuple_element<I, relx::result::RowAdapter<Types...>> {
   using type = std::tuple_element_t<I, std::tuple<Types...>>;
 };
 }  // namespace std
+
+// Include lazy and streaming functionality
+#include "lazy_result.hpp"
+#include "streaming_result.hpp"

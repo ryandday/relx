@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <format>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -41,6 +42,13 @@ struct ConnectionPoolError {
   std::string message;
   int error_code = 0;
 };
+
+/**
+ * @brief Format a ConnectionPoolError for exception messages
+ */
+inline std::string format_error(const ConnectionPoolError& error) {
+  return std::format("Connection pool error: {} (Code: {})", error.message, error.error_code);
+}
 
 /// @brief Type alias for result of connection pool operations
 template <typename T>

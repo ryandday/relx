@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 #include <relx/schema.hpp>
 #include <relx/query.hpp>
 #include <relx/results.hpp>

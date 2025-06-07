@@ -68,7 +68,7 @@ Here's a complete example showing how to define a schema, create tables, and que
 ```cpp
 #include <relx/schema.hpp>
 #include <relx/query.hpp>
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 #include <iostream>
 
 // Define a schema

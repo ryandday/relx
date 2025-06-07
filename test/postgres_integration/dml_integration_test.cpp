@@ -2,7 +2,7 @@
 #include <relx/schema.hpp>
 #include <relx/query.hpp>
 #include <relx/connection.hpp>
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 #include <string>
 #include <memory>
 #include <optional>

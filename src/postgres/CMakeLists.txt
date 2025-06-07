@@ -8,6 +8,9 @@ add_library(relx_postgresql
     connection/postgresql_statement.cpp
     connection/pgsql_async_wrapper.cpp
     connection/postgresql_async_connection.cpp
+    connection/postgresql_streaming_source.cpp
+    connection/postgresql_async_streaming_source.cpp
+    connection/sql_utils.cpp
 )
 
 target_include_directories(relx_postgresql 

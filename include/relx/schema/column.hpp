@@ -107,7 +107,7 @@ struct identity {
 };
 
 /// @brief CHECK constraint
-template <FixedString Expr>
+template <fixed_string Expr>
 struct check {
   static constexpr auto expr = Expr;
 
@@ -115,7 +115,7 @@ struct check {
 };
 
 /// @brief REFERENCES constraint for foreign keys
-template <FixedString Table, FixedString Column>
+template <fixed_string Table, fixed_string Column>
 struct references {
   static constexpr auto table = Table;
   static constexpr auto column = Column;
@@ -127,7 +127,7 @@ struct references {
 };
 
 /// @brief ON DELETE action for foreign keys
-template <FixedString Action>
+template <fixed_string Action>
 struct on_delete {
   static constexpr auto action = Action;
 
@@ -135,7 +135,7 @@ struct on_delete {
 };
 
 /// @brief ON UPDATE action for foreign keys
-template <FixedString Action>
+template <fixed_string Action>
 struct on_update {
   static constexpr auto action = Action;
 
@@ -164,7 +164,7 @@ struct default_value {
 };
 
 /// @brief DEFAULT value for string literals
-template <FixedString Value, bool IsLiteral = false>
+template <fixed_string Value, bool IsLiteral = false>
 struct string_default {
   static constexpr auto value = Value;
 
@@ -205,7 +205,7 @@ struct is_default_value_specialization<default_value<Value>> : std::true_type {
 template <typename TypeParam>
 struct is_string_default_specialization : std::false_type {};
 
-template <FixedString Value, bool IsLiteral>
+template <fixed_string Value, bool IsLiteral>
 struct is_string_default_specialization<string_default<Value, IsLiteral>> : std::true_type {};
 
 /// @brief Represents a column in a database table
@@ -213,7 +213,7 @@ struct is_string_default_specialization<string_default<Value, IsLiteral>> : std:
 /// @tparam Name The name of the column as a string literal
 /// @tparam T The C++ type of the column
 /// @tparam Modifiers Additional column modifiers (UNIQUE, PRIMARY KEY, etc.)
-template <typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers>
 class column {
 public:
   /// @brief The table type this column belongs to
@@ -345,7 +345,7 @@ private:
 };
 
 // Specialization for std::optional columns (nullable)
-template <typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers>
 class column<TableT, Name, std::optional<T>, Modifiers...> {
 public:
   /// @brief The table type this column belongs to

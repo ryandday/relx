@@ -126,7 +126,7 @@ private:
 /// @param col The column
 /// @param values The values to check against
 /// @return An InCondition expression
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           std::ranges::range Range>
   requires std::convertible_to<std::ranges::range_value_t<Range>, std::string>
 auto in(const schema::column<TableT, Name, T, Modifiers...>& col, Range values) {

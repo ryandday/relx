@@ -22,10 +22,10 @@ const std::string valid_quantity_condition = "quantity > 0";
 const std::string order_total_condition = "total >= 0";
 
 // Define string literals for default values
-inline constexpr FixedString active_status = "active";
-inline constexpr FixedString pending_status = "pending";
-inline constexpr FixedString user_role = "customer";
-inline constexpr FixedString credit_card = "credit_card";
+inline constexpr fixed_string active_status = "active";
+inline constexpr fixed_string pending_status = "pending";
+inline constexpr fixed_string user_role = "customer";
+inline constexpr fixed_string credit_card = "credit_card";
 
 // Users table with all features
 struct Users {

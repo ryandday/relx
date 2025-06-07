@@ -11,9 +11,9 @@ namespace relx::schema {
 
 /// @brief Check constraint that accepts a condition string at compile time
 /// @details Uses compile-time string literals to define the constraint condition
-/// @tparam Condition The SQL condition as a FixedString
+/// @tparam Condition The SQL condition as a fixed_string
 /// @tparam Name Optional name for the constraint
-template <FixedString Condition, FixedString Name = "">
+template <fixed_string Condition, fixed_string Name = "">
 class table_check_constraint {
 public:
   /// @brief Get SQL definition for the CHECK constraint
@@ -43,9 +43,9 @@ public:
 /// @brief Check constraint explicitly associated with a column
 /// @details Uses compile-time string literals for the condition and binds to a specific column
 /// @tparam ColumnPtr Pointer to the column to which the constraint applies
-/// @tparam Condition The SQL condition as a FixedString
+/// @tparam Condition The SQL condition as a fixed_string
 /// @tparam Name Optional name for the constraint
-template <auto ColumnPtr, FixedString Condition, FixedString Name = "">
+template <auto ColumnPtr, fixed_string Condition, fixed_string Name = "">
 class column_check_constraint {
 public:
   /// @brief Get SQL definition for the column-specific CHECK constraint
@@ -88,7 +88,7 @@ public:
 /// @tparam Condition The SQL condition
 /// @tparam Name The constraint name
 /// @return A check constraint with the given condition and name
-template <FixedString Condition, FixedString Name>
+template <fixed_string Condition, fixed_string Name>
 constexpr auto named_check() {
   return table_check_constraint<Condition, Name>();
 }
@@ -96,7 +96,7 @@ constexpr auto named_check() {
 /// @brief Helper function to create an unnamed check constraint at compile time
 /// @tparam Condition The SQL condition
 /// @return A check constraint with the given condition
-template <FixedString Condition>
+template <fixed_string Condition>
 constexpr auto table_check() {
   return table_check_constraint<Condition, "">();
 }
@@ -105,7 +105,7 @@ constexpr auto table_check() {
 /// @tparam ColumnPtr Pointer to the column
 /// @tparam Condition The SQL condition
 /// @return A column-specific check constraint
-template <auto ColumnPtr, FixedString Condition>
+template <auto ColumnPtr, fixed_string Condition>
 constexpr auto column_check() {
   return column_check_constraint<ColumnPtr, Condition, "">();
 }
@@ -115,7 +115,7 @@ constexpr auto column_check() {
 /// @tparam Condition The SQL condition
 /// @tparam Name The constraint name
 /// @return A named column-specific check constraint
-template <auto ColumnPtr, FixedString Condition, FixedString Name>
+template <auto ColumnPtr, fixed_string Condition, fixed_string Name>
 constexpr auto named_column_check() {
   return column_check_constraint<ColumnPtr, Condition, Name>();
 }

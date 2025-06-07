@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <expected>
+#include <format>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -45,6 +46,13 @@ struct PgError {
                    .error_code = static_cast<int>(PQresultStatus(result))};
   }
 };
+
+/**
+ * @brief Format a PgError for exception messages
+ */
+inline std::string format_error(const PgError& error) {
+  return std::format("PostgreSQL error: {} (Code: {})", error.message, error.error_code);
+}
 
 // Type alias for result of operations
 template <typename T>

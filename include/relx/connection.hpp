@@ -90,19 +90,20 @@
 
 // Re-export connection components to the top-level namespace
 namespace relx {
-// Re-export connection types
+// Connection types
 using connection::Connection;
 using connection::PostgreSQLConnection;
+using connection::PostgreSQLAsyncConnection;
 using connection::PostgreSQLConnectionParams;
 using connection::PostgreSQLConnectionPool;
 using connection::PostgreSQLConnectionPoolConfig;
 using connection::TransactionGuard;
 
-// Re-export error types
+// Error types
 using connection::ConnectionError;
 using connection::ConnectionPoolError;
 
-// Re-export result alias templates
+// Result types
 using connection::ConnectionPoolResult;
 using connection::ConnectionResult;
 using pgsql_async_wrapper::PgResult;

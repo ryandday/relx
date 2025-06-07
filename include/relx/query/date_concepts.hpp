@@ -64,7 +64,7 @@ struct extract_column_type {
   using type = T;
 };
 
-template <typename TableT, schema::FixedString Name, typename ColumnT, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename ColumnT, typename... Modifiers>
 struct extract_column_type<schema::column<TableT, Name, ColumnT, Modifiers...>> {
   using type = ColumnT;
 };

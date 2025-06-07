@@ -1,4 +1,5 @@
 #include "relx/connection/postgresql_async_connection.hpp"
+#include "relx/connection/sql_utils.hpp"
 
 #include <iostream>
 #include <regex>
@@ -208,20 +209,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::rollba
 }
 
 std::string PostgreSQLAsyncConnection::convert_placeholders(const std::string& sql) {
-  const std::regex placeholder_regex("\\?");
-  std::string result;
-  std::string::const_iterator search_start(sql.cbegin());
-  std::smatch match;
-  int placeholder_count = 1;
-
-  while (std::regex_search(search_start, sql.cend(), match, placeholder_regex)) {
-    result.append(search_start, match[0].first);
-    result.append("$" + std::to_string(placeholder_count++));
-    search_start = match[0].second;
-  }
-
-  result.append(search_start, sql.cend());
-  return result;
+  return sql_utils::convert_placeholders_to_postgresql(sql);
 }
 
 ConnectionResult<result::ResultSet> PostgreSQLAsyncConnection::convert_result(

@@ -100,19 +100,19 @@ TEST(ConceptsTest, ConceptChecks) {
     EXPECT_FALSE((TableConcept<std::string>));
 }
 
-TEST(ConceptsTest, FixedStringConcept) {
-    // Test that FixedString works correctly as a template parameter
+TEST(ConceptsTest, fixed_stringConcept) {
+    // Test that fixed_string works correctly as a template parameter
     using IdCol = column<ValidTable, "id", int>;
-    // static_assert(std::string_view(IdCol::name) == "id", "FixedString name should be 'id'");
+    // static_assert(std::string_view(IdCol::name) == "id", "fixed_string name should be 'id'");
     
     // Test with longer strings
     using LongNameCol = column<ValidTable, "very_long_column_name_for_testing", int>;
     // static_assert(std::string_view(LongNameCol::name) == "very_long_column_name_for_testing", 
-    //              "FixedString should work with longer names");
+    //              "fixed_string should work with longer names");
     
     // Test with empty string
     using EmptyCol = column<ValidTable, "", int>;
-    // static_assert(std::string_view(EmptyCol::name) == "", "Empty FixedString should work");
+    // static_assert(std::string_view(EmptyCol::name) == "", "Empty fixed_string should work");
     
     // Add runtime checks instead
     EXPECT_EQ(std::string_view(IdCol::name), "id");
@@ -121,7 +121,7 @@ TEST(ConceptsTest, FixedStringConcept) {
 }
 
 // Custom type that satisfies the column concept
-template <FixedString Name, ColumnTypeConcept T>
+template <fixed_string Name, ColumnTypeConcept T>
 struct custom_column {
     using value_type = T;
     static constexpr auto name = Name;

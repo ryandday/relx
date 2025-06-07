@@ -3,7 +3,7 @@
 #include <relx/query.hpp>
 #include <relx/connection.hpp>
 #include <relx/connection/postgresql_connection_pool.hpp>
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 #include <string>
 #include <memory>
 #include <vector>

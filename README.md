@@ -16,6 +16,12 @@ relx is a modern C++23 library designed to solve these problems by constructing 
 
 The core library is header-only. relx also features two PostgreSQL clients for database access: an async client (with `boost::asio`) and a synchronous client. The PostgreSQL clients are not header-only and require building with [libpq](https://www.postgresql.org/docs/current/libpq.html).
 
+This library is a work in progress. Contributions, issues, and usability feedback are welcome! Feel free to open an issue about any concern.
+
+## Motivation 
+
+This library was born from my desire for a C++ SQL library that offers the expressiveness of high-level languages without sacrificing C++'s performance and control. I didn't want crazy template parameters, macros, or member pointers, just a simple builder API. I also wanted out-of-the-box async capabilities, because async is the only practical approach for web applications handling massive amounts of concurrent users.
+
 ## Table of Contents
 
 - [Key Features](#key-features)
@@ -149,7 +155,7 @@ int main() {
             .from(users)
             .where(users.id > 10);
         
-        // Generate the SQL
+        // See the generated SQL
         std::string sql = query.to_sql();
         // Output: "SELECT id, username FROM users WHERE (id > ?)"
         
@@ -323,7 +329,7 @@ relx provides robust support for PostgreSQL through several connection types to 
 The `PostgreSQLConnection` class provides a synchronous interface for PostgreSQL:
 
 ```cpp
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 
 // Create a connection to a PostgreSQL database
 relx::PostgreSQLConnectionParams conn_params;
@@ -462,7 +468,7 @@ if (user_count) {
 For non-blocking I/O, use the `PostgreSQLAsyncConnection` with Boost.Asio:
 
 ```cpp
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 #include <boost/asio.hpp>
 
 // Define a coroutine to connect and run queries

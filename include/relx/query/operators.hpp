@@ -95,50 +95,50 @@ namespace schema {
 // Binary comparison operators for columns
 
 // Equality comparison with direct values
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueType>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
 auto operator==(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col == query::val(value);
 }
 
 // Inequality comparison with direct values
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueType>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
 auto operator!=(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col != query::val(value);
 }
 
 // Greater than comparison with direct values
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueType>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
 auto operator>(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col > query::val(value);
 }
 
 // Less than comparison with direct values
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueType>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
 auto operator<(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col < query::val(value);
 }
 
 // Greater than or equal comparison with direct values
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueType>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
 auto operator>=(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col >= query::val(value);
 }
 
 // Less than or equal comparison with direct values
-template <typename TableT, FixedString Name, typename T, typename... Modifiers, typename ValueType>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
 auto operator<=(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col <= query::val(value);
 }
 
 // Column to column equality comparison
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator==(const column<TableT1, Name1, T1, Modifiers1...>& col1,
                 const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
@@ -151,8 +151,8 @@ auto operator==(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 }
 
 // Column to column inequality comparison
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator!=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
                 const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
@@ -164,8 +164,8 @@ auto operator!=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 }
 
 // Column to column greater than comparison
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator>(const column<TableT1, Name1, T1, Modifiers1...>& col1,
                const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
@@ -177,8 +177,8 @@ auto operator>(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 }
 
 // Column to column less than comparison
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator<(const column<TableT1, Name1, T1, Modifiers1...>& col1,
                const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
@@ -190,8 +190,8 @@ auto operator<(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 }
 
 // Column to column greater than or equal comparison
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator>=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
                 const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
@@ -203,8 +203,8 @@ auto operator>=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 }
 
 // Column to column less than or equal comparison
-template <typename TableT1, FixedString Name1, typename T1, typename... Modifiers1,
-          typename TableT2, FixedString Name2, typename T2, typename... Modifiers2>
+template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
+          typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
 auto operator<=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
                 const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
@@ -218,7 +218,7 @@ auto operator<=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 // Specialized operators for common types
 
 // Boolean negation operator
-template <typename TableT, FixedString Name, typename... Modifiers>
+template <typename TableT, fixed_string Name, typename... Modifiers>
 auto operator!(const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
   // Using the logical NOT operator
@@ -226,28 +226,28 @@ auto operator!(const column<TableT, Name, bool, Modifiers...>& col) {
 }
 
 // Logical AND operator between a column and a query::SqlExpr
-template <typename TableT, FixedString Name, typename... Modifiers, query::SqlExpr Expr>
+template <typename TableT, fixed_string Name, typename... Modifiers, query::SqlExpr Expr>
 auto operator&&(const column<TableT, Name, bool, Modifiers...>& col, const Expr& expr) {
   auto col_expr = query::to_expr(col);
   return col_expr && expr;
 }
 
 // Logical AND operator between a query::SqlExpr and a column (reverse)
-template <query::SqlExpr Expr, typename TableT, FixedString Name, typename... Modifiers>
+template <query::SqlExpr Expr, typename TableT, fixed_string Name, typename... Modifiers>
 auto operator&&(const Expr& expr, const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
   return expr && col_expr;
 }
 
 // Logical OR operator between a column and a query::SqlExpr
-template <typename TableT, FixedString Name, typename... Modifiers, query::SqlExpr Expr>
+template <typename TableT, fixed_string Name, typename... Modifiers, query::SqlExpr Expr>
 auto operator||(const column<TableT, Name, bool, Modifiers...>& col, const Expr& expr) {
   auto col_expr = query::to_expr(col);
   return col_expr || expr;
 }
 
 // Logical OR operator between a query::SqlExpr and a column (reverse)
-template <query::SqlExpr Expr, typename TableT, FixedString Name, typename... Modifiers>
+template <query::SqlExpr Expr, typename TableT, fixed_string Name, typename... Modifiers>
 auto operator||(const Expr& expr, const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
   return expr || col_expr;
@@ -256,42 +256,42 @@ auto operator||(const Expr& expr, const column<TableT, Name, bool, Modifiers...>
 // Symmetrical operators (value on left, column on right)
 
 // Equality comparison with direct values (reversed)
-template <typename ValueType, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto operator==(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col == value;
 }
 
 // Inequality comparison with direct values (reversed)
-template <typename ValueType, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto operator!=(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col != value;
 }
 
 // Greater than comparison with direct values (reversed)
-template <typename ValueType, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto operator>(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col < value;
 }
 
 // Less than comparison with direct values (reversed)
-template <typename ValueType, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto operator<(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col > value;
 }
 
 // Greater than or equal comparison with direct values (reversed)
-template <typename ValueType, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto operator>=(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col <= value;
 }
 
 // Less than or equal comparison with direct values (reversed)
-template <typename ValueType, typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto operator<=(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col >= value;
@@ -300,7 +300,7 @@ auto operator<=(const ValueType& value, const column<TableT, Name, T, Modifiers.
 // Boolean operators for columns with conditions
 
 // Logical AND between column and any condition
-template <typename TableT, FixedString Name, typename... Modifiers, typename Cond>
+template <typename TableT, fixed_string Name, typename... Modifiers, typename Cond>
   requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
 auto operator&&(const column<TableT, Name, bool, Modifiers...>& col, const Cond& cond) {
   auto col_expr = query::to_expr(col);
@@ -313,7 +313,7 @@ auto operator&&(const column<TableT, Name, bool, Modifiers...>& col, const Cond&
 }
 
 // Logical OR between column and any condition
-template <typename TableT, FixedString Name, typename... Modifiers, typename Cond>
+template <typename TableT, fixed_string Name, typename... Modifiers, typename Cond>
   requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
 auto operator||(const column<TableT, Name, bool, Modifiers...>& col, const Cond& cond) {
   auto col_expr = query::to_expr(col);
@@ -326,7 +326,7 @@ auto operator||(const column<TableT, Name, bool, Modifiers...>& col, const Cond&
 }
 
 // Logical AND between condition and column (reversed)
-template <typename Cond, typename TableT, FixedString Name, typename... Modifiers>
+template <typename Cond, typename TableT, fixed_string Name, typename... Modifiers>
   requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
 auto operator&&(const Cond& cond, const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
@@ -339,7 +339,7 @@ auto operator&&(const Cond& cond, const column<TableT, Name, bool, Modifiers...>
 }
 
 // Logical OR between condition and column (reversed)
-template <typename Cond, typename TableT, FixedString Name, typename... Modifiers>
+template <typename Cond, typename TableT, fixed_string Name, typename... Modifiers>
   requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
 auto operator||(const Cond& cond, const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
@@ -370,7 +370,7 @@ constexpr bool is_specialization_v = is_specialization<T, Template>::value;
 }  // namespace meta
 
 // Equality comparison with Value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
 auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col,
                 const Value<ValueT>& value) {
@@ -379,7 +379,7 @@ auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col,
 }
 
 // Inequality comparison with Value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
 auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col,
                 const Value<ValueT>& value) {
@@ -388,7 +388,7 @@ auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col,
 }
 
 // Greater than comparison with Value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
 auto operator>(const schema::column<TableT, Name, T, Modifiers...>& col,
                const Value<ValueT>& value) {
@@ -397,7 +397,7 @@ auto operator>(const schema::column<TableT, Name, T, Modifiers...>& col,
 }
 
 // Less than comparison with Value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
 auto operator<(const schema::column<TableT, Name, T, Modifiers...>& col,
                const Value<ValueT>& value) {
@@ -406,7 +406,7 @@ auto operator<(const schema::column<TableT, Name, T, Modifiers...>& col,
 }
 
 // Greater than or equal comparison with Value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
 auto operator>=(const schema::column<TableT, Name, T, Modifiers...>& col,
                 const Value<ValueT>& value) {
@@ -415,7 +415,7 @@ auto operator>=(const schema::column<TableT, Name, T, Modifiers...>& col,
 }
 
 // Less than or equal comparison with Value
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
 auto operator<=(const schema::column<TableT, Name, T, Modifiers...>& col,
                 const Value<ValueT>& value) {
@@ -427,7 +427,7 @@ auto operator<=(const schema::column<TableT, Name, T, Modifiers...>& col,
 // These overloads allow for expressions like col > 42 without needing query::val(42)
 
 // Equality comparison with numeric literal
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -439,7 +439,7 @@ auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col, Litera
 }
 
 // Inequality comparison with numeric literal
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -451,7 +451,7 @@ auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col, Litera
 }
 
 // Greater than comparison with numeric literal
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -463,7 +463,7 @@ auto operator>(const schema::column<TableT, Name, T, Modifiers...>& col, Literal
 }
 
 // Less than comparison with numeric literal
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -475,7 +475,7 @@ auto operator<(const schema::column<TableT, Name, T, Modifiers...>& col, Literal
 }
 
 // Greater than or equal comparison with numeric literal
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -487,7 +487,7 @@ auto operator>=(const schema::column<TableT, Name, T, Modifiers...>& col, Litera
 }
 
 // Less than or equal comparison with numeric literal
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -501,7 +501,7 @@ auto operator<=(const schema::column<TableT, Name, T, Modifiers...>& col, Litera
 // Symmetrical operators for numeric literals (literal on left, column on right)
 
 // Equality comparison with numeric literal (reversed)
-template <typename LiteralT, typename TableT, schema::FixedString Name, typename T,
+template <typename LiteralT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -511,7 +511,7 @@ auto operator==(LiteralT&& literal, const schema::column<TableT, Name, T, Modifi
 }
 
 // Inequality comparison with numeric literal (reversed)
-template <typename LiteralT, typename TableT, schema::FixedString Name, typename T,
+template <typename LiteralT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -521,7 +521,7 @@ auto operator!=(LiteralT&& literal, const schema::column<TableT, Name, T, Modifi
 }
 
 // Greater than comparison with numeric literal (reversed)
-template <typename LiteralT, typename TableT, schema::FixedString Name, typename T,
+template <typename LiteralT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -531,7 +531,7 @@ auto operator>(LiteralT&& literal, const schema::column<TableT, Name, T, Modifie
 }
 
 // Less than comparison with numeric literal (reversed)
-template <typename LiteralT, typename TableT, schema::FixedString Name, typename T,
+template <typename LiteralT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -541,7 +541,7 @@ auto operator<(LiteralT&& literal, const schema::column<TableT, Name, T, Modifie
 }
 
 // Greater than or equal comparison with numeric literal (reversed)
-template <typename LiteralT, typename TableT, schema::FixedString Name, typename T,
+template <typename LiteralT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -551,7 +551,7 @@ auto operator>=(LiteralT&& literal, const schema::column<TableT, Name, T, Modifi
 }
 
 // Less than or equal comparison with numeric literal (reversed)
-template <typename LiteralT, typename TableT, schema::FixedString Name, typename T,
+template <typename LiteralT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
@@ -564,7 +564,7 @@ auto operator<=(LiteralT&& literal, const schema::column<TableT, Name, T, Modifi
 // These allow for using string literals directly without query::val
 
 // Equality comparison with string literal
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
 auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col, const char* str) {
   auto col_expr = to_expr(col);
   auto val_expr = val(str);
@@ -572,7 +572,7 @@ auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col, const 
 }
 
 // Inequality comparison with string literal
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
 auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col, const char* str) {
   auto col_expr = to_expr(col);
   auto val_expr = val(str);
@@ -580,12 +580,12 @@ auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col, const 
 }
 
 // String literal comparison (reversed)
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
 auto operator==(const char* str, const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col == str;
 }
 
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
 auto operator!=(const char* str, const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col != str;
 }
@@ -593,28 +593,28 @@ auto operator!=(const char* str, const schema::column<TableT, Name, T, Modifiers
 // Additional column operation overloads to avoid to_expr wrappers
 
 // LIKE operator for columns
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
 auto like(const schema::column<TableT, Name, T, Modifiers...>& col, std::string pattern) {
   auto col_expr = to_expr(col);
   return like(col_expr, std::move(pattern));
 }
 
 // IS NULL operator for columns
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
 auto is_null(const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
   return is_null(col_expr);
 }
 
 // IS NOT NULL operator for columns
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
 auto is_not_null(const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
   return is_not_null(col_expr);
 }
 
 // BETWEEN operator for columns
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
 auto between(const schema::column<TableT, Name, T, Modifiers...>& col, std::string lower,
              std::string upper) {
   auto col_expr = to_expr(col);
@@ -624,7 +624,7 @@ auto between(const schema::column<TableT, Name, T, Modifiers...>& col, std::stri
 // Column support for case expressions
 
 // When with a column condition
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ResultT>
 auto when(const schema::column<TableT, Name, T, Modifiers...>& condition,
           const query::Value<ResultT>& result) {
@@ -633,7 +633,7 @@ auto when(const schema::column<TableT, Name, T, Modifiers...>& condition,
 }
 
 // When with a column result
-template <typename CondT, typename TableT, schema::FixedString Name, typename T,
+template <typename CondT, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
 auto when(const CondT& condition, const schema::column<TableT, Name, T, Modifiers...>& result) {
   auto result_expr = to_expr(result);
@@ -641,7 +641,7 @@ auto when(const CondT& condition, const schema::column<TableT, Name, T, Modifier
 }
 
 // Else with a column result
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
 // NOLINTNEXTLINE(readability-identifier-naming)
 auto else_(const schema::column<TableT, Name, T, Modifiers...>& result) {
   auto result_expr = to_expr(result);
@@ -649,7 +649,7 @@ auto else_(const schema::column<TableT, Name, T, Modifiers...>& result) {
 }
 
 // Column support for select expressions
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers,
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename... Args>
 auto select_expr(const schema::column<TableT, Name, T, Modifiers...>& col, Args&&... args) {
   auto col_expr = to_expr(col);
@@ -1192,7 +1192,7 @@ template <SqlExpr DateExpr, SqlExpr IntervalExpr>
 class DateArithmeticExpr;
 
 // Operators for CurrentDateTimeExpr with date columns
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator>(const CurrentDateTimeExpr& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
@@ -1200,7 +1200,7 @@ auto operator>(const CurrentDateTimeExpr& expr,
   return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, ">", col_expr);
 }
 
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator<(const CurrentDateTimeExpr& expr,
                const schema::column<TableT, Name, T, Modifiers...>& col) {
@@ -1208,7 +1208,7 @@ auto operator<(const CurrentDateTimeExpr& expr,
   return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, "<", col_expr);
 }
 
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator>=(const CurrentDateTimeExpr& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
@@ -1216,7 +1216,7 @@ auto operator>=(const CurrentDateTimeExpr& expr,
   return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, ">=", col_expr);
 }
 
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator<=(const CurrentDateTimeExpr& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
@@ -1224,7 +1224,7 @@ auto operator<=(const CurrentDateTimeExpr& expr,
   return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, "<=", col_expr);
 }
 
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator==(const CurrentDateTimeExpr& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
@@ -1232,7 +1232,7 @@ auto operator==(const CurrentDateTimeExpr& expr,
   return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, "=", col_expr);
 }
 
-template <typename TableT, schema::FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator!=(const CurrentDateTimeExpr& expr,
                 const schema::column<TableT, Name, T, Modifiers...>& col) {
@@ -1241,7 +1241,7 @@ auto operator!=(const CurrentDateTimeExpr& expr,
 }
 
 // Operators for UnaryDateFunctionExpr with date columns
-template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator>(const UnaryDateFunctionExpr<Expr>& expr,
@@ -1250,7 +1250,7 @@ auto operator>(const UnaryDateFunctionExpr<Expr>& expr,
   return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, ">", col_expr);
 }
 
-template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator<(const UnaryDateFunctionExpr<Expr>& expr,
@@ -1259,7 +1259,7 @@ auto operator<(const UnaryDateFunctionExpr<Expr>& expr,
   return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, "<", col_expr);
 }
 
-template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator>=(const UnaryDateFunctionExpr<Expr>& expr,
@@ -1268,7 +1268,7 @@ auto operator>=(const UnaryDateFunctionExpr<Expr>& expr,
   return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, ">=", col_expr);
 }
 
-template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator<=(const UnaryDateFunctionExpr<Expr>& expr,
@@ -1277,7 +1277,7 @@ auto operator<=(const UnaryDateFunctionExpr<Expr>& expr,
   return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, "<=", col_expr);
 }
 
-template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator==(const UnaryDateFunctionExpr<Expr>& expr,
@@ -1286,7 +1286,7 @@ auto operator==(const UnaryDateFunctionExpr<Expr>& expr,
   return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, "=", col_expr);
 }
 
-template <SqlExpr Expr, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator!=(const UnaryDateFunctionExpr<Expr>& expr,
@@ -1296,7 +1296,7 @@ auto operator!=(const UnaryDateFunctionExpr<Expr>& expr,
 }
 
 // Operators for BinaryDateFunctionExpr with date columns
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator>(const BinaryDateFunctionExpr<Left, Right>& expr,
@@ -1306,7 +1306,7 @@ auto operator>(const BinaryDateFunctionExpr<Left, Right>& expr,
                                                                                   col_expr);
 }
 
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator<(const BinaryDateFunctionExpr<Left, Right>& expr,
@@ -1316,7 +1316,7 @@ auto operator<(const BinaryDateFunctionExpr<Left, Right>& expr,
                                                                                   col_expr);
 }
 
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator>=(const BinaryDateFunctionExpr<Left, Right>& expr,
@@ -1326,7 +1326,7 @@ auto operator>=(const BinaryDateFunctionExpr<Left, Right>& expr,
                                                                                   ">=", col_expr);
 }
 
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator<=(const BinaryDateFunctionExpr<Left, Right>& expr,
@@ -1336,7 +1336,7 @@ auto operator<=(const BinaryDateFunctionExpr<Left, Right>& expr,
                                                                                   "<=", col_expr);
 }
 
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator==(const BinaryDateFunctionExpr<Left, Right>& expr,
@@ -1346,7 +1346,7 @@ auto operator==(const BinaryDateFunctionExpr<Left, Right>& expr,
                                                                                   col_expr);
 }
 
-template <SqlExpr Left, SqlExpr Right, typename TableT, schema::FixedString Name, typename T,
+template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator!=(const BinaryDateFunctionExpr<Left, Right>& expr,
@@ -1357,7 +1357,7 @@ auto operator!=(const BinaryDateFunctionExpr<Left, Right>& expr,
 }
 
 // Operators for DateArithmeticExpr with date columns
-template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
+template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator>(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
@@ -1367,7 +1367,7 @@ auto operator>(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
                                                                                          col_expr);
 }
 
-template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
+template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator<(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
@@ -1377,7 +1377,7 @@ auto operator<(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
                                                                                          col_expr);
 }
 
-template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
+template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator>=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
@@ -1387,7 +1387,7 @@ auto operator>=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
       expr, ">=", col_expr);
 }
 
-template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
+template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator<=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
@@ -1397,7 +1397,7 @@ auto operator<=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
       expr, "<=", col_expr);
 }
 
-template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
+template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator==(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
@@ -1407,7 +1407,7 @@ auto operator==(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
                                                                                          col_expr);
 }
 
-template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::FixedString Name,
+template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
 auto operator!=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
@@ -1425,37 +1425,37 @@ auto operator!=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
 namespace relx::schema {
 
 // Implementation for non-optional columns
-template <typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers>
 template <typename PatternType>
   requires std::convertible_to<PatternType, std::string>
 auto column<TableT, Name, T, Modifiers...>::like(PatternType&& pattern) const {
   return query::like(*this, std::string(std::forward<PatternType>(pattern)));
 }
 
-template <typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto column<TableT, Name, T, Modifiers...>::is_null() const {
   return query::is_null(*this);
 }
 
-template <typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto column<TableT, Name, T, Modifiers...>::is_not_null() const {
   return query::is_not_null(*this);
 }
 
 // Implementation for optional columns
-template <typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers>
 template <typename PatternType>
   requires std::convertible_to<PatternType, std::string>
 auto column<TableT, Name, std::optional<T>, Modifiers...>::like(PatternType&& pattern) const {
   return query::like(*this, std::string(std::forward<PatternType>(pattern)));
 }
 
-template <typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto column<TableT, Name, std::optional<T>, Modifiers...>::is_null() const {
   return query::is_null(*this);
 }
 
-template <typename TableT, FixedString Name, typename T, typename... Modifiers>
+template <typename TableT, fixed_string Name, typename T, typename... Modifiers>
 auto column<TableT, Name, std::optional<T>, Modifiers...>::is_not_null() const {
   return query::is_not_null(*this);
 }

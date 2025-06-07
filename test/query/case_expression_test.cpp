@@ -169,7 +169,6 @@ TEST(CaseExpressionTest, NestedCaseExpression) {
     .from(u);
     
     // The expected SQL is implementation-dependent, this is just an example
-    // The real implementation might inline the inner CASE or handle it differently
     auto sql = query.to_sql();
     EXPECT_TRUE(sql.find("SELECT users.name") != std::string::npos);
     EXPECT_TRUE(sql.find("CASE") != std::string::npos);

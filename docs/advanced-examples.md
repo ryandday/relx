@@ -20,7 +20,7 @@ We'll use a comprehensive schema for our examples:
 ```cpp
 #include <relx/schema.hpp>
 #include <relx/query.hpp>
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 #include <string>
 #include <optional>
 

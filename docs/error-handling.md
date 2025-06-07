@@ -24,7 +24,7 @@ relx follows a modern C++ error handling approach using `std::expected` for oper
 ### Basic Error Handling Pattern
 
 ```cpp
-#include <relx/postgresql.hpp>
+#include <relx/connection.hpp>
 #include <iostream>
 
 int main() {
