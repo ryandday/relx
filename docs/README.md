@@ -10,6 +10,7 @@ Welcome to the relx documentation. This documentation provides comprehensive gui
 | [Query Building](query-building.md) | Build SQL queries with the fluent API |
 | [Result Parsing](result-parsing.md) | Process query results in a type-safe way |
 | [Streaming Results](streaming-results.md) | Efficient processing of large result sets with lazy parsing |
+| [Migrations](migrations.md) | Database schema migration system with automatic DDL generation |
 | [Error Handling](error-handling.md) | Working with errors and expected results |
 | [Advanced Examples](advanced-examples.md) | Complex query patterns and real-world examples |
 | [Performance Guide](performance.md) | Optimization tips and best practices |
@@ -116,5 +117,6 @@ relx is designed with several key components:
 2. Read [Query Building](query-building.md) to understand the fluent API
 3. Review [Result Parsing](result-parsing.md) for handling query results
 4. Learn [Streaming Results](streaming-results.md) for efficient large dataset processing
-5. Check [Error Handling](error-handling.md) for robust error management
-6. Explore [Advanced Examples](advanced-examples.md) for complex scenarios
+5. Explore [Migrations](migrations.md) for database schema evolution and automatic DDL generation
+6. Check [Error Handling](error-handling.md) for robust error management
+7. Explore [Advanced Examples](advanced-examples.md) for complex scenarios
