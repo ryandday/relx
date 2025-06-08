@@ -23,9 +23,9 @@ namespace relx::query {
 ///
 /// This module provides an API for creating SQL queries:
 ///
-/// Member pointer-based API (recommended):
-/// auto query = select<&users::id, &users::name>().from(users{});
-/// Use to_expr<&Table::column>() for expressions in conditions.
+/// Instance-based API:
+/// auto query = select(u.id, u.name).from(u);
+/// Use columns directly in conditions.
 ///
 /// @brief Join specification for a SELECT query
 template <TableType Table, ConditionExpr Condition>
@@ -492,47 +492,8 @@ private:
 
 /// @brief Create a column reference from a member pointer without requiring a table instance
 /// @tparam MemberPtr Pointer to a column member in a table class
-/// @return A ColumnRef expression for the specified column
-template <auto MemberPtr>
-class MemberColumnRef : public ColumnExpression {
-public:
-  using table_type = typename column_type_of<MemberPtr>::table_type;
-  using column_type = typename column_type_of<MemberPtr>::column_type;
-  using value_type = typename column_type::value_type;
 
-  static constexpr auto column_name_sv = column_name_of<MemberPtr>();
-
-  MemberColumnRef() = default;
-
-  std::string to_sql() const override { return qualified_name(); }
-
-  std::vector<std::string> bind_params() const override { return {}; }
-
-  std::string column_name() const override { return std::string(column_name_sv); }
-
-  std::string table_name() const override { return std::string(table_type::table_name); }
-};
-
-/// @brief Create a SELECT query with the specified column member pointers
-/// @tparam MemberPtrs Pointers to column members in table classes
-/// @return A SelectQuery object with the specified columns
-template <auto... MemberPtrs>
-auto select() {
-  return SelectQuery(std::tuple<MemberColumnRef<MemberPtrs>...>());
-}
-
-/// @brief Create a SELECT query with a FROM clause in a single call
-/// @tparam MemberPtrs Pointers to column members in table classes
-/// @return A SelectQuery object with the specified columns and FROM clause
-template <auto... MemberPtrs>
-auto select_from() {
-  using first_table_type =
-      typename column_type_of<std::get<0>(std::make_tuple(MemberPtrs...))>::table_type;
-
-  return SelectQuery(std::tuple<MemberColumnRef<MemberPtrs>...>(), std::tuple<first_table_type>());
-}
-
-/// @brief Create a SELECT query with the specified columns or expressions (legacy API)
+/// @brief Create a SELECT query with the specified columns or expressions
 /// @tparam Args The column or expression types
 /// @param args The columns or expressions to select
 /// @return A SelectQuery object
@@ -662,16 +623,6 @@ auto select_all() {
 }
 
 // Add new helper functions for DISTINCT queries
-
-/// @brief Create a SELECT DISTINCT query with the specified column member pointers
-/// @tparam MemberPtrs Pointers to column members in table classes
-/// @return A SelectQuery object with the specified columns and DISTINCT enabled
-template <auto... MemberPtrs>
-auto select_distinct() {
-  return SelectQuery<std::tuple<MemberColumnRef<MemberPtrs>...>, std::tuple<>, std::tuple<>,
-                     std::nullopt_t, std::tuple<>, std::tuple<>, std::nullopt_t, std::nullopt_t,
-                     std::nullopt_t, true>(std::tuple<MemberColumnRef<MemberPtrs>...>());
-}
 
 /// @brief Create a SELECT DISTINCT query with the specified columns or expressions
 /// @tparam Args The column or expression types

@@ -58,10 +58,9 @@ TEST(SelectAllTest, SelectAllWithoutInstance) {
 }
 
 TEST(SelectAllTest, SelectAllWithWhere) {
-  // Use select_all with just the table type and add a WHERE clause
-  auto query = relx::query::select_all<users>().where(relx::query::to_expr<&users::age>() > 18);
+  users u;
+  auto query = relx::query::select_all<users>().where(u.age > 18);
 
-  // The expected SQL should include all columns with the WHERE clause
   std::string expected_sql = "SELECT * FROM users WHERE (users.age > ?)";
   EXPECT_EQ(query.to_sql(), expected_sql);
 
@@ -71,30 +70,27 @@ TEST(SelectAllTest, SelectAllWithWhere) {
 }
 
 TEST(SelectAllTest, SelectAllWithJoin) {
-  // Use select_all with a join
-  auto query = relx::query::select_all<users>().join(
-      posts{}, relx::query::on(relx::query::to_expr<&users::id>() ==
-                               relx::query::to_expr<&posts::user_id>()));
+  users u;
+  posts p;
+  auto query = relx::query::select_all<users>().join(p, relx::query::on(u.id == p.user_id));
 
-  // The expected SQL should include all columns from users and the JOIN clause
   std::string expected_sql = "SELECT * FROM users JOIN posts ON (users.id = posts.user_id)";
   EXPECT_EQ(query.to_sql(), expected_sql);
   EXPECT_TRUE(query.bind_params().empty());
 }
 
 TEST(SelectAllTest, SelectAllWithAllClauses) {
-  // Use select_all with multiple clauses
+  users u;
+  posts p;
   auto query = relx::query::select_all<users>()
-                   .join(posts{}, relx::query::on(relx::query::to_expr<&users::id>() ==
-                                                  relx::query::to_expr<&posts::user_id>()))
-                   .where(relx::query::to_expr<&users::age>() > 18)
-                   .group_by(relx::query::to_expr<&users::id>())
-                   .having(relx::query::count(relx::query::to_expr<&posts::id>()) > 5)
-                   .order_by(relx::query::desc(relx::query::to_expr<&users::age>()))
+                   .join(p, relx::query::on(u.id == p.user_id))
+                   .where(u.age > 18)
+                   .group_by(u.id)
+                   .having(relx::query::count(p.id) > 5)
+                   .order_by(relx::query::desc(u.age))
                    .limit(10)
                    .offset(20);
 
-  // The expected SQL should include all clauses
   std::string expected_sql = "SELECT * FROM users "
                              "JOIN posts ON (users.id = posts.user_id) "
                              "WHERE (users.age > ?) "

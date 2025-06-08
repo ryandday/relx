@@ -17,9 +17,8 @@ TEST(DistinctSelectTest, SimpleSelectDistinctLegacy) {
 }
 
 TEST(DistinctSelectTest, SelectDistinctWithCondition) {
-  // Test DISTINCT with WHERE condition
-  auto query = relx::query::select_distinct<&users::id, &users::name>().from(users{}).where(
-      relx::query::to_expr<&users::age>() > 18);
+  users u;
+  auto query = relx::query::select_distinct(u.id, u.name).from(u).where(u.age > 18);
 
   EXPECT_EQ(query.to_sql(),
             "SELECT DISTINCT users.id, users.name FROM users WHERE (users.age > ?)");
@@ -44,18 +43,17 @@ TEST(DistinctSelectTest, SelectDistinctWithJoin) {
 }
 
 TEST(DistinctSelectTest, SelectDistinctWithGroupBy) {
-  // Test DISTINCT with GROUP BY
-  auto query = relx::query::select_distinct<&users::name, &users::age>().from(users{}).group_by(
-      relx::query::to_expr<&users::age>());
+  users u;
+  auto query = relx::query::select_distinct(u.name, u.age).from(u).group_by(u.age);
 
   EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.name, users.age FROM users GROUP BY users.age");
   EXPECT_TRUE(query.bind_params().empty());
 }
 
 TEST(DistinctSelectTest, SelectDistinctWithOrderBy) {
-  // Test DISTINCT with ORDER BY
-  auto query = relx::query::select_distinct<&users::name, &users::age>().from(users{}).order_by(
-      relx::query::desc(relx::query::to_expr<&users::age>()));
+  users u;
+  auto query =
+      relx::query::select_distinct(u.name, u.age).from(u).order_by(relx::query::desc(u.age));
 
   EXPECT_EQ(query.to_sql(),
             "SELECT DISTINCT users.name, users.age FROM users ORDER BY users.age DESC");
@@ -63,9 +61,8 @@ TEST(DistinctSelectTest, SelectDistinctWithOrderBy) {
 }
 
 TEST(DistinctSelectTest, SelectDistinctWithLimitOffset) {
-  // Test DISTINCT with LIMIT and OFFSET
-  auto query =
-      relx::query::select_distinct<&users::name, &users::age>().from(users{}).limit(10).offset(5);
+  users u;
+  auto query = relx::query::select_distinct(u.name, u.age).from(u).limit(10).offset(5);
 
   EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.name, users.age FROM users LIMIT ? OFFSET ?");
 
