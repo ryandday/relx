@@ -638,10 +638,10 @@ public:
 
   /// @brief Get the name of a column by index
   /// @param index The zero-based index of the column
-  /// @return The name of the column
-  std::string column_name(size_t index) const {
+  /// @return The name of the column or an error
+  ResultProcessingResult<std::string> column_name(size_t index) const {
     if (index >= column_names_.size()) {
-      throw std::out_of_range("Column index out of range");
+      return std::unexpected(ResultError{"Column index out of range"});
     }
     return column_names_.at(index);
   }

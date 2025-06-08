@@ -11,6 +11,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <stdexcept>
 
 namespace relx::result {
 
@@ -248,11 +249,11 @@ public:
   bool empty() const { return size() == 0; }
 
   /// @brief Get a row by index (parsed on demand)
-  LazyRow at(size_t index) const {
+  ResultProcessingResult<LazyRow> at(size_t index) const {
     ensure_rows_parsed();
 
     if (index >= row_positions_.size()) {
-      throw std::out_of_range("Row index out of range");
+      return std::unexpected(ResultError{"Row index out of range"});
     }
 
     const auto& [start, end] = row_positions_[index];
@@ -261,7 +262,15 @@ public:
   }
 
   /// @brief Access a row by index using the subscript operator
-  LazyRow operator[](size_t index) const { return at(index); }
+  /// @note This method assumes index is valid - use at() for error checking
+  LazyRow operator[](size_t index) const { 
+    auto result = at(index);
+    if (!result) {
+      // Return empty LazyRow for invalid index
+      return LazyRow{};
+    }
+    return *result;
+  }
 
   /// @brief Get the column names
   const std::vector<std::string>& column_names() const {
@@ -275,7 +284,14 @@ public:
     iterator(const LazyResultSet& result_set, size_t index)
         : result_set_(result_set), index_(index) {}
 
-    LazyRow operator*() const { return result_set_.at(index_); }
+    LazyRow operator*() const { 
+      auto result = result_set_.at(index_);
+      if (!result) {
+        // Return empty LazyRow for invalid index (original behavior)
+        return LazyRow{};
+      }
+      return *result;
+    }
 
     iterator& operator++() {
       ++index_;
@@ -294,12 +310,18 @@ public:
   iterator end() const { return iterator(*this, size()); }
 
   /// @brief Transform to regular ResultSet if needed
-  ResultSet to_result_set() const {
+  /// @note This method will propagate any errors encountered during transformation
+  ResultProcessingResult<ResultSet> to_result_set() const {
     std::vector<Row> rows;
     rows.reserve(size());
 
     for (size_t i = 0; i < size(); ++i) {
-      auto lazy_row = at(i);
+      auto lazy_row_result = at(i);
+      if (!lazy_row_result) {
+        return std::unexpected(lazy_row_result.error());
+      }
+      
+      auto lazy_row = *lazy_row_result;
       std::vector<Cell> cells;
       cells.reserve(lazy_row.size());
 
@@ -307,6 +329,8 @@ public:
         auto lazy_cell = lazy_row.get_cell(j);
         if (lazy_cell) {
           cells.emplace_back(lazy_cell->get_raw_value());
+        } else {
+          return std::unexpected(ResultError{"Failed to get cell at index " + std::to_string(j)});
         }
       }
 

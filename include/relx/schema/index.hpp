@@ -127,8 +127,9 @@ private:
           typename std::remove_reference_t<typename table_for_column<first_col_ptr_t>::type>;
       return std::string(table_t::table_name);
     }
-    // Should never reach here if parameters are correct
-    throw RelxException("Unknown table name");
+    // Make static assert if template parameters are incorrect
+    static_assert(I < sizeof...(ColumnPtrs), "Invalid index template parameters: no columns provided");
+    return ""; // This line will never be reached due to static_assert
   }
 
   // Helper type to extract the table type from a column pointer

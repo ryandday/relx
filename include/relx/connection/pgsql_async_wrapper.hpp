@@ -220,9 +220,14 @@ private:
         break;  // All data has been flushed
       }
       // Flush returned 1, need to wait for socket to be writable
+      auto socket_result = socket();
+      if (!socket_result) {
+        co_return std::unexpected(socket_result.error());
+      }
+      
       boost::system::error_code ec;
-      co_await socket().async_wait(boost::asio::ip::tcp::socket::wait_write,
-                                   boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+      co_await (*socket_result)->async_wait(boost::asio::ip::tcp::socket::wait_write,
+                                            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
         co_return std::unexpected(PgError{.message = ec.message(), .error_code = ec.value()});
@@ -253,9 +258,14 @@ private:
       }
 
       // Still busy, wait for the socket to be readable
+      auto socket_result = socket();
+      if (!socket_result) {
+        co_return std::unexpected(socket_result.error());
+      }
+      
       boost::system::error_code ec;
-      co_await socket().async_wait(boost::asio::ip::tcp::socket::wait_read,
-                                   boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+      co_await (*socket_result)->async_wait(boost::asio::ip::tcp::socket::wait_read,
+                                            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
         co_return std::unexpected(PgError{.message = ec.message(), .error_code = ec.value()});
@@ -315,11 +325,11 @@ public:
 
   PGconn* native_handle() { return conn_; }
 
-  boost::asio::ip::tcp::socket& socket() {
+  PgResult<boost::asio::ip::tcp::socket*> socket() {
     if (!socket_) {
-      throw std::runtime_error("Socket not initialized");
+      return std::unexpected(PgError{.message = "Socket not initialized", .error_code = -1});
     }
-    return *socket_;
+    return socket_.get();
   }
 
   // Asynchronous connection using boost::asio::awaitable
@@ -373,9 +383,15 @@ public:
       // Need to poll
       if (poll_status == PGRES_POLLING_READING) {
         // Wait until socket is readable
+        auto socket_result = socket();
+        if (!socket_result) {
+          close();
+          co_return std::unexpected(socket_result.error());
+        }
+        
         boost::system::error_code ec;
-        co_await socket().async_wait(boost::asio::ip::tcp::socket::wait_read,
-                                     boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        co_await (*socket_result)->async_wait(boost::asio::ip::tcp::socket::wait_read,
+                                              boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {
           close();
@@ -383,9 +399,15 @@ public:
         }
       } else if (poll_status == PGRES_POLLING_WRITING) {
         // Wait until socket is writable
+        auto socket_result = socket();
+        if (!socket_result) {
+          close();
+          co_return std::unexpected(socket_result.error());
+        }
+        
         boost::system::error_code ec;
-        co_await socket().async_wait(boost::asio::ip::tcp::socket::wait_write,
-                                     boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        co_await (*socket_result)->async_wait(boost::asio::ip::tcp::socket::wait_write,
+                                              boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {
           close();

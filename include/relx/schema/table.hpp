@@ -144,6 +144,15 @@ public:
     return *this;
   }
 
+  /// @brief Validate the create table configuration
+  /// @return Empty optional on success, error message on failure
+  std::optional<std::string> validate() const {
+    if (if_exists_ && if_not_exists_) {
+      return "if_exists and if_not_exists cannot both be true";
+    }
+    return std::nullopt;
+  }
+
   std::string to_sql() const {
     std::string sql = "CREATE TABLE ";
     if (if_not_exists_) {
@@ -151,10 +160,6 @@ public:
     }
     if (if_exists_) {
       sql += "IF EXISTS ";
-    }
-
-    if (if_exists_ && if_not_exists_) {
-      throw std::invalid_argument("if_exists and if_not_exists cannot both be true");
     }
 
     sql += std::string(Table::table_name) + " (\n";

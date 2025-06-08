@@ -211,8 +211,9 @@ private:
   // Base case for empty pack
   template <size_t Index>
   std::string get_ref_table_name_impl() const {
-    // Should never reach here if parameters are correct
-    throw RelxException("Unknown table name");
+    // Static assert to make sure template parameters are correct
+    static_assert(Index == 0, "Invalid foreign key template parameters: could not determine referenced table");
+    return ""; // This line will never be reached due to static_assert
   }
 
   // Helper to extract the class type from a member pointer

@@ -126,11 +126,12 @@ TEST_F(LazyParsingTest, ConversionToRegularResultSet) {
   auto lazy_result = result::parse_lazy(query, std::string(raw_data_));
   auto regular_result = lazy_result.to_result_set();
 
-  EXPECT_EQ(regular_result.size(), 3);
-  EXPECT_EQ(regular_result.column_count(), 4);
+  ASSERT_TRUE(regular_result.has_value());
+  EXPECT_EQ(regular_result->size(), 3);
+  EXPECT_EQ(regular_result->column_count(), 4);
 
   // Test that data is correctly converted
-  auto first_row = regular_result[0];
+  auto first_row = (*regular_result)[0];
   auto name = first_row.get<std::string>("name");
   ASSERT_TRUE(name.has_value());
   EXPECT_EQ(*name, "John Doe");
@@ -140,8 +141,9 @@ TEST_F(LazyParsingTest, ErrorHandling) {
   auto query = create_query();
   auto lazy_result = result::parse_lazy(query, std::string(raw_data_));
 
-  // Test out of bounds access
-  EXPECT_THROW(lazy_result.at(10), std::out_of_range);
+  // Test out of bounds access - should return error instead of throwing
+  auto out_of_bounds_result = lazy_result.at(10);
+  EXPECT_FALSE(out_of_bounds_result.has_value());
 
   // Test invalid column access
   auto first_row = lazy_result[0];
