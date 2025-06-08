@@ -22,7 +22,7 @@ This library is a work in progress. Contributions, issues, and usability feedbac
 
 This library was born from my desire for a C++ SQL library that offers the expressiveness of high-level languages without sacrificing C++'s performance and control.
 I didn't want crazy template parameters, macros, or member pointers, just a simple builder API. 
-I also wanted two features out-of-the-box: async capabilities, because async is the only practical approach for web applications handling massive amounts of concurrent users, and lazy loading of rows in case I have a big query.
+I also a couple features out-of-the-box: async capabilities, because async is the only practical approach for web applications handling massive amounts of concurrent users, lazy loading of rows in case I have a big query, and some migration utilities since its nice and convenient.
 
 ## Table of Contents
 
@@ -318,6 +318,7 @@ relx provides a rich set of schema definition features:
 - **Connection Pooling**: Efficient database connection management  
 - **Result Set Processing**: Strongly typed result access
 - **Async Operations**: Non-blocking I/O with Boost.Asio
+- **Schema Migrations**: Automatic DDL generation for database schema evolution
 - **Type Safety**: Compile-time SQL validation
 
 ## Supported Databases
