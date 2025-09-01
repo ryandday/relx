@@ -244,14 +244,15 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::reset_
         // Still busy, wait for the socket to be readable
         auto socket_result = async_conn_->socket();
         if (!socket_result) {
-          // Error getting socket - connection might be in a bad state, but we'll return success anyway
+          // Error getting socket - connection might be in a bad state, but we'll return success
+          // anyway
           break;
         }
-        
+
         boost::system::error_code ec;
-        co_await (*socket_result)->async_wait(
-            boost::asio::ip::tcp::socket::wait_read,
-            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        co_await (*socket_result)
+            ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+                         boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {
           // Error waiting - connection might be in a bad state, but we'll return success anyway

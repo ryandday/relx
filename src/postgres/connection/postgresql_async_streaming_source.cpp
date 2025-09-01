@@ -154,11 +154,11 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
         finished_ = true;
         co_return std::nullopt;
       }
-      
+
       boost::system::error_code ec;
-      co_await (*socket_result)->async_wait(
-          boost::asio::ip::tcp::socket::wait_read,
-          boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+      co_await (*socket_result)
+          ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+                       boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
         finished_ = true;
@@ -276,14 +276,14 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncStreamingSource::s
       // Still busy, wait for the socket to be readable
       auto socket_result = connection_.get_async_conn().socket();
       if (!socket_result) {
-        co_return std::unexpected(
-            ConnectionError{.message = socket_result.error().message, .error_code = socket_result.error().error_code});
+        co_return std::unexpected(ConnectionError{.message = socket_result.error().message,
+                                                  .error_code = socket_result.error().error_code});
       }
-      
+
       boost::system::error_code ec;
-      co_await (*socket_result)->async_wait(
-          boost::asio::ip::tcp::socket::wait_read,
-          boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+      co_await (*socket_result)
+          ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+                       boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
         co_return std::unexpected(
@@ -422,11 +422,11 @@ boost::asio::awaitable<void> PostgreSQLAsyncStreamingSource::async_cleanup() {
           // Error getting socket, just break out
           break;
         }
-        
+
         boost::system::error_code ec;
-        co_await (*socket_result)->async_wait(
-            boost::asio::ip::tcp::socket::wait_read,
-            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        co_await (*socket_result)
+            ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+                         boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {
           // Error waiting, just break out

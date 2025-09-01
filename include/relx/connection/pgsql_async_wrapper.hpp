@@ -224,10 +224,11 @@ private:
       if (!socket_result) {
         co_return std::unexpected(socket_result.error());
       }
-      
+
       boost::system::error_code ec;
-      co_await (*socket_result)->async_wait(boost::asio::ip::tcp::socket::wait_write,
-                                            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+      co_await (*socket_result)
+          ->async_wait(boost::asio::ip::tcp::socket::wait_write,
+                       boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
         co_return std::unexpected(PgError{.message = ec.message(), .error_code = ec.value()});
@@ -262,10 +263,11 @@ private:
       if (!socket_result) {
         co_return std::unexpected(socket_result.error());
       }
-      
+
       boost::system::error_code ec;
-      co_await (*socket_result)->async_wait(boost::asio::ip::tcp::socket::wait_read,
-                                            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+      co_await (*socket_result)
+          ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+                       boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
         co_return std::unexpected(PgError{.message = ec.message(), .error_code = ec.value()});
@@ -388,10 +390,11 @@ public:
           close();
           co_return std::unexpected(socket_result.error());
         }
-        
+
         boost::system::error_code ec;
-        co_await (*socket_result)->async_wait(boost::asio::ip::tcp::socket::wait_read,
-                                              boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        co_await (*socket_result)
+            ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+                         boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {
           close();
@@ -404,10 +407,11 @@ public:
           close();
           co_return std::unexpected(socket_result.error());
         }
-        
+
         boost::system::error_code ec;
-        co_await (*socket_result)->async_wait(boost::asio::ip::tcp::socket::wait_write,
-                                              boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        co_await (*socket_result)
+            ->async_wait(boost::asio::ip::tcp::socket::wait_write,
+                         boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {
           close();

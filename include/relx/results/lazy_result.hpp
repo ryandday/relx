@@ -7,11 +7,11 @@
 #include <memory>
 #include <optional>
 #include <ranges>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <stdexcept>
 
 namespace relx::result {
 
@@ -263,7 +263,7 @@ public:
 
   /// @brief Access a row by index using the subscript operator
   /// @note This method assumes index is valid - use at() for error checking
-  LazyRow operator[](size_t index) const { 
+  LazyRow operator[](size_t index) const {
     auto result = at(index);
     if (!result) {
       // Return empty LazyRow for invalid index
@@ -284,7 +284,7 @@ public:
     iterator(const LazyResultSet& result_set, size_t index)
         : result_set_(result_set), index_(index) {}
 
-    LazyRow operator*() const { 
+    LazyRow operator*() const {
       auto result = result_set_.at(index_);
       if (!result) {
         // Return empty LazyRow for invalid index (original behavior)
@@ -320,7 +320,7 @@ public:
       if (!lazy_row_result) {
         return std::unexpected(lazy_row_result.error());
       }
-      
+
       auto lazy_row = *lazy_row_result;
       std::vector<Cell> cells;
       cells.reserve(lazy_row.size());

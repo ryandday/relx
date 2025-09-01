@@ -128,8 +128,9 @@ private:
       return std::string(table_t::table_name);
     }
     // Make static assert if template parameters are incorrect
-    static_assert(I < sizeof...(ColumnPtrs), "Invalid index template parameters: no columns provided");
-    return ""; // This line will never be reached due to static_assert
+    static_assert(I < sizeof...(ColumnPtrs),
+                  "Invalid index template parameters: no columns provided");
+    return "";  // This line will never be reached due to static_assert
   }
 
   // Helper type to extract the table type from a column pointer
