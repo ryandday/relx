@@ -204,8 +204,11 @@ TEST_F(SchemaIntegrationTest, CreateTables) {
   ASSERT_TRUE(result) << "Failed to create inventory table: " << result.error().message;
 
   // Verify tables exist by querying the database
-  auto tables = conn->execute_raw("SELECT table_name FROM information_schema.tables WHERE "
-                                  "table_schema = 'public' ORDER BY table_name");
+  // Scope to this test's tables: the shared relx_test database may hold others
+  auto tables = conn->execute_raw(
+      "SELECT table_name FROM information_schema.tables WHERE "
+      "table_schema = 'public' AND table_name IN "
+      "('categories', 'customers', 'inventory', 'orders', 'products') ORDER BY table_name");
   ASSERT_TRUE(tables) << "Failed to query tables: " << tables.error().message;
 
   auto& rows = *tables;
@@ -261,6 +264,7 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
       "ON tc.constraint_name = kcu.constraint_name "
       "AND tc.table_schema = kcu.table_schema "
       "WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = 'public' "
+      "AND kcu.table_name IN ('categories', 'customers', 'inventory', 'orders', 'products') "
       "ORDER BY kcu.table_name, kcu.ordinal_position");
   ASSERT_TRUE(result) << "Failed to query primary keys: " << result.error().message;
   // Verify primary key constraints
@@ -298,6 +302,7 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
       "ON tc.constraint_name = ccu.constraint_name "
       "AND tc.table_schema = ccu.table_schema "
       "WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public' "
+      "AND kcu.table_name IN ('categories', 'customers', 'inventory', 'orders', 'products') "
       "ORDER BY kcu.table_name, kcu.column_name");
   ASSERT_TRUE(result) << "Failed to query foreign keys: " << result.error().message;
 
