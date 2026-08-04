@@ -3,6 +3,7 @@
 #include "../reflect.hpp"
 #include "../results/result.hpp"
 
+#include <charconv>
 #include <cstddef>
 #include <expected>
 #include <optional>
@@ -23,24 +24,32 @@ inline constexpr bool is_optional_v<std::optional<U>> = true;
 /// @tparam T The target type
 /// @param target The target variable
 /// @param value The string value to convert
+/// @return Empty expected on success, error message on conversion failure
 template <typename T>
-void convert_and_assign(T& target, const std::string& value) {
+std::expected<void, std::string> convert_and_assign(T& target, const std::string& value) {
   if constexpr (detail::is_optional_v<T>) {
     typename T::value_type inner{};
-    convert_and_assign(inner, value);
+    if (auto result = convert_and_assign(inner, value); !result) {
+      return result;
+    }
     target = std::move(inner);
+    return {};
   } else if constexpr (std::is_same_v<T, std::string> || std::is_same_v<T, std::string_view> ||
                        std::is_same_v<T, char> || std::is_same_v<T, char16_t> ||
                        std::is_same_v<T, char32_t>) {
     target = value;
+    return {};
   } else if constexpr (std::is_same_v<T, bool>) {
     // Handle PostgreSQL-style boolean values ('t', 'f', etc.)
     target = (value == "1" || value == "true" || value == "TRUE" || value == "True" ||
               value == "t" || value == "T" || value == "yes" || value == "YES" || value == "Y");
-  } else if constexpr (std::is_integral_v<T>) {
-    target = static_cast<T>(std::stoll(value));
-  } else if constexpr (std::is_floating_point_v<T>) {
-    target = std::stod(value);
+    return {};
+  } else if constexpr (std::is_integral_v<T> || std::is_floating_point_v<T>) {
+    auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), target);
+    if (ec != std::errc{}) {
+      return std::unexpected("'" + value + "' is not a valid " + std::string(refl::type_name<T>()));
+    }
+    return {};
   } else {
     static_assert(std::is_same_v<T, bool>, "Unsupported type conversion");
   }
@@ -94,10 +103,8 @@ std::expected<T, std::string> map_row_to_struct(const result::Row& row) {
       return;
     }
 
-    try {
-      convert_and_assign(field, cell.raw_value());
-    } catch (const std::exception& e) {
-      error = "Failed to convert value for field '" + std::string(name) + "': " + e.what();
+    if (auto converted = convert_and_assign(field, cell.raw_value()); !converted) {
+      error = "Failed to convert value for field '" + std::string(name) + "': " + converted.error();
     }
   });
 

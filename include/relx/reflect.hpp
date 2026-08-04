@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <meta>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
@@ -64,6 +66,12 @@ constexpr void for_each_named_field(T&& obj, Fn&& fn) {
     fn(obj.[:member:],
        std::string_view(std::define_static_string(std::meta::identifier_of(member))));
   }
+}
+
+/// @brief Human-readable name of a type, backed by static storage
+template <typename T>
+consteval std::string_view type_name() {
+  return std::define_static_string(std::meta::display_string_of(^^T));
 }
 
 // clang-format on
