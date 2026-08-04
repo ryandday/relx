@@ -80,7 +80,7 @@ TEST(DefaultValueTest, TableWithDefaults) {
   std::string create_sql = create_table(p).to_sql();
 
   // Validate SQL contains default values
-  EXPECT_TRUE(create_sql.find("price REAL NOT NULL DEFAULT 0") != std::string::npos);
+  EXPECT_TRUE(create_sql.find("price DOUBLE PRECISION NOT NULL DEFAULT 0") != std::string::npos);
   EXPECT_TRUE(create_sql.find("stock INTEGER NOT NULL DEFAULT 10") != std::string::npos);
   EXPECT_TRUE(create_sql.find("active BOOLEAN NOT NULL DEFAULT true") != std::string::npos);
   EXPECT_TRUE(create_sql.find("status TEXT NOT NULL DEFAULT 'active'") != std::string::npos);

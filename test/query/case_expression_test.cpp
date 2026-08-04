@@ -47,9 +47,9 @@ TEST(CaseExpressionTest, CaseWithoutElse) {
 
   auto params = query.bind_params();
   EXPECT_EQ(params.size(), 4);
-  EXPECT_EQ(params[0], "1");  // true as 1
+  EXPECT_EQ(params[0], "true");
   EXPECT_EQ(params[1], "Active");
-  EXPECT_EQ(params[2], "0");  // false as 0
+  EXPECT_EQ(params[2], "false");
   EXPECT_EQ(params[3], "Inactive");
 }
 

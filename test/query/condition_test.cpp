@@ -44,7 +44,7 @@ TEST(ConditionTest, LogicalAnd) {
   auto params = query.bind_params();
   EXPECT_EQ(params.size(), 2);
   EXPECT_EQ(params[0], "18");
-  EXPECT_EQ(params[1], "1");  // true is represented as 1
+  EXPECT_EQ(params[1], "true");
 }
 
 TEST(ConditionTest, LogicalOr) {
@@ -73,7 +73,7 @@ TEST(ConditionTest, LogicalNotValue) {
 
   auto params = query.bind_params();
   EXPECT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "0");  // false is represented as 0
+  EXPECT_EQ(params[0], "false");
 }
 
 TEST(ConditionTest, ComplexLogicalExpression) {
@@ -91,7 +91,7 @@ TEST(ConditionTest, ComplexLogicalExpression) {
   auto params = query.bind_params();
   EXPECT_EQ(params.size(), 3);
   EXPECT_EQ(params[0], "18");
-  EXPECT_EQ(params[1], "1");  // true is represented as 1
+  EXPECT_EQ(params[1], "true");
   EXPECT_EQ(params[2], "10");
 }
 

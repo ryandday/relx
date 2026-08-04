@@ -76,8 +76,8 @@ TEST(ColumnTest, BooleanConversion) {
   column<DummyTable, "active", bool> active_col;
 
   // Test converting bool to SQL string
-  EXPECT_EQ(active_col.to_sql_string(true), "1");
-  EXPECT_EQ(active_col.to_sql_string(false), "0");
+  EXPECT_EQ(active_col.to_sql_string(true), "true");
+  EXPECT_EQ(active_col.to_sql_string(false), "false");
 
   // Test converting SQL string to bool
   EXPECT_TRUE(active_col.from_sql_string("1"));

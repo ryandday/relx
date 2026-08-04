@@ -259,20 +259,22 @@ TEST(ComplexSchemaTest, EnhancedECommerceSchema) {
   EXPECT_TRUE(categories_sql.find("is_active BOOLEAN NOT NULL DEFAULT true") != std::string::npos);
   EXPECT_TRUE(categories_sql.find("display_order INTEGER NOT NULL DEFAULT 0") != std::string::npos);
 
-  EXPECT_TRUE(products_sql.find("price REAL NOT NULL DEFAULT 0") != std::string::npos);
+  EXPECT_TRUE(products_sql.find("price DOUBLE PRECISION NOT NULL DEFAULT 0") != std::string::npos);
   EXPECT_FALSE(products_sql.find("discount_price") == std::string::npos);
   EXPECT_TRUE(products_sql.find("stock INTEGER NOT NULL DEFAULT 0") != std::string::npos);
   EXPECT_TRUE(products_sql.find("is_featured BOOLEAN NOT NULL DEFAULT false") != std::string::npos);
 
-  EXPECT_TRUE(orders_sql.find("total REAL NOT NULL DEFAULT 0") != std::string::npos);
+  EXPECT_TRUE(orders_sql.find("total DOUBLE PRECISION NOT NULL DEFAULT 0") != std::string::npos);
   EXPECT_TRUE(orders_sql.find("status TEXT NOT NULL DEFAULT 'pending'") != std::string::npos);
   EXPECT_TRUE(orders_sql.find("payment_method TEXT NOT NULL DEFAULT 'credit_card'") !=
               std::string::npos);
   EXPECT_TRUE(orders_sql.find("notes TEXT DEFAULT NULL") != std::string::npos);
 
   EXPECT_TRUE(order_items_sql.find("quantity INTEGER NOT NULL DEFAULT 1") != std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("discount REAL NOT NULL DEFAULT 0") != std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("subtotal REAL NOT NULL DEFAULT 0") != std::string::npos);
+  EXPECT_TRUE(order_items_sql.find("discount DOUBLE PRECISION NOT NULL DEFAULT 0") !=
+              std::string::npos);
+  EXPECT_TRUE(order_items_sql.find("subtotal DOUBLE PRECISION NOT NULL DEFAULT 0") !=
+              std::string::npos);
 
   EXPECT_TRUE(reviews_sql.find("is_verified_purchase BOOLEAN NOT NULL DEFAULT false") !=
               std::string::npos);

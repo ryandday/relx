@@ -46,7 +46,8 @@ struct column_traits<int> {
 
 template <>
 struct column_traits<double> {
-  static constexpr auto sql_type_name = "REAL";
+  // PostgreSQL REAL is float4; an 8-byte C++ double needs DOUBLE PRECISION
+  static constexpr auto sql_type_name = "DOUBLE PRECISION";
   static constexpr bool nullable = false;
 
   static std::string to_sql_string(const double& value) { return std::to_string(value); }
@@ -59,6 +60,8 @@ struct column_traits<std::string> {
   static constexpr auto sql_type_name = "TEXT";
   static constexpr bool nullable = false;
 
+  // SQL-literal formatting, for DDL contexts only (e.g. DEFAULT clauses).
+  // Bind parameters must carry the raw string; see Value<std::string>.
   static std::string to_sql_string(const std::string& value) {
     // Escape single quotes by doubling them
     std::string escaped = value;
@@ -91,10 +94,11 @@ struct column_traits<bool> {
   static constexpr auto sql_type_name = "BOOLEAN";
   static constexpr bool nullable = false;
 
-  static std::string to_sql_string(const bool& value) { return value ? "1" : "0"; }
+  static std::string to_sql_string(const bool& value) { return value ? "true" : "false"; }
 
   static bool from_sql_string(const std::string& value) {
-    return value == "1" || value == "true" || value == "TRUE";
+    // PostgreSQL emits 't'/'f'; also accept the spellings it accepts as input
+    return value == "t" || value == "true" || value == "TRUE" || value == "1";
   }
 };
 
@@ -110,7 +114,8 @@ struct column_traits<float> {
 
 template <>
 struct column_traits<long> {
-  static constexpr auto sql_type_name = "INTEGER";
+  // PostgreSQL INTEGER is strictly 32-bit; 64-bit C++ types need BIGINT
+  static constexpr auto sql_type_name = "BIGINT";
   static constexpr bool nullable = false;
 
   static std::string to_sql_string(const long& value) { return std::to_string(value); }
@@ -120,7 +125,7 @@ struct column_traits<long> {
 
 template <>
 struct column_traits<long long> {
-  static constexpr auto sql_type_name = "INTEGER";
+  static constexpr auto sql_type_name = "BIGINT";
   static constexpr bool nullable = false;
 
   static std::string to_sql_string(const long long& value) { return std::to_string(value); }

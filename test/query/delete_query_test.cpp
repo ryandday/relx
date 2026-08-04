@@ -67,7 +67,7 @@ TEST(DeleteQueryTest, DeleteWithComplexWhere) {
   auto params = query.bind_params();
   ASSERT_EQ(params.size(), 2);
   EXPECT_EQ(params[0], "10");
-  EXPECT_EQ(params[1], "1");  // true converts to "1"
+  EXPECT_EQ(params[1], "true");
 }
 
 // Test direct column comparison with value
@@ -92,7 +92,7 @@ TEST(DeleteQueryTest, DeleteWithDirectColumnComparison) {
   auto complex_params = complex_query.bind_params();
   ASSERT_EQ(complex_params.size(), 2);
   EXPECT_EQ(complex_params[0], "10");
-  EXPECT_EQ(complex_params[1], "1");  // true converts to "1"
+  EXPECT_EQ(complex_params[1], "true");
 }
 
 // Test DELETE with IN condition in WHERE clause
@@ -169,6 +169,6 @@ TEST(DeleteQueryTest, DeleteWithoutWhereClauseSafety) {
 
   auto params = safer_query.bind_params();
   ASSERT_EQ(params.size(), 2);
-  EXPECT_EQ(params[0], "1");
-  EXPECT_EQ(params[1], "1");
+  EXPECT_EQ(params[0], "true");
+  EXPECT_EQ(params[1], "true");
 }

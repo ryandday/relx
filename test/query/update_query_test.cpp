@@ -72,7 +72,7 @@ TEST(UpdateQueryTest, UpdateWithComplexWhere) {
   ASSERT_EQ(params.size(), 3);
   EXPECT_EQ(params[0], "John Doe");
   EXPECT_EQ(params[1], "10");
-  EXPECT_EQ(params[2], "1");  // true converts to "1"
+  EXPECT_EQ(params[2], "true");
 }
 
 // Test UPDATE query with multiple SET operations
@@ -90,7 +90,7 @@ TEST(UpdateQueryTest, UpdateWithMultipleSets) {
   ASSERT_EQ(params.size(), 3);
   EXPECT_EQ(params[0], "Jane Doe");
   EXPECT_EQ(params[1], "jane@example.com");
-  EXPECT_EQ(params[2], "0");  // false converts to "0"
+  EXPECT_EQ(params[2], "false");
 }
 
 // Test UPDATE with function in SET clause
@@ -150,7 +150,7 @@ TEST(UpdateQueryTest, UpdateWithInCondition) {
 
   auto params = query.bind_params();
   ASSERT_EQ(params.size(), 5);
-  EXPECT_EQ(params[0], "1");  // true is represented as "1"
+  EXPECT_EQ(params[0], "true");
   EXPECT_EQ(params[1], "1");
   EXPECT_EQ(params[2], "3");
   EXPECT_EQ(params[3], "5");
@@ -209,7 +209,7 @@ TEST(UpdateQueryTest, UpdateWithReturning) {
   auto direct_params = direct_column_query.bind_params();
   ASSERT_EQ(direct_params.size(), 3);
   EXPECT_EQ(direct_params[0], "John Doe");
-  EXPECT_EQ(direct_params[1], "1");  // true becomes "1"
+  EXPECT_EQ(direct_params[1], "true");
   EXPECT_EQ(direct_params[2], "1");
 
   // Test returning with expressions
@@ -228,7 +228,7 @@ TEST(UpdateQueryTest, UpdateWithReturning) {
   ASSERT_EQ(expr_params.size(), 3);
   EXPECT_EQ(expr_params[0], "Jane Smith");
   EXPECT_EQ(expr_params[1], "jane@example.com");
-  EXPECT_EQ(expr_params[2], "1");
+  EXPECT_EQ(expr_params[2], "true");
 
   // Test mixed direct columns and expressions
   auto mixed_query = query::update(users)
@@ -247,5 +247,5 @@ TEST(UpdateQueryTest, UpdateWithReturning) {
   ASSERT_EQ(mixed_params.size(), 3);
   EXPECT_EQ(mixed_params[0], "Jane Smith");
   EXPECT_EQ(mixed_params[1], "jane@example.com");
-  EXPECT_EQ(mixed_params[2], "1");
+  EXPECT_EQ(mixed_params[2], "true");
 }

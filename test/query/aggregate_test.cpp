@@ -104,7 +104,7 @@ TEST(AggregateTest, AggregatesWithWhere) {
 
   auto params = query.bind_params();
   EXPECT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "1");
+  EXPECT_EQ(params[0], "true");
 }
 
 TEST(AggregateTest, SimpleGroupBy) {
@@ -171,7 +171,7 @@ TEST(AggregateTest, GroupByWithHavingAndWhere) {
 
   auto params = query.bind_params();
   EXPECT_EQ(params.size(), 2);
-  EXPECT_EQ(params[0], "1");
+  EXPECT_EQ(params[0], "true");
   EXPECT_EQ(params[1], "1000");
 }
 

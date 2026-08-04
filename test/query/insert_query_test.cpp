@@ -59,7 +59,7 @@ TEST(InsertQueryTest, BasicInsert) {
   ASSERT_EQ(params.size(), 3);
   EXPECT_EQ(params[0], "John Doe");
   EXPECT_EQ(params[1], "john@example.com");
-  EXPECT_EQ(params[2], "1");  // true is represented as "1"
+  EXPECT_EQ(params[2], "true");
 }
 
 // Test INSERT with multiple rows
@@ -121,7 +121,7 @@ TEST(InsertQueryTest, InsertWithSelect) {
   auto params = query.bind_params();
   ASSERT_EQ(params.size(), 2);
   EXPECT_EQ(params[0], "default@example.com");
-  EXPECT_EQ(params[1], "1");  // true is represented as "1"
+  EXPECT_EQ(params[1], "true");
 }
 
 // Test INSERT with multiple rows of mixed literal and expression values
@@ -145,10 +145,10 @@ TEST(InsertQueryTest, InsertMultipleRowsWithMixedValues) {
   ASSERT_EQ(params.size(), 6);
   EXPECT_EQ(params[0], "John Doe");
   EXPECT_EQ(params[1], "john@example.com");
-  EXPECT_EQ(params[2], "1");  // true
+  EXPECT_EQ(params[2], "true");
   EXPECT_EQ(params[3], "Jane Smith");
   EXPECT_EQ(params[4], "jane@example.com");
-  EXPECT_EQ(params[5], "0");  // false
+  EXPECT_EQ(params[5], "false");
 }
 
 // Test error handling: INSERT without specifying columns
@@ -184,7 +184,7 @@ TEST(InsertQueryTest, InsertWithRawValues) {
   ASSERT_EQ(3, params.size());
   EXPECT_EQ("John Doe", params[0]);
   EXPECT_EQ("30", params[1]);
-  EXPECT_EQ("1", params[2]);
+  EXPECT_EQ("true", params[2]);
 
   // Test with multiple rows of raw values
   auto multi_query = relx::query::insert_into(table)
@@ -200,10 +200,10 @@ TEST(InsertQueryTest, InsertWithRawValues) {
   ASSERT_EQ(6, multi_params.size());
   EXPECT_EQ("John Doe", multi_params[0]);
   EXPECT_EQ("30", multi_params[1]);
-  EXPECT_EQ("1", multi_params[2]);
+  EXPECT_EQ("true", multi_params[2]);
   EXPECT_EQ("Jane Smith", multi_params[3]);
   EXPECT_EQ("25", multi_params[4]);
-  EXPECT_EQ("0", multi_params[5]);
+  EXPECT_EQ("false", multi_params[5]);
 }
 
 // Test INSERT with RETURNING clause
@@ -224,7 +224,7 @@ TEST(InsertQueryTest, InsertWithReturning) {
   ASSERT_EQ(basic_params.size(), 3);
   EXPECT_EQ(basic_params[0], "John Doe");
   EXPECT_EQ(basic_params[1], "john@example.com");
-  EXPECT_EQ(basic_params[2], "1");
+  EXPECT_EQ(basic_params[2], "true");
 
   // Test basic returning with direct column references
   auto direct_column_query = query::insert_into(users)
@@ -240,7 +240,7 @@ TEST(InsertQueryTest, InsertWithReturning) {
   ASSERT_EQ(direct_params.size(), 3);
   EXPECT_EQ(direct_params[0], "John Doe");
   EXPECT_EQ(direct_params[1], "john@example.com");
-  EXPECT_EQ(direct_params[2], "1");
+  EXPECT_EQ(direct_params[2], "true");
 
   // Test returning with expressions
   auto count_func = query::NullaryFunctionExpr("COUNT");
@@ -292,5 +292,5 @@ TEST(InsertQueryTest, InsertWithReturning) {
   auto select_params = select_insert_query.bind_params();
   ASSERT_EQ(select_params.size(), 2);
   EXPECT_EQ(select_params[0], "default@example.com");
-  EXPECT_EQ(select_params[1], "1");
+  EXPECT_EQ(select_params[1], "true");
 }

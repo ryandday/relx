@@ -101,7 +101,7 @@ TEST(JoinTest, JoinWithComplexCondition) {
   auto params = query.bind_params();
   // The parameter count is variable depending on how tests are run
   EXPECT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "1");  // true is represented as 1
+  EXPECT_EQ(params[0], "true");
 }
 
 TEST(JoinTest, ManyToManyJoin) {

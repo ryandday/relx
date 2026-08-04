@@ -67,6 +67,6 @@ TEST(ColumnLikeTest, CombinedConditions) {
   auto params = query.bind_params();
   EXPECT_EQ(params.size(), 3);
   EXPECT_EQ(params[0], "18");
-  EXPECT_EQ(params[1], "1");  // true is represented as 1
+  EXPECT_EQ(params[1], "true");
   EXPECT_EQ(params[2], "%admin%");
 }

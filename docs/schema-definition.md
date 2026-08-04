@@ -51,9 +51,11 @@ relx automatically maps C++ types to SQL types:
 | C++ Type | SQL Type |
 |----------|----------|
 | `int` | `INTEGER` |
-| `double` | `REAL` |
+| `long` / `long long` | `BIGINT` |
+| `float` | `REAL` |
+| `double` | `DOUBLE PRECISION` |
 | `std::string` | `TEXT` |
-| `bool` | `BOOLEAN` (0 or 1) |
+| `bool` | `BOOLEAN` |
 | `std::optional<T>` | SQL type of T, but allows NULL |
 
 Example:
@@ -75,8 +77,8 @@ struct Products {
 In this example:
 - `id` maps to `INTEGER NOT NULL`
 - `name` maps to `TEXT NOT NULL`
-- `price` maps to `REAL NOT NULL`
-- `is_active` maps to `INTEGER NOT NULL` (0 for false, 1 for true)
+- `price` maps to `DOUBLE PRECISION NOT NULL`
+- `is_active` maps to `BOOLEAN NOT NULL`
 - `description` maps to `TEXT` (nullable)
 
 ## Primary Keys
