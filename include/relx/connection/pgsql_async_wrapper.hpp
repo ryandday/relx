@@ -209,6 +209,21 @@ private:
     return PgResult<void>{};
   }
 
+  /// @brief Unconditionally re-wrap libpq's current socket.
+  /// @details During PQconnectPoll libpq may close its socket and open a new one
+  /// (e.g. when trying the next address for a host that resolves to both ::1 and
+  /// 127.0.0.1). The new socket can reuse the same fd number, so comparing fd
+  /// numbers cannot detect the swap - the old registration is already gone from
+  /// epoll and waiting on it hangs forever. The old asio socket is released (not
+  /// closed - libpq owns that fd) and the current fd is freshly registered.
+  PgResult<void> resync_socket() {
+    if (socket_) {
+      socket_->release();
+      socket_.reset();
+    }
+    return create_socket();
+  }
+
   // Asynchronous flush of outgoing data to the PostgreSQL server
   boost::asio::awaitable<PgResult<void>> flush_outgoing_data() {
     while (true) {
@@ -384,7 +399,12 @@ public:
 
       // Need to poll
       if (poll_status == PGRES_POLLING_READING) {
-        // Wait until socket is readable
+        // libpq may have switched to a new socket while trying other addresses
+        if (auto refresh_result = resync_socket(); !refresh_result) {
+          close();
+          co_return std::unexpected(refresh_result.error());
+        }
+
         auto socket_result = socket();
         if (!socket_result) {
           close();
@@ -401,7 +421,12 @@ public:
           co_return std::unexpected(PgError{.message = ec.message(), .error_code = ec.value()});
         }
       } else if (poll_status == PGRES_POLLING_WRITING) {
-        // Wait until socket is writable
+        // libpq may have switched to a new socket while trying other addresses
+        if (auto refresh_result = resync_socket(); !refresh_result) {
+          close();
+          co_return std::unexpected(refresh_result.error());
+        }
+
         auto socket_result = socket();
         if (!socket_result) {
           close();
