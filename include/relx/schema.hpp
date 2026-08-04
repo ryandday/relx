@@ -4,6 +4,7 @@
 #include "schema/annotated_table.hpp"
 #include "schema/check_constraint.hpp"
 #include "schema/chrono_traits.hpp"
+#include "schema/uuid_traits.hpp"
 #include "schema/column.hpp"
 #include "schema/core.hpp"
 #include "schema/fixed_string.hpp"
@@ -166,13 +167,17 @@ namespace relx {
 using schema::autoincrement;
 using schema::column;
 using schema::composite_unique_constraint;
+using schema::create_enum_type_sql;
 using schema::create_table;
+using schema::default_sql;
 using schema::default_value;
+using schema::drop_enum_type_sql;
 using schema::drop_table;
 using schema::fixed_string;
 using schema::foreign_key;
 using schema::identity;
 using schema::index;
+using schema::native_enum;
 using schema::null_default;
 using schema::primary_key;
 using schema::string_default;

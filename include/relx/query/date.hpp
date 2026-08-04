@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../schema/chrono_traits.hpp"
 #include "../schema/column.hpp"
 #include "arithmetic.hpp"
 #include "column_expression.hpp"
@@ -850,6 +851,34 @@ auto operator+(const UnaryDateFunctionExpr<Expr1>& left,
                const UnaryDateFunctionExpr<Expr2>& right) {
   return ArithmeticExpr<UnaryDateFunctionExpr<Expr1>, UnaryDateFunctionExpr<Expr2>>(left, "+",
                                                                                     right);
+}
+
+/// @brief Specialization for time_point values: bind the raw ISO 8601 text
+/// (the traits' to_sql_string is SQL-literal syntax and must not leak into binds)
+template <>
+class Value<std::chrono::system_clock::time_point> : public SqlExpression {
+public:
+  using value_type = std::chrono::system_clock::time_point;
+
+  explicit Value(std::chrono::system_clock::time_point value) : value_(value) {}
+
+  std::string to_sql() const override { return "?"; }
+
+  std::vector<bind_param> bind_params() const override {
+    // Reuse the traits' formatting, stripping the SQL-literal quotes
+    std::string quoted = schema::column_traits<value_type>::to_sql_string(value_);
+    return {quoted.substr(1, quoted.size() - 2)};
+  }
+
+  const value_type& value() const { return value_; }
+
+private:
+  value_type value_;
+};
+
+/// @brief Helper to create a value expression from a time_point
+inline auto val(std::chrono::system_clock::time_point tp) {
+  return Value<std::chrono::system_clock::time_point>(tp);
 }
 
 }  // namespace relx::query

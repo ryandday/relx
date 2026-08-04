@@ -113,6 +113,63 @@ struct check {
   }
 };
 
+namespace detail {
+
+template <typename T>
+struct unwrap_optional {
+  using type = T;
+};
+
+template <typename T>
+struct unwrap_optional<std::optional<T>> {
+  using type = T;
+};
+
+}  // namespace detail
+
+/// @brief The database type name used for a native enum column: the enum's identifier,
+/// lowercased (PostgreSQL folds unquoted identifiers to lowercase)
+template <typename E>
+  requires std::is_enum_v<E>
+consteval std::string_view pg_enum_type_name() {
+  std::string name{std::meta::identifier_of(^^E)};
+  for (char& c : name) {
+    if (c >= 'A' && c <= 'Z') {
+      c = static_cast<char>(c - 'A' + 'a');
+    }
+  }
+  return std::define_static_string(name);
+}
+
+/// @brief Marker modifier: store the enum column as a native database enum type
+/// instead of the default TEXT + CHECK. The type itself must be created first - see
+/// create_enum_type_sql<E>():
+///
+/// ```cpp
+/// [[=relx::ann::native_enum]] Status status;                 // annotated DSL
+/// column<T, "status", Status, native_enum> status;           // classic DSL
+/// ```
+struct native_enum {
+  static constexpr std::string to_sql() { return ""; }
+};
+
+/// @brief CREATE TYPE statement for a native enum, built at compile time:
+/// "CREATE TYPE status AS ENUM ('active', 'inactive')"
+template <typename E>
+  requires std::is_enum_v<E>
+consteval std::string_view create_enum_type_sql() {
+  return std::define_static_string("CREATE TYPE " + std::string(pg_enum_type_name<E>()) +
+                                   " AS ENUM (" + refl::enum_sql_list<E>() + ");");
+}
+
+/// @brief DROP TYPE statement for a native enum
+template <typename E>
+  requires std::is_enum_v<E>
+consteval std::string_view drop_enum_type_sql() {
+  return std::define_static_string("DROP TYPE IF EXISTS " +
+                                   std::string(pg_enum_type_name<E>()) + ";");
+}
+
 /// @brief REFERENCES constraint for foreign keys
 template <fixed_string Table, fixed_string Column>
 struct references {
@@ -193,6 +250,11 @@ struct null_default {
   static constexpr std::string to_sql() { return " DEFAULT NULL"; }
 };
 
+/// @brief DEFAULT from a SQL expression, emitted unquoted: default_sql<"now()">,
+/// default_sql<"gen_random_uuid()">
+template <fixed_string Expr>
+using default_sql = string_default<Expr, /*IsLiteral=*/true>;
+
 /// @brief Helper to apply all column modifiers to a SQL definition
 template <typename... Modifiers>
 constexpr std::string apply_modifiers() {
@@ -234,8 +296,19 @@ public:
   /// @brief The column name
   static constexpr auto name = Name;
 
+  /// @brief Whether this column stores its enum as a native database enum type
+  static constexpr bool uses_native_enum =
+      (std::is_same_v<Modifiers, native_enum> || ...) &&
+      std::is_enum_v<typename detail::unwrap_optional<T>::type>;
+
   /// @brief The SQL type of the column
-  static constexpr auto sql_type = column_traits<T>::sql_type_name;
+  static constexpr std::string_view sql_type = [] {
+    if constexpr (uses_native_enum) {
+      return pg_enum_type_name<typename detail::unwrap_optional<T>::type>();
+    } else {
+      return std::string_view(column_traits<T>::sql_type_name);
+    }
+  }();
 
   /// @brief Flag indicating if the column can be NULL
   static constexpr bool nullable = column_traits<T>::nullable;
@@ -256,7 +329,8 @@ public:
 
     // Value-set constraint supplied by the type itself (e.g. enums generate
     // CHECK(col IN ('a', 'b', ...)))
-    if constexpr (requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
+    if constexpr (!uses_native_enum &&
+                  requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
       result += column_traits<T>::check_constraint_sql(std::string_view(name));
     }
 
@@ -370,7 +444,19 @@ public:
   using base_type = T;
 
   static constexpr auto name = Name;
-  static constexpr auto sql_type = column_traits<T>::sql_type_name;
+
+  /// @brief Whether this column stores its enum as a native database enum type
+  static constexpr bool uses_native_enum =
+      (std::is_same_v<Modifiers, native_enum> || ...) && std::is_enum_v<T>;
+
+  static constexpr std::string_view sql_type = [] {
+    if constexpr (uses_native_enum) {
+      return pg_enum_type_name<T>();
+    } else {
+      return std::string_view(column_traits<T>::sql_type_name);
+    }
+  }();
+
   static constexpr bool nullable = true;
 
   constexpr std::string sql_definition() const {
@@ -383,7 +469,8 @@ public:
     result += apply_modifiers<Modifiers...>();
 
     // Value-set constraint from the underlying type (NULL passes a SQL CHECK)
-    if constexpr (requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
+    if constexpr (!uses_native_enum &&
+                  requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
       result += column_traits<T>::check_constraint_sql(std::string_view(name));
     }
 

@@ -52,6 +52,7 @@ add_executable(relx_tests
     query/insert_query_test.cpp
     query/select_all_test.cpp
     query/bind_param_test.cpp
+    query/web_core_gaps_test.cpp
     query/distinct_select_test.cpp
     query/edge_case_test.cpp
     query/data_type_test.cpp

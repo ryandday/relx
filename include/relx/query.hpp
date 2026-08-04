@@ -15,6 +15,7 @@
 #include "query/schema_adapter.hpp"
 #include "query/select.hpp"
 #include "query/update.hpp"
+#include "query/uuid.hpp"
 #include "query/value.hpp"
 
 /**

@@ -19,17 +19,63 @@ namespace relx::query {
 /// @brief Base DELETE query builder
 /// @tparam Table Table to delete from
 /// @tparam Where Optional where condition
-template <TableType Table, typename Where = std::nullopt_t>
+/// @tparam ReturningColumns Tuple of column expressions to return after delete
+template <TableType Table, typename Where = std::nullopt_t,
+          typename ReturningColumns = std::tuple<>>
 class DeleteQuery {
+private:
+  Table table_;
+  Where where_;
+  ReturningColumns returning_columns_;
+
+  // Helper to convert the RETURNING clause to SQL
+  std::string returning_to_sql() const {
+    if constexpr (is_empty_tuple<ReturningColumns>()) {
+      return "";
+    } else {
+      std::stringstream ss;
+      ss << " RETURNING ";
+      int i = 0;
+      std::apply(
+          [&](const auto&... cols) { ((ss << (i++ > 0 ? ", " : "") << cols.to_sql()), ...); },
+          returning_columns_);
+      return ss.str();
+    }
+  }
+
+  // Helper to collect bind parameters from RETURNING clause
+  std::vector<bind_param> returning_bind_params() const {
+    std::vector<bind_param> params;
+
+    if constexpr (!is_empty_tuple<ReturningColumns>()) {
+      std::apply(
+          [&](const auto&... cols) {
+            auto process_col = [&params](const auto& col) {
+              auto col_params = col.bind_params();
+              params.insert(params.end(), col_params.begin(), col_params.end());
+            };
+
+            (process_col(cols), ...);
+          },
+          returning_columns_);
+    }
+
+    return params;
+  }
+
 public:
   using table_type = Table;
   using where_type = Where;
+  using returning_columns_type = ReturningColumns;
 
   /// @brief Constructor for the DELETE query builder
   /// @param table The table to delete from
   /// @param where The WHERE condition
-  explicit DeleteQuery(Table table, Where where = std::nullopt)
-      : table_(std::move(table)), where_(std::move(where)) {}
+  /// @param returning_columns The columns to return after deletion
+  explicit DeleteQuery(Table table, Where where = std::nullopt,
+                       ReturningColumns returning_columns = {})
+      : table_(std::move(table)), where_(std::move(where)),
+        returning_columns_(std::move(returning_columns)) {}
 
   /// @brief Generate the SQL for this DELETE query
   /// @return The SQL string
@@ -43,6 +89,8 @@ public:
         ss << " WHERE " << where_.value().to_sql();
       }
     }
+
+    ss << returning_to_sql();
 
     return ss.str();
   }
@@ -60,6 +108,9 @@ public:
       }
     }
 
+    auto returning_params = returning_bind_params();
+    params.insert(params.end(), returning_params.begin(), returning_params.end());
+
     return params;
   }
 
@@ -69,7 +120,8 @@ public:
   /// @return New DeleteQuery with the WHERE clause added
   template <ConditionExpr Condition>
   auto where(const Condition& cond) const {
-    return DeleteQuery<Table, std::optional<Condition>>(table_, std::optional<Condition>(cond));
+    return DeleteQuery<Table, std::optional<Condition>, ReturningColumns>(
+        table_, std::optional<Condition>(cond), returning_columns_);
   }
 
   /// @brief Set a condition for filtering the rows to delete using IN with values
@@ -86,9 +138,32 @@ public:
     return where(in_condition);
   }
 
-private:
-  Table table_;
-  Where where_;
+  /// @brief Specify columns to return after delete
+  /// @tparam Args Column types or SQL expressions
+  /// @param args The columns or expressions to return
+  /// @return New DeleteQuery with the RETURNING clause added
+  template <typename... Args>
+  auto returning(const Args&... args) const {
+    // Helper to convert columns to ColumnRef expressions if they're not already SqlExpr
+    auto to_expr = [](const auto& arg) {
+      if constexpr (SqlExpr<std::remove_cvref_t<decltype(arg)>>) {
+        return arg;
+      } else if constexpr (ColumnType<std::remove_cvref_t<decltype(arg)>>) {
+        return column_ref(arg);
+      } else {
+        static_assert(SqlExpr<std::remove_cvref_t<decltype(arg)>> ||
+                          ColumnType<std::remove_cvref_t<decltype(arg)>>,
+                      "Arguments to returning() must be either columns or SQL expressions");
+        // This line is never reached, it's just to make the compiler happy
+        return arg;
+      }
+    };
+
+    using ReturningTuple = std::tuple<decltype(to_expr(std::declval<Args>()))...>;
+    auto returning_tuple = std::make_tuple(to_expr(args)...);
+
+    return DeleteQuery<Table, Where, ReturningTuple>(table_, where_, std::move(returning_tuple));
+  }
 };
 
 /// @brief Create a DELETE query for the specified table
