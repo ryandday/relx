@@ -1,7 +1,10 @@
 #pragma once
 
 #include "../bind_param.hpp"
+#include "../reflect.hpp"
+#include "../schema/table.hpp"
 
+#include <meta>
 #include <ranges>
 #include <sstream>
 #include <string>
@@ -10,6 +13,30 @@
 #include <vector>
 
 namespace relx::query {
+
+namespace detail {
+
+// clang-format off
+
+template <schema::is_column T>
+struct select_all_column_probe {};
+
+/// @brief Data members of Table that are columns, in declaration order (constraint
+/// members of classic tables are filtered out). Shared by select_all and returning_all.
+template <typename Table>
+consteval auto select_all_columns() {
+  std::vector<std::meta::info> cols;
+  for (std::meta::info m : refl::member_array<Table>()) {
+    if (std::meta::can_substitute(^^select_all_column_probe, {std::meta::type_of(m)})) {
+      cols.push_back(m);
+    }
+  }
+  return std::define_static_array(cols);
+}
+
+// clang-format on
+
+}  // namespace detail
 
 /// @brief Helper to check if a tuple is empty
 template <typename Tuple>

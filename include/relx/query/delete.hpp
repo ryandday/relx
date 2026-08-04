@@ -164,6 +164,13 @@ public:
 
     return DeleteQuery<Table, Where, ReturningTuple>(table_, where_, std::move(returning_tuple));
   }
+
+  /// @brief RETURNING every column of the table, expanded via reflection
+  auto returning_all() const {
+    return [this]<std::size_t... I>(std::index_sequence<I...>) {
+      return returning(table_.[:detail::select_all_columns<Table>()[I]:]...);
+    }(std::make_index_sequence<detail::select_all_columns<Table>().size()>{});
+  }
 };
 
 /// @brief Create a DELETE query for the specified table

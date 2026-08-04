@@ -448,11 +448,10 @@ public:
     // Type check for ORDER BY - ensure the column is comparable
     // Extract column type from the column template parameters
     using ColumnType = typename T::value_type;
-    static_assert(
-        std::totally_ordered<ColumnType> && !std::same_as<ColumnType, bool>,
-        "ORDER BY can only be used with comparable columns (numeric types, strings, "
-        "timestamps, uuids). Boolean columns or non-comparable types cannot be used for "
-        "ordering.");
+    static_assert(std::totally_ordered<ColumnType> && !std::same_as<ColumnType, bool>,
+                  "ORDER BY can only be used with comparable columns (numeric types, strings, "
+                  "timestamps, uuids). Boolean columns or non-comparable types cannot be used for "
+                  "ordering.");
 
     return order_by(asc(to_expr(column)));
   }
@@ -601,26 +600,7 @@ auto asc(const T& column) {
 }
 
 // clang-format off
-
-namespace detail {
-
-template <schema::is_column T>
-struct select_all_column_probe {};
-
-/// @brief Data members of Table that are columns, in declaration order (constraint
-/// members of classic tables are filtered out)
-template <typename Table>
-consteval auto select_all_columns() {
-  std::vector<std::meta::info> cols;
-  for (std::meta::info m : refl::member_array<Table>()) {
-    if (std::meta::can_substitute(^^select_all_column_probe, {std::meta::type_of(m)})) {
-      cols.push_back(m);
-    }
-  }
-  return std::define_static_array(cols);
-}
-
-}  // namespace detail
+// (select_all_columns lives in meta.hpp, shared with returning_all)
 
 /// @brief Create a SELECT query over every column of the table, expanded to an explicit
 /// column list via reflection. No raw `*`: the statement is stable under column
