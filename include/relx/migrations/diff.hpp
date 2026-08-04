@@ -10,8 +10,8 @@
 #include "../schema/unique_constraint.hpp"
 #include "core.hpp"
 
+#include <map>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -22,12 +22,13 @@ class AddConstraintOperation;
 class DropConstraintOperation;
 
 /// @brief Options for controlling migration generation
+/// @note Ordered maps so generated operations are deterministic across standard libraries
 struct MigrationOptions {
   /// @brief Map of old column name to new column name for renames
-  std::unordered_map<std::string, std::string> column_mappings;
+  std::map<std::string, std::string> column_mappings;
 
   /// @brief Map of old constraint name to new constraint name for renames
-  std::unordered_map<std::string, std::string> constraint_mappings;
+  std::map<std::string, std::string> constraint_mappings;
 
   /// @brief Whether to preserve data during column type changes (default: true)
   bool preserve_data = true;
@@ -36,7 +37,7 @@ struct MigrationOptions {
   /// Key: old column name, Value: {forward_sql, backward_sql}
   /// Forward: transforms old column data to new column format
   /// Backward: transforms new column data back to old column format (for rollback)
-  std::unordered_map<std::string, std::pair<std::string, std::string>> column_transformations;
+  std::map<std::string, std::pair<std::string, std::string>> column_transformations;
 };
 
 /// @brief Metadata about a column extracted from PFR analysis
@@ -67,10 +68,11 @@ struct ConstraintMetadata {
 };
 
 /// @brief Complete metadata about a table
+/// @note Ordered maps so diffing emits operations in a deterministic (alphabetical) order
 struct TableMetadata {
   std::string table_name;
-  std::unordered_map<std::string, ColumnMetadata> columns;
-  std::unordered_map<std::string, ConstraintMetadata> constraints;
+  std::map<std::string, ColumnMetadata> columns;
+  std::map<std::string, ConstraintMetadata> constraints;
 };
 
 /// @brief Extract table metadata using reflection

@@ -634,17 +634,17 @@ TEST(MigrationsTest, TestDropConstraintOperations) {
   if (drop_constraint_migration.size() > 0) {
     std::cout << "✅ DROP_CONSTRAINT: Working" << std::endl;
 
-    // Test exact SQL for dropping constraints
+    // Test exact SQL for dropping constraints (deterministic: alphabetical by constraint name)
     EXPECT_EQ(drop_forward.size(), 2);
     EXPECT_EQ(drop_forward[0],
-              "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_1;");
-    EXPECT_EQ(drop_forward[1],
               "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_0;");
+    EXPECT_EQ(drop_forward[1],
+              "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_1;");
 
     // Test exact rollback SQL for adding constraints back
     EXPECT_EQ(drop_rollback.size(), 2);
-    EXPECT_EQ(drop_rollback[0], "ALTER TABLE constraint_test ADD UNIQUE (email);");
-    EXPECT_EQ(drop_rollback[1], "ALTER TABLE constraint_test ADD UNIQUE (username);");
+    EXPECT_EQ(drop_rollback[0], "ALTER TABLE constraint_test ADD UNIQUE (username);");
+    EXPECT_EQ(drop_rollback[1], "ALTER TABLE constraint_test ADD UNIQUE (email);");
   } else {
     std::cout << "❌ DROP_CONSTRAINT: No operations generated" << std::endl;
     FAIL() << "Expected constraint drop operations but none were generated";
@@ -825,22 +825,22 @@ TEST(MigrationsTest, TestColumnRenaming) {
   // Should generate 4 rename operations
   EXPECT_EQ(migration_with_mappings.size(), 4);
 
-  // Test exact SQL for renames (order determined by iteration over unordered_map)
-  EXPECT_EQ(forward_with_mappings[0],
-            "ALTER TABLE employees RENAME COLUMN last_name TO family_name;");
-  EXPECT_EQ(forward_with_mappings[1], "ALTER TABLE employees RENAME COLUMN phone TO phone_number;");
-  EXPECT_EQ(forward_with_mappings[2], "ALTER TABLE employees RENAME COLUMN email_addr TO email;");
-  EXPECT_EQ(forward_with_mappings[3],
+  // Test exact SQL for renames (deterministic: alphabetical by old column name)
+  EXPECT_EQ(forward_with_mappings[0], "ALTER TABLE employees RENAME COLUMN email_addr TO email;");
+  EXPECT_EQ(forward_with_mappings[1],
             "ALTER TABLE employees RENAME COLUMN first_name TO given_name;");
+  EXPECT_EQ(forward_with_mappings[2],
+            "ALTER TABLE employees RENAME COLUMN last_name TO family_name;");
+  EXPECT_EQ(forward_with_mappings[3], "ALTER TABLE employees RENAME COLUMN phone TO phone_number;");
 
   // Test exact rollback SQL (reverse order)
   EXPECT_EQ(rollback_with_mappings[0],
-            "ALTER TABLE employees RENAME COLUMN given_name TO first_name;");
-  EXPECT_EQ(rollback_with_mappings[1], "ALTER TABLE employees RENAME COLUMN email TO email_addr;");
-  EXPECT_EQ(rollback_with_mappings[2],
             "ALTER TABLE employees RENAME COLUMN phone_number TO phone;");
-  EXPECT_EQ(rollback_with_mappings[3],
+  EXPECT_EQ(rollback_with_mappings[1],
             "ALTER TABLE employees RENAME COLUMN family_name TO last_name;");
+  EXPECT_EQ(rollback_with_mappings[2],
+            "ALTER TABLE employees RENAME COLUMN given_name TO first_name;");
+  EXPECT_EQ(rollback_with_mappings[3], "ALTER TABLE employees RENAME COLUMN email TO email_addr;");
 
   std::cout << "✅ Column renaming: Working with proper data preservation" << std::endl;
 }
