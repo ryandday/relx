@@ -94,6 +94,7 @@ public:
   /// @return Awaitable that resolves with the mapped data
   template <typename T, query::SqlExpr Query>
   boost::asio::awaitable<ConnectionResult<T>> execute(Query query) {
+    assert_struct_covers_select_list<T, Query>();
     auto result_set_output = co_await execute(query);
     if (!result_set_output) {
       co_return std::unexpected(result_set_output.error());
@@ -103,10 +104,6 @@ public:
 
     if (result_set.empty()) {
       co_return std::unexpected(ConnectionError{.message = "No results found", .error_code = -1});
-    }
-
-    if (auto error = check_column_count<T>(result_set, query)) {
-      co_return std::unexpected(*error);
     }
 
     auto mapped = map_row_to_struct<T>(result_set.at(0));
@@ -125,6 +122,7 @@ public:
   /// @return Awaitable that resolves with a vector of mapped data
   template <typename T, query::SqlExpr Query>
   boost::asio::awaitable<ConnectionResult<std::vector<T>>> execute_many(const Query& query) {
+    assert_struct_covers_select_list<T, Query>();
     auto result_set_output = co_await execute(query);
     if (!result_set_output) {
       co_return std::unexpected(result_set_output.error());
@@ -138,10 +136,6 @@ public:
     // Check if we have at least one row to determine column count
     if (result_set.empty()) {
       co_return objects;  // Return empty vector
-    }
-
-    if (auto error = check_column_count<T>(result_set, query)) {
-      co_return std::unexpected(*error);
     }
 
     // Process each row

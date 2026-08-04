@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <meta>
 #include <optional>
@@ -66,6 +67,29 @@ constexpr void for_each_named_field(T&& obj, Fn&& fn) {
     fn(obj.[:member:],
        std::string_view(std::define_static_string(std::meta::identifier_of(member))));
   }
+}
+
+/// @brief The identifiers of T's fields (including inherited, bases first), backed by
+/// static storage
+template <typename T>
+consteval auto field_names() {
+  std::array<std::string_view, field_count<T>()> names{};
+  std::size_t i = 0;
+  template for (constexpr std::meta::info m : member_array<T>()) {
+    names[i++] = std::define_static_string(std::meta::identifier_of(m));
+  }
+  return names;
+}
+
+/// @brief Whether T has a field with the given identifier
+template <typename T>
+consteval bool has_field_named(std::string_view name) {
+  for (std::string_view field : field_names<T>()) {
+    if (field == name) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /// @brief Human-readable name of a type, backed by static storage

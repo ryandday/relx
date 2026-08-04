@@ -3,6 +3,7 @@
 #include "../reflect.hpp"
 #include "../results/result.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <cstddef>
 #include <expected>
@@ -64,19 +65,40 @@ std::expected<void, std::string> convert_and_assign(T& target, const std::string
 }
 
 /// @brief Map a result row onto an aggregate struct using reflection.
-/// @details Each struct field is matched to a result column by name; when the field's
-/// identifier does not appear in the result's column names (e.g. an unaliased expression
-/// column), the field's position in the struct is used instead. NULL cells map to
-/// std::nullopt for std::optional fields and are an error for any other field type.
+/// @details When the result carries column names, each struct field is matched to its
+/// same-named column; fields with no matching column are left default-initialized (a
+/// query selecting a subset of the struct's fields is valid - selecting expresses that
+/// the other columns are not wanted). When the result has no column names, cells map
+/// positionally. Either way, every result column must be consumed by some field -
+/// a column with nowhere to land is an error, since its data would be silently lost.
+/// NULL cells map to std::nullopt for std::optional fields and are an error otherwise.
 /// @tparam T The aggregate struct to map onto
 /// @param row The database result row
 /// @return The mapped struct, or an error message
 template <typename T>
 std::expected<T, std::string> map_row_to_struct(const result::Row& row) {
+  static constexpr auto field_names = refl::field_names<T>();
+
   T obj{};
   std::string error;
   std::size_t field_index = 0;
   const auto& column_names = row.column_names();
+  const bool by_name = !column_names.empty();
+
+  // Every result column must land in some field
+  if (by_name) {
+    for (const auto& column : column_names) {
+      if (std::find(field_names.begin(), field_names.end(), column) == field_names.end()) {
+        return std::unexpected("result column '" + column + "' has no matching field in struct '" +
+                               std::string(refl::type_name<T>()) +
+                               "'; add the field or drop the column from the select");
+      }
+    }
+  } else if (row.size() > field_names.size()) {
+    return std::unexpected("result has " + std::to_string(row.size()) + " columns but struct '" +
+                           std::string(refl::type_name<T>()) + "' has only " +
+                           std::to_string(field_names.size()) + " field(s)");
+  }
 
   refl::for_each_named_field(obj, [&](auto& field, std::string_view name) {
     const std::size_t position = field_index++;
@@ -84,13 +106,21 @@ std::expected<T, std::string> map_row_to_struct(const result::Row& row) {
       return;
     }
 
-    // Prefer the column whose name matches the field's identifier
-    std::size_t column_index = position;
-    for (std::size_t i = 0; i < column_names.size(); ++i) {
-      if (column_names[i] == name) {
-        column_index = i;
-        break;
+    // Resolve this field's column: by name when names are available, else by position
+    std::size_t column_index = row.size();  // sentinel: no column for this field
+    if (by_name) {
+      for (std::size_t i = 0; i < column_names.size(); ++i) {
+        if (column_names[i] == name) {
+          column_index = i;
+          break;
+        }
       }
+    } else if (position < row.size()) {
+      column_index = position;
+    }
+
+    if (column_index == row.size()) {
+      return;  // field not covered by the result - stays default-initialized
     }
 
     auto cell_result = row.get_cell(column_index);

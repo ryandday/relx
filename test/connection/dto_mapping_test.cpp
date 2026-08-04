@@ -200,18 +200,26 @@ TEST_F(DtoMappingTest, MultipleRows) {
   EXPECT_EQ(40, users_vector[2].age);
 }
 
-// Test field count mismatch error
-TEST_F(DtoMappingTest, FieldCountMismatch) {
-  auto query = relx::query::select(users.id, users.name, users.age).from(users);
+// Selecting a subset of a struct's fields is valid: unselected fields stay
+// default-initialized. (Selecting a column with no matching field is a compile
+// error via assert_struct_covers_select_list.)
+TEST_F(DtoMappingTest, SubsetSelectLeavesExtraFieldsDefaulted) {
+  std::vector<std::string> column_names = {"id", "name"};
+  std::vector<relx::result::Row> rows;
+  std::vector<relx::result::Cell> cells;
+  cells.emplace_back("1");
+  cells.emplace_back("John Doe");
+  rows.emplace_back(std::move(cells), column_names);
+  conn.set_mock_result_set(relx::result::ResultSet(std::move(rows), column_names));
 
-  // Try to map to a struct with fewer fields
-  auto result = conn.execute<PartialUserDTO>(query);
+  auto query = relx::query::select(users.id, users.name).from(users);
 
-  // This should fail
-  ASSERT_FALSE(result);
-  // Find the string in the error message
-  EXPECT_TRUE(result.error().message.find(
-                  "Column count does not match struct field count, 3 != 2") != std::string::npos);
+  // UserDTO has three fields (id, name, age); only two columns are selected
+  auto result = conn.execute<UserDTO>(query);
+  ASSERT_TRUE(result) << result.error().message;
+  EXPECT_EQ(1, result->id);
+  EXPECT_EQ("John Doe", result->name);
+  EXPECT_EQ(0, result->age);  // not selected -> default-initialized
 }
 
 // Test empty result set
@@ -236,8 +244,15 @@ TEST_F(DtoMappingTest, EmptyResultSet) {
   EXPECT_TRUE(many_result->empty());
 }
 
-// Test with more columns than needed
-TEST_F(DtoMappingTest, ExtraColumnsInResultSet) {
+// A raw query type without a compile-time select list: the static coverage check
+// cannot fire, so an unconsumed result column must be caught at runtime
+struct RawQuery {
+  std::string to_sql() const { return "SELECT id, name, age, email, score FROM users"; }
+  std::vector<std::string> bind_params() const { return {}; }
+};
+
+// Test that a result column with no matching field is a runtime mapping error
+TEST_F(DtoMappingTest, UnconsumedResultColumnIsError) {
   // Set up result with more columns than the target struct
   std::vector<std::string> column_names = {"id", "name", "age", "email", "score"};
 
@@ -253,15 +268,12 @@ TEST_F(DtoMappingTest, ExtraColumnsInResultSet) {
   auto extra_result = relx::result::ResultSet(std::move(rows), std::move(column_names));
   conn.set_mock_result_set(std::move(extra_result));
 
-  auto query =
-      relx::query::select(users.id, users.name, users.age, users.email, users.score).from(users);
-
-  // This should fail because we have too many columns
-  auto result = conn.execute<UserDTO>(query);
+  // UserDTO has no 'email'/'score' fields, so that data would be silently lost
+  auto result = conn.execute<UserDTO>(RawQuery{});
   ASSERT_FALSE(result);
-  // Find the string in the error message
-  EXPECT_TRUE(result.error().message.find(
-                  "Column count does not match struct field count, 5 != 3") != std::string::npos);
+  EXPECT_TRUE(result.error().message.find("result column 'email' has no matching field") !=
+              std::string::npos)
+      << result.error().message;
 }
 
 // Test type conversion errors

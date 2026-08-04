@@ -28,25 +28,57 @@ struct ConnectionError {
 template <typename T>
 using ConnectionResult = std::expected<T, ConnectionError>;
 
-/// @brief Verify the result set has exactly as many columns as T has fields
-/// @return An error describing the mismatch, or nullopt if the counts match
-template <typename T, query::SqlExpr Query>
-std::optional<ConnectionError> check_column_count(const result::ResultSet& result_set,
-                                                  const Query& query) {
-  constexpr std::size_t field_count = refl::field_count<std::remove_cvref_t<T>>();
-  if (result_set.column_count() == field_count) {
+namespace detail {
+
+/// @brief Compile-time name of a select-list element, when it has one
+template <typename E>
+consteval std::optional<std::string_view> select_element_name() {
+  if constexpr (requires { typename E::column_type; }) {
+    return std::string_view(E::column_type::name);
+  } else if constexpr (requires { std::string_view(E::alias_name); }) {
+    return std::string_view(E::alias_name);
+  } else {
     return std::nullopt;
   }
-  std::stringstream ss;
-  for (const auto& param : query.bind_params()) {
-    ss << param << ", ";
+}
+
+/// @brief Comma-separated list of selected column names with no matching field in T
+template <typename T, typename Tuple>
+struct uncovered_columns;
+
+template <typename T, typename... Es>
+struct uncovered_columns<T, std::tuple<Es...>> {
+  static consteval std::string get() {
+    std::string out;
+    auto add = [&out](std::optional<std::string_view> name) {
+      if (name && !refl::has_field_named<T>(*name)) {
+        out += out.empty() ? "'" : ", '";
+        out += *name;
+        out += '\'';
+      }
+    };
+    (add(select_element_name<Es>()), ...);
+    return out;
   }
-  return ConnectionError{.message = "Column count does not match struct field count, " +
-                                    std::to_string(result_set.column_count()) +
-                                    " != " + std::to_string(field_count) + " for struct " +
-                                    typeid(T).name() + " and query " + query.to_sql() +
-                                    " with params " + ss.str(),
-                         .error_code = -1};
+};
+
+}  // namespace detail
+
+/// @brief Compile-time coverage check for typed queries: every selected column must have
+/// a matching field in the result struct. The struct may have additional fields - they
+/// are left default-initialized, since selecting a subset expresses that the other
+/// columns are not wanted. No-op for queries without a compile-time select list.
+template <typename T, typename Query>
+consteval void assert_struct_covers_select_list() {
+  if constexpr (requires { typename std::remove_cvref_t<Query>::columns_type; }) {
+    using Columns = typename std::remove_cvref_t<Query>::columns_type;
+    using Struct = std::remove_cvref_t<T>;
+    static_assert(detail::uncovered_columns<Struct, Columns>::get().empty(),
+                  std::string("query selects column(s) ") +
+                      detail::uncovered_columns<Struct, Columns>::get() + " but result struct '" +
+                      std::string(refl::type_name<Struct>()) +
+                      "' has no field(s) with those names");
+  }
 }
 
 /// @brief Transaction isolation levels
@@ -163,6 +195,7 @@ public:
   template <typename T, query::SqlExpr Query>
   [[nodiscard]]
   ConnectionResult<T> execute(const Query& query) {
+    assert_struct_covers_select_list<T, Query>();
     auto result = execute(query);
     if (!result) {
       return std::unexpected(result.error());
@@ -171,10 +204,6 @@ public:
     const auto& result_set = *result;
     if (result_set.empty()) {
       return std::unexpected(ConnectionError{.message = "No results found"});
-    }
-
-    if (auto error = check_column_count<T>(result_set, query)) {
-      return std::unexpected(*error);
     }
 
     auto mapped = map_row_to_struct<T>(result_set.at(0));
@@ -194,6 +223,7 @@ public:
   template <typename T, query::SqlExpr Query>
   [[nodiscard]]
   ConnectionResult<std::vector<T>> execute_many(const Query& query) {
+    assert_struct_covers_select_list<T, Query>();
     auto result = execute(query);
     if (!result) {
       return std::unexpected(result.error());
@@ -206,10 +236,6 @@ public:
     // Check if we have at least one row to determine column count
     if (result_set.empty()) {
       return objects;  // Return empty vector
-    }
-
-    if (auto error = check_column_count<T>(result_set, query)) {
-      return std::unexpected(*error);
     }
 
     // Process each row
