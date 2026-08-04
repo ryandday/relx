@@ -32,7 +32,7 @@ struct Users {
     relx::column<Users, "created_at", std::string> created_at;
     
     // Primary key constraint
-    relx::primary_key<&Users::id> pk;
+    relx::table_primary_key<&Users::id> pk;
     
     // Unique constraint
     relx::unique_constraint<&Users::email> unique_email;
@@ -68,7 +68,7 @@ struct Products {
     relx::column<Products, "is_active", bool> is_active;
     relx::column<Products, "description", std::optional<std::string>> description;
     
-    relx::primary_key<&Products::id> pk;
+    relx::table_primary_key<&Products::id> pk;
 };
 ```
 
@@ -91,7 +91,7 @@ struct Users {
     relx::column<Users, "username", std::string> username;
     
     // Primary key constraint
-    relx::primary_key<&Users::id> pk;
+    relx::table_primary_key<&Users::id> pk;
 };
 ```
 
@@ -108,7 +108,7 @@ struct Users {
     relx::column<Users, "id", int> id;
     // ...
     
-    relx::primary_key<&Users::id> pk;
+    relx::table_primary_key<&Users::id> pk;
 };
 
 struct Posts {
@@ -118,7 +118,7 @@ struct Posts {
     relx::column<Posts, "user_id", int> user_id;
     // ...
     
-    relx::primary_key<&Posts::id> pk;
+    relx::table_primary_key<&Posts::id> pk;
     
     // Foreign key from Posts.user_id to Users.id
     relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
@@ -141,7 +141,7 @@ struct Users {
     relx::column<Users, "email", std::string> email;
     // ...
     
-    relx::primary_key<&Users::id> pk;
+    relx::table_primary_key<&Users::id> pk;
     
     // Unique constraint on email
     relx::unique_constraint<&Users::email> unique_email;
@@ -164,7 +164,7 @@ struct Users {
     relx::column<Users, "last_login", std::optional<std::string>> last_login;
     // ...
     
-    relx::primary_key<&Users::id> pk;
+    relx::table_primary_key<&Users::id> pk;
 };
 ```
 
@@ -183,7 +183,7 @@ struct Users {
     relx::column<Users, "email", std::string> email;
     // ...
     
-    relx::primary_key<&Users::id> pk;
+    relx::table_primary_key<&Users::id> pk;
     
     // Regular index on name (for fast searching)
     relx::index<&Users::name> name_idx;
@@ -220,7 +220,7 @@ struct Orders {
     relx::column<Orders, "id", int> id;
     // ...
     
-    relx::primary_key<&Orders::id> pk;
+    relx::table_primary_key<&Orders::id> pk;
 };
 
 struct Products {
@@ -229,7 +229,7 @@ struct Products {
     relx::column<Products, "id", int> id;
     // ...
     
-    relx::primary_key<&Products::id> pk;
+    relx::table_primary_key<&Products::id> pk;
 };
 
 struct OrderItems {
@@ -286,7 +286,7 @@ struct User {
     relx::column<User, "id", int> id;
     relx::column<User, "username", std::string> username;
     
-    relx::primary_key<&User::id> pk;
+    relx::table_primary_key<&User::id> pk;
 };
 
 struct Order {
@@ -294,7 +294,7 @@ struct Order {
     
     relx::column<Order, "id", int> id;
     
-    relx::primary_key<&Order::id> pk;
+    relx::table_primary_key<&Order::id> pk;
 };
 
 struct OrderItem {
@@ -303,7 +303,7 @@ struct OrderItem {
     relx::column<OrderItem, "id", int> id;
     relx::column<OrderItem, "user_id", int> user_id;
     
-    relx::primary_key<&OrderItem::id> pk;
+    relx::table_primary_key<&OrderItem::id> pk;
     relx::foreign_key<&OrderItem::user_id, &User::id> user_fk;
 };
 
@@ -312,7 +312,7 @@ struct Post {
     
     relx::column<Post, "id", int> id;
     
-    relx::primary_key<&Post::id> pk;
+    relx::table_primary_key<&Post::id> pk;
 };
 
 struct PostTag {
@@ -321,5 +321,5 @@ struct PostTag {
     relx::column<PostTag, "order_id", int> order_id;
     relx::column<PostTag, "product_id", int> product_id;
 
-    relx::primary_key<&PostTag::order_id, &PostTag::product_id> pk;
+    relx::table_primary_key<&PostTag::order_id, &PostTag::product_id> pk;
 }; 

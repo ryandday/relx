@@ -3,16 +3,16 @@
 [![CI](https://github.com/ryandday/relx/workflows/CI/badge.svg)](https://github.com/ryandday/relx/actions)
 [![codecov](https://codecov.io/gh/ryandday/relx/branch/main/graph/badge.svg)](https://codecov.io/gh/ryandday/relx)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
+[![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg)](https://en.cppreference.com/w/cpp/26)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-supported-336791.svg)](https://www.postgresql.org/)
 
 ## Modern C++ SQL Query Building Library
 
-> 🚀 **Transform your SQL experience** - Build type-safe, compile-time validated SQL queries with modern C++23
+> 🚀 **Transform your SQL experience** - Build type-safe, compile-time validated SQL queries with modern C++26
 
 Working with SQL often means writing error prone raw strings. Refactoring is a pain, and in more complex applications you have to write extensive tests to make sure your stringly typed queries work in every situation.
 
-relx is a modern C++23 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
+relx is a modern C++26 library designed to solve these problems by constructing and executing SQL queries with compile-time type safety. It provides a fluent, intuitive interface for building SQL queries while preventing SQL injection and type errors. 
 
 The core library is header-only. relx also features two PostgreSQL clients for database access: an async client (with `boost::asio`) and a synchronous client. The PostgreSQL clients are not header-only and require building with [libpq](https://www.postgresql.org/docs/current/libpq.html).
 
@@ -43,10 +43,10 @@ I also wanted a couple features out-of-the-box: async capabilities, because asyn
 | **Fluent Interface** | Build SQL using intuitive, chainable method calls | Write readable, maintainable query code |
 | **Schema Definition** | Strongly typed table and column definitions | Database schema as code with full IntelliSense |
 | **Query Building** | Type-safe SELECT, INSERT, UPDATE, and DELETE operations | Zero SQL injection risk, compile-time validation |
-| **Boilerplate/Macro Free** | Leverages Boost::pfr for simple schema definitions | Clean, readable code without preprocessor magic |
+| **Boilerplate/Macro Free** | Uses C++26 reflection (P2996) for schema definitions and result mapping | Clean, readable code without preprocessor magic |
 | **Header-Only Core** | Core library requires no compilation | Easy integration, fast build times |
 
-> **Future-Ready**: With C++26 reflection coming (fingers crossed!), we'll transition from Boost::pfr to standard reflection for even better compile-time safety and cleaner APIs.
+> **Built on C++26 reflection**: relx uses standard reflection (P2996) instead of Boost::pfr. See [docs/cpp26-reflection-plan.md](docs/cpp26-reflection-plan.md) for the adoption roadmap.
 
 ## Documentation
 
@@ -57,7 +57,7 @@ I also wanted a couple features out-of-the-box: async capabilities, because asyn
 
 ### Requirements
 
-- C++23 bleeding edge compiler (GCC 15, Clang 20)
+- GCC 16.1+ with `-std=c++26 -freflection` (the only released compiler with C++26 reflection; Clang support expected ~Clang 24)
 
 ### Installing Dependencies
 
@@ -102,27 +102,24 @@ target_link_libraries(my_app relx::relx)
 #include <relx/schema.hpp>
 #include <iostream>
 
-// Define schemas
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int, relx::primary_key> id;
-    relx::column<Users, "username", std::string> username;
-    relx::column<Users, "email", std::string> email;
-    
-    relx::unique_constraint<&Users::email> unique_email;
+// Define schemas: plain structs + C++26 annotations.
+// Column names come from the member identifiers; the same struct is the result DTO.
+// Next to each struct, define its table object once - reflection synthesizes one
+// column member per field, so queries read naturally (users.id, users.username).
+struct [[=relx::table("users")]] Users {
+    [[=relx::ann::pk]] int id;
+    std::string username;
+    [[=relx::ann::unique]] std::string email;
 };
+inline constexpr auto users = relx::t<Users>;
 
-struct Posts {
-    static constexpr auto table_name = "posts";
-    
-    relx::column<Posts, "id", int, relx::primary_key> id;
-    relx::column<Posts, "user_id", int> user_id;
-    relx::column<Posts, "title", std::string> title;
-    relx::column<Posts, "content", std::string> content;
-    
-    relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
+struct [[=relx::table("posts")]] Posts {
+    [[=relx::ann::pk]] int id;
+    [[=relx::ann::fk<^^Users::id>]] int user_id;
+    std::string title;
+    std::string content;
 };
+inline constexpr auto posts = relx::t<Posts>;
 
 int main() {
     try {
@@ -138,8 +135,6 @@ int main() {
         
         auto connect_result = conn.connect();
         relx::throw_if_failed(connect_result);
-
-        const Users users;
 
         auto create_table_result = conn.execute(relx::create_table(users).if_not_exists());
         relx::throw_if_failed(create_table_result);
@@ -159,20 +154,21 @@ int main() {
         
         // See the generated SQL
         std::string sql = query.to_sql();
-        // Output: "SELECT id, username FROM users WHERE (id > ?)"
+        // Output: "SELECT users.id, users.username FROM users WHERE (users.id > ?)"
         
         // Get the bind parameters
         auto params = query.bind_params();
         // params[0] = "10"
         
-        // Define a DTO to receive the results
+        // Define a DTO to receive the results - fields are matched to result
+        // columns BY NAME, so order doesn't matter
         struct UserDTO {
             int id;
             std::string username;
         };
         
         // Execute the query
-        auto query_result = conn.execute<UserDTO>(query);
+        auto query_result = conn.execute_many<UserDTO>(query);
         const auto& rows = relx::value_or_throw(query_result);
 
         // Process results - automatically mapped to UserDTO objects
@@ -188,6 +184,36 @@ int main() {
         return 1;
     }
 }
+```
+
+### Classic Explicit Schema DSL
+
+The annotation DSL is sugar over the explicit column DSL, which remains fully supported.
+Both styles use identical member-access query syntax (`users.id`) and produce identical SQL —
+with annotations the table object comes from `relx::t<Users>`, with the classic DSL it is an
+instance of the struct itself.
+
+```cpp
+struct Users {
+    static constexpr auto table_name = "users";
+
+    relx::column<Users, "id", int, relx::primary_key> id;
+    relx::column<Users, "username", std::string> username;
+    relx::column<Users, "email", std::string> email;
+
+    relx::unique_constraint<&Users::email> unique_email;
+};
+
+struct Posts {
+    static constexpr auto table_name = "posts";
+
+    relx::column<Posts, "id", int, relx::primary_key> id;
+    relx::column<Posts, "user_id", int> user_id;
+    relx::column<Posts, "title", std::string> title;
+    relx::column<Posts, "content", std::string> content;
+
+    relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
+};
 ```
 
 ### Creating and Dropping Table Examples
@@ -306,7 +332,7 @@ relx provides a rich set of schema definition features:
 |---------|-------------|---------|
 | **Tables** | Define database tables with strongly typed columns | `struct Users { static constexpr auto table_name = "users"; ... };` |
 | **Columns** | Specify column names, types, and constraints | `relx::column<Users, "id", int, relx::primary_key> id;` |
-| **Primary Keys** | Single-column and composite primary keys | `relx::primary_key<&Users::id>` |
+| **Primary Keys** | Single-column and composite primary keys | `relx::table_primary_key<`relx::primary_key<&Users::id>`Users::id>` |
 | **Foreign Keys** | Define relationships between tables | `relx::foreign_key<&Posts::user_id, &Users::id>` |
 | **Indexes** | Create regular and unique indexes | `relx::unique_constraint<&Users::email>` |
 | **Constraints** | Check constraints, unique constraints, default values | `relx::check_constraint</* condition */>` |
