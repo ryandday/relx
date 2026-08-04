@@ -47,7 +47,9 @@ public:
 
   std::vector<bind_param> bind_params() const override {
     if (value_.has_value()) {
-      return {relx::make_bind_param(*value_, schema::column_traits<T>::to_sql_string(*value_))};
+      // Bind exactly as the non-optional Value<T> would; to_sql_string is SQL-literal
+      // syntax (quoted strings) and must not leak into bound parameter text
+      return Value<T>(*value_).bind_params();
     }
     return {};
   }

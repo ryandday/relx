@@ -108,4 +108,11 @@ TEST(BindParamTest, StringComparisonCompatibility) {
   EXPECT_TRUE(params == std::vector<std::string>{"abc"});
 }
 
+TEST(BindParamTest, OptionalStringBindsRawText) {
+  auto params = relx::query::val(std::optional<std::string>("it's raw")).bind_params();
+  ASSERT_EQ(params.size(), 1);
+  EXPECT_EQ(params[0], "it's raw");  // no SQL-literal quoting in bound text
+  EXPECT_EQ(params[0].kind, sql_kind::unspecified);
+}
+
 }  // namespace
