@@ -73,7 +73,7 @@ TEST_F(ArithmeticTest, ColumnWithValueAddition) {
 
   EXPECT_EQ(sql, "SELECT (test_table.price + ?) FROM test_table");
   ASSERT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "10.500000");
+  EXPECT_EQ(params[0], "10.5");
 }
 
 TEST_F(ArithmeticTest, ValueWithColumnAddition) {
@@ -95,7 +95,7 @@ TEST_F(ArithmeticTest, ColumnWithValueSubtraction) {
 
   EXPECT_EQ(sql, "SELECT (test_table.price - ?) FROM test_table");
   ASSERT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "5.000000");
+  EXPECT_EQ(params[0], "5");
 }
 
 TEST_F(ArithmeticTest, ValueWithColumnSubtraction) {
@@ -117,7 +117,7 @@ TEST_F(ArithmeticTest, ColumnWithValueMultiplication) {
 
   EXPECT_EQ(sql, "SELECT (test_table.price * ?) FROM test_table");
   ASSERT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "1.200000");
+  EXPECT_EQ(params[0], "1.2");
 }
 
 TEST_F(ArithmeticTest, ValueWithColumnMultiplication) {
@@ -128,7 +128,7 @@ TEST_F(ArithmeticTest, ValueWithColumnMultiplication) {
 
   EXPECT_EQ(sql, "SELECT (test_table.price * ?) FROM test_table");
   ASSERT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "2.500000");
+  EXPECT_EQ(params[0], "2.5");
 }
 
 TEST_F(ArithmeticTest, ColumnWithValueDivision) {
@@ -139,7 +139,7 @@ TEST_F(ArithmeticTest, ColumnWithValueDivision) {
 
   EXPECT_EQ(sql, "SELECT (test_table.price / ?) FROM test_table");
   ASSERT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "2.000000");
+  EXPECT_EQ(params[0], "2");
 }
 
 TEST_F(ArithmeticTest, ValueWithColumnDivision) {
@@ -150,7 +150,7 @@ TEST_F(ArithmeticTest, ValueWithColumnDivision) {
 
   EXPECT_EQ(sql, "SELECT (? / test_table.price) FROM test_table");
   ASSERT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "100.000000");
+  EXPECT_EQ(params[0], "100");
 }
 
 TEST_F(ArithmeticTest, OptionalColumnAddition) {
@@ -171,7 +171,7 @@ TEST_F(ArithmeticTest, OptionalColumnWithValue) {
 
   EXPECT_EQ(sql, "SELECT (test_table.optional_price * ?) FROM test_table");
   ASSERT_EQ(params.size(), 1);
-  EXPECT_EQ(params[0], "1.500000");
+  EXPECT_EQ(params[0], "1.5");
 }
 
 TEST_F(ArithmeticTest, ArithmeticWithAlias) {
@@ -221,7 +221,7 @@ TEST_F(ArithmeticTest, MultipleSimpleArithmeticColumns) {
   EXPECT_EQ(sql, "SELECT (test_table.price + ?), (test_table.quantity * ?), (test_table.id - ?) "
                  "FROM test_table");
   ASSERT_EQ(params.size(), 3);
-  EXPECT_EQ(params[0], "10.000000");
+  EXPECT_EQ(params[0], "10");
   EXPECT_EQ(params[1], "2");
   EXPECT_EQ(params[2], "1");
 }
@@ -267,10 +267,10 @@ TEST_F(ArithmeticTest, ArithmeticWithFloatLiterals) {
   EXPECT_EQ(sql, "SELECT (test_table.price + ?), (test_table.discount - ?), (test_table.price * "
                  "?), (test_table.discount / ?) FROM test_table");
   ASSERT_EQ(params.size(), 4);
-  EXPECT_EQ(params[0], "99.990000");
-  EXPECT_EQ(params[1], "5.500000");
-  EXPECT_EQ(params[2], "0.800000");
-  EXPECT_EQ(params[3], "3.140000");
+  EXPECT_EQ(params[0], "99.99");
+  EXPECT_EQ(params[1], "5.5");
+  EXPECT_EQ(params[2], "0.8");
+  EXPECT_EQ(params[3], "3.14");
 }
 
 // These tests verify that invalid arithmetic operations fail at compile time

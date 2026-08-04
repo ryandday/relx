@@ -45,9 +45,9 @@ TEST(ColumnTest, DoubleConversion) {
   column<DummyTable, "price", double> price_col;
 
   // Test converting double to SQL string
-  EXPECT_EQ(price_col.to_sql_string(42.5), "42.500000");
-  EXPECT_EQ(price_col.to_sql_string(-123.45), "-123.450000");
-  EXPECT_EQ(price_col.to_sql_string(0.0), "0.000000");
+  EXPECT_EQ(price_col.to_sql_string(42.5), "42.5");
+  EXPECT_EQ(price_col.to_sql_string(-123.45), "-123.45");
+  EXPECT_EQ(price_col.to_sql_string(0.0), "0");
 
   // Test converting SQL string to double
   EXPECT_DOUBLE_EQ(price_col.from_sql_string("42.5"), 42.5);
