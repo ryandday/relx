@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 
-#include <boost/pfr.hpp>
 #include <gtest/gtest.h>
 #include <relx/connection.hpp>
 #include <relx/connection/connection.hpp>
@@ -43,15 +42,16 @@ struct PartialUserDTO {
   int age;
 };
 
-// // Define a DTO with fields in different order
-// struct UserDTODifferentOrder {
-//     std::string name;
-//     int id;
-//     std::string email;
-//     bool active;
-//     int age;
-//     double score;
-// };
+// Define a DTO with fields in different order than the table/query columns.
+// Reflection maps fields to result columns by name, so declaration order is irrelevant.
+struct UserDTODifferentOrder {
+  std::string name;
+  int id;
+  std::string email;
+  bool active;
+  int age;
+  double score;
+};
 
 class DtoMappingIntegrationTest : public ::testing::Test {
 protected:
@@ -230,29 +230,29 @@ TEST_F(DtoMappingIntegrationTest, FilteringAndConditions) {
   EXPECT_TRUE(filtered_users[0].active);
 }
 
-// Test with fields in different order
-// Won't be possible until we have reflection
-// TEST_F(DtoMappingIntegrationTest, DifferentFieldOrder) {
-//     // Query matching the field order in the DTO
-//     auto query = relx::query::select(users.name, users.id, users.email, users.active, users.age,
-//     users.score)
-//         .from(users)
-//         .where(users.id == 3);
+// Test with DTO fields declared in a different order than the selected columns.
+// Only name-based mapping (C++26 reflection) can get this right.
+TEST_F(DtoMappingIntegrationTest, DifferentFieldOrder) {
+  // Query in table order - deliberately NOT the DTO field order
+  auto query = relx::query::select(users.id, users.name, users.email, users.age, users.active,
+                                   users.score)
+                   .from(users)
+                   .where(users.id == 3);
 
-//     // Execute with the differently ordered DTO
-//     auto result = conn->execute<UserDTODifferentOrder>(query);
-//     ASSERT_TRUE(result) << "Failed to execute query with different field order: " <<
-//     result.error().message;
+  // Execute with the differently ordered DTO
+  auto result = conn->execute<UserDTODifferentOrder>(query);
+  ASSERT_TRUE(result) << "Failed to execute query with different field order: "
+                      << result.error().message;
 
-//     // Fields should map correctly by position
-//     UserDTODifferentOrder user = *result;
-//     EXPECT_EQ("Bob Johnson", user.name);
-//     EXPECT_EQ(3, user.id);
-//     EXPECT_EQ("bob@example.com", user.email);
-//     EXPECT_FALSE(user.active);
-//     EXPECT_EQ(35, user.age);
-//     EXPECT_DOUBLE_EQ(78.9, user.score);
-// }
+  // Fields map correctly by name despite the order mismatch
+  UserDTODifferentOrder user = *result;
+  EXPECT_EQ("Bob Johnson", user.name);
+  EXPECT_EQ(3, user.id);
+  EXPECT_EQ("bob@example.com", user.email);
+  EXPECT_FALSE(user.active);
+  EXPECT_EQ(35, user.age);
+  EXPECT_DOUBLE_EQ(78.9, user.score);
+}
 
 // Test with empty result set
 TEST_F(DtoMappingIntegrationTest, EmptyResultSet) {

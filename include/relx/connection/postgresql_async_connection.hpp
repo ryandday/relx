@@ -105,53 +105,17 @@ public:
       co_return std::unexpected(ConnectionError{.message = "No results found", .error_code = -1});
     }
 
-    // Create an instance of T
-    T obj{};
+    if (auto error = check_column_count<T>(result_set, query)) {
+      co_return std::unexpected(*error);
+    }
 
-    // Get the first row of results
-    const auto& row = result_set.at(0);
-
-    // Use Boost.PFR to get the tuple type that matches our struct
-    auto structure_tie = boost::pfr::structure_tie(obj);
-
-    // Make sure the number of columns matches the number of fields in the struct
-    if (result_set.column_count() != boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) {
-      std::stringstream ss;
-      for (const auto& param : query.bind_params()) {
-        ss << param << ", ";
-      }
+    auto mapped = map_row_to_struct<T>(result_set.at(0));
+    if (!mapped) {
       co_return std::unexpected(ConnectionError{
-          .message = "Column count does not match struct field count, " +
-                     std::to_string(result_set.column_count()) +
-                     " != " + std::to_string(boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) +
-                     " for struct " + typeid(T).name() + " and query " + query.to_sql() +
-                     " with params " + ss.str(),
-          .error_code = -1});
+          .message = "Failed to convert result to struct: " + mapped.error(), .error_code = -1});
     }
 
-    // Convert each value in the result row to the appropriate type in the struct
-    try {
-      // Create a vector of values from the row
-      std::vector<std::string> values;
-      for (size_t i = 0; i < result_set.column_count(); ++i) {
-        auto cell_result = row.get_cell(i);
-        if (!cell_result) {
-          co_return std::unexpected(
-              ConnectionError{.message = "Failed to get cell value: " + cell_result.error().message,
-                              .error_code = -1});
-        }
-        values.push_back((*cell_result)->raw_value());
-      }
-
-      // Apply tuple assignment from the row values to the struct fields
-      relx::connection::map_row_to_tuple(structure_tie, values);
-    } catch (const std::exception& e) {
-      co_return std::unexpected(
-          ConnectionError{.message = std::string("Failed to convert result to struct: ") + e.what(),
-                          .error_code = -1});
-    }
-
-    co_return obj;
+    co_return *mapped;
   }
 
   /// @brief Execute a query and map results to a vector of user-defined types asynchronously
@@ -176,47 +140,18 @@ public:
       co_return objects;  // Return empty vector
     }
 
-    // Make sure the number of columns matches the number of fields in the struct
-    if (result_set.column_count() != boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) {
-      std::stringstream ss;
-      for (const auto& param : query.bind_params()) {
-        ss << param << ", ";
-      }
-      co_return std::unexpected(ConnectionError{
-          .message = "Column count does not match struct field count, " +
-                     std::to_string(result_set.column_count()) +
-                     " != " + std::to_string(boost::pfr::tuple_size_v<std::remove_cvref_t<T>>) +
-                     " for struct " + typeid(T).name() + " and query " + query.to_sql() +
-                     " with params " + ss.str(),
-          .error_code = -1});
+    if (auto error = check_column_count<T>(result_set, query)) {
+      co_return std::unexpected(*error);
     }
 
     // Process each row
     for (size_t row_idx = 0; row_idx < result_set.size(); ++row_idx) {
-      const auto& row = result_set.at(row_idx);
-      T obj{};
-      auto structure_tie = boost::pfr::structure_tie(obj);
-
-      try {
-        // Create a vector of values from the row
-        std::vector<std::string> values;
-        for (size_t i = 0; i < result_set.column_count(); ++i) {
-          auto cell_result = row.get_cell(i);
-          if (!cell_result) {
-            co_return std::unexpected(ConnectionError{.message = "Failed to get cell value: " +
-                                                                 cell_result.error().message,
-                                                      .error_code = -1});
-          }
-          values.push_back((*cell_result)->raw_value());
-        }
-
-        relx::connection::map_row_to_tuple(structure_tie, values);
-        objects.push_back(std::move(obj));
-      } catch (const std::exception& e) {
+      auto mapped = map_row_to_struct<T>(result_set.at(row_idx));
+      if (!mapped) {
         co_return std::unexpected(ConnectionError{
-            .message = std::string("Failed to convert result to struct: ") + e.what(),
-            .error_code = -1});
+            .message = "Failed to convert result to struct: " + mapped.error(), .error_code = -1});
       }
+      objects.push_back(std::move(*mapped));
     }
 
     co_return objects;

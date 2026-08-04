@@ -2,7 +2,6 @@
 #include <string>
 #include <vector>
 
-#include <boost/pfr.hpp>
 #include <gtest/gtest.h>
 #include <relx/connection/connection.hpp>
 #include <relx/query.hpp>

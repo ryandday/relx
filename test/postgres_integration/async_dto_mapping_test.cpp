@@ -11,7 +11,6 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/use_awaitable.hpp>
-#include <boost/pfr.hpp>
 #include <gtest/gtest.h>
 #include <relx/connection.hpp>
 #include <relx/connection/postgresql_async_connection.hpp>
