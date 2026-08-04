@@ -186,6 +186,17 @@ inline auto val(bool b) {
   return Value<bool>(b);
 }
 
+/// @brief Helper to create a value expression from an enum (bound as its
+/// enumerator identifier)
+/// @tparam E The enum type
+/// @param e The enum value
+/// @return A Value<E> expression
+template <typename E>
+  requires std::is_enum_v<E>
+auto val(E e) {
+  return Value<E>(e);
+}
+
 /// @brief Helper to create a value expression from an optional
 /// @tparam T The optional value type
 /// @param opt The optional value

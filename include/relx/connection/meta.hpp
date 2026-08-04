@@ -44,6 +44,14 @@ std::expected<void, std::string> convert_and_assign(T& target, const std::string
     target = (value == "1" || value == "true" || value == "TRUE" || value == "True" ||
               value == "t" || value == "T" || value == "yes" || value == "YES" || value == "Y");
     return {};
+  } else if constexpr (std::is_enum_v<T>) {
+    auto parsed = refl::enum_cast<T>(value);
+    if (!parsed) {
+      return std::unexpected("'" + value + "' is not an enumerator of " +
+                             std::string(refl::type_name<T>()));
+    }
+    target = *parsed;
+    return {};
   } else if constexpr (std::is_integral_v<T> || std::is_floating_point_v<T>) {
     auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), target);
     if (ec != std::errc{}) {

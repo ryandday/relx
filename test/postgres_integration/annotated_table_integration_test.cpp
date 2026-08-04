@@ -11,6 +11,8 @@ namespace {
 
 // clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
+enum class Availability { in_stock, backordered, discontinued };
+
 // One struct is both the schema definition and the result DTO
 struct [[=relx::table("annotated_products")]] Product {
   [[=relx::ann::pk]] int id;
@@ -19,6 +21,7 @@ struct [[=relx::table("annotated_products")]] Product {
   double price;
   [[=relx::default_value<true>{}]] bool in_stock;
   std::optional<std::string> notes;
+  [[=relx::default_value<Availability::in_stock>{}]] Availability availability;
 };
 inline constexpr auto products = relx::t<Product>;
 
@@ -59,7 +62,7 @@ TEST_F(AnnotatedTableIntegrationTest, InsertAndSelectRoundTrip) {
   ASSERT_TRUE(insert_result) << insert_result.error().message;
 
   auto query = relx::query::select(products.id, products.sku, products.name, products.price,
-                                   products.in_stock, products.notes)
+                                   products.in_stock, products.notes, products.availability)
                    .from(products)
                    .order_by(products.id);
 
@@ -79,6 +82,7 @@ TEST_F(AnnotatedTableIntegrationTest, InsertAndSelectRoundTrip) {
 
   EXPECT_EQ(rows[1].id, 2);
   EXPECT_EQ(rows[1].sku, "SKU-002");
+  EXPECT_EQ(rows[0].availability, Availability::in_stock);  // database default
 }
 
 TEST_F(AnnotatedTableIntegrationTest, WhereAndUpdate) {
@@ -93,12 +97,36 @@ TEST_F(AnnotatedTableIntegrationTest, WhereAndUpdate) {
   ASSERT_TRUE(conn->execute(update));
 
   auto query = relx::query::select(products.id, products.sku, products.name, products.price,
-                                   products.in_stock, products.notes)
+                                   products.in_stock, products.notes, products.availability)
                    .from(products)
                    .where(products.sku == "SKU-007");
   auto result = conn->execute<Product>(query);
   ASSERT_TRUE(result) << result.error().message;
   EXPECT_DOUBLE_EQ(result->price, 4.25);
+}
+
+TEST_F(AnnotatedTableIntegrationTest, EnumRoundTrip) {
+  auto insert = relx::query::insert_into(products)
+                    .columns(products.id, products.sku, products.name, products.price,
+                             products.availability)
+                    .values(1, "SKU-E1", "Widget", 5.0, Availability::backordered)
+                    .values(2, "SKU-E2", "Gadget", 6.0, Availability::in_stock);
+  ASSERT_TRUE(conn->execute(insert));
+
+  auto q = relx::query::select(products.id, products.availability)
+               .from(products)
+               .where(products.availability == Availability::backordered);
+  auto rows = conn->fetch_all(q);
+  ASSERT_TRUE(rows) << rows.error().message;
+  ASSERT_EQ(rows->size(), 1);
+  EXPECT_EQ((*rows)[0].id, 1);
+  EXPECT_EQ((*rows)[0].availability, Availability::backordered);
+
+  // The generated CHECK constraint rejects values outside the enumeration
+  auto bad = conn->execute_raw(
+      "INSERT INTO annotated_products (id, sku, name, price, availability) "
+      "VALUES (99, 'SKU-BAD', 'X', 1.0, 'nonsense');");
+  EXPECT_FALSE(bad);
 }
 
 TEST_F(AnnotatedTableIntegrationTest, FetchWithSynthesizedRows) {

@@ -1,8 +1,10 @@
 #pragma once
 
+#include "../reflect.hpp"
 #include "fixed_string.hpp"
 
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -123,6 +125,41 @@ struct column_traits<long long> {
   static std::string to_sql_string(const long long& value) { return std::to_string(value); }
 
   static long long from_sql_string(const std::string& value) { return std::stoll(value); }
+};
+
+// Enum types map to TEXT storing the enumerator identifier, with a generated
+// CHECK constraint restricting the column to the enumeration's values
+template <typename E>
+  requires std::is_enum_v<E>
+struct column_traits<E> {
+  static constexpr auto sql_type_name = "TEXT";
+  static constexpr bool nullable = false;
+
+  static std::string to_sql_string(const E& value) {
+    auto name = refl::enum_name(value);
+    if (name.empty()) {
+      throw std::invalid_argument("Value is not a named enumerator");
+    }
+    return std::string(name);
+  }
+
+  static E from_sql_string(const std::string& value) {
+    // Accept both bare and quoted spellings, mirroring the string traits
+    std::string_view sv = value;
+    if (sv.size() >= 2 && sv.front() == '\'' && sv.back() == '\'') {
+      sv = sv.substr(1, sv.size() - 2);
+    }
+    auto parsed = refl::enum_cast<E>(sv);
+    if (!parsed) {
+      throw std::invalid_argument("'" + std::string(sv) + "' is not an enumerator of " +
+                                  std::string(refl::type_name<E>()));
+    }
+    return *parsed;
+  }
+
+  static std::string check_constraint_sql(std::string_view column_name) {
+    return " CHECK(" + std::string(column_name) + " IN (" + refl::enum_sql_list<E>() + "))";
+  }
 };
 
 // Add specialization for std::optional types

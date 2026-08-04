@@ -32,6 +32,7 @@ add_executable(relx_tests
     schema/column_like_test.cpp
     schema/timezone_parsing_test.cpp
     schema/annotated_table_test.cpp
+    schema/enum_column_test.cpp
     # Migration tests
     migrations/test_migrations.cpp
     migrations/test_command_line_tools.cpp

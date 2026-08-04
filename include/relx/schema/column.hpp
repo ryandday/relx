@@ -153,6 +153,9 @@ struct default_value {
     if constexpr (std::is_same_v<value_type, bool>) {
       // For boolean values, use true/false in SQL
       return " DEFAULT " + std::string(value ? "true" : "false");
+    } else if constexpr (std::is_enum_v<value_type>) {
+      // Enums are stored as their enumerator identifier
+      return " DEFAULT '" + std::string(refl::enum_name(value)) + "'";
     } else if constexpr (std::is_integral_v<value_type> || std::is_floating_point_v<value_type>) {
       // For numeric types, convert to string
       return " DEFAULT " + std::to_string(value);
@@ -244,6 +247,12 @@ public:
 
     // Apply all modifiers
     result += apply_modifiers<Modifiers...>();
+
+    // Value-set constraint supplied by the type itself (e.g. enums generate
+    // CHECK(col IN ('a', 'b', ...)))
+    if constexpr (requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
+      result += column_traits<T>::check_constraint_sql(std::string_view(name));
+    }
 
     return result;
   }
@@ -366,6 +375,11 @@ public:
 
     // Apply all modifiers
     result += apply_modifiers<Modifiers...>();
+
+    // Value-set constraint from the underlying type (NULL passes a SQL CHECK)
+    if constexpr (requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
+      result += column_traits<T>::check_constraint_sql(std::string_view(name));
+    }
 
     return result;
   }

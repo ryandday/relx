@@ -74,6 +74,49 @@ consteval std::string_view type_name() {
   return std::define_static_string(std::meta::display_string_of(^^T));
 }
 
+/// @brief The identifier of an enumerator, or empty for values outside the enumeration
+template <typename E>
+  requires std::is_enum_v<E>
+constexpr std::string_view enum_name(E value) {
+  template for (constexpr std::meta::info e :
+                std::define_static_array(std::meta::enumerators_of(^^E))) {
+    if (value == [:e:]) {
+      return std::define_static_string(std::meta::identifier_of(e));
+    }
+  }
+  return {};
+}
+
+/// @brief Parse an enumerator from its identifier
+template <typename E>
+  requires std::is_enum_v<E>
+constexpr std::optional<E> enum_cast(std::string_view name) {
+  template for (constexpr std::meta::info e :
+                std::define_static_array(std::meta::enumerators_of(^^E))) {
+    if (name == std::meta::identifier_of(e)) {
+      return [:e:];
+    }
+  }
+  return std::nullopt;
+}
+
+/// @brief All enumerator identifiers as a SQL quoted list: 'a', 'b', 'c'
+template <typename E>
+  requires std::is_enum_v<E>
+std::string enum_sql_list() {
+  std::string out;
+  template for (constexpr std::meta::info e :
+                std::define_static_array(std::meta::enumerators_of(^^E))) {
+    if (!out.empty()) {
+      out += ", ";
+    }
+    out += '\'';
+    out += std::meta::identifier_of(e);
+    out += '\'';
+  }
+  return out;
+}
+
 // clang-format on
 
 }  // namespace relx::refl
