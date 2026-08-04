@@ -12,17 +12,17 @@ namespace relx::schema {
 
 /// @brief UNIQUE constraint
 struct unique {
-  static std::string to_sql() { return " UNIQUE"; }
+  static constexpr std::string to_sql() { return " UNIQUE"; }
 };
 
 /// @brief PRIMARY KEY constraint
 struct primary_key {
-  static std::string to_sql() { return " PRIMARY KEY"; }
+  static constexpr std::string to_sql() { return " PRIMARY KEY"; }
 };
 
 /// @brief AUTOINCREMENT constraint
 struct autoincrement {
-  static std::string to_sql() {
+  static constexpr std::string to_sql() {
     // SQLite syntax
     return " AUTOINCREMENT";
   }
@@ -50,7 +50,7 @@ struct identity {
   static constexpr auto max_value = MaxValue;
   static constexpr bool cycle = Cycle;
 
-  static std::string to_sql() {
+  static constexpr std::string to_sql() {
     std::string result = " GENERATED ALWAYS AS IDENTITY";
 
     // Add options if they differ from defaults
@@ -61,7 +61,7 @@ struct identity {
 
       // Add start value if not default
       if constexpr (start != 1) {
-        result += "START WITH " + std::to_string(start);
+        result += "START WITH " + detail::int_to_string(start);
       }
 
       // Add increment if not default
@@ -69,7 +69,7 @@ struct identity {
         if constexpr (start != 1) {
           result += " ";
         }
-        result += "INCREMENT BY " + std::to_string(increment);
+        result += "INCREMENT BY " + detail::int_to_string(increment);
       }
 
       // Add min value if not default
@@ -77,7 +77,7 @@ struct identity {
         if constexpr (start != 1 || increment != 1) {
           result += " ";
         }
-        result += "MINVALUE " + std::to_string(min_value);
+        result += "MINVALUE " + detail::int_to_string(min_value);
       }
 
       // Add max value if not default
@@ -86,7 +86,7 @@ struct identity {
                       min_value != std::numeric_limits<decltype(start)>::min()) {
           result += " ";
         }
-        result += "MAXVALUE " + std::to_string(max_value);
+        result += "MAXVALUE " + detail::int_to_string(max_value);
       }
 
       // Add cycle option if true
@@ -111,7 +111,9 @@ template <fixed_string Expr>
 struct check {
   static constexpr auto expr = Expr;
 
-  static std::string to_sql() { return " CHECK(" + std::string(std::string_view(expr)) + ")"; }
+  static constexpr std::string to_sql() {
+    return " CHECK(" + std::string(std::string_view(expr)) + ")";
+  }
 };
 
 /// @brief REFERENCES constraint for foreign keys
@@ -120,7 +122,7 @@ struct references {
   static constexpr auto table = Table;
   static constexpr auto column = Column;
 
-  static std::string to_sql() {
+  static constexpr std::string to_sql() {
     return " REFERENCES " + std::string(std::string_view(table)) + "(" +
            std::string(std::string_view(column)) + ")";
   }
@@ -131,7 +133,9 @@ template <fixed_string Action>
 struct on_delete {
   static constexpr auto action = Action;
 
-  static std::string to_sql() { return " ON DELETE " + std::string(std::string_view(action)); }
+  static constexpr std::string to_sql() {
+    return " ON DELETE " + std::string(std::string_view(action));
+  }
 };
 
 /// @brief ON UPDATE action for foreign keys
@@ -139,7 +143,9 @@ template <fixed_string Action>
 struct on_update {
   static constexpr auto action = Action;
 
-  static std::string to_sql() { return " ON UPDATE " + std::string(std::string_view(action)); }
+  static constexpr std::string to_sql() {
+    return " ON UPDATE " + std::string(std::string_view(action));
+  }
 };
 
 /// @brief DEFAULT value for non-string values
@@ -149,15 +155,18 @@ struct default_value {
 
   static constexpr value_type value = Value;
 
-  static std::string to_sql() {
+  static constexpr std::string to_sql() {
     if constexpr (std::is_same_v<value_type, bool>) {
       // For boolean values, use true/false in SQL
       return " DEFAULT " + std::string(value ? "true" : "false");
     } else if constexpr (std::is_enum_v<value_type>) {
       // Enums are stored as their enumerator identifier
       return " DEFAULT '" + std::string(refl::enum_name(value)) + "'";
-    } else if constexpr (std::is_integral_v<value_type> || std::is_floating_point_v<value_type>) {
-      // For numeric types, convert to string
+    } else if constexpr (std::is_integral_v<value_type>) {
+      return " DEFAULT " + detail::int_to_string(value);
+    } else if constexpr (std::is_floating_point_v<value_type>) {
+      // Runtime-only: constexpr floating-point formatting is not available;
+      // tables with floating DEFAULTs cannot use consteval DDL
       return " DEFAULT " + std::to_string(value);
     } else {
       // Fall back to generic string conversion
@@ -171,7 +180,7 @@ template <fixed_string Value, bool IsLiteral = false>
 struct string_default {
   static constexpr auto value = Value;
 
-  static std::string to_sql() {
+  static constexpr std::string to_sql() {
     if constexpr (IsLiteral) {
       // SQL function or literal that should not be quoted
       return " DEFAULT " + std::string(std::string_view(value));
@@ -184,12 +193,12 @@ struct string_default {
 
 /// @brief NULL default for optional types
 struct null_default {
-  static std::string to_sql() { return " DEFAULT NULL"; }
+  static constexpr std::string to_sql() { return " DEFAULT NULL"; }
 };
 
 /// @brief Helper to apply all column modifiers to a SQL definition
 template <typename... Modifiers>
-static std::string apply_modifiers() {
+constexpr std::string apply_modifiers() {
   std::string result;
   [[maybe_unused]] auto _ = (result += ... += Modifiers::to_sql());  // supress unused warning
   return result;
@@ -236,7 +245,7 @@ public:
 
   /// @brief Get the SQL definition of this column
   /// @return A string containing the SQL column definition
-  std::string sql_definition() const {
+  constexpr std::string sql_definition() const {
     std::string result = std::string(std::string_view(name)) + " " +
                          std::string(std::string_view(sql_type));
 
@@ -367,7 +376,7 @@ public:
   static constexpr auto sql_type = column_traits<T>::sql_type_name;
   static constexpr bool nullable = true;
 
-  std::string sql_definition() const {
+  constexpr std::string sql_definition() const {
     std::string result = std::string(std::string_view(name)) + " " +
                          std::string(std::string_view(sql_type));
 

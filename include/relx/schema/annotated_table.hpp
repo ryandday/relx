@@ -233,12 +233,102 @@ std::string collect_constraint_definitions(const table_ref<T>&) {
   return "";
 }
 
+// clang-format off
+
+/// @brief Compile-time CREATE TABLE builder for an annotated table. Mirrors the runtime
+/// create_table fluent interface, but to_sql() is consteval and returns a view of static
+/// storage - the statement costs nothing at runtime:
+///
+/// ```cpp
+/// constexpr auto ddl = relx::create_table_sql<Users>().if_not_exists().to_sql();
+/// ```
+///
+/// Not available for tables with floating-point DEFAULT values (no constexpr
+/// floating-point formatting); use the runtime create_table builder for those.
+template <typename T>
+struct create_table_sql_builder {
+  bool if_not_exists_ = false;
+
+  consteval create_table_sql_builder if_not_exists() const {
+    create_table_sql_builder builder = *this;
+    builder.if_not_exists_ = true;
+    return builder;
+  }
+
+  consteval std::string_view to_sql() const {
+    std::string sql = "CREATE TABLE ";
+    if (if_not_exists_) {
+      sql += "IF NOT EXISTS ";
+    }
+    sql += table_name_of<T>();
+    sql += " (\n";
+
+    bool first = true;
+    template for (constexpr std::meta::info m : refl::member_array<T>()) {
+      if (!first) {
+        sql += ",\n";
+      }
+      first = false;
+      sql += column_for<m>{}.sql_definition();
+    }
+
+    sql += "\n);";
+    return std::define_static_string(sql);
+  }
+};
+
+template <typename T>
+consteval create_table_sql_builder<T> create_table_sql() {
+  return {};
+}
+
+/// @brief Compile-time DROP TABLE builder for an annotated table
+template <typename T>
+struct drop_table_sql_builder {
+  bool if_exists_ = false;
+  bool cascade_ = false;
+
+  consteval drop_table_sql_builder if_exists() const {
+    drop_table_sql_builder builder = *this;
+    builder.if_exists_ = true;
+    return builder;
+  }
+
+  consteval drop_table_sql_builder cascade() const {
+    drop_table_sql_builder builder = *this;
+    builder.cascade_ = true;
+    return builder;
+  }
+
+  consteval std::string_view to_sql() const {
+    std::string sql = "DROP TABLE ";
+    if (if_exists_) {
+      sql += "IF EXISTS ";
+    }
+    sql += table_name_of<T>();
+    if (cascade_) {
+      sql += " CASCADE";
+    }
+    sql += ";";
+    return std::define_static_string(sql);
+  }
+};
+
+template <typename T>
+consteval drop_table_sql_builder<T> drop_table_sql() {
+  return {};
+}
+
+// clang-format on
+
 // clang-format on
 
 }  // namespace relx::schema
 
 namespace relx {
 using schema::column_for;
+using schema::create_table_sql;
+using schema::drop_table_sql;
 using schema::table;
 using schema::table_name_of;
 using schema::table_ref;

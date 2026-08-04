@@ -116,9 +116,25 @@ keys/uniques/FKs, indexes, table-level check constraints.
 Implementation gotcha: `type_of(annotation)` is cv-qualified (`const table`) — always
 `remove_cv` before comparing against `^^table` or substituting modifier types.
 
-## Phase 3 — Consteval SQL + synthesized DTOs (future)
+## Phase 3 — Consteval SQL + synthesized rows (done)
 
-- `create_table` SQL built at compile time (`define_static_string`) instead of the current
-  runtime vector/unordered_set pass.
-- `define_aggregate` to synthesize row types from a select list, making hand-written DTOs
-  optional.
+- `row_type_for<Query>` synthesizes result-row types from the select list
+  (`define_aggregate`); `conn.fetch_all(query)` / `fetch_one(query)` return them.
+  Expressions alias via `relx::as<"name">(expr)` / `relx::as<"name", T>(expr)`.
+- Compile-time column coverage: typed queries static_assert that every selected column
+  has a same-named field in the result struct (message names the missing columns).
+  Structs may have extra fields — a subset select leaves them default-initialized.
+  Runtime, every result column must be consumed by some field.
+- Enums are first-class columns: TEXT + generated `CHECK(col IN (...))` via
+  `enumerators_of`, identifier binds/parsing, enum `DEFAULT`s.
+- Consteval DDL for annotated tables: `relx::create_table_sql<T>().if_not_exists()
+  .to_sql()` / `drop_table_sql<T>().if_exists().to_sql()` build the statement at
+  compile time into static storage (the modifier `to_sql()` chain is constexpr;
+  floating-point DEFAULTs remain runtime-only — no constexpr float formatting).
+
+## Future ideas
+
+- Expand `select_all(t<Users>)` to an explicit column list via reflection so it works
+  with synthesized rows and is migration-stable (no raw `*`).
+- Annotations for composite keys, indexes, and table-level checks.
+- Typed bind parameters over libpq's binary protocol.

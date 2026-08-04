@@ -131,6 +131,28 @@ TEST(AnnotatedTableTest, DeleteSql) {
   EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE (users.id = ?)");
 }
 
+// DDL built entirely at compile time - the whole CREATE TABLE is a static_assert
+TEST(AnnotatedTableTest, ConstevalCreateTableSql) {
+  static_assert(relx::create_table_sql<Posts>().to_sql() ==
+                "CREATE TABLE posts (\n"
+                "id INTEGER NOT NULL PRIMARY KEY,\n"
+                "user_id INTEGER NOT NULL REFERENCES users(id),\n"
+                "title TEXT NOT NULL\n"
+                ");");
+  static_assert(relx::create_table_sql<Posts>().if_not_exists().to_sql().starts_with(
+      "CREATE TABLE IF NOT EXISTS posts"));
+  static_assert(relx::drop_table_sql<Posts>().if_exists().to_sql() ==
+                "DROP TABLE IF EXISTS posts;");
+  static_assert(relx::drop_table_sql<Posts>().if_exists().cascade().to_sql() ==
+                "DROP TABLE IF EXISTS posts CASCADE;");
+
+  // consteval and runtime builders agree
+  constexpr auto posts_ddl = relx::create_table_sql<Posts>().if_not_exists().to_sql();
+  EXPECT_EQ(posts_ddl, relx::create_table(posts).if_not_exists().to_sql());
+  constexpr auto users_ddl = relx::create_table_sql<Users>().to_sql();
+  EXPECT_EQ(users_ddl, relx::create_table(users).to_sql());
+}
+
 // Field iteration must walk the define_aggregate base of table_ref, or migrations
 // silently see zero columns and a diff would emit DROPs for everything
 TEST(AnnotatedTableTest, MigrationsSeeSynthesizedColumns) {

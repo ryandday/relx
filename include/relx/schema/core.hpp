@@ -3,6 +3,7 @@
 #include "../reflect.hpp"
 #include "fixed_string.hpp"
 
+#include <charconv>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -127,6 +128,20 @@ struct column_traits<long long> {
   static long long from_sql_string(const std::string& value) { return std::stoll(value); }
 };
 
+namespace detail {
+
+/// @brief Integer to string, usable in constant evaluation (std::to_chars is
+/// constexpr for integral types since C++23)
+template <typename T>
+  requires std::is_integral_v<T>
+constexpr std::string int_to_string(T value) {
+  char buffer[24] = {};
+  auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), value);
+  return std::string(buffer, ptr);
+}
+
+}  // namespace detail
+
 // Enum types map to TEXT storing the enumerator identifier, with a generated
 // CHECK constraint restricting the column to the enumeration's values
 template <typename E>
@@ -157,7 +172,7 @@ struct column_traits<E> {
     return *parsed;
   }
 
-  static std::string check_constraint_sql(std::string_view column_name) {
+  static constexpr std::string check_constraint_sql(std::string_view column_name) {
     return " CHECK(" + std::string(column_name) + " IN (" + refl::enum_sql_list<E>() + "))";
   }
 };

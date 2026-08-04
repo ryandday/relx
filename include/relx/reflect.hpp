@@ -127,7 +127,7 @@ constexpr std::optional<E> enum_cast(std::string_view name) {
 /// @brief All enumerator identifiers as a SQL quoted list: 'a', 'b', 'c'
 template <typename E>
   requires std::is_enum_v<E>
-std::string enum_sql_list() {
+constexpr std::string enum_sql_list() {
   std::string out;
   template for (constexpr std::meta::info e :
                 std::define_static_array(std::meta::enumerators_of(^^E))) {
