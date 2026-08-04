@@ -4,6 +4,7 @@
 #include <meta>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 #if !defined(__cpp_impl_reflection) || __cpp_impl_reflection < 202603L
 #error "relx requires C++26 reflection (P2996). Build with GCC 16.1+ and -std=c++26 -freflection."
@@ -15,11 +16,30 @@ namespace relx::refl {
 
 // clang-format off
 
-/// @brief All non-static data members of T as a static array of std::meta::info
+namespace detail {
+
+/// @brief Collect non-static data members of a type, walking base classes first
+/// (declaration/layout order). Base traversal matters because define_aggregate-synthesized
+/// types (e.g. table_ref) keep their members in a base class.
+consteval void collect_members(std::meta::info type, std::vector<std::meta::info>& out) {
+  constexpr auto ctx = std::meta::access_context::unchecked();
+  for (std::meta::info base : std::meta::bases_of(type, ctx)) {
+    collect_members(std::meta::type_of(base), out);
+  }
+  for (std::meta::info member : std::meta::nonstatic_data_members_of(type, ctx)) {
+    out.push_back(member);
+  }
+}
+
+}  // namespace detail
+
+/// @brief All non-static data members of T (including inherited ones, bases first)
+/// as a static array of std::meta::info
 template <typename T>
 consteval auto member_array() {
-  return std::define_static_array(
-      std::meta::nonstatic_data_members_of(^^T, std::meta::access_context::unchecked()));
+  std::vector<std::meta::info> members;
+  detail::collect_members(^^T, members);
+  return std::define_static_array(members);
 }
 
 /// @brief Number of non-static data members of T

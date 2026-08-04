@@ -2,6 +2,7 @@
 #include <string>
 
 #include <gtest/gtest.h>
+#include <relx/migrations.hpp>
 #include <relx/query.hpp>
 #include <relx/schema.hpp>
 
@@ -128,6 +129,19 @@ TEST(AnnotatedTableTest, UpdateSql) {
 TEST(AnnotatedTableTest, DeleteSql) {
   auto query = relx::query::delete_from(users).where(users.id == 1);
   EXPECT_EQ(query.to_sql(), "DELETE FROM users WHERE (users.id = ?)");
+}
+
+// Field iteration must walk the define_aggregate base of table_ref, or migrations
+// silently see zero columns and a diff would emit DROPs for everything
+TEST(AnnotatedTableTest, MigrationsSeeSynthesizedColumns) {
+  static_assert(relx::refl::field_count<relx::table_ref<Users>>() == 7);
+
+  auto metadata = relx::migrations::extract_table_metadata(users);
+  ASSERT_TRUE(metadata);
+  EXPECT_EQ(metadata->columns.size(), 7);
+  EXPECT_TRUE(metadata->columns.contains("id"));
+  EXPECT_TRUE(metadata->columns.contains("bio"));
+  EXPECT_TRUE(metadata->columns["bio"].nullable);
 }
 
 // relx::c<^^T::member> is the standalone escape hatch when no table object is in scope
