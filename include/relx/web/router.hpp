@@ -1,5 +1,7 @@
 #pragma once
 
+#include "http.hpp"
+
 #include <functional>
 #include <string>
 #include <string_view>
@@ -7,17 +9,12 @@
 #include <vector>
 
 #include <boost/asio/awaitable.hpp>
-#include <boost/beast/http.hpp>
 
-namespace crud {
+namespace relx::web {
 
 namespace asio = boost::asio;
-namespace http = boost::beast::http;
 
-using Request = http::request<http::string_body>;
-using Response = http::response<http::string_body>;
-
-/// A matched request: the Beast request plus captured path parameters
+/// @brief A matched request: the Beast request plus captured path parameters
 struct RequestContext {
   const Request& req;
   std::vector<std::pair<std::string, std::string>> path_params;
@@ -30,22 +27,34 @@ struct RequestContext {
     }
     return {};
   }
+
+  /// @brief Value of a query-string parameter (?limit=10), or empty
+  std::string_view query_param(std::string_view name) const {
+    std::string_view target{req.target()};
+    auto pos = target.find('?');
+    if (pos == std::string_view::npos) {
+      return {};
+    }
+    std::string_view qs = target.substr(pos + 1);
+    while (!qs.empty()) {
+      auto amp = qs.find('&');
+      std::string_view pair = qs.substr(0, amp);
+      auto eq = pair.find('=');
+      if (eq != std::string_view::npos && pair.substr(0, eq) == name) {
+        return pair.substr(eq + 1);
+      }
+      if (amp == std::string_view::npos) {
+        break;
+      }
+      qs = qs.substr(amp + 1);
+    }
+    return {};
+  }
 };
 
 using Handler = std::function<asio::awaitable<Response>(const RequestContext&)>;
 
-inline Response make_response(http::status status, std::string json_body) {
-  Response res{status, 11};
-  res.set(http::field::content_type, "application/json");
-  res.body() = std::move(json_body);
-  return res;
-}
-
-inline Response error_response(http::status status, std::string_view message) {
-  return make_response(status, std::string(R"({"error":")") + std::string(message) + R"("})");
-}
-
-/// Minimal segment-based router: literal segments match exactly, ":name"
+/// @brief Minimal segment-based router: literal segments match exactly, ":name"
 /// segments capture the value as a path parameter.
 class Router {
 public:
@@ -114,4 +123,4 @@ private:
   std::vector<Route> routes_;
 };
 
-}  // namespace crud
+}  // namespace relx::web

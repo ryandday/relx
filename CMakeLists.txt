@@ -5,6 +5,7 @@ project(relx VERSION 0.1.0 LANGUAGES CXX)
 
 option(RELX_ENABLE_TESTS "Enable building tests" OFF)
 option(RELX_ENABLE_POSTGRES_CLIENT "Enable PostgreSQL client library" OFF)
+option(RELX_ENABLE_WEB "Enable the relx::web HTTP layer (adds the glaze dependency)" OFF)
 option(RELX_ENABLE_INSTALL "Enable installation of library" OFF)
 option(RELX_DEV_MODE "Enable development mode" OFF)
 option(RELX_ENABLE_COVERAGE "Enable code coverage reporting" OFF)
@@ -62,7 +63,30 @@ target_compile_features(relx INTERFACE cxx_std_26)
 # libstdc++'s <meta> is silently empty without -freflection, so consumers must inherit it
 target_compile_options(relx INTERFACE $<$<CXX_COMPILER_ID:GNU>:-freflection>)
 
+if(RELX_ENABLE_WEB)
+    if(NOT RELX_ENABLE_POSTGRES_CLIENT)
+        message(FATAL_ERROR "RELX_ENABLE_WEB requires RELX_ENABLE_POSTGRES_CLIENT")
+    endif()
+    include(FetchContent)
+    FetchContent_Declare(
+        glaze
+        GIT_REPOSITORY https://github.com/stephenberry/glaze.git
+        GIT_TAG v8.0.0
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(glaze)
+
+    add_library(relx_web INTERFACE)
+    add_library(relx::web ALIAS relx_web)
+    target_link_libraries(relx_web INTERFACE relx::relx glaze::glaze)
+endif()
+
 add_subdirectory(src)
+
+if(RELX_ENABLE_WEB)
+    # The web layer drives the postgres client through the pool
+    target_link_libraries(relx_web INTERFACE relx::postgresql)
+endif()
 
 if(RELX_ENABLE_TESTS)
     enable_testing()
