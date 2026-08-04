@@ -20,12 +20,9 @@ struct primary_key {
   static constexpr std::string to_sql() { return " PRIMARY KEY"; }
 };
 
-/// @brief AUTOINCREMENT constraint
+/// @brief Auto-assigned column values; shorthand for identity<> with default options
 struct autoincrement {
-  static constexpr std::string to_sql() {
-    // SQLite syntax
-    return " AUTOINCREMENT";
-  }
+  static constexpr std::string to_sql() { return " GENERATED ALWAYS AS IDENTITY"; }
 };
 
 /// @brief Concept for valid identity types

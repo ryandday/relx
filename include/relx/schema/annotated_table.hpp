@@ -501,6 +501,8 @@ namespace ann {
 inline constexpr schema::primary_key pk{};
 inline constexpr schema::unique unique{};
 inline constexpr schema::autoincrement autoincrement{};
+/// PostgreSQL auto-assigned ids: GENERATED ALWAYS AS IDENTITY with configurable options
+inline constexpr schema::identity<> identity{};
 
 /// @brief Foreign key annotation referencing an annotated table's member:
 /// [[=relx::ann::fk<^^Users::id>]] int user_id;
