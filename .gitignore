@@ -24,3 +24,4 @@ coverage/
 # Documentation
 docs/api/
 _site_local/
+build-gcc16/

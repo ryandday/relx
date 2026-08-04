@@ -10,7 +10,6 @@ on:
 env:
   BUILD_TYPE: Debug
 
-# Updated to use latest compilers: GCC 15 and Clang 20
 jobs:
   # Format Check with Clang 20
   format-check:
@@ -33,72 +32,67 @@ jobs:
     - name: Check formatting
       run: make format-check
 
-  # Linux GCC Build - uncomment when gcc15 is packaged nicely
-  # so I don't have to build from source every CI/CD run
-  # linux-gcc:
-  #   runs-on: ubuntu-24.04
-  #   needs: format-check
-
-  #   steps:
-  #   - uses: actions/checkout@v4
-
-  #   - name: Install system dependencies
-  #     run: |
-  #       sudo apt-get update
-  #       sudo apt-get install -y \
-  #         build-essential \
-  #         cmake \
-  #         ninja-build \
-  #         libboost-all-dev \
-  #         libpq-dev \
-  #         postgresql-client \
-  #         docker-compose
-
-  #   - name: Build and run tests
-  #     run: make test
-
-  # Linux Clang 20 Build with Coverage
-  linux-clang:
+  # Linux GCC 16 build with C++26 reflection (-freflection)
+  linux-gcc:
     runs-on: ubuntu-24.04
     needs: format-check
+    container: gcc:16
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: relx_test
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d relx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Clang 20 and system dependencies
+    # NOT libboost-all-dev: it pulls in openmpi/gfortran which conflicts with the
+    # gcc image's /usr/local toolchain (distro gfortran postinst fails)
+    - name: Install build dependencies
       run: |
-        sudo apt-get update
-        # Add LLVM repository for latest Clang
-        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-        sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" -y
-        sudo apt-get update
-        sudo apt-get install -y \
-          clang-20 \
-          libc++-20-dev \
-          libc++abi-20-dev \
+        apt-get update
+        apt-get install -y \
           cmake \
           ninja-build \
-          clang-tidy-20 \
-          clang-format-20 \
-          lcov \
-          gcovr \
-          libboost-all-dev \
+          libboost-dev \
+          libboost-system-dev \
+          libboost-thread-dev \
           libpq-dev \
           postgresql-client \
-          docker-compose
+          lcov \
+          gcovr \
+          socat \
+          git
 
-    - name: Setup Clang 20 environment
+    - name: Verify GCC version
+      run: g++ --version
+
+    - name: Initialize test database
+      run: PGPASSWORD=postgres psql -h postgres -U postgres -f docker-init/01-create-database.sql
+
+    # Tests hardcode localhost:5434; forward it to the postgres service container
+    - name: Forward localhost:5434 to postgres service
       run: |
-        echo "CC=clang-20" >> $GITHUB_ENV
-        echo "CXX=clang++-20" >> $GITHUB_ENV
+        socat TCP-LISTEN:5434,fork,reuseaddr TCP:postgres:5432 &
+        sleep 1
+        PGPASSWORD=postgres psql -h localhost -p 5434 -U postgres -d relx_test -c "SELECT 1;"
 
-    - name: Verify Clang version
+    - name: Build with coverage
       run: |
-        clang-20 --version
-        clang++-20 --version
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DRELX_ENABLE_COVERAGE=ON
+        cmake --build build -j
 
-    - name: Build, run tests, and generate coverage report
-      run: make coverage
+    - name: Run tests and generate coverage report
+      run: cmake --build build --target coverage
 
     - name: Upload coverage to Codecov
       if: github.ref == 'refs/heads/main'
@@ -110,85 +104,20 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
-  # macOS Build and Test
-  # macos:
-  #   runs-on: macos-latest
+  # clang-tidy disabled: clang-tidy 20 cannot parse C++26 reflection (P2996).
+  # Re-enable once Clang ships reflection (expected Clang 24+, ~2027).
+  # clang-tidy:
+  #   runs-on: ubuntu-24.04
   #   needs: format-check
-
+  #   if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
   #   steps:
   #   - uses: actions/checkout@v4
-
-  #   - name: Install dependencies
+  #   - name: Install Clang and system dependencies
   #     run: |
-  #       brew update
-  #       brew install cmake ninja boost postgresql
-
-  #   - name: Run tests
-  #     run: make test
-
-  # # Windows Build and Test
-  # windows:
-  #   runs-on: windows-latest
-  #   needs: format-check
-
-  #   steps:
-  #   - uses: actions/checkout@v4
-
-  #   - name: Install dependencies
-  #     run: |
-  #       # Install vcpkg for dependencies
-  #       git clone https://github.com/Microsoft/vcpkg.git
-  #       .\vcpkg\bootstrap-vcpkg.bat
-  #       .\vcpkg\vcpkg install boost-pfr boost-describe boost-test libpq --triplet x64-windows
-
-  #   - name: Setup MSVC environment
-  #     uses: ilammy/msvc-dev-cmd@v1
-  #     with:
-  #       arch: x64
-
-  #   - name: Build and run tests
-  #     run: |
-  #       cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DCMAKE_TOOLCHAIN_FILE=.\vcpkg\scripts\buildsystems\vcpkg.cmake
-  #       cmake --build build --parallel
-  #       ctest --test-dir build --output-on-failure
-  #     shell: cmd
-
-  # Clang-Tidy Check with Clang 20 (only when PR merges)
-  clang-tidy:
-    runs-on: ubuntu-24.04
-    needs: format-check
-    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install Clang 20 and system dependencies
-      run: |
-        sudo apt-get update
-        # Add LLVM repository for latest Clang
-        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-        sudo add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" -y
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          clang-20 \
-          libc++-20-dev \
-          libc++abi-20-dev \
-          clang-tidy-20 \
-          cmake \
-          ninja-build \
-          libboost-all-dev \
-          libpq-dev \
-          postgresql-client \
-          docker-compose
-
-    - name: Setup Clang 20 environment
-      run: |
-        echo "CC=clang-20" >> $GITHUB_ENV
-        echo "CXX=clang++-20" >> $GITHUB_ENV
-
-    - name: Build (required for clang-tidy)
-      run: make build
-
-    - name: Run clang-tidy
-      run: make tidy
+  #       sudo apt-get update
+  #       sudo apt-get install -y build-essential clang clang-tidy cmake ninja-build \
+  #         libboost-all-dev libpq-dev postgresql-client docker-compose
+  #   - name: Build (required for clang-tidy)
+  #     run: make build
+  #   - name: Run clang-tidy
+  #     run: make tidy

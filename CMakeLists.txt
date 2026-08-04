@@ -1,5 +1,6 @@
 # Enhanced CMakeLists.txt with modern best practices
-cmake_minimum_required(VERSION 3.15...3.29)
+# 3.25 minimum for cxx_std_26
+cmake_minimum_required(VERSION 3.25...3.31)
 project(relx VERSION 0.1.0 LANGUAGES CXX)
 
 option(RELX_ENABLE_TESTS "Enable building tests" OFF)
@@ -9,13 +10,16 @@ option(RELX_DEV_MODE "Enable development mode" OFF)
 option(RELX_ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 
 if(PROJECT_IS_TOP_LEVEL)
-    set(CMAKE_CXX_STANDARD 23)
+    set(CMAKE_CXX_STANDARD 26)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
-# Disable C++26 extension warnings for Clang, as we will be using C++26 features as they are released
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    add_compile_options(-Wno-c++26-extensions)
+# C++26 reflection (P2996) requires GCC 16.1+ with -freflection.
+# Clang has no reflection support yet (expected ~Clang 24); see docs/cpp26-reflection-plan.md
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16.1)
+    message(FATAL_ERROR "relx requires GCC 16.1+ for C++26 reflection (found GCC ${CMAKE_CXX_COMPILER_VERSION})")
+elseif(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(FATAL_ERROR "relx requires GCC 16.1+ for C++26 reflection; ${CMAKE_CXX_COMPILER_ID} does not implement P2996 yet")
 endif()
 
 if(RELX_DEV_MODE)
@@ -24,19 +28,6 @@ if(RELX_DEV_MODE)
     set(RELX_ENABLE_POSTGRES_CLIENT ON)
     set(RELX_ENABLE_INSTALL ON)
     
-    # Configure libc++ for Clang on both Apple and Linux
-    # std::println doesn't work well with libstdc++
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
-        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
-        
-        # On Linux, we may need to link against libc++abi as well
-        if(NOT APPLE)
-            set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lc++abi")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -lc++abi")
-        endif()
-    endif()
 endif()
 
 # Code coverage configuration
@@ -66,7 +57,10 @@ target_link_libraries(relx INTERFACE
     Boost::thread
 )
 
-target_compile_features(relx INTERFACE cxx_std_23)
+target_compile_features(relx INTERFACE cxx_std_26)
+
+# libstdc++'s <meta> is silently empty without -freflection, so consumers must inherit it
+target_compile_options(relx INTERFACE $<$<CXX_COMPILER_ID:GNU>:-freflection>)
 
 add_subdirectory(src)
 
