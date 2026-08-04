@@ -9,10 +9,15 @@
 ///
 /// Requires the RELX_ENABLE_WEB CMake option (adds the glaze dependency).
 
+#include "web/auth.hpp"
 #include "web/db.hpp"
 #include "web/error.hpp"
 #include "web/http.hpp"
 #include "web/json.hpp"
+#include "web/ownership.hpp"
+#include "web/pagination.hpp"
 #include "web/projection.hpp"
 #include "web/router.hpp"
 #include "web/server.hpp"
+
+// relx/web/jwt_hs256.hpp is opt-in: include it directly and link OpenSSL::Crypto

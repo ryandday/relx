@@ -53,6 +53,7 @@ add_executable(relx_tests
     query/select_all_test.cpp
     query/bind_param_test.cpp
     query/web_core_gaps_test.cpp
+    web/auth_test.cpp
     web/projection_test.cpp
     query/distinct_select_test.cpp
     query/edge_case_test.cpp
@@ -92,11 +93,13 @@ add_executable(relx_tests
 )
 
 # Link against both gtest and gtest_main libraries
+find_package(OpenSSL REQUIRED)
 target_link_libraries(relx_tests PRIVATE 
     relx_postgresql 
     relx_migrations
     gtest
     gtest_main
+    OpenSSL::Crypto
 )
 
 # Register test
