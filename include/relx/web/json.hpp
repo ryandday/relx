@@ -22,6 +22,18 @@ Response json_response(http::status status, const T& value) {
   return make_response(status, std::move(*json));
 }
 
+/// @brief 200 OK with a JSON body
+template <typename T>
+Response ok(const T& value) {
+  return json_response(http::status::ok, value);
+}
+
+/// @brief 201 Created with a JSON body
+template <typename T>
+Response created(const T& value) {
+  return json_response(http::status::created, value);
+}
+
 /// @brief Parse a request body into T. Non-optional fields are required;
 /// missing or mistyped fields produce a 400 with glaze's diagnostic.
 template <typename T>

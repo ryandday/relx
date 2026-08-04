@@ -54,6 +54,22 @@ struct RequestContext {
 
 using Handler = std::function<asio::awaitable<Response>(const RequestContext&)>;
 
+/// @brief Renders an exception escaping a handler into a Response
+using ErrorHandler = std::function<Response(std::exception_ptr, const Request&)>;
+
+/// @brief Default error rendering: ApiException keeps its status, anything else is a 500
+inline Response default_error_handler(std::exception_ptr error, const Request&) {
+  try {
+    std::rethrow_exception(error);
+  } catch (const ApiException& e) {
+    return error_response(e.error());
+  } catch (const std::exception& e) {
+    return error_response(http::status::internal_server_error, e.what());
+  } catch (...) {
+    return error_response(http::status::internal_server_error, "unknown error");
+  }
+}
+
 /// @brief Minimal segment-based router: literal segments match exactly, ":name"
 /// segments capture the value as a path parameter.
 class Router {
@@ -61,6 +77,17 @@ public:
   void add(http::verb method, std::string_view pattern, Handler handler) {
     routes_.push_back({method, split(pattern), std::move(handler)});
   }
+
+  // Verb shorthands
+  void get(std::string_view pattern, Handler h) { add(http::verb::get, pattern, std::move(h)); }
+  void post(std::string_view pattern, Handler h) { add(http::verb::post, pattern, std::move(h)); }
+  void put(std::string_view pattern, Handler h) { add(http::verb::put, pattern, std::move(h)); }
+  void del(std::string_view pattern, Handler h) { add(http::verb::delete_, pattern, std::move(h)); }
+
+  /// @brief Replace how exceptions escaping handlers are rendered (framework-style
+  /// generic error handler). The default maps ApiException to its status and
+  /// anything else to a 500.
+  void set_error_handler(ErrorHandler handler) { error_handler_ = std::move(handler); }
 
   asio::awaitable<Response> dispatch(const Request& req) const {
     std::string_view target{req.target()};
@@ -79,7 +106,11 @@ public:
       if (route.method != req.method()) {
         continue;
       }
-      co_return co_await route.handler(ctx);
+      try {
+        co_return co_await route.handler(ctx);
+      } catch (...) {
+        co_return error_handler_(std::current_exception(), req);
+      }
     }
     co_return path_matched ? error_response(http::status::method_not_allowed, "method not allowed")
                            : error_response(http::status::not_found, "no such route");
@@ -121,6 +152,7 @@ private:
   }
 
   std::vector<Route> routes_;
+  ErrorHandler error_handler_ = default_error_handler;
 };
 
 }  // namespace relx::web

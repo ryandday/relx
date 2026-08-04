@@ -10,6 +10,7 @@
 /// Requires the RELX_ENABLE_WEB CMake option (adds the glaze dependency).
 
 #include "web/auth.hpp"
+#include "web/authed.hpp"
 #include "web/db.hpp"
 #include "web/error.hpp"
 #include "web/http.hpp"

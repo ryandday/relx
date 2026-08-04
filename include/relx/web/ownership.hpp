@@ -7,6 +7,15 @@
 
 namespace relx::web {
 
+/// @brief Map a relx connection error onto an HTTP-shaped ApiError.
+/// Unique violations become 409; everything else is a 500.
+inline ApiError from_connection_error(const relx::connection::ConnectionError& error) {
+  if (error.message.find("duplicate key") != std::string::npos) {
+    return conflict("resource already exists");
+  }
+  return {.status = 500, .message = error.message};
+}
+
 /// @brief Execute a select expected to match one row: 404 when it matches none.
 /// The workhorse for GET /resource/:id handlers.
 template <typename Row, typename Query>
@@ -14,7 +23,7 @@ ApiResult<Row> one_or_404(relx::PostgreSQLConnection& conn, const Query& query,
                           std::string_view what = "resource") {
   auto rows = conn.execute_many<Row>(query);
   if (!rows) {
-    return std::unexpected(ApiError{.status = 500, .message = rows.error().message});
+    return std::unexpected(from_connection_error(rows.error()));
   }
   if (rows->empty()) {
     return std::unexpected(not_found(std::string(what) + " not found"));
