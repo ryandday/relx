@@ -10,6 +10,7 @@
 #include "query/helpers.hpp"
 #include "query/insert.hpp"
 #include "query/literals.hpp"
+#include "query/row_type.hpp"
 #include "query/operators.hpp"
 #include "query/schema_adapter.hpp"
 #include "query/select.hpp"

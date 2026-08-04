@@ -54,6 +54,7 @@ add_executable(relx_tests
     query/edge_case_test.cpp
     query/data_type_test.cpp
     query/advanced_query_test.cpp
+    query/row_type_test.cpp
     # Result processing tests
     result/result_test.cpp
     result/lazy_parsing_test.cpp

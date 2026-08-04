@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../query/core.hpp"
+#include "../query/row_type.hpp"
 #include "../results/result.hpp"
 #include "meta.hpp"
 
@@ -222,6 +223,28 @@ public:
     }
 
     return objects;
+  }
+
+  /// @brief Execute a select query and map rows onto its synthesized row type
+  /// @details The row struct is generated from the select list itself (see
+  /// query/row_type.hpp), so no hand-written DTO is needed and a select-list/row
+  /// mismatch cannot happen
+  /// @param query The select query to execute
+  /// @return Result containing a vector of synthesized rows or an error
+  template <query::RowSynthesizable Query>
+  [[nodiscard]]
+  ConnectionResult<std::vector<query::row_type_for<Query>>> fetch_all(const Query& query) {
+    return execute_many<query::row_type_for<Query>>(query);
+  }
+
+  /// @brief Execute a select query expected to yield one row, mapped onto its
+  /// synthesized row type
+  /// @param query The select query to execute
+  /// @return Result containing the synthesized row or an error
+  template <query::RowSynthesizable Query>
+  [[nodiscard]]
+  ConnectionResult<query::row_type_for<Query>> fetch_one(const Query& query) {
+    return execute<query::row_type_for<Query>>(query);
   }
 
   /// @brief Check if the connection is open

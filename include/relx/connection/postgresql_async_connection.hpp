@@ -157,6 +157,26 @@ public:
     co_return objects;
   }
 
+  /// @brief Execute a select query asynchronously, mapping rows onto its synthesized
+  /// row type (see query/row_type.hpp)
+  /// @param query The select query to execute
+  /// @return Awaitable resolving with a vector of synthesized rows
+  template <query::RowSynthesizable Query>
+  boost::asio::awaitable<ConnectionResult<std::vector<query::row_type_for<Query>>>> fetch_all(
+      const Query& query) {
+    co_return co_await execute_many<query::row_type_for<Query>>(query);
+  }
+
+  /// @brief Execute a select query expected to yield one row asynchronously, mapped
+  /// onto its synthesized row type
+  /// @param query The select query to execute
+  /// @return Awaitable resolving with the synthesized row
+  template <query::RowSynthesizable Query>
+  boost::asio::awaitable<ConnectionResult<query::row_type_for<Query>>> fetch_one(
+      const Query& query) {
+    co_return co_await execute<query::row_type_for<Query>>(query);
+  }
+
   /// @brief Begin a new transaction asynchronously
   /// @param isolation_level The isolation level for the transaction
   /// @return Awaitable that resolves when transaction begins

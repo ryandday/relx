@@ -101,6 +101,48 @@ TEST_F(AnnotatedTableIntegrationTest, WhereAndUpdate) {
   EXPECT_DOUBLE_EQ(result->price, 4.25);
 }
 
+TEST_F(AnnotatedTableIntegrationTest, FetchWithSynthesizedRows) {
+  auto insert = relx::query::insert_into(products)
+                    .columns(products.id, products.sku, products.name, products.price)
+                    .values(1, "SKU-A", "Widget", 10.0)
+                    .values(2, "SKU-B", "Widget", 14.0)
+                    .values(3, "SKU-C", "Gadget", 30.0);
+  ASSERT_TRUE(conn->execute(insert));
+
+  // No hand-written DTO: the row type is synthesized from the select list
+  auto q = relx::query::select(products.id, products.sku, products.notes)
+               .from(products)
+               .order_by(products.id);
+  auto rows = conn->fetch_all(q);
+  ASSERT_TRUE(rows) << rows.error().message;
+  ASSERT_EQ(rows->size(), 3);
+  EXPECT_EQ((*rows)[0].id, 1);
+  EXPECT_EQ((*rows)[2].sku, "SKU-C");
+  EXPECT_FALSE((*rows)[0].notes.has_value());
+
+  // Aggregates via compile-time alias with explicit result type
+  auto agg = relx::query::select(products.name,
+                                 relx::as<"n", long>(relx::count(products.id)),
+                                 relx::as<"total", double>(relx::sum(products.price)))
+                 .from(products)
+                 .group_by(products.name)
+                 .order_by(products.name);
+  auto agg_rows = conn->fetch_all(agg);
+  ASSERT_TRUE(agg_rows) << agg_rows.error().message;
+  ASSERT_EQ(agg_rows->size(), 2);
+  EXPECT_EQ((*agg_rows)[0].name, "Gadget");
+  EXPECT_EQ((*agg_rows)[0].n, 1);
+  EXPECT_DOUBLE_EQ((*agg_rows)[0].total, 30.0);
+  EXPECT_EQ((*agg_rows)[1].name, "Widget");
+  EXPECT_EQ((*agg_rows)[1].n, 2);
+  EXPECT_DOUBLE_EQ((*agg_rows)[1].total, 24.0);
+
+  auto one = conn->fetch_one(
+      relx::query::select(products.sku).from(products).where(products.id == 2));
+  ASSERT_TRUE(one) << one.error().message;
+  EXPECT_EQ(one->sku, "SKU-B");
+}
+
 // clang-format on
 
 }  // namespace
