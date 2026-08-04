@@ -449,10 +449,10 @@ public:
     // Extract column type from the column template parameters
     using ColumnType = typename T::value_type;
     static_assert(
-        std::is_arithmetic_v<ColumnType> || std::same_as<ColumnType, std::string> ||
-            std::same_as<ColumnType, std::string_view>,
-        "ORDER BY can only be used with comparable columns (numeric types, strings). "
-        "Complex types, boolean columns, or non-comparable types cannot be used for ordering.");
+        std::totally_ordered<ColumnType> && !std::same_as<ColumnType, bool>,
+        "ORDER BY can only be used with comparable columns (numeric types, strings, "
+        "timestamps, uuids). Boolean columns or non-comparable types cannot be used for "
+        "ordering.");
 
     return order_by(asc(to_expr(column)));
   }

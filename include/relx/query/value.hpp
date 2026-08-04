@@ -7,6 +7,9 @@
 #include <string>
 #include <vector>
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
+
 namespace relx::query {
 
 /// @brief Represents a literal value in a SQL query
@@ -30,7 +33,9 @@ private:
   T value_;
 };
 
-/// @brief Specialization for std::optional values
+/// @brief Specialization for std::optional values. Disengaged optionals still render a
+/// placeholder and bind a typed NULL parameter, so the SQL text does not depend on the
+/// value (a value-independent statement can be prepared and reused).
 template <typename T>
 class Value<std::optional<T>> : public SqlExpression {
 public:
@@ -38,12 +43,7 @@ public:
 
   explicit Value(std::optional<T> value) : value_(std::move(value)) {}
 
-  std::string to_sql() const override {
-    if (value_.has_value()) {
-      return "?";
-    }
-    return "NULL";
-  }
+  std::string to_sql() const override { return "?"; }
 
   std::vector<bind_param> bind_params() const override {
     if (value_.has_value()) {
@@ -51,13 +51,34 @@ public:
       // syntax (quoted strings) and must not leak into bound parameter text
       return Value<T>(*value_).bind_params();
     }
-    return {};
+    return {bind_param::null(relx::sql_kind_for<T>())};
   }
 
   const std::optional<T>& value() const { return value_; }
 
 private:
   std::optional<T> value_;
+};
+
+/// @brief Specialization for boost::uuids::uuid values: bind the raw uuid text
+/// (the traits' to_sql_string is SQL-literal syntax and must not leak into binds)
+template <>
+class Value<boost::uuids::uuid> : public SqlExpression {
+public:
+  using value_type = boost::uuids::uuid;
+
+  explicit Value(boost::uuids::uuid value) : value_(value) {}
+
+  std::string to_sql() const override { return "?"; }
+
+  std::vector<bind_param> bind_params() const override {
+    return {boost::uuids::to_string(value_)};
+  }
+
+  const boost::uuids::uuid& value() const { return value_; }
+
+private:
+  boost::uuids::uuid value_;
 };
 
 /// @brief Specialization for std::string values
@@ -146,6 +167,13 @@ inline auto val(std::string_view sv) {
   return Value<std::string_view>(sv);
 }
 
+/// @brief Helper to create a value expression from a uuid
+/// @param u The uuid
+/// @return A Value<boost::uuids::uuid> expression
+inline auto val(boost::uuids::uuid u) {
+  return Value<boost::uuids::uuid>(u);
+}
+
 /// @brief Helper to create a value expression from an int
 /// @param i The integer
 /// @return A Value<int> expression
@@ -208,8 +236,21 @@ auto val(std::optional<T> opt) {
   return Value<std::optional<T>>(std::move(opt));
 }
 
+/// @brief Specialization for a bare nullopt: an untyped NULL parameter
+template <>
+class Value<std::nullopt_t> : public SqlExpression {
+public:
+  using value_type = std::nullopt_t;
+
+  explicit Value(std::nullopt_t) {}
+
+  std::string to_sql() const override { return "?"; }
+
+  std::vector<bind_param> bind_params() const override { return {bind_param::null()}; }
+};
+
 /// @brief Helper to create a value expression from a nullopt
-/// @return A Value<std::nullopt> expression
+/// @return A Value<std::nullopt_t> expression
 inline auto val(std::nullopt_t) {
   return Value<std::nullopt_t>(std::nullopt);
 }

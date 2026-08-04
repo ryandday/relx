@@ -59,6 +59,15 @@ std::expected<void, std::string> convert_and_assign(T& target, const std::string
       return std::unexpected("'" + value + "' is not a valid " + std::string(refl::type_name<T>()));
     }
     return {};
+  } else if constexpr (requires { schema::column_traits<T>::from_sql_string(value); }) {
+    // Types with column traits (time_point, uuid, ...) parse via their trait
+    try {
+      target = schema::column_traits<T>::from_sql_string(value);
+      return {};
+    } catch (const std::exception& e) {
+      return std::unexpected("'" + value + "' is not a valid " +
+                             std::string(refl::type_name<T>()) + ": " + e.what());
+    }
   } else {
     static_assert(std::is_same_v<T, bool>, "Unsupported type conversion");
   }
