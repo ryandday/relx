@@ -13,5 +13,6 @@
 #include "web/error.hpp"
 #include "web/http.hpp"
 #include "web/json.hpp"
+#include "web/projection.hpp"
 #include "web/router.hpp"
 #include "web/server.hpp"

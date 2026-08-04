@@ -2,6 +2,7 @@
 
 #include "error.hpp"
 #include "http.hpp"
+#include "projection.hpp"
 
 #include <string>
 #include <string_view>
@@ -24,6 +25,7 @@ Response json_response(http::status status, const T& value) {
 /// missing or mistyped fields produce a 400 with glaze's diagnostic.
 template <typename T>
 ApiResult<T> read_body(const Request& req) {
+  enforce_projection<T>();  // compile error if a projects<>-annotated DTO drifted
   T value{};
   auto ec = glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = true}>(
       value, req.body());

@@ -53,6 +53,7 @@ add_executable(relx_tests
     query/select_all_test.cpp
     query/bind_param_test.cpp
     query/web_core_gaps_test.cpp
+    web/projection_test.cpp
     query/distinct_select_test.cpp
     query/edge_case_test.cpp
     query/data_type_test.cpp
@@ -113,6 +114,7 @@ set(RELX_COMPILE_FAIL_SOURCES
     compile_fail/composite_pk_conflicts_with_member_pk.cpp
     compile_fail/composite_fk_targets_non_key.cpp
     compile_fail/select_missing_row_field.cpp
+    compile_fail/web_projection_drifted_field.cpp
 )
 foreach(compile_fail_src ${RELX_COMPILE_FAIL_SOURCES})
   get_filename_component(compile_fail_name ${compile_fail_src} NAME_WE)
