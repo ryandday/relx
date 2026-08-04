@@ -176,7 +176,7 @@ TEST_F(AdvancedQueryTest, WhereClauseTest) {
   auto params = query.bind_params();
   EXPECT_EQ(2, params.size());
   EXPECT_EQ("30", params[0]);
-  EXPECT_EQ("1", params[1]);  // true is represented as 1
+  EXPECT_EQ("true", params[1]);
 
   // Create some sample raw results
   std::vector<std::string> headers = {"id", "name", "age"};
