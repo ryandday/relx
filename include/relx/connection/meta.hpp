@@ -64,29 +64,19 @@ std::expected<void, std::string> convert_and_assign(T& target, const std::string
   }
 }
 
-/// @brief Map a result row onto an aggregate struct using reflection.
-/// @details When the result carries column names, each struct field is matched to its
-/// same-named column; fields with no matching column are left default-initialized (a
-/// query selecting a subset of the struct's fields is valid - selecting expresses that
-/// the other columns are not wanted). When the result has no column names, cells map
-/// positionally. Either way, every result column must be consumed by some field -
-/// a column with nowhere to land is an error, since its data would be silently lost.
-/// NULL cells map to std::nullopt for std::optional fields and are an error otherwise.
-/// @tparam T The aggregate struct to map onto
-/// @param row The database result row
-/// @return The mapped struct, or an error message
+/// @brief Verify that every result column can land in some field of T. Runs once per
+/// result set, not per row. With column names, matching is by name; without, positional
+/// (so there must be at least as many fields as columns). A column with nowhere to land
+/// is an error, since its data would be silently lost.
+/// @details For typed queries this is compile-time-proven already
+/// (assert_struct_covers_select_list) and only guards runtime drift such as PostgreSQL
+/// case-folding unquoted identifiers; it is load-bearing for raw SQL and runtime aliases.
 template <typename T>
-std::expected<T, std::string> map_row_to_struct(const result::Row& row) {
+std::expected<void, std::string> verify_result_columns_consumed(
+    const std::vector<std::string>& column_names, std::size_t column_count) {
   static constexpr auto field_names = refl::field_names<T>();
 
-  T obj{};
-  std::string error;
-  std::size_t field_index = 0;
-  const auto& column_names = row.column_names();
-  const bool by_name = !column_names.empty();
-
-  // Every result column must land in some field
-  if (by_name) {
+  if (!column_names.empty()) {
     for (const auto& column : column_names) {
       if (std::find(field_names.begin(), field_names.end(), column) == field_names.end()) {
         return std::unexpected("result column '" + column + "' has no matching field in struct '" +
@@ -94,11 +84,32 @@ std::expected<T, std::string> map_row_to_struct(const result::Row& row) {
                                "'; add the field or drop the column from the select");
       }
     }
-  } else if (row.size() > field_names.size()) {
-    return std::unexpected("result has " + std::to_string(row.size()) + " columns but struct '" +
+  } else if (column_count > field_names.size()) {
+    return std::unexpected("result has " + std::to_string(column_count) + " columns but struct '" +
                            std::string(refl::type_name<T>()) + "' has only " +
                            std::to_string(field_names.size()) + " field(s)");
   }
+  return {};
+}
+
+/// @brief Map a result row onto an aggregate struct using reflection.
+/// @details When the result carries column names, each struct field is matched to its
+/// same-named column; fields with no matching column are left default-initialized (a
+/// query selecting a subset of the struct's fields is valid - selecting expresses that
+/// the other columns are not wanted). When the result has no column names, cells map
+/// positionally. Callers are expected to run verify_result_columns_consumed<T> once per
+/// result set beforehand. NULL cells map to std::nullopt for std::optional fields and
+/// are an error otherwise.
+/// @tparam T The aggregate struct to map onto
+/// @param row The database result row
+/// @return The mapped struct, or an error message
+template <typename T>
+std::expected<T, std::string> map_row_to_struct(const result::Row& row) {
+  T obj{};
+  std::string error;
+  std::size_t field_index = 0;
+  const auto& column_names = row.column_names();
+  const bool by_name = !column_names.empty();
 
   refl::for_each_named_field(obj, [&](auto& field, std::string_view name) {
     const std::size_t position = field_index++;

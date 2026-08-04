@@ -106,6 +106,12 @@ public:
       co_return std::unexpected(ConnectionError{.message = "No results found", .error_code = -1});
     }
 
+    if (auto consumed = verify_result_columns_consumed<T>(result_set.column_names(),
+                                                          result_set.column_count());
+        !consumed) {
+      co_return std::unexpected(ConnectionError{.message = consumed.error(), .error_code = -1});
+    }
+
     auto mapped = map_row_to_struct<T>(result_set.at(0));
     if (!mapped) {
       co_return std::unexpected(ConnectionError{
@@ -136,6 +142,12 @@ public:
     // Check if we have at least one row to determine column count
     if (result_set.empty()) {
       co_return objects;  // Return empty vector
+    }
+
+    if (auto consumed = verify_result_columns_consumed<T>(result_set.column_names(),
+                                                          result_set.column_count());
+        !consumed) {
+      co_return std::unexpected(ConnectionError{.message = consumed.error(), .error_code = -1});
     }
 
     // Process each row
