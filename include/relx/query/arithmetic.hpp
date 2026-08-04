@@ -64,7 +64,7 @@ public:
     return "(" + left_.to_sql() + " " + op_ + " " + right_.to_sql() + ")";
   }
 
-  std::vector<std::string> bind_params() const override {
+  std::vector<bind_param> bind_params() const override {
     auto left_params = left_.bind_params();
     auto right_params = right_.bind_params();
     left_params.insert(left_params.end(), right_params.begin(), right_params.end());

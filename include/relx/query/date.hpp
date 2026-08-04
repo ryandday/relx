@@ -50,7 +50,7 @@ public:
     return func_name_ + "('" + unit_ + "', " + left_.to_sql() + ", " + right_.to_sql() + ")";
   }
 
-  std::vector<std::string> bind_params() const override {
+  std::vector<bind_param> bind_params() const override {
     auto left_params = left_.bind_params();
     auto right_params = right_.bind_params();
     left_params.insert(left_params.end(), right_params.begin(), right_params.end());
@@ -174,7 +174,7 @@ public:
     return func_name_ + "('" + unit_ + "', " + expr_.to_sql() + ")";
   }
 
-  std::vector<std::string> bind_params() const override { return expr_.bind_params(); }
+  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
   std::string column_name() const override { return func_name_ + "_" + unit_; }
 
@@ -276,7 +276,7 @@ public:
 
   std::string to_sql() const override { return "INTERVAL '" + interval_ + "'"; }
 
-  std::vector<std::string> bind_params() const override { return {}; }
+  std::vector<bind_param> bind_params() const override { return {}; }
 
   std::string column_name() const override { return "INTERVAL"; }
 
@@ -298,7 +298,7 @@ public:
     return "(" + date_expr_.to_sql() + " " + op_ + " " + interval_expr_.to_sql() + ")";
   }
 
-  std::vector<std::string> bind_params() const override {
+  std::vector<bind_param> bind_params() const override {
     auto date_params = date_expr_.bind_params();
     auto interval_params = interval_expr_.bind_params();
     date_params.insert(date_params.end(), interval_params.begin(), interval_params.end());
@@ -333,7 +333,7 @@ public:
 
   std::string to_sql() const override { return func_name_; }
 
-  std::vector<std::string> bind_params() const override { return {}; }
+  std::vector<bind_param> bind_params() const override { return {}; }
 
   std::string column_name() const override { return func_name_; }
 

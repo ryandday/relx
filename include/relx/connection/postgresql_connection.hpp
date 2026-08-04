@@ -54,10 +54,12 @@ public:
 
   /// @brief Execute a raw SQL query with parameters
   /// @param sql The SQL query string
-  /// @param params Vector of parameter values
+  /// @param params Parameter values; params tagged with a sql_kind (bool/int/float
+  /// values bound through the query builder) are sent with their type OID in binary
+  /// format, untagged params as untyped text
   /// @return Result containing the query results or an error
   ConnectionResult<result::ResultSet> execute_raw(
-      const std::string& sql, const std::vector<std::string>& params = {}) override;
+      const std::string& sql, const std::vector<bind_param>& params = {}) override;
 
   /// @brief Execute a raw SQL query with binary parameters
   /// @param sql The SQL query string
@@ -76,41 +78,35 @@ public:
   /// @return Result containing the query results or an error
   template <typename... Args>
   ConnectionResult<result::ResultSet> execute_typed(const std::string& sql, Args&&... args) {
-    // Convert each parameter to its string representation
-    std::vector<std::string> param_strings;
-    param_strings.reserve(sizeof...(Args));
+    std::vector<bind_param> params;
+    params.reserve(sizeof...(Args));
 
-    // Helper to convert a parameter to string and add to vector
-    auto add_param = [&param_strings](auto&& param) {
+    auto add_param = [&params](auto&& param) {
       using ParamType = std::remove_cvref_t<decltype(param)>;
 
       if constexpr (std::is_same_v<ParamType, std::nullptr_t>) {
         // Handle NULL values
-        param_strings.push_back("NULL");
+        params.emplace_back("NULL");
       } else if constexpr (std::is_same_v<ParamType, std::string> ||
                            std::is_same_v<ParamType, const char*> ||
                            std::is_same_v<ParamType, std::string_view>) {
         // String types
-        param_strings.push_back(std::string(param));
+        params.emplace_back(std::string(param));
       } else if constexpr (std::is_arithmetic_v<ParamType>) {
-        // Numeric types
-        param_strings.push_back(std::to_string(param));
-      } else if constexpr (std::is_same_v<ParamType, bool>) {
-        // Boolean values
-        param_strings.push_back(param ? "t" : "f");
+        // Numeric/boolean types: typed, sent over the binary protocol
+        params.push_back(relx::make_bind_param(param, std::to_string(param)));
       } else {
         // Other types, try to use stream conversion
         std::ostringstream ss;
         ss << param;
-        param_strings.push_back(ss.str());
+        params.emplace_back(ss.str());
       }
     };
 
     // Add each parameter to the vector
     (add_param(std::forward<Args>(args)), ...);
 
-    // Call the string-based execute_raw with our converted parameters
-    return execute_raw(sql, param_strings);
+    return execute_raw(sql, params);
   }
 
   /// @brief Check if the connection is open

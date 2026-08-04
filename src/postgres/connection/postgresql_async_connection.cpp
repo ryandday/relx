@@ -93,7 +93,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::discon
 }
 
 boost::asio::awaitable<ConnectionResult<result::ResultSet>> PostgreSQLAsyncConnection::execute_raw(
-    std::string sql, std::vector<std::string> params) {
+    std::string sql, std::vector<bind_param> params) {
   if (!is_connected()) {
     co_return std::unexpected(
         ConnectionError{.message = "Not connected to database", .error_code = -1});
@@ -106,7 +106,7 @@ boost::asio::awaitable<ConnectionResult<result::ResultSet>> PostgreSQLAsyncConne
 
   // Execute the query with copies of the parameters
   const std::string sql_copy = sql;
-  const std::vector<std::string> params_copy = params;
+  const std::vector<bind_param> params_copy = params;
 
   auto pg_result = co_await async_conn_->query(sql_copy, params_copy);
 

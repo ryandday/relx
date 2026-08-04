@@ -42,7 +42,9 @@ TEST(SelectAllTest, BasicSelectAll) {
   auto query = relx::query::select_all(u);
 
   // The expected SQL should include all columns but not constraints
-  std::string expected_sql = "SELECT * FROM users";
+  std::string expected_sql = "SELECT users.id, users.name, users.email, users.age, "
+                             "users.created_at, users.is_active, users.bio, "
+                             "users.login_count FROM users";
   EXPECT_EQ(query.to_sql(), expected_sql);
   EXPECT_TRUE(query.bind_params().empty());
 }
@@ -52,7 +54,9 @@ TEST(SelectAllTest, SelectAllWithoutInstance) {
   auto query = relx::query::select_all<users>();
 
   // The expected SQL should include all columns but not constraints
-  std::string expected_sql = "SELECT * FROM users";
+  std::string expected_sql = "SELECT users.id, users.name, users.email, users.age, "
+                             "users.created_at, users.is_active, users.bio, "
+                             "users.login_count FROM users";
   EXPECT_EQ(query.to_sql(), expected_sql);
   EXPECT_TRUE(query.bind_params().empty());
 }
@@ -61,7 +65,9 @@ TEST(SelectAllTest, SelectAllWithWhere) {
   users u;
   auto query = relx::query::select_all<users>().where(u.age > 18);
 
-  std::string expected_sql = "SELECT * FROM users WHERE (users.age > ?)";
+  std::string expected_sql = "SELECT users.id, users.name, users.email, users.age, "
+                             "users.created_at, users.is_active, users.bio, "
+                             "users.login_count FROM users WHERE (users.age > ?)";
   EXPECT_EQ(query.to_sql(), expected_sql);
 
   auto params = query.bind_params();
@@ -74,7 +80,10 @@ TEST(SelectAllTest, SelectAllWithJoin) {
   posts p;
   auto query = relx::query::select_all<users>().join(p, relx::query::on(u.id == p.user_id));
 
-  std::string expected_sql = "SELECT * FROM users JOIN posts ON (users.id = posts.user_id)";
+  std::string expected_sql =
+      "SELECT users.id, users.name, users.email, users.age, "
+      "users.created_at, users.is_active, users.bio, "
+      "users.login_count FROM users JOIN posts ON (users.id = posts.user_id)";
   EXPECT_EQ(query.to_sql(), expected_sql);
   EXPECT_TRUE(query.bind_params().empty());
 }
@@ -91,7 +100,9 @@ TEST(SelectAllTest, SelectAllWithAllClauses) {
                    .limit(10)
                    .offset(20);
 
-  std::string expected_sql = "SELECT * FROM users "
+  std::string expected_sql = "SELECT users.id, users.name, users.email, users.age, "
+                             "users.created_at, users.is_active, users.bio, "
+                             "users.login_count FROM users "
                              "JOIN posts ON (users.id = posts.user_id) "
                              "WHERE (users.age > ?) "
                              "GROUP BY users.id "
@@ -107,4 +118,36 @@ TEST(SelectAllTest, SelectAllWithAllClauses) {
   EXPECT_EQ(params[1], "5");
   EXPECT_EQ(params[2], "10");
   EXPECT_EQ(params[3], "20");
+}
+
+// Annotated tables: select_all over relx::t<T> expands the reflected members
+
+struct[[= relx::table("accounts")]] Accounts {
+  [[= relx::ann::pk]] int id;
+  std::string owner;
+  std::optional<std::string> note;
+};
+
+inline constexpr auto accounts = relx::t<Accounts>;
+
+TEST(SelectAllTest, AnnotatedTableExpandsColumns) {
+  auto query = relx::query::select_all(accounts);
+
+  std::string expected_sql = "SELECT accounts.id, accounts.owner, accounts.note FROM accounts";
+  EXPECT_EQ(query.to_sql(), expected_sql);
+  EXPECT_TRUE(query.bind_params().empty());
+}
+
+TEST(SelectAllTest, SynthesizesRowType) {
+  // The whole point of expanding * to explicit columns: the select list is typed,
+  // so the query synthesizes a row struct like any explicit select
+  auto query = relx::query::select_all(accounts);
+  using Row = relx::query::row_type_for<decltype(query)>;
+
+  Row row{};
+  row.id = 7;
+  row.owner = "alice";
+  row.note = std::nullopt;
+  EXPECT_EQ(row.id, 7);
+  EXPECT_EQ(row.owner, "alice");
 }

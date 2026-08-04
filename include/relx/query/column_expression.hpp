@@ -42,7 +42,7 @@ public:
 
   std::string to_sql() const override { return qualified_name(); }
 
-  std::vector<std::string> bind_params() const override { return {}; }
+  std::vector<bind_param> bind_params() const override { return {}; }
 
   std::string column_name() const override { return std::string(Column::name); }
 
@@ -84,7 +84,7 @@ public:
 
   std::string to_sql() const override { return expr_->to_sql() + " AS " + alias_; }
 
-  std::vector<std::string> bind_params() const override { return expr_->bind_params(); }
+  std::vector<bind_param> bind_params() const override { return expr_->bind_params(); }
 
   std::string column_name() const override { return alias_; }
 

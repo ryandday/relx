@@ -3,8 +3,10 @@
 #include "../reflect.hpp"
 #include "column.hpp"
 #include "fixed_string.hpp"
+#include "index.hpp"
 #include "table.hpp"
 
+#include <array>
 #include <cstddef>
 #include <meta>
 #include <string>
@@ -28,6 +30,16 @@
 /// Column names come from the member identifiers, the table name from the
 /// [[=relx::table("...")]] annotation (falling back to the struct identifier), and
 /// modifiers from annotations. The same struct doubles as the DTO for query results.
+///
+/// Constraints that span columns are struct-level annotations (columns named as
+/// strings, validated against the members at compile time):
+///
+/// ```cpp
+/// struct [[=relx::table("order_items"),
+///         =relx::ann::composite_pk("order_id", "product_id"),
+///         =relx::ann::index_on("customer_id", "created_at"),
+///         =relx::ann::check("quantity > 0")]] OrderItems { ... };
+/// ```
 ///
 /// Next to the struct, define its table object once — reflection synthesizes one column
 /// member per field, and queries read naturally:
@@ -184,6 +196,306 @@ struct table_ref : detail::columns_holder<T>::type {
   static constexpr std::string_view table_name = table_name_of<T>();
 };
 
+namespace detail {
+
+/// @brief Fixed-capacity list of column names for struct-level annotations.
+/// Annotation values must be structural, so names are stored in char arrays;
+/// a name longer than max_len - 1 or more than max_cols names is a compile error
+/// (out-of-bounds write in consteval).
+struct name_list {
+  static constexpr std::size_t max_cols = 8;
+  static constexpr std::size_t max_len = 64;
+
+  char names_[max_cols][max_len] = {};
+  std::size_t lens_[max_cols] = {};
+  std::size_t count_ = 0;
+
+  consteval void add(const char* s) {
+    std::size_t len = 0;
+    while (s[len] != '\0') {
+      names_[count_][len] = s[len];
+      ++len;
+    }
+    lens_[count_] = len;
+    ++count_;
+  }
+
+  constexpr std::string_view at(std::size_t i) const {
+    return std::string_view(names_[i], lens_[i]);
+  }
+
+  constexpr std::string joined() const {
+    std::string out;
+    for (std::size_t i = 0; i < count_; ++i) {
+      if (i > 0) {
+        out += ", ";
+      }
+      out += at(i);
+    }
+    return out;
+  }
+};
+
+}  // namespace detail
+
+/// @brief Struct-level annotations for constraints that span columns. A struct-level
+/// annotation cannot reference the struct's own members by reflection (the type is
+/// incomplete at that point), so columns are named as strings; every name is validated
+/// against the struct's members at compile time when DDL is generated.
+///
+/// ```cpp
+/// struct [[=relx::table("order_items"),
+///         =relx::ann::composite_pk("order_id", "product_id"),
+///         =relx::ann::index_on("customer_id", "created_at"),
+///         =relx::ann::check("quantity > 0")]] OrderItems { ... };
+/// ```
+
+/// @brief Composite PRIMARY KEY across the named columns
+struct composite_pk : detail::name_list {
+  static constexpr bool relx_table_constraint = true;
+  static constexpr bool relx_is_primary_key = true;
+
+  template <typename... Names>
+  consteval explicit composite_pk(Names... names) {
+    (add(names), ...);
+  }
+
+  consteval std::string constraint_sql() const { return "PRIMARY KEY (" + joined() + ")"; }
+};
+
+/// @brief Composite UNIQUE constraint across the named columns
+struct composite_unique : detail::name_list {
+  static constexpr bool relx_table_constraint = true;
+
+  template <typename... Names>
+  consteval explicit composite_unique(Names... names) {
+    (add(names), ...);
+  }
+
+  consteval std::string constraint_sql() const { return "UNIQUE (" + joined() + ")"; }
+};
+
+/// @brief Composite FOREIGN KEY: local columns are named as strings, target columns by
+/// reflection (the target table is already complete):
+/// [[=relx::ann::composite_fk<^^Orders::region, ^^Orders::code>("order_region", "order_code")]]
+template <std::meta::info... Targets>
+  requires (sizeof...(Targets) > 0)
+struct composite_fk : detail::name_list {
+  static constexpr bool relx_table_constraint = true;
+
+  template <typename... Names>
+  consteval explicit composite_fk(Names... names) {
+    static_assert(sizeof...(Names) == sizeof...(Targets),
+                  "composite_fk: one local column name per referenced target column");
+    (add(names), ...);
+  }
+
+  consteval std::string constraint_sql() const {
+    constexpr std::meta::info targets[] = {Targets...};
+    std::string out = "FOREIGN KEY (" + joined() + ") REFERENCES ";
+    out += table_name_of<typename [:std::meta::parent_of(targets[0]):]>();
+    out += " (";
+    bool first = true;
+    for (std::meta::info target : targets) {
+      if (!first) {
+        out += ", ";
+      }
+      first = false;
+      out += std::meta::identifier_of(target);
+    }
+    out += ")";
+    return out;
+  }
+};
+
+/// @brief Table-level CHECK constraint with a raw SQL condition; optionally named via
+/// [[=relx::ann::check("quantity > 0").named("positive_quantity")]].
+/// (Named annotated_check because schema::check is the column-modifier CHECK; the
+/// ann::check alias is the intended spelling.)
+struct annotated_check {
+  static constexpr bool relx_table_constraint = true;
+  static constexpr std::size_t max_cond_len = 256;
+  static constexpr std::size_t max_name_len = 64;
+
+  char cond_[max_cond_len] = {};
+  std::size_t cond_len_ = 0;
+  char name_[max_name_len] = {};
+  std::size_t name_len_ = 0;
+
+  consteval explicit annotated_check(const char* cond) {
+    while (cond[cond_len_] != '\0') {
+      cond_[cond_len_] = cond[cond_len_];
+      ++cond_len_;
+    }
+  }
+
+  consteval annotated_check named(const char* name) const {
+    annotated_check copy = *this;
+    copy.name_len_ = 0;
+    while (name[copy.name_len_] != '\0') {
+      copy.name_[copy.name_len_] = name[copy.name_len_];
+      ++copy.name_len_;
+    }
+    return copy;
+  }
+
+  consteval std::string constraint_sql() const {
+    std::string out;
+    if (name_len_ > 0) {
+      out += "CONSTRAINT " + std::string(std::string_view(name_, name_len_)) + " ";
+    }
+    out += "CHECK (" + std::string(std::string_view(cond_, cond_len_)) + ")";
+    return out;
+  }
+};
+
+/// @brief Index over the named columns; unique via
+/// [[=relx::ann::index_on("email").unique()]]. Emitted as separate CREATE INDEX
+/// statements - see relx::create_indexes_sql<T>().
+struct index_on : detail::name_list {
+  static constexpr bool relx_index_annotation = true;
+
+  index_type type_ = index_type::normal;
+
+  template <typename... Names>
+  consteval explicit index_on(Names... names) {
+    (add(names), ...);
+  }
+
+  consteval index_on unique() const {
+    index_on copy = *this;
+    copy.type_ = index_type::unique;
+    return copy;
+  }
+
+  consteval std::string index_sql(std::string_view table) const {
+    std::string name = std::string(table) + "_";
+    for (std::size_t i = 0; i < count_; ++i) {
+      name += at(i);
+      name += "_";
+    }
+    name += "idx";
+
+    std::string out = "CREATE ";
+    out += index_type_to_string(type_);
+    out += "INDEX " + name + " ON " + std::string(table) + " (" + joined() + ")";
+    return out;
+  }
+};
+
+namespace detail {
+
+template <typename A>
+concept TableConstraintAnnotation = requires { requires A::relx_table_constraint; };
+
+template <typename A>
+concept IndexAnnotation = requires { requires A::relx_index_annotation; };
+
+template <typename A>
+concept NamedColumnList = std::derived_from<A, name_list>;
+
+/// @brief Problems with T's table-level annotations, empty when they are valid.
+/// Collected as text so the static_assert message can name the offending columns.
+template <typename T>
+consteval std::string constraint_diagnostics() {
+  std::string diag;
+
+  bool member_level_pk = false;
+  for (std::meta::info m : refl::member_array<T>()) {
+    for (std::meta::info a : std::meta::annotations_of(m)) {
+      if (std::meta::remove_cv(std::meta::type_of(a)) == ^^primary_key) {
+        member_level_pk = true;
+      }
+    }
+  }
+
+  std::size_t composite_pk_count = 0;
+  template for (constexpr std::meta::info a :
+                std::define_static_array(std::meta::annotations_of(^^T))) {
+    using A = typename [:std::meta::remove_cv(std::meta::type_of(a)):];
+    if constexpr (NamedColumnList<A>) {
+      auto v = std::meta::extract<A>(a);
+      if (v.count_ == 0) {
+        diag += "annotation must name at least one column; ";
+      }
+      for (std::size_t i = 0; i < v.count_; ++i) {
+        if (!refl::has_field_named<T>(v.at(i))) {
+          diag += "'" + std::string(v.at(i)) + "' is not a column of this table; ";
+        }
+      }
+    }
+    if constexpr (std::same_as<A, composite_pk>) {
+      ++composite_pk_count;
+    }
+  }
+
+  if (composite_pk_count > 1) {
+    diag += "a table can have at most one composite_pk; ";
+  }
+  if (composite_pk_count > 0 && member_level_pk) {
+    diag += "composite_pk conflicts with a column-level pk annotation; ";
+  }
+  return diag;
+}
+
+template <typename T>
+consteval void validate_table_annotations() {
+  static_assert(constraint_diagnostics<T>().empty(),
+                std::string("invalid table-level annotations on '") +
+                    std::string(refl::type_name<T>()) + "': " + constraint_diagnostics<T>());
+}
+
+/// @brief Table-level constraint clauses of T (comma/newline separated), from its
+/// struct annotations
+template <typename T>
+consteval std::string table_constraint_defs() {
+  validate_table_annotations<T>();
+  std::string out;
+  template for (constexpr std::meta::info a :
+                std::define_static_array(std::meta::annotations_of(^^T))) {
+    using A = typename [:std::meta::remove_cv(std::meta::type_of(a)):];
+    if constexpr (TableConstraintAnnotation<A>) {
+      if (!out.empty()) {
+        out += ",\n";
+      }
+      out += std::meta::extract<A>(a).constraint_sql();
+    }
+  }
+  return out;
+}
+
+template <typename T>
+consteval std::size_t index_annotation_count() {
+  std::size_t n = 0;
+  template for (constexpr std::meta::info a :
+                std::define_static_array(std::meta::annotations_of(^^T))) {
+    if constexpr (IndexAnnotation<typename [:std::meta::remove_cv(std::meta::type_of(a)):]>) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+}  // namespace detail
+
+/// @brief CREATE INDEX statements for T's index_on annotations, one per annotation,
+/// built at compile time into static storage
+template <typename T>
+consteval auto create_indexes_sql() {
+  detail::validate_table_annotations<T>();
+  std::array<std::string_view, detail::index_annotation_count<T>()> stmts{};
+  std::size_t i = 0;
+  template for (constexpr std::meta::info a :
+                std::define_static_array(std::meta::annotations_of(^^T))) {
+    using A = typename [:std::meta::remove_cv(std::meta::type_of(a)):];
+    if constexpr (detail::IndexAnnotation<A>) {
+      stmts[i++] = std::define_static_string(
+          std::meta::extract<A>(a).index_sql(table_name_of<T>()));
+    }
+  }
+  return stmts;
+}
+
 /// @brief Column modifier annotations
 namespace ann {
 inline constexpr schema::primary_key pk{};
@@ -196,6 +508,13 @@ template <std::meta::info M>
 inline constexpr auto fk =
     references<detail::table_name_fs<typename [:std::meta::parent_of(M):]>(),
                detail::member_name_fs<M>()>{};
+
+// Struct-level constraint annotations
+using check = schema::annotated_check;
+using schema::composite_fk;
+using schema::composite_pk;
+using schema::composite_unique;
+using schema::index_on;
 }  // namespace ann
 
 /// @brief Column definitions for an annotated table, derived via reflection
@@ -221,16 +540,24 @@ std::string collect_column_definitions(const table_ref<T>&) {
   return collect_column_definitions(table_t<T>{});
 }
 
-/// @brief Annotated tables express constraints as column modifiers, so there are no
-/// separate table-level constraint definitions
+/// @brief Table-level constraint definitions of an annotated table (composite keys,
+/// composite uniques/FKs, checks), built at compile time from its struct annotations.
+/// Single-column constraints remain column modifiers and appear in the column
+/// definitions instead.
+template <typename T>
+consteval std::string_view table_constraints_sql() {
+  return std::define_static_string(detail::table_constraint_defs<T>());
+}
+
 template <typename T>
 std::string collect_constraint_definitions(const table_t<T>&) {
-  return "";
+  constexpr std::string_view sql = table_constraints_sql<T>();
+  return std::string(sql);
 }
 
 template <typename T>
 std::string collect_constraint_definitions(const table_ref<T>&) {
-  return "";
+  return collect_constraint_definitions(table_t<T>{});
 }
 
 // clang-format off
@@ -270,6 +597,11 @@ struct create_table_sql_builder {
       }
       first = false;
       sql += column_for<m>{}.sql_definition();
+    }
+
+    const std::string constraints = detail::table_constraint_defs<T>();
+    if (!constraints.empty()) {
+      sql += ",\n" + constraints;
     }
 
     sql += "\n);";
@@ -327,6 +659,7 @@ consteval drop_table_sql_builder<T> drop_table_sql() {
 
 namespace relx {
 using schema::column_for;
+using schema::create_indexes_sql;
 using schema::create_table_sql;
 using schema::drop_table_sql;
 using schema::table;

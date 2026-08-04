@@ -49,8 +49,8 @@ public:
 
   /// @brief Get the bind parameters for this DELETE query
   /// @return Vector of bind parameters
-  std::vector<std::string> bind_params() const {
-    std::vector<std::string> params;
+  std::vector<bind_param> bind_params() const {
+    std::vector<bind_param> params;
 
     // Collect parameters from WHERE clause
     if constexpr (!std::is_same_v<Where, std::nullopt_t>) {

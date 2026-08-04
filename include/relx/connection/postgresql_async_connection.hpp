@@ -75,7 +75,7 @@ public:
   /// @param params Vector of parameter values
   /// @return Awaitable that resolves with the query results
   boost::asio::awaitable<ConnectionResult<result::ResultSet>> execute_raw(
-      std::string sql, std::vector<std::string> params = {});
+      std::string sql, std::vector<bind_param> params = {});
 
   /// @brief Execute a query expression asynchronously
   /// @param query The query expression to execute
@@ -83,7 +83,7 @@ public:
   template <query::SqlExpr Query>
   boost::asio::awaitable<ConnectionResult<result::ResultSet>> execute(Query query) {
     std::string sql = query.to_sql();
-    std::vector<std::string> params = query.bind_params();
+    std::vector<bind_param> params = query.bind_params();
     return execute_raw(sql, params);
   }
 

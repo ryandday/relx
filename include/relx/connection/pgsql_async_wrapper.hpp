@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "../bind_param.hpp"
+
 #include <chrono>
 #include <expected>
 #include <format>
@@ -454,39 +456,51 @@ public:
     co_return PgResult<void>{};
   }
 
-  // Asynchronous parameterized query execution using boost::asio::awaitable
+  // Asynchronous parameterized query execution using boost::asio::awaitable.
+  // Params tagged with a sql_kind are sent with their type OID in binary format,
+  // the rest as untyped text (bind_param converts implicitly from strings).
   boost::asio::awaitable<PgResult<Result>> query(const std::string& query_text,
-                                                 const std::vector<std::string>& params = {}) {
+                                                 const std::vector<relx::bind_param>& params = {}) {
     if (!is_open()) {
       co_return std::unexpected(PgError{.message = "Connection is not open", .error_code = -1});
     }
 
-    // Convert parameters
+    std::vector<Oid> types;
     std::vector<const char*> values;
+    std::vector<int> lengths;
+    std::vector<int> formats;
+    types.reserve(params.size());
     values.reserve(params.size());
+    lengths.reserve(params.size());
+    formats.reserve(params.size());
+
     for (const auto& param : params) {
-      values.push_back(param.c_str());
+      types.push_back(static_cast<Oid>(param.kind));
+      if (param.kind != relx::sql_kind::unspecified) {
+        values.push_back(reinterpret_cast<const char*>(param.binary.data()));
+        lengths.push_back(param.binary_size);
+        formats.push_back(1);  // binary
+      } else {
+        values.push_back(param.value.c_str());
+        lengths.push_back(static_cast<int>(param.value.size()));
+        formats.push_back(0);  // text
+      }
     }
 
-    // Send the parameterized query
-    if (!PQsendQueryParams(conn_, query_text.c_str(), static_cast<int>(values.size()),
-                           // TODO allow user to customize fields with nullptr values
-                           nullptr,  // param types - inferred
-                           values.size() == 0 ? nullptr : values.data(),
-                           nullptr,  // param lengths - null-terminated strings
-                           nullptr,  // param formats - text format
-                           0         // result format - text format
-                           )) {
+    if (!PQsendQueryParams(
+            conn_, query_text.c_str(), static_cast<int>(params.size()),
+            params.empty() ? nullptr : types.data(), params.empty() ? nullptr : values.data(),
+            params.empty() ? nullptr : lengths.data(), params.empty() ? nullptr : formats.data(),
+            0  // result format - text format
+            )) {
       co_return std::unexpected(PgError::from_conn(conn_));
     }
 
-    // Flush the outgoing data
     auto flush_result = co_await flush_outgoing_data();
     if (!flush_result) {
       co_return std::unexpected(flush_result.error());
     }
 
-    // Get and return the result
     co_return co_await get_query_result();
   }
 

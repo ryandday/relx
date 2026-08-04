@@ -298,7 +298,7 @@ TEST_F(AdvancedQueryTest, ComplexQueryTest) {
   auto params = query.bind_params();
   EXPECT_EQ(3, params.size());
   // Just check it starts with 10000 for the double value
-  EXPECT_TRUE(params[0].find("10000") == 0)
+  EXPECT_TRUE(params[0].value.find("10000") == 0)
       << "Parameter should be approximately 10000, got " << params[0];
   EXPECT_EQ("100", params[1]);
   EXPECT_EQ("5", params[2]);

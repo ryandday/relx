@@ -159,11 +159,11 @@ ConnectionResult<PGresult*> PostgreSQLConnection::handle_pg_result(PGresult* res
 // Nice for debugging
 constexpr bool ultra_verbose = false;
 ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
-    const std::string& sql, const std::vector<std::string>& params) {
+    const std::string& sql, const std::vector<bind_param>& params) {
   if constexpr (ultra_verbose) {
     std::cout << "Executing raw SQL: " << sql << std::endl;
     for (const auto& param : params) {
-      std::cout << "Param: " << param << std::endl;
+      std::cout << "Param: " << param.value << std::endl;
     }
   }
 
@@ -188,23 +188,36 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     // Convert ? placeholders to $1, $2, etc.
     const std::string pg_sql = convert_placeholders(sql);
 
-    // Prepare parameter values array
+    // Typed params (bool/int/float from the query builder) go over the binary protocol
+    // with their type OID; untyped ones as text with the type left to server inference
+    std::vector<Oid> param_types;
     std::vector<const char*> param_values;
+    std::vector<int> param_lengths;
+    std::vector<int> param_formats;
+    param_types.reserve(params.size());
     param_values.reserve(params.size());
+    param_lengths.reserve(params.size());
+    param_formats.reserve(params.size());
 
     for (const auto& param : params) {
-      param_values.push_back(param.c_str());
+      param_types.push_back(static_cast<Oid>(param.kind));
+      if (param.kind != sql_kind::unspecified) {
+        param_values.push_back(reinterpret_cast<const char*>(param.binary.data()));
+        param_lengths.push_back(param.binary_size);
+        param_formats.push_back(1);  // binary
+      } else {
+        param_values.push_back(param.value.c_str());
+        param_lengths.push_back(static_cast<int>(param.value.size()));
+        param_formats.push_back(0);  // text
+      }
     }
 
     // Execute with parameters
-    pg_result = PGResultWrapper(PQexecParams(pg_conn_, pg_sql.c_str(),
-                                             static_cast<int>(params.size()),
-                                             nullptr,  // Use default parameter types
-                                             param_values.data(),
-                                             nullptr,  // All parameters are text format
-                                             nullptr,  // All parameters are text format
-                                             0         // Use text format for results
-                                             ));
+    pg_result = PGResultWrapper(
+        PQexecParams(pg_conn_, pg_sql.c_str(), static_cast<int>(params.size()), param_types.data(),
+                     param_values.data(), param_lengths.data(), param_formats.data(),
+                     0  // Use text format for results
+                     ));
   }
 
   // Check if memory allocation failed

@@ -367,7 +367,7 @@ relx provides RAII-based automatic resource management for streaming operations.
     Users users;
     
     // Build query using relx API
-    auto query = relx::select_all<Users>().from(users);
+    auto query = relx::select_all<Users>();
     
     // Streaming result automatically cleans up when iteration completes
     auto streaming_result = relx::connection::create_async_streaming_result(conn, query);
@@ -387,7 +387,7 @@ relx provides RAII-based automatic resource management for streaming operations.
     LargeTable large_table;
     
     // Build query using relx API
-    auto query = relx::select_all<LargeTable>().from(large_table);
+    auto query = relx::select_all<LargeTable>();
     
     auto streaming_result = relx::connection::create_async_streaming_result(conn, query);
     
@@ -422,7 +422,7 @@ boost::asio::awaitable<void> safe_streaming_processing() {
         Users users;
         
         // Build query using relx API
-        auto query = relx::select_all<Users>().from(users);
+        auto query = relx::select_all<Users>();
         
         auto streaming_result = relx::connection::create_async_streaming_result(conn, query);
         
@@ -447,13 +447,13 @@ boost::asio::awaitable<void> safe_streaming_processing() {
 ```cpp
 // Traditional approach - loads all data into memory
 auto regular_result = conn.execute(
-    relx::select_all<Users>().from(users).limit(1000000)
+    relx::select_all<Users>().limit(1000000)
 );
 // Memory usage: ~100MB for 1M rows
 
 // Streaming approach - constant memory usage
 Users users;
-auto query = relx::select_all<Users>().from(users).limit(1000000);
+auto query = relx::select_all<Users>().limit(1000000);
 auto streaming_result = relx::connection::create_streaming_result(conn, query);
 // Memory usage: ~1KB regardless of result size
 ```
@@ -548,7 +548,7 @@ auto streaming_result2 = relx::connection::create_streaming_result(conn, limited
 
 // ❌ Avoid: Unordered streaming of very large tables
 HugeTable huge_table;
-auto bad_query = relx::select_all<HugeTable>().from(huge_table);  // No ORDER BY
+auto bad_query = relx::select_all<HugeTable>();  // No ORDER BY
 // This might be inefficient
 
 // ✅ Good: Filter at database level

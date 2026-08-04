@@ -20,7 +20,7 @@ public:
 
   std::string to_sql() const override { return func_name_ + "(" + expr_.to_sql() + ")"; }
 
-  std::vector<std::string> bind_params() const override { return expr_.bind_params(); }
+  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
   std::string column_name() const override { return func_name_ + "(" + expr_.column_name() + ")"; }
 
@@ -45,7 +45,7 @@ public:
 
   std::string to_sql() const override { return func_name_ + "()"; }
 
-  std::vector<std::string> bind_params() const override { return {}; }
+  std::vector<bind_param> bind_params() const override { return {}; }
 
   std::string column_name() const override { return func_name_ + "()"; }
 
@@ -60,7 +60,7 @@ class CountAllExpr : public ColumnExpression {
 public:
   std::string to_sql() const override { return "COUNT(*)"; }
 
-  std::vector<std::string> bind_params() const override { return {}; }
+  std::vector<bind_param> bind_params() const override { return {}; }
 
   std::string column_name() const override { return "COUNT(*)"; }
 
@@ -229,7 +229,7 @@ public:
 
   std::string to_sql() const override { return "DISTINCT " + expr_.to_sql(); }
 
-  std::vector<std::string> bind_params() const override { return expr_.bind_params(); }
+  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
   std::string column_name() const override {
     if constexpr (std::is_base_of_v<ColumnExpression, Expr>) {
@@ -368,8 +368,8 @@ public:
     return ss.str();
   }
 
-  std::vector<std::string> bind_params() const override {
-    std::vector<std::string> params;
+  std::vector<bind_param> bind_params() const override {
+    std::vector<bind_param> params;
 
     auto first_params = first_.bind_params();
     params.insert(params.end(), first_params.begin(), first_params.end());
@@ -484,8 +484,8 @@ public:
     return sql;
   }
 
-  std::vector<std::string> bind_params() const override {
-    std::vector<std::string> params;
+  std::vector<bind_param> bind_params() const override {
+    std::vector<bind_param> params;
 
     // Interleave condition and value parameters in the expected order
     for (const auto& [when_cond, then_val] : when_thens_) {

@@ -189,7 +189,7 @@ Use streaming for optimal performance in these scenarios:
 ```cpp
 // Traditional approach - loads all data into memory
 auto regular_result = conn.execute<UserDTO>(
-    relx::select_all<Users>().from(users).limit(1000000)
+    relx::select_all<Users>().limit(1000000)
 );
 // Memory usage: ~150MB for 1M users
 
@@ -197,7 +197,7 @@ auto regular_result = conn.execute<UserDTO>(
 #include <relx/connection/postgresql_streaming_source.hpp>
 
 Users users;
-auto streaming_query = relx::select_all<Users>().from(users).limit(1000000);
+auto streaming_query = relx::select_all<Users>().limit(1000000);
 auto streaming_result = relx::connection::create_streaming_result(conn, streaming_query);
 // Memory usage: ~1KB regardless of result size
 
@@ -259,7 +259,7 @@ boost::asio::awaitable<void> high_performance_processing() {
     co_await conn.connect();
     
     LargeTable large_table;
-    auto async_query = relx::select_all<LargeTable>().from(large_table).order_by(large_table.id);
+    auto async_query = relx::select_all<LargeTable>().order_by(large_table.id);
     auto streaming_result = relx::connection::create_async_streaming_result(conn, async_query);
     
     int batch_count = 0;
@@ -310,7 +310,7 @@ struct HugeTable {
 ```cpp
 // ✅ Good: Order by indexed columns for efficient streaming
 Users users;
-auto good_query = relx::select_all<Users>().from(users).order_by(users.id);  // id is primary key
+auto good_query = relx::select_all<Users>().order_by(users.id);  // id is primary key
 auto streaming_result = relx::connection::create_streaming_result(conn, good_query);
 
 // ✅ Good: Use LIMIT with streaming for bounded processing
@@ -330,7 +330,7 @@ auto streaming_result3 = relx::connection::create_streaming_result(conn, filtere
 
 // ❌ Avoid: Unordered streaming of very large tables
 HugeTable huge_table;
-auto bad_query = relx::select_all<HugeTable>().from(huge_table);  // No ORDER BY
+auto bad_query = relx::select_all<HugeTable>();  // No ORDER BY
 auto bad_streaming_result = relx::connection::create_streaming_result(conn, bad_query);
 ```
 
@@ -341,7 +341,7 @@ relx provides RAII-based cleanup for optimal performance:
 ```cpp
 {
     Users users;
-    auto cleanup_query = relx::select_all<Users>().from(users);
+    auto cleanup_query = relx::select_all<Users>();
     auto streaming_result = relx::connection::create_async_streaming_result(conn, cleanup_query);
     
     // Process some data

@@ -176,6 +176,76 @@ TEST(AnnotatedTableTest, StandaloneColumnRef) {
   EXPECT_EQ(query.to_sql(), "SELECT users.id FROM users WHERE (users.id = ?)");
 }
 
+// Struct-level annotations: composite keys, indexes, table-level checks
+
+struct [[=relx::table("order_items"),
+        =relx::ann::composite_pk("order_id", "product_id"),
+        =relx::ann::composite_unique("region", "external_ref"),
+        =relx::ann::index_on("customer_id", "created_at"),
+        =relx::ann::index_on("external_ref").unique(),
+        =relx::ann::check("quantity > 0").named("positive_quantity")]] OrderItems {
+  int order_id;
+  int product_id;
+  int customer_id;
+  std::string region;
+  std::string external_ref;
+  std::string created_at;
+  int quantity;
+};
+
+struct [[=relx::table("shipments"),
+        =relx::ann::composite_fk<^^OrderItems::order_id, ^^OrderItems::product_id>(
+            "order_id", "product_id")]] Shipments {
+  [[=relx::ann::pk]] int id;
+  int order_id;
+  int product_id;
+};
+
+TEST(AnnotatedTableTest, TableLevelConstraintDefinitions) {
+  EXPECT_EQ(relx::schema::table_constraints_sql<OrderItems>(),
+            "PRIMARY KEY (order_id, product_id),\n"
+            "UNIQUE (region, external_ref),\n"
+            "CONSTRAINT positive_quantity CHECK (quantity > 0)");
+}
+
+TEST(AnnotatedTableTest, CompositeForeignKey) {
+  EXPECT_EQ(relx::schema::table_constraints_sql<Shipments>(),
+            "FOREIGN KEY (order_id, product_id) REFERENCES order_items (order_id, product_id)");
+}
+
+TEST(AnnotatedTableTest, CreateTableIncludesTableConstraints) {
+  constexpr auto ddl = relx::create_table_sql<OrderItems>().to_sql();
+  static_assert(ddl ==
+                "CREATE TABLE order_items (\n"
+                "order_id INTEGER NOT NULL,\n"
+                "product_id INTEGER NOT NULL,\n"
+                "customer_id INTEGER NOT NULL,\n"
+                "region TEXT NOT NULL,\n"
+                "external_ref TEXT NOT NULL,\n"
+                "created_at TEXT NOT NULL,\n"
+                "quantity INTEGER NOT NULL,\n"
+                "PRIMARY KEY (order_id, product_id),\n"
+                "UNIQUE (region, external_ref),\n"
+                "CONSTRAINT positive_quantity CHECK (quantity > 0)\n"
+                ");");
+  SUCCEED();
+}
+
+TEST(AnnotatedTableTest, RuntimeCreateTableIncludesTableConstraints) {
+  auto sql = relx::create_table(relx::t<OrderItems>).to_sql();
+  EXPECT_NE(sql.find("PRIMARY KEY (order_id, product_id)"), std::string::npos);
+  EXPECT_NE(sql.find("UNIQUE (region, external_ref)"), std::string::npos);
+}
+
+TEST(AnnotatedTableTest, IndexAnnotationsBecomeCreateIndexStatements) {
+  constexpr auto stmts = relx::create_indexes_sql<OrderItems>();
+  static_assert(stmts.size() == 2);
+  EXPECT_EQ(stmts[0], "CREATE INDEX order_items_customer_id_created_at_idx ON order_items "
+                      "(customer_id, created_at)");
+  EXPECT_EQ(stmts[1],
+            "CREATE UNIQUE INDEX order_items_external_ref_idx ON order_items (external_ref)");
+}
+
 // clang-format on
 
 }  // namespace

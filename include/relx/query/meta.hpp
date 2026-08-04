@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../bind_param.hpp"
+
 #include <ranges>
 #include <sstream>
 #include <string>
@@ -28,8 +30,8 @@ std::string tuple_to_sql(const Tuple& tuple, const char* separator) {
 
 /// @brief Helper to collect bind parameters from a tuple of expressions
 template <typename Tuple>
-std::vector<std::string> tuple_bind_params(const Tuple& tuple) {
-  std::vector<std::string> params;
+std::vector<bind_param> tuple_bind_params(const Tuple& tuple) {
+  std::vector<bind_param> params;
 
   std::apply(
       [&](const auto&... items) {

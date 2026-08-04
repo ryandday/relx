@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../bind_param.hpp"
 #include "../schema/column.hpp"
 #include "../schema/core.hpp"
 #include "../schema/table.hpp"
@@ -14,6 +15,9 @@
 #include <vector>
 
 namespace relx::query {
+
+using relx::bind_param;
+using relx::sql_kind;
 
 /// @brief Error type for query operations
 struct QueryError {
@@ -61,7 +65,7 @@ concept ConditionExpr = SqlExpr<T>;
 struct SqlExpression {
   virtual ~SqlExpression() = default;
   virtual std::string to_sql() const = 0;
-  virtual std::vector<std::string> bind_params() const = 0;
+  virtual std::vector<bind_param> bind_params() const = 0;
 };
 
 /// @brief Types of JOIN operations

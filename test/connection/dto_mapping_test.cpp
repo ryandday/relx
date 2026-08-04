@@ -16,7 +16,7 @@ public:
   relx::ConnectionResult<void> disconnect() override { return {}; }
 
   relx::ConnectionResult<relx::result::ResultSet> execute_raw(
-      const std::string& sql, const std::vector<std::string>& params = {}) override {
+      const std::string& sql, const std::vector<relx::bind_param>& params = {}) override {
     // Store the SQL and params for verification
     last_sql = sql;
     last_params = params;
@@ -43,7 +43,7 @@ public:
 
   // Access to last executed SQL and params for verification
   std::string last_sql;
-  std::vector<std::string> last_params;
+  std::vector<relx::bind_param> last_params;
   relx::result::ResultSet mock_result_set;
 };
 
@@ -248,7 +248,7 @@ TEST_F(DtoMappingTest, EmptyResultSet) {
 // cannot fire, so an unconsumed result column must be caught at runtime
 struct RawQuery {
   std::string to_sql() const { return "SELECT id, name, age, email, score FROM users"; }
-  std::vector<std::string> bind_params() const { return {}; }
+  std::vector<relx::bind_param> bind_params() const { return {}; }
 };
 
 // Test that a result column with no matching field is a runtime mapping error

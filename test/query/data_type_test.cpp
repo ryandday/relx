@@ -101,10 +101,10 @@ TEST(DataTypeTest, FloatingPointTypes) {
 
   // The exact string representation may vary, but should be close to these values
   // Some implementations might use scientific notation
-  EXPECT_TRUE(params_float[0].find("3.14159") != std::string::npos ||
-              params_float[0].find("3.1415") != std::string::npos);
-  EXPECT_TRUE(params_double[0].find("2.71828") != std::string::npos ||
-              params_double[0].find("2.7182") != std::string::npos);
+  EXPECT_TRUE(params_float[0].value.find("3.14159") != std::string::npos ||
+              params_float[0].value.find("3.1415") != std::string::npos);
+  EXPECT_TRUE(params_double[0].value.find("2.71828") != std::string::npos ||
+              params_double[0].value.find("2.7182") != std::string::npos);
 }
 
 // Test for string types
@@ -307,8 +307,8 @@ TEST(DataTypeTest, DirectLiteralComparisons) {
   EXPECT_EQ(params_string.size(), 1);
 
   EXPECT_EQ(params_int[0], "42");
-  EXPECT_TRUE(params_float[0].find("3.14159") != std::string::npos ||
-              params_float[0].find("3.1415") != std::string::npos);
+  EXPECT_TRUE(params_float[0].value.find("3.14159") != std::string::npos ||
+              params_float[0].value.find("3.1415") != std::string::npos);
   EXPECT_EQ(params_combined[0], "18");
   EXPECT_EQ(params_string[0], "Direct string literal");
 

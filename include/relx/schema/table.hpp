@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../bind_param.hpp"
 #include "../reflect.hpp"
 #include "column.hpp"
 #include "fixed_string.hpp"
@@ -118,7 +119,7 @@ private:
   bool cascade_ = false;
   bool restrict_ = false;
 
-  std::vector<std::string> bind_params_;
+  std::vector<bind_param> bind_params_;
 
 public:
   create_table(const Table& table_instance) : table_instance_(table_instance) {}
@@ -176,7 +177,7 @@ public:
     return sql;
   }
 
-  const std::vector<std::string>& bind_params() const { return bind_params_; }
+  const std::vector<bind_param>& bind_params() const { return bind_params_; }
 };
 
 /// @brief Generate DROP TABLE SQL statement for a table struct
@@ -227,10 +228,10 @@ public:
     return sql;
   }
 
-  const std::vector<std::string>& bind_params() const { return bind_params_; }
+  const std::vector<bind_param>& bind_params() const { return bind_params_; }
 
 private:
-  std::vector<std::string> bind_params_;
+  std::vector<bind_param> bind_params_;
   const Table& table_instance_;
   bool if_exists_ = true;
   bool cascade_ = false;

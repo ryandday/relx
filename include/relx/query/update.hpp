@@ -30,7 +30,7 @@ struct SetItem {
 
   std::string to_sql() const { return column.column_name() + " = " + value.to_sql(); }
 
-  std::vector<std::string> bind_params() const { return value.bind_params(); }
+  std::vector<bind_param> bind_params() const { return value.bind_params(); }
 };
 
 /// @brief Base UPDATE query builder
@@ -63,8 +63,8 @@ private:
   }
 
   // Helper to collect bind parameters from RETURNING clause
-  std::vector<std::string> returning_bind_params() const {
-    std::vector<std::string> params;
+  std::vector<bind_param> returning_bind_params() const {
+    std::vector<bind_param> params;
 
     if constexpr (!is_empty_tuple<ReturningColumns>()) {
       std::apply(
@@ -125,8 +125,8 @@ public:
 
   /// @brief Get the bind parameters for this UPDATE query
   /// @return Vector of bind parameters
-  std::vector<std::string> bind_params() const {
-    std::vector<std::string> params;
+  std::vector<bind_param> bind_params() const {
+    std::vector<bind_param> params;
 
     // Collect parameters from SET items
     if constexpr (!is_empty_tuple<Sets>()) {

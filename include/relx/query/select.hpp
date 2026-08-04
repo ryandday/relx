@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../reflect.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
 #include "core.hpp"
@@ -9,6 +10,7 @@
 
 #include <iostream>
 #include <memory>
+#include <meta>
 #include <optional>
 #include <print>
 #include <sstream>
@@ -197,8 +199,8 @@ public:
 
   /// @brief Get the bind parameters for this SELECT query
   /// @return Vector of bind parameters
-  std::vector<std::string> bind_params() const {
-    std::vector<std::string> params;
+  std::vector<bind_param> bind_params() const {
+    std::vector<bind_param> params;
 
     // Collect parameters from columns
     if constexpr (!is_empty_tuple<Columns>()) {
@@ -368,7 +370,7 @@ public:
     struct DummyCondition : public SqlExpression {
       // TODO Get rid of this dummy conditions somehow
       std::string to_sql() const override { return "1=1"; }
-      std::vector<std::string> bind_params() const override { return {}; }
+      std::vector<bind_param> bind_params() const override { return {}; }
     };
 
     return join(table, DummyCondition{}, JoinType::Cross);
@@ -541,7 +543,7 @@ public:
 
   std::string to_sql() const override { return expr_.to_sql() + " DESC"; }
 
-  std::vector<std::string> bind_params() const override { return expr_.bind_params(); }
+  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
 private:
   Expr expr_;
@@ -573,7 +575,7 @@ public:
 
   std::string to_sql() const override { return expr_.to_sql() + " ASC"; }
 
-  std::vector<std::string> bind_params() const override { return expr_.bind_params(); }
+  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
 private:
   Expr expr_;
@@ -598,28 +600,50 @@ auto asc(const T& column) {
   return asc(to_expr(column));
 }
 
-// Helper to create a SelectQuery from a list of column expressions
-template <TableType Table>
-auto select_all(const Table& table) {
-  // Create a SelectQuery that selects just *
-  class StarExpression : public SqlExpression {
-  public:
-    std::string to_sql() const override { return "*"; }
+// clang-format off
 
-    std::vector<std::string> bind_params() const override { return {}; }
-  };
+namespace detail {
 
-  // Use a star expression for simplicity
-  return SelectQuery(std::tuple<StarExpression>()).from(table);
+template <schema::is_column T>
+struct select_all_column_probe {};
+
+/// @brief Data members of Table that are columns, in declaration order (constraint
+/// members of classic tables are filtered out)
+template <typename Table>
+consteval auto select_all_columns() {
+  std::vector<std::meta::info> cols;
+  for (std::meta::info m : refl::member_array<Table>()) {
+    if (std::meta::can_substitute(^^select_all_column_probe, {std::meta::type_of(m)})) {
+      cols.push_back(m);
+    }
+  }
+  return std::define_static_array(cols);
 }
 
-/// @brief Create a SELECT * query without requiring a table instance
+}  // namespace detail
+
+/// @brief Create a SELECT query over every column of the table, expanded to an explicit
+/// column list via reflection. No raw `*`: the statement is stable under column
+/// additions/reorderings between compile and execution, and the query synthesizes a row
+/// type like any explicit select (fetch_all/fetch_one work).
+template <TableType Table>
+auto select_all(const Table& table) {
+  static_assert(detail::select_all_columns<Table>().size() > 0,
+                "select_all requires the table to have at least one column");
+  return [&table]<std::size_t... I>(std::index_sequence<I...>) {
+    return select(table.[:detail::select_all_columns<Table>()[I]:]...).from(table);
+  }(std::make_index_sequence<detail::select_all_columns<Table>().size()>{});
+}
+
+// clang-format on
+
+/// @brief Create a select-all query without requiring a table instance
 /// @tparam Table The table type to select all columns from
 /// @return A SelectQuery object with all columns from the table
 template <TableType Table>
 auto select_all() {
-  // Create a table instance to work with
-  Table table{};
+  // Function-local static: the returned query's column refs point at this instance
+  static const Table table{};
   return select_all(table);
 }
 
@@ -678,7 +702,7 @@ auto select_distinct_all(const Table& table) {
   public:
     std::string to_sql() const override { return "*"; }
 
-    std::vector<std::string> bind_params() const override { return {}; }
+    std::vector<bind_param> bind_params() const override { return {}; }
   };
 
   // Use a star expression with DISTINCT

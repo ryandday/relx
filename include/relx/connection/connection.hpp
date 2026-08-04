@@ -167,11 +167,12 @@ public:
 
   /// @brief Execute a raw SQL query with parameters
   /// @param sql The SQL query string
-  /// @param params Vector of parameter values
+  /// @param params Parameter values; params carrying a sql_kind tag are sent typed over
+  /// the binary protocol where the connection supports it, plain text otherwise
   /// @return Result containing the query results or an error
   [[nodiscard]]
   virtual ConnectionResult<result::ResultSet> execute_raw(
-      const std::string& sql, const std::vector<std::string>& params = {}) = 0;
+      const std::string& sql, const std::vector<bind_param>& params = {}) = 0;
 
   /// @brief Execute a query expression
   /// @param query The query expression to execute
@@ -180,7 +181,7 @@ public:
   [[nodiscard]]
   ConnectionResult<result::ResultSet> execute(const Query& query) {
     std::string sql = query.to_sql();
-    std::vector<std::string> params = query.bind_params();
+    std::vector<bind_param> params = query.bind_params();
     return execute_raw(sql, params);
   }
 

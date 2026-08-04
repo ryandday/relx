@@ -20,8 +20,8 @@ public:
 
   std::string to_sql() const override { return "?"; }
 
-  std::vector<std::string> bind_params() const override {
-    return {schema::column_traits<T>::to_sql_string(value_)};
+  std::vector<bind_param> bind_params() const override {
+    return {relx::make_bind_param(value_, schema::column_traits<T>::to_sql_string(value_))};
   }
 
   const T& value() const { return value_; }
@@ -45,9 +45,9 @@ public:
     return "NULL";
   }
 
-  std::vector<std::string> bind_params() const override {
+  std::vector<bind_param> bind_params() const override {
     if (value_.has_value()) {
-      return {schema::column_traits<T>::to_sql_string(*value_)};
+      return {relx::make_bind_param(*value_, schema::column_traits<T>::to_sql_string(*value_))};
     }
     return {};
   }
@@ -68,7 +68,7 @@ public:
 
   std::string to_sql() const override { return "?"; }
 
-  std::vector<std::string> bind_params() const override { return {value_}; }
+  std::vector<bind_param> bind_params() const override { return {value_}; }
 
   const std::string& value() const { return value_; }
 
@@ -86,7 +86,7 @@ public:
 
   std::string to_sql() const override { return "?"; }
 
-  std::vector<std::string> bind_params() const override { return {std::string(value_)}; }
+  std::vector<bind_param> bind_params() const override { return {std::string(value_)}; }
 
   std::string_view value() const { return value_; }
 
@@ -104,7 +104,7 @@ public:
 
   std::string to_sql() const override { return "?"; }
 
-  std::vector<std::string> bind_params() const override { return {std::string(value_)}; }
+  std::vector<bind_param> bind_params() const override { return {std::string(value_)}; }
 
   const char* value() const { return value_; }
 

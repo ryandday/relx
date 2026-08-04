@@ -132,9 +132,32 @@ Implementation gotcha: `type_of(annotation)` is cv-qualified (`const table`) —
   compile time into static storage (the modifier `to_sql()` chain is constexpr;
   floating-point DEFAULTs remain runtime-only — no constexpr float formatting).
 
+## Phase 4 — select_all expansion, table-level annotations, typed binds (done)
+
+- `select_all(table)` expands to an explicit column list via reflection (classic tables
+  and `t<Users>` both; constraint members are filtered out). No raw `*`: the statement
+  is stable under column addition/reordering, and the query synthesizes a row type like
+  any explicit select, so `fetch_all(select_all(users))` works.
+- Struct-level annotations for constraints that span columns:
+  `[[=relx::ann::composite_pk("a", "b")]]`, `composite_unique(...)`,
+  `composite_fk<^^Other::x, ^^Other::y>("a", "b")`, `index_on(...)` (`.unique()` to make
+  it unique), `check("expr")` (`.named("n")` to name it). Column names are strings — a
+  struct-level annotation cannot reference `^^Self::member` while the struct is still
+  incomplete — but every name is consteval-validated against the members when DDL is
+  built (the static_assert message lists unknown names). Constraints land in
+  `CREATE TABLE` (runtime and consteval builders); indexes come from
+  `relx::create_indexes_sql<T>()` as one static CREATE INDEX statement per annotation.
+- Typed bind parameters: the query layer's param currency is now `relx::bind_param` —
+  the text form plus, for bool/int/float values, the SQL kind and exact big-endian wire
+  bytes captured at `Value` construction (no float text round-trip). Both connections
+  send tagged params with their type OID in binary format (`PQexecParams` /
+  `PQsendQueryParams`); untagged params (strings, enums, chrono) remain untyped text
+  with server-side inference, exactly as before. `bind_param` converts from and compares
+  with strings, so string-typed call sites and tests work unchanged. Streaming sources
+  and prepared statements still speak text (`relx::to_text_params` at the boundary).
+
 ## Future ideas
 
-- Expand `select_all(t<Users>)` to an explicit column list via reflection so it works
-  with synthesized rows and is migration-stable (no raw `*`).
-- Annotations for composite keys, indexes, and table-level checks.
-- Typed bind parameters over libpq's binary protocol.
+- Composite FK annotations validating target column count/types against the referenced
+  table's actual primary key.
+- Binary result parsing (results still arrive in text format).

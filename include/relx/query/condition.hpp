@@ -24,7 +24,7 @@ public:
     return ss.str();
   }
 
-  std::vector<std::string> bind_params() const override {
+  std::vector<bind_param> bind_params() const override {
     auto left_params = left_.bind_params();
     auto right_params = right_.bind_params();
     left_params.insert(left_params.end(), right_params.begin(), right_params.end());
@@ -107,7 +107,7 @@ public:
     return ss.str();
   }
 
-  std::vector<std::string> bind_params() const override {
+  std::vector<bind_param> bind_params() const override {
     auto params = expr_.bind_params();
     for (const auto& value : values_) {
       params.push_back(value);
@@ -167,7 +167,7 @@ public:
     return ss.str();
   }
 
-  std::vector<std::string> bind_params() const override {
+  std::vector<bind_param> bind_params() const override {
     auto params = expr_.bind_params();
     for (const auto& value : values_) {
       params.push_back(value);
@@ -201,7 +201,7 @@ public:
 
   std::string to_sql() const override { return expr_.to_sql() + " LIKE ?"; }
 
-  std::vector<std::string> bind_params() const override {
+  std::vector<bind_param> bind_params() const override {
     auto params = expr_.bind_params();
     params.push_back(pattern_);
     return params;
@@ -231,7 +231,7 @@ public:
 
   std::string to_sql() const override { return expr_.to_sql() + " BETWEEN ? AND ?"; }
 
-  std::vector<std::string> bind_params() const override {
+  std::vector<bind_param> bind_params() const override {
     auto params = expr_.bind_params();
     params.push_back(lower_);
     params.push_back(upper_);
@@ -263,7 +263,7 @@ public:
 
   std::string to_sql() const override { return expr_.to_sql() + " IS NULL"; }
 
-  std::vector<std::string> bind_params() const override { return expr_.bind_params(); }
+  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
 private:
   Expr expr_;
@@ -286,7 +286,7 @@ public:
 
   std::string to_sql() const override { return expr_.to_sql() + " IS NOT NULL"; }
 
-  std::vector<std::string> bind_params() const override { return expr_.bind_params(); }
+  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
 private:
   Expr expr_;
@@ -309,7 +309,7 @@ public:
 
   std::string to_sql() const override { return "(NOT " + expr_.to_sql() + ")"; }
 
-  std::vector<std::string> bind_params() const override { return expr_.bind_params(); }
+  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
 private:
   Expr expr_;
