@@ -2,6 +2,7 @@
 
 #include "error.hpp"
 #include "http.hpp"
+#include "json_types.hpp"
 #include "projection.hpp"
 
 #include <string>
