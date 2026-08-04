@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../reflect.hpp"
 #include "column.hpp"
 #include "fixed_string.hpp"
 
@@ -10,8 +11,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include <boost/pfr.hpp>
 
 namespace relx::schema {
 
@@ -40,7 +39,7 @@ concept is_constraint = requires(T t) {
   { t.sql_definition() } -> std::convertible_to<std::string>;
 } && !is_column<T>;  // Ensure a constraint is not also a column
 
-/// @brief Generate SQL column definitions from a table struct using Boost PFR
+/// @brief Generate SQL column definitions from a table struct using reflection
 /// @tparam Table The table struct type
 /// @param table_instance An instance of the table
 /// @return String containing SQL column definitions
@@ -49,7 +48,7 @@ std::string collect_column_definitions(const Table& table_instance) {
   std::vector<std::string> column_defs;
   std::unordered_set<std::string> added_columns;  // Track added columns by name
 
-  boost::pfr::for_each_field(table_instance, [&](const auto& field) {
+  refl::for_each_field(table_instance, [&](const auto& field) {
     if constexpr (is_column<std::remove_cvref_t<decltype(field)>>) {
       // Use column name as key to avoid duplicates
       std::string col_name = std::string(std::remove_cvref_t<decltype(field)>::name);
@@ -82,7 +81,7 @@ std::string collect_constraint_definitions(const Table& table_instance) {
   std::vector<std::string> constraint_defs;
   std::unordered_set<std::string> added_constraints;  // Track constraints to avoid duplicates
 
-  boost::pfr::for_each_field(table_instance, [&](const auto& field) {
+  refl::for_each_field(table_instance, [&](const auto& field) {
     if constexpr (is_constraint<std::remove_cvref_t<decltype(field)>>) {
       std::string constraint = field.sql_definition();
       if (added_constraints.find(constraint) == added_constraints.end()) {

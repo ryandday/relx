@@ -11,8 +11,6 @@
 #include <type_traits>
 #include <vector>
 
-#include <boost/pfr.hpp>
-
 namespace relx::migrations {
 
 /// @brief Error types for migration operations

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../reflect.hpp"
 #include "../schema/check_constraint.hpp"
 #include "../schema/column.hpp"
 #include "../schema/foreign_key.hpp"
@@ -13,8 +14,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include <boost/pfr.hpp>
 
 namespace relx::migrations {
 
@@ -74,7 +73,7 @@ struct TableMetadata {
   std::unordered_map<std::string, ConstraintMetadata> constraints;
 };
 
-/// @brief Extract table metadata using Boost.PFR
+/// @brief Extract table metadata using reflection
 /// @tparam Table The table type
 /// @param table_instance Instance of the table
 /// @return Metadata about the table structure
@@ -87,8 +86,7 @@ MigrationResult<TableMetadata> extract_table_metadata(const Table& table_instanc
     // Track any errors that occur during field processing
     std::optional<MigrationError> error;
 
-    // Use boost::pfr to iterate through all fields
-    boost::pfr::for_each_field(table_instance, [&](const auto& field) {
+    refl::for_each_field(table_instance, [&](const auto& field) {
       using field_type = std::remove_cvref_t<decltype(field)>;
 
       // Skip processing if we already have an error
