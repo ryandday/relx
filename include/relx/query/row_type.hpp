@@ -75,20 +75,24 @@ namespace detail {
 
 // clang-format off
 
+/// @brief Normalized description of one synthesized-row member. Row types are keyed on
+/// tuples of these instead of the full query type, keeping diagnostics short and making
+/// queries with the same select shape share one row type.
+template <schema::fixed_string Name, typename T>
+struct named {};
+
 template <typename E>
-consteval std::meta::info row_member_spec() {
+consteval auto row_member_key() {
   if constexpr (requires {
                   typename E::column_type;
                   typename E::value_type;
                 }) {
     // ColumnRef<C>: name and type from the schema column
-    return std::meta::data_member_spec(std::meta::dealias(^^typename E::value_type),
-                                       {.name = std::string_view(E::column_type::name)});
+    return named<E::column_type::name, typename E::value_type>{};
   } else if constexpr (requires { typename E::value_type; } &&
                        requires { std::string_view(E::alias_name); }) {
     // TypedAlias<Name, T, Expr>
-    return std::meta::data_member_spec(std::meta::dealias(^^typename E::value_type),
-                                       {.name = std::string_view(E::alias_name)});
+    return named<E::alias_name, typename E::value_type>{};
   } else {
     static_assert(false,
                   "This select column cannot appear in a synthesized row: alias it with "
@@ -98,18 +102,23 @@ consteval std::meta::info row_member_spec() {
 }
 
 template <typename Tuple>
-struct row_specs;
+struct row_key;
 
 template <typename... Es>
-struct row_specs<std::tuple<Es...>> {
-  static consteval std::vector<std::meta::info> get() { return {row_member_spec<Es>()...}; }
+struct row_key<std::tuple<Es...>> {
+  using type = std::tuple<decltype(row_member_key<Es>())...>;
 };
 
-template <typename Query>
-struct row_holder {
+template <typename KeyTuple>
+struct row_holder;
+
+template <schema::fixed_string... Names, typename... Ts>
+struct row_holder<std::tuple<named<Names, Ts>...>> {
   struct type;
   consteval {
-    std::meta::define_aggregate(^^type, row_specs<typename Query::columns_type>::get());
+    std::meta::define_aggregate(
+        ^^type, {std::meta::data_member_spec(std::meta::dealias(^^Ts),
+                                             {.name = std::string_view(Names)})...});
   }
 };
 
@@ -119,7 +128,8 @@ struct row_holder {
 
 /// @brief The aggregate type a query's rows map onto, synthesized from its select list
 template <typename Query>
-using row_type_for = typename detail::row_holder<std::remove_cvref_t<Query>>::type;
+using row_type_for = typename detail::row_holder<
+    typename detail::row_key<typename std::remove_cvref_t<Query>::columns_type>::type>::type;
 
 /// @brief Concept for queries whose row type can be synthesized (i.e. select queries)
 template <typename Query>
