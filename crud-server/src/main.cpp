@@ -29,6 +29,7 @@ int main() {
   namespace asio = boost::asio;
 
   const auto http_port = static_cast<unsigned short>(std::stoi(env_or("PORT", "8080")));
+  const auto jwt_secret = env_or("JWT_SECRET", "dev-secret-change-me");
   const size_t io_threads = 4;
 
   web::Db db({
@@ -37,7 +38,7 @@ int main() {
                             .dbname = env_or("DB_NAME", "relx_test"),
                             .user = env_or("DB_USER", "postgres"),
                             .password = env_or("DB_PASSWORD", "postgres"),
-                            .application_name = "relx-crud-server"},
+                            .application_name = "relx-events-server"},
       .initial_size = 4,
       .max_size = 8,
   });
@@ -47,28 +48,32 @@ int main() {
     return 1;
   }
 
-  // Schema bootstrap: DDL is derived from the annotated User struct
+  // Schema bootstrap: DDL derived from the annotated structs, in FK dependency order
   {
     asio::io_context bootstrap_io(1);
     auto ddl = asio::co_spawn(
         bootstrap_io,
         db.run([](relx::PostgreSQLConnection& conn) -> web::ApiResult<void> {
-          auto created = conn.execute(relx::create_table(crud::users).if_not_exists());
-          if (!created) {
-            return std::unexpected(web::ApiError{.message = created.error().message});
+          for (const std::string& sql :
+               {std::string(relx::create_table(app::users).if_not_exists().to_sql()),
+                std::string(relx::create_table(app::events).if_not_exists().to_sql()),
+                std::string(relx::create_table(app::invites).if_not_exists().to_sql())}) {
+            if (auto created = conn.execute_raw(sql); !created) {
+              return std::unexpected(web::ApiError{.message = created.error().message});
+            }
           }
           return {};
         }),
         asio::use_future);
     bootstrap_io.run();
     if (auto result = ddl.get(); !result) {
-      std::cerr << "failed to create table: " << result.error().message << "\n";
+      std::cerr << "failed to create tables: " << result.error().message << "\n";
       return 1;
     }
   }
 
   web::Router router;
-  crud::register_user_routes(router, db);
+  app::register_routes(router, db, jwt_secret);
 
   asio::io_context io(static_cast<int>(io_threads));
 
@@ -76,7 +81,7 @@ int main() {
   signals.async_wait([&io](const boost::system::error_code&, int) { io.stop(); });
 
   web::spawn_listener(io, http_port, router);
-  std::cout << "listening on http://0.0.0.0:" << http_port << "\n";
+  std::cout << "events api listening on http://0.0.0.0:" << http_port << "\n";
 
   std::vector<std::jthread> workers;
   for (size_t i = 1; i < io_threads; ++i) {

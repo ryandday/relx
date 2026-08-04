@@ -1,17 +1,17 @@
-# relx CRUD server
+# relx events API
 
-Async CRUD backend spike combining:
+Acceptance example for **relx::web**: the events feature of a real social-app
+backend (users, JWT auth, owned events, invites) built on the relx stack —
+Boost.Beast coroutine HTTP, glaze JSON, relx schema/queries, PostgreSQL.
 
-- **Boost.Beast** — HTTP transport, C++20 coroutine handlers on `asio::awaitable`
-- **glaze** — JSON (de)serialization directly on plain aggregates
-- **relx** — schema, type-safe queries, PostgreSQL access
+Three annotated structs (`src/schema.hpp`) are the SQL schema, the query result
+types, and the JSON shapes. Request DTOs are hand-written and compile-time
+checked against their tables via `[[=relx::web::projects<T>]]` — renaming a
+column breaks the build at every stale DTO. Policy (ownership, validation,
+invite rules) is plain code in handlers (`src/handlers.hpp`); the mechanics
+(transport, JSON, auth plumbing, pagination, 404 helpers) come from relx::web.
 
-One annotated struct (`src/schema.hpp`) is the SQL schema, the query result
-type, and the JSON response shape. Blocking libpq work runs on a dedicated
-thread pool behind an awaitable facade (`src/db.hpp`); when relx grows a native
-async pool it drops in behind the same `co_await db.run(...)` contract.
-
-## Build (gcc:16 container)
+## Build & run (gcc:16 container)
 
 ```bash
 # from the relx repo root
@@ -19,28 +19,39 @@ docker compose up -d postgres
 docker run --rm -v $(pwd):/repo -w /repo relx-gcc16-dev \
   bash -c 'cmake -B crud-server/build -S crud-server -G Ninja -DCMAKE_BUILD_TYPE=Release \
            && cmake --build crud-server/build -j'
-```
-
-## Run
-
-```bash
-docker run --rm -p 8080:8080 --add-host=host.docker.internal:host-gateway \
+docker run --rm -p 8090:8080 --add-host=host.docker.internal:host-gateway \
   -e DB_HOST=host.docker.internal -v $(pwd):/repo -w /repo relx-gcc16-dev \
   ./crud-server/build/crud_server
 ```
 
-Environment: `PORT` (8080), `DB_HOST` (localhost), `DB_PORT` (5434),
-`DB_NAME` (relx_test), `DB_USER`/`DB_PASSWORD` (postgres).
+Environment: `PORT` (8080 in-container), `JWT_SECRET`, `DB_HOST`/`DB_PORT`/
+`DB_NAME`/`DB_USER`/`DB_PASSWORD` (defaults target the compose postgres).
 
-## Endpoints
+## API
 
-| Method | Path | Body | Response |
+| Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | /users | — | 200 `[User]` |
-| GET | /users/:id | — | 200 `User`, 404 |
-| POST | /users | `{name, email, bio?}` | 201 `User`, 400, 409 |
-| PUT | /users/:id | `{name, email, bio?}` | 200 `User`, 404 |
-| DELETE | /users/:id | — | 204, 404 |
+| POST | /auth/signup | — | `{name, email}` → 201 `{token, user}`, 409 dup email |
+| POST | /auth/token | — | `{email}` → `{token, user}` |
+| GET | /users/me | ✓ | current user |
+| GET | /events?limit&offset | ✓ | own events, by start_time |
+| GET | /events/invited | ✓ | events shared with you (join) |
+| POST | /events | ✓ | `{title, start_time, end_time?, description?, location?, is_all_day?}`; 422 on empty title / end before start |
+| GET | /events/:id | ✓ | owner or invitee; others 404 (no existence leak) |
+| PUT | /events/:id | ✓ | owner only (404 otherwise), full replace |
+| DELETE | /events/:id | ✓ | owner only, clears invites |
+| POST | /events/:id/invites | ✓ | owner only; 409 duplicate/self, 404 unknown user |
+
+## Quick tour
+
+```bash
+B=http://localhost:8090
+TOKEN=$(curl -s -X POST $B/auth/signup -H 'Content-Type: application/json' \
+  -d '{"name":"Ada","email":"ada@example.com"}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+curl -s -X POST $B/events -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"title":"Standup","start_time":"2026-09-01T09:00:00Z"}'
+curl -s "$B/events?limit=10" -H "Authorization: Bearer $TOKEN"
+```
 
 ## Breaking out into its own repo
 
