@@ -31,6 +31,7 @@ add_executable(relx_tests
     schema/constraint_alias_test.cpp
     schema/column_like_test.cpp
     schema/timezone_parsing_test.cpp
+    schema/annotated_table_test.cpp
     # Migration tests
     migrations/test_migrations.cpp
     migrations/test_command_line_tools.cpp
@@ -80,6 +81,7 @@ add_executable(relx_tests
     postgres_integration/dto_mapping_integration_test.cpp
     postgres_integration/async_dto_mapping_test.cpp
     postgres_integration/date_time_integration_test.cpp
+    postgres_integration/annotated_table_integration_test.cpp
     # Utility tests
     utility/throw_if_failed_test.cpp
 )

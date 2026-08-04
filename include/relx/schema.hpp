@@ -1,6 +1,7 @@
 #pragma once
 
 #include "query/operators.hpp"
+#include "schema/annotated_table.hpp"
 #include "schema/check_constraint.hpp"
 #include "schema/chrono_traits.hpp"
 #include "schema/column.hpp"
