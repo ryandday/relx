@@ -98,3 +98,21 @@ TEST(ColumnTest, ColumnWithLongName) {
   EXPECT_EQ(long_name_col.sql_definition(),
             "very_long_column_name_that_tests_the_fixed_string_implementation INTEGER NOT NULL");
 }
+TEST(ColumnTest, IdentifierQuoting) {
+  using relx::schema::quote_identifier;
+
+  // Safe lowercase identifiers pass through bare
+  EXPECT_EQ(quote_identifier("users"), "users");
+  EXPECT_EQ(quote_identifier("user_id2"), "user_id2");
+
+  // Reserved keywords, mixed case, and special characters are quoted
+  EXPECT_EQ(quote_identifier("order"), "\"order\"");
+  EXPECT_EQ(quote_identifier("default"), "\"default\"");
+  EXPECT_EQ(quote_identifier("createdAt"), "\"createdAt\"");
+  EXPECT_EQ(quote_identifier("2fast"), "\"2fast\"");
+  EXPECT_EQ(quote_identifier("weird\"name"), "\"weird\"\"name\"");
+
+  // Quoting flows into column definitions
+  column<DummyTable, "default", int> reserved_col;
+  EXPECT_EQ(reserved_col.sql_definition(), "\"default\" INTEGER NOT NULL");
+}

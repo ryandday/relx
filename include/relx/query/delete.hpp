@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../schema/identifier.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
 #include "core.hpp"
@@ -75,7 +76,7 @@ public:
   /// @return The SQL string
   constexpr std::string to_sql() const {
     std::string out = "DELETE FROM ";
-    out += table_.table_name;
+    out += schema::quote_identifier(std::string_view(table_.table_name));
 
     // Add WHERE clause
     if constexpr (!std::is_same_v<Where, std::nullopt_t>) {

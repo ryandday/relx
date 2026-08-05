@@ -2,6 +2,7 @@
 
 #include "../reflect.hpp"
 #include "../schema/annotated_table.hpp"
+#include "../schema/identifier.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
 #include "core.hpp"
@@ -144,7 +145,9 @@ public:
       int i = 0;
       std::apply(
           [&](const auto&... tables) {
-            ((out += (i++ > 0 ? ", " : ""), out += tables.table_name), ...);
+            ((out += (i++ > 0 ? ", " : ""),
+              out += schema::quote_identifier(std::string_view(tables.table_name))),
+             ...);
           },
           tables_);
     }
@@ -171,7 +174,7 @@ public:
               out += "CROSS JOIN ";
               break;
             }
-            out += join.table.table_name;
+            out += schema::quote_identifier(std::string_view(join.table.table_name));
 
             if (join.type != JoinType::Cross) {
               out += " ON ";

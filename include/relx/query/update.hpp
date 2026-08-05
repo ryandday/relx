@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../schema/identifier.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
 #include "core.hpp"
@@ -29,7 +30,9 @@ struct SetItem {
   constexpr SetItem(ColumnRef<Column> col, Value val)
       : column(std::move(col)), value(std::move(val)) {}
 
-  constexpr std::string to_sql() const { return column.column_name() + " = " + value.to_sql(); }
+  constexpr std::string to_sql() const {
+    return schema::quote_identifier(column.column_name()) + " = " + value.to_sql();
+  }
 
   constexpr std::vector<bind_param> bind_params() const { return value.bind_params(); }
 };
@@ -97,7 +100,7 @@ public:
   /// @return The SQL string
   constexpr std::string to_sql() const {
     std::string out = "UPDATE ";
-    out += table_.table_name;
+    out += schema::quote_identifier(std::string_view(table_.table_name));
 
     // Add SET clause
     if constexpr (!is_empty_tuple<Sets>()) {

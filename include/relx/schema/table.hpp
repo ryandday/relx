@@ -3,6 +3,7 @@
 #include "../bind_param.hpp"
 #include "column.hpp"
 #include "fixed_string.hpp"
+#include "identifier.hpp"
 
 #include <string>
 #include <string_view>
@@ -56,7 +57,7 @@ public:
       sql += "IF NOT EXISTS ";
     }
 
-    sql += std::string(Table::table_name) + " (\n";
+    sql += quote_identifier(std::string_view(Table::table_name)) + " (\n";
 
     // Add column definitions
     sql += collect_column_definitions(table_instance_);
@@ -107,7 +108,7 @@ public:
       sql += "IF EXISTS ";
     }
 
-    sql += std::string(Table::table_name);
+    sql += quote_identifier(std::string_view(Table::table_name));
 
     if (cascade_) {
       sql += " CASCADE";

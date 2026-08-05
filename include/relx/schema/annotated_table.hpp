@@ -3,6 +3,7 @@
 #include "../reflect.hpp"
 #include "column.hpp"
 #include "fixed_string.hpp"
+#include "identifier.hpp"
 #include "table.hpp"
 
 #include <array>
@@ -230,7 +231,7 @@ struct name_list {
       if (i > 0) {
         out += ", ";
       }
-      out += at(i);
+      out += quote_identifier(at(i));
     }
     return out;
   }
@@ -294,7 +295,7 @@ struct composite_fk : detail::name_list {
   consteval std::string constraint_sql() const {
     constexpr std::meta::info targets[] = {Targets...};
     std::string out = "FOREIGN KEY (" + joined() + ") REFERENCES ";
-    out += table_name_of<typename [:std::meta::parent_of(targets[0]):]>();
+    out += quote_identifier(table_name_of<typename [:std::meta::parent_of(targets[0]):]>());
     out += " (";
     bool first = true;
     for (std::meta::info target : targets) {
@@ -302,7 +303,7 @@ struct composite_fk : detail::name_list {
         out += ", ";
       }
       first = false;
-      out += std::meta::identifier_of(target);
+      out += quote_identifier(std::meta::identifier_of(target));
     }
     out += ")";
     return out;
@@ -440,7 +441,8 @@ struct index_on : detail::name_list {
   /// (migrations store this form; AddConstraintOperation prepends CREATE)
   consteval std::string index_sql_body(std::string_view table) const {
     std::string out = unique_ ? "UNIQUE " : "";
-    out += "INDEX " + index_name(table) + " ON " + std::string(table) + " (" + joined() + ")";
+    out += "INDEX " + quote_identifier(index_name(table)) + " ON " + quote_identifier(table) + " (" +
+           joined() + ")";
     return out;
   }
 

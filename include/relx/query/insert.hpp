@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../schema/identifier.hpp"
 #include "column_expression.hpp"
 #include "core.hpp"
 #include "meta.hpp"
@@ -58,7 +59,8 @@ private:
     int i = 0;
     std::apply(
         [&](const auto&... cols) {
-          ((out += (i++ > 0 ? ", " : ""), out += cols.column_name()), ...);
+          ((out += (i++ > 0 ? ", " : ""), out += schema::quote_identifier(cols.column_name())),
+           ...);
         },
         columns_);
     out += ")";
@@ -172,7 +174,7 @@ public:
   /// @return The SQL string
   constexpr std::string to_sql() const {
     std::string out = "INSERT INTO ";
-    out += table_.table_name;
+    out += schema::quote_identifier(std::string_view(table_.table_name));
 
     // Add columns clause if columns are specified
     if constexpr (!is_empty_tuple<Columns>()) {

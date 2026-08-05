@@ -2,6 +2,7 @@
 
 #include "core.hpp"
 #include "fixed_string.hpp"
+#include "identifier.hpp"
 
 #include <optional>
 #include <string>
@@ -179,8 +180,8 @@ struct references {
   static constexpr auto column = Column;
 
   static constexpr std::string to_sql() {
-    return " REFERENCES " + std::string(std::string_view(table)) + "(" +
-           std::string(std::string_view(column)) + ")";
+    return " REFERENCES " + quote_identifier(std::string_view(table)) + "(" +
+           quote_identifier(std::string_view(column)) + ")";
   }
 };
 
@@ -337,11 +338,11 @@ std::vector<std::string> hoisted_constraint_defs() {
   std::string fk;
   auto add = [&]<typename Mod>() {
     if constexpr (std::is_same_v<Mod, unique>) {
-      defs.push_back("UNIQUE (" + std::string(std::string_view(Name)) + ")");
+      defs.push_back("UNIQUE (" + quote_identifier(std::string_view(Name)) + ")");
     } else if constexpr (is_check_modifier<Mod>::value) {
       defs.push_back("CHECK (" + std::string(std::string_view(Mod::expr)) + ")");
     } else if constexpr (is_references_modifier<Mod>::value) {
-      fk = "FOREIGN KEY (" + std::string(std::string_view(Name)) + ")" + Mod::to_sql();
+      fk = "FOREIGN KEY (" + quote_identifier(std::string_view(Name)) + ")" + Mod::to_sql();
     } else if constexpr (is_fk_action_modifier<Mod>::value) {
       fk += Mod::to_sql();
     }
@@ -425,7 +426,7 @@ public:
 private:
   template <bool SkipHoisted>
   constexpr std::string definition_impl() const {
-    std::string result = std::string(std::string_view(name)) + " " +
+    std::string result = quote_identifier(std::string_view(name)) + " " +
                          std::string(std::string_view(sql_type));
 
     // Add NOT NULL if not nullable
@@ -444,7 +445,7 @@ private:
     // CHECK(col IN ('a', 'b', ...)))
     if constexpr (!uses_native_enum &&
                   requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
-      result += column_traits<T>::check_constraint_sql(std::string_view(name));
+      result += column_traits<T>::check_constraint_sql(quote_identifier(std::string_view(name)));
     }
 
     return result;
@@ -591,7 +592,7 @@ public:
 private:
   template <bool SkipHoisted>
   constexpr std::string definition_impl() const {
-    std::string result = std::string(std::string_view(name)) + " " +
+    std::string result = quote_identifier(std::string_view(name)) + " " +
                          std::string(std::string_view(sql_type));
 
     // No NOT NULL constraint for optional columns
@@ -606,7 +607,7 @@ private:
     // Value-set constraint from the underlying type (NULL passes a SQL CHECK)
     if constexpr (!uses_native_enum &&
                   requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
-      result += column_traits<T>::check_constraint_sql(std::string_view(name));
+      result += column_traits<T>::check_constraint_sql(quote_identifier(std::string_view(name)));
     }
 
     return result;

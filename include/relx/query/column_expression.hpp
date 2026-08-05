@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../schema/identifier.hpp"
 #include "core.hpp"
 
 #include <iostream>
@@ -21,10 +22,10 @@ public:
   constexpr virtual std::string column_name() const = 0;
   constexpr virtual std::string table_name() const = 0;
   constexpr virtual std::string qualified_name() const {
-    std::string qualified = column_name();
+    std::string qualified = schema::quote_identifier(column_name());
     auto table = table_name();
     if (!table.empty()) {
-      qualified = table + "." + qualified;
+      qualified = schema::quote_identifier(table) + "." + qualified;
     }
     return qualified;
   }
