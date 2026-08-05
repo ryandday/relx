@@ -2,13 +2,12 @@
 #include <optional>
 #include <string>
 
-#include <gtest/gtest.h>
-#include <relx/query.hpp>
-#include <relx/schema.hpp>
-
 #include <boost/uuid/string_generator.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <gtest/gtest.h>
+#include <relx/query.hpp>
+#include <relx/schema.hpp>
 
 namespace {
 
@@ -20,8 +19,8 @@ struct Sessions {
   relx::table_primary_key<&Sessions::id> pk;
 };
 
-const boost::uuids::uuid kUuid =
-    boost::uuids::string_generator{}("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
+const boost::uuids::uuid kUuid = boost::uuids::string_generator{}(
+    "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
 
 TEST(DeleteReturningTest, ReturningClauseAndParams) {
   Sessions s;
