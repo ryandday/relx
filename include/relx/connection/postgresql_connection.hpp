@@ -92,8 +92,8 @@ public:
       using ParamType = std::remove_cvref_t<decltype(param)>;
 
       if constexpr (std::is_same_v<ParamType, std::nullptr_t>) {
-        // Handle NULL values
-        params.emplace_back("NULL");
+        // A real SQL NULL parameter, not the text "NULL"
+        params.push_back(bind_param::null());
       } else if constexpr (std::is_same_v<ParamType, std::string> ||
                            std::is_same_v<ParamType, const char*> ||
                            std::is_same_v<ParamType, std::string_view>) {

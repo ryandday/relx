@@ -102,12 +102,15 @@ ConnectionResult<void> PostgreSQLConnection::connect() {
   pg_conn_ = PQconnectdb(connection_string_.c_str());
 
   if (PQstatus(pg_conn_) != CONNECTION_OK) {
+    // Capture the message and status before PQfinish - afterwards the handle is
+    // gone and PQstatus(nullptr) would flatten every failure to CONNECTION_BAD
     const std::string error_msg = PQerrorMessage(pg_conn_);
+    const ConnStatusType status = PQstatus(pg_conn_);
     PQfinish(pg_conn_);
     pg_conn_ = nullptr;
     return std::unexpected(
         ConnectionError{.message = "Failed to connect to PostgreSQL database: " + error_msg,
-                        .error_code = static_cast<int>(PQstatus(pg_conn_))});
+                        .error_code = static_cast<int>(status)});
   }
 
   is_connected_ = true;
@@ -174,9 +177,8 @@ ConnectionResult<void> validate_exec_status(PGresult* result) {
                                            .error_code = static_cast<int>(status)});
 
   case PGRES_NONFATAL_ERROR:
-    // Log the warning but continue processing
-    // TODO more customizable user behavior for this
-    std::cerr << "PostgreSQL warning: " << PQresultErrorMessage(result) << std::endl;
+    // Server-side notice; libpq delivers these through PQsetNoticeReceiver, and a
+    // library must not write to stderr on its own
     return {};
 
   case PGRES_COPY_IN:
@@ -367,7 +369,12 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary(
   }
 
   // Process result using shared utility function with BYTEA conversion
-  return sql_utils::process_postgresql_result(pg_result.get(), true);
+  try {
+    return sql_utils::process_postgresql_result(pg_result.get(), true);
+  } catch (const std::exception& e) {
+    return std::unexpected(ConnectionError{
+        .message = std::string("Failed to decode BYTEA result: ") + e.what(), .error_code = -1});
+  }
 }
 
 bool PostgreSQLConnection::is_connected() const {

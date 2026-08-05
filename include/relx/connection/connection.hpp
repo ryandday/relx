@@ -175,39 +175,57 @@ struct PostgreSQLConnectionParams {
 
   /// @brief Convert parameters to a PostgreSQL connection string
   /// @return Connection string in libpq format (e.g., "host=localhost port=5432 dbname=mydb...")
+  /// @details Values are single-quoted with `\`/`'` escaped per libpq's conninfo
+  /// grammar, so passwords (or any value) containing spaces or quotes survive.
   std::string to_connection_string() const {
+    // libpq conninfo values may be single-quoted; backslash and single quote are
+    // escaped with a backslash
+    const auto quoted = [](const std::string& value) {
+      std::string out;
+      out.reserve(value.size() + 2);
+      out += '\'';
+      for (const char c : value) {
+        if (c == '\\' || c == '\'') {
+          out += '\\';
+        }
+        out += c;
+      }
+      out += '\'';
+      return out;
+    };
+
     std::ostringstream conn_str;
 
     if (!host.empty()) {
-      conn_str << "host=" << host << " ";
+      conn_str << "host=" << quoted(host) << " ";
     }
     conn_str << "port=" << port << " ";
     if (!dbname.empty()) {
-      conn_str << "dbname=" << dbname << " ";
+      conn_str << "dbname=" << quoted(dbname) << " ";
     }
     if (!user.empty()) {
-      conn_str << "user=" << user << " ";
+      conn_str << "user=" << quoted(user) << " ";
     }
     if (!password.empty()) {
-      conn_str << "password=" << password << " ";
+      conn_str << "password=" << quoted(password) << " ";
     }
     if (!application_name.empty()) {
-      conn_str << "application_name=" << application_name << " ";
+      conn_str << "application_name=" << quoted(application_name) << " ";
     }
     conn_str << "connect_timeout=" << connect_timeout << " ";
 
     // Optional SSL parameters
     if (!ssl_mode.empty()) {
-      conn_str << "sslmode=" << ssl_mode << " ";
+      conn_str << "sslmode=" << quoted(ssl_mode) << " ";
     }
     if (!ssl_cert.empty()) {
-      conn_str << "sslcert=" << ssl_cert << " ";
+      conn_str << "sslcert=" << quoted(ssl_cert) << " ";
     }
     if (!ssl_key.empty()) {
-      conn_str << "sslkey=" << ssl_key << " ";
+      conn_str << "sslkey=" << quoted(ssl_key) << " ";
     }
     if (!ssl_root_cert.empty()) {
-      conn_str << "sslrootcert=" << ssl_root_cert << " ";
+      conn_str << "sslrootcert=" << quoted(ssl_root_cert) << " ";
     }
 
     std::string result = conn_str.str();
