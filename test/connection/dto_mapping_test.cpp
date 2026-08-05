@@ -302,4 +302,24 @@ TEST_F(DtoMappingTest, TypeConversionErrors) {
   EXPECT_TRUE(result.error().message.find("Failed to convert") != std::string::npos);
 }
 
+TEST(ConvertAndAssignStrictness, UnrecognizedBoolIsError) {
+  bool target = true;
+  auto ok = relx::connection::convert_and_assign(target, std::string("f"));
+  ASSERT_TRUE(ok.has_value());
+  EXPECT_FALSE(target);
+
+  auto bad = relx::connection::convert_and_assign(target, std::string("maybe"));
+  EXPECT_FALSE(bad.has_value());
+}
+
+TEST(ConvertAndAssignStrictness, PartialNumericParseIsError) {
+  int target = 0;
+  auto ok = relx::connection::convert_and_assign(target, std::string("12"));
+  ASSERT_TRUE(ok.has_value());
+  EXPECT_EQ(target, 12);
+
+  auto bad = relx::connection::convert_and_assign(target, std::string("12abc"));
+  EXPECT_FALSE(bad.has_value());
+}
+
 }  // namespace

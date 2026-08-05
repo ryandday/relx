@@ -35,16 +35,29 @@ std::expected<void, std::string> convert_and_assign(T& target, const std::string
     }
     target = std::move(inner);
     return {};
-  } else if constexpr (std::is_same_v<T, std::string> || std::is_same_v<T, std::string_view> ||
-                       std::is_same_v<T, char> || std::is_same_v<T, char16_t> ||
-                       std::is_same_v<T, char32_t>) {
+  } else if constexpr (std::is_same_v<T, std::string_view>) {
+    static_assert(!std::is_same_v<T, std::string_view>,
+                  "std::string_view struct fields are rejected: the view would dangle once the "
+                  "result set is destroyed. Use std::string instead.");
+    return {};
+  } else if constexpr (std::is_same_v<T, std::string> || std::is_same_v<T, char> ||
+                       std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>) {
     target = value;
     return {};
   } else if constexpr (std::is_same_v<T, bool>) {
-    // Handle PostgreSQL-style boolean values ('t', 'f', etc.)
-    target = (value == "1" || value == "true" || value == "TRUE" || value == "True" ||
-              value == "t" || value == "T" || value == "yes" || value == "YES" || value == "Y");
-    return {};
+    // Handle PostgreSQL-style boolean values ('t', 'f', etc.). Unrecognized text is
+    // an error - mapping it to false would silently corrupt data.
+    if (value == "1" || value == "true" || value == "TRUE" || value == "True" || value == "t" ||
+        value == "T" || value == "yes" || value == "YES" || value == "Y") {
+      target = true;
+      return {};
+    }
+    if (value == "0" || value == "false" || value == "FALSE" || value == "False" || value == "f" ||
+        value == "F" || value == "no" || value == "NO" || value == "N") {
+      target = false;
+      return {};
+    }
+    return std::unexpected("'" + value + "' is not a valid boolean");
   } else if constexpr (std::is_enum_v<T>) {
     auto parsed = refl::enum_cast<T>(value);
     if (!parsed) {
@@ -54,8 +67,10 @@ std::expected<void, std::string> convert_and_assign(T& target, const std::string
     target = *parsed;
     return {};
   } else if constexpr (std::is_integral_v<T> || std::is_floating_point_v<T>) {
-    auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), target);
-    if (ec != std::errc{}) {
+    // The whole string must parse: "12abc" is not 12
+    const char* end = value.data() + value.size();
+    auto [ptr, ec] = std::from_chars(value.data(), end, target);
+    if (ec != std::errc{} || ptr != end) {
       return std::unexpected("'" + value + "' is not a valid " + std::string(refl::type_name<T>()));
     }
     return {};
