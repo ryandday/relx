@@ -876,6 +876,34 @@ private:
   value_type value_;
 };
 
+/// @brief Specialization for year_month_day values: bind the raw ISO 8601 date text
+/// (the traits' to_sql_string is SQL-literal syntax and must not leak into binds)
+template <>
+class Value<std::chrono::year_month_day> : public SqlExpression {
+public:
+  using value_type = std::chrono::year_month_day;
+
+  explicit Value(std::chrono::year_month_day value) : value_(value) {}
+
+  constexpr std::string to_sql() const override { return "?"; }
+
+  constexpr std::vector<bind_param> bind_params() const override {
+    // Reuse the traits' formatting, stripping the SQL-literal quotes
+    std::string quoted = schema::column_traits<value_type>::to_sql_string(value_);
+    return {quoted.substr(1, quoted.size() - 2)};
+  }
+
+  const value_type& value() const { return value_; }
+
+private:
+  value_type value_;
+};
+
+/// @brief Helper to create a value expression from a year_month_day
+inline auto val(std::chrono::year_month_day ymd) {
+  return Value<std::chrono::year_month_day>(ymd);
+}
+
 /// @brief Helper to create a value expression from a time_point
 inline auto val(std::chrono::system_clock::time_point tp) {
   return Value<std::chrono::system_clock::time_point>(tp);
