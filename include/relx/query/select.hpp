@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../reflect.hpp"
+#include "../schema/annotated_table.hpp"
 #include "column_expression.hpp"
 #include "condition.hpp"
 #include "core.hpp"
@@ -30,20 +31,47 @@ namespace relx::query {
 /// auto query = select(u.id, u.name).from(u);
 /// Use columns directly in conditions.
 ///
-/// @brief Join specification for a SELECT query
-template <TableType Table, ConditionExpr Condition>
+/// @brief Join specification for a SELECT query. The join type is part of the type,
+/// so a query's type fully determines its SQL text.
+template <TableType Table, ConditionExpr Condition, JoinType Type = JoinType::Inner>
 struct JoinSpec {
+  using table_type = Table;
   Table table;
   Condition condition;
-  JoinType type;
+  static constexpr JoinType type = Type;
 };
+
+namespace detail {
+
+/// @brief Whether a table type already appears in a FROM tuple
+template <typename Table, typename Tuple>
+inline constexpr bool tuple_contains_table_v = false;
+template <typename Table, typename... Ts>
+inline constexpr bool tuple_contains_table_v<Table, std::tuple<Ts...>> =
+    (std::is_same_v<Table, Ts> || ...);
+
+/// @brief Whether a table type already appears in a tuple of JoinSpecs
+template <typename Table, typename Joins>
+inline constexpr bool joins_contain_table_v = false;
+template <typename Table, typename... Specs>
+inline constexpr bool joins_contain_table_v<Table, std::tuple<Specs...>> =
+    (std::is_same_v<Table, typename Specs::table_type> || ...);
+
+/// @brief Whether a pack of types is pairwise distinct
+template <typename... Ts>
+inline constexpr bool all_distinct_v = true;
+template <typename T, typename... Rest>
+inline constexpr bool all_distinct_v<T, Rest...> = (!std::is_same_v<T, Rest> && ...) &&
+                                                   all_distinct_v<Rest...>;
+
+}  // namespace detail
 
 /// @brief Create a join condition with the ON clause
 /// @tparam Condition The condition type
 /// @param cond The join condition
 /// @return The condition expression
 template <ConditionExpr Condition>
-auto on(Condition cond) {
+constexpr auto on(Condition cond) {
   return cond;
 }
 
@@ -66,6 +94,8 @@ template <typename Columns, typename Tables = std::tuple<>, typename Joins = std
 class SelectQuery {
 private:
 public:
+  /// Marker for SelectQueryExpr (subquery usage in conditions)
+  using is_select_query = void;
   using columns_type = Columns;
   using tables_type = Tables;
   using joins_type = Joins;
@@ -86,10 +116,10 @@ public:
   /// @param having The HAVING condition
   /// @param limit The LIMIT value
   /// @param offset The OFFSET value
-  explicit SelectQuery(Columns columns, Tables tables = {}, Joins joins = {},
-                       Where where = std::nullopt, GroupBys group_bys = {}, OrderBys order_bys = {},
-                       HavingCond having = std::nullopt, LimitVal limit = std::nullopt,
-                       OffsetVal offset = std::nullopt)
+  constexpr explicit SelectQuery(Columns columns, Tables tables = {}, Joins joins = {},
+                                 Where where = std::nullopt, GroupBys group_bys = {},
+                                 OrderBys order_bys = {}, HavingCond having = std::nullopt,
+                                 LimitVal limit = std::nullopt, OffsetVal offset = std::nullopt)
       : columns_(std::move(columns)), tables_(std::move(tables)), joins_(std::move(joins)),
         where_(std::move(where)), group_bys_(std::move(group_bys)),
         order_bys_(std::move(order_bys)), having_(std::move(having)), limit_(std::move(limit)),
@@ -97,24 +127,25 @@ public:
 
   /// @brief Generate the SQL for this SELECT query
   /// @return The SQL string
-  std::string to_sql() const {
-    std::stringstream ss;
-    ss << "SELECT ";
+  constexpr std::string to_sql() const {
+    std::string out = "SELECT ";
 
     // Add DISTINCT if enabled
     if constexpr (IsDistinct) {
-      ss << "DISTINCT ";
+      out += "DISTINCT ";
     }
 
     // Add columns
-    ss << tuple_to_sql(columns_, ", ");
+    out += tuple_to_sql(columns_, ", ");
 
     // Add FROM clause if tables are specified
     if constexpr (!is_empty_tuple<Tables>()) {
-      ss << " FROM ";
+      out += " FROM ";
       int i = 0;
       std::apply(
-          [&](const auto&... tables) { ((ss << (i++ > 0 ? ", " : "") << tables.table_name), ...); },
+          [&](const auto&... tables) {
+            ((out += (i++ > 0 ? ", " : ""), out += tables.table_name), ...);
+          },
           tables_);
     }
 
@@ -122,31 +153,29 @@ public:
     if constexpr (!is_empty_tuple<Joins>()) {
       apply_tuple(
           [&](const auto& join) {
-            ss << " ";
-
+            out += " ";
             switch (join.type) {
             case JoinType::Inner:
-              ss << "JOIN ";
+              out += "JOIN ";
               break;
             case JoinType::Left:
-              ss << "LEFT JOIN ";
+              out += "LEFT JOIN ";
               break;
             case JoinType::Right:
-              ss << "RIGHT JOIN ";
+              out += "RIGHT JOIN ";
               break;
             case JoinType::Full:
-              ss << "FULL JOIN ";
+              out += "FULL JOIN ";
               break;
             case JoinType::Cross:
-              ss << "CROSS JOIN ";
+              out += "CROSS JOIN ";
               break;
             }
-
-            ss << join.table.table_name;
+            out += join.table.table_name;
 
             if (join.type != JoinType::Cross) {
-              ss << " ON ";
-              ss << join.condition.to_sql();
+              out += " ON ";
+              out += join.condition.to_sql();
             }
           },
           joins_);
@@ -155,51 +184,51 @@ public:
     // Add WHERE clause
     if constexpr (!std::is_same_v<Where, std::nullopt_t>) {
       if (where_.has_value()) {
-        ss << " WHERE " << where_.value().to_sql();
+        out += " WHERE " + where_.value().to_sql();
       }
     }
 
     // Add GROUP BY clause
     if constexpr (!is_empty_tuple<GroupBys>()) {
-      ss << " GROUP BY " << tuple_to_sql(group_bys_, ", ");
+      out += " GROUP BY " + tuple_to_sql(group_bys_, ", ");
     }
 
     // Add HAVING clause
     if constexpr (!std::is_same_v<HavingCond, std::nullopt_t>) {
       if (having_.has_value()) {
-        ss << " HAVING " << having_.value().to_sql();
+        out += " HAVING " + having_.value().to_sql();
       }
     }
 
     // Add ORDER BY clause
     if constexpr (!is_empty_tuple<OrderBys>()) {
-      ss << " ORDER BY " << tuple_to_sql(order_bys_, ", ");
+      out += " ORDER BY " + tuple_to_sql(order_bys_, ", ");
     }
 
     // Add LIMIT clause
     if constexpr (!std::is_same_v<LimitVal, std::nullopt_t>) {
       if constexpr (std::is_same_v<LimitVal, Value<int>>) {
-        ss << " LIMIT " << limit_.to_sql();
+        out += " LIMIT " + limit_.to_sql();
       } else if (limit_.has_value()) {
-        ss << " LIMIT " << limit_.value().to_sql();
+        out += " LIMIT " + limit_.value().to_sql();
       }
     }
 
     // Add OFFSET clause
     if constexpr (!std::is_same_v<OffsetVal, std::nullopt_t>) {
       if constexpr (std::is_same_v<OffsetVal, Value<int>>) {
-        ss << " OFFSET " << offset_.to_sql();
+        out += " OFFSET " + offset_.to_sql();
       } else if (offset_.has_value()) {
-        ss << " OFFSET " << offset_.value().to_sql();
+        out += " OFFSET " + offset_.value().to_sql();
       }
     }
 
-    return ss.str();
+    return out;
   }
 
   /// @brief Get the bind parameters for this SELECT query
   /// @return Vector of bind parameters
-  std::vector<bind_param> bind_params() const {
+  constexpr std::vector<bind_param> bind_params() const {
     std::vector<bind_param> params;
 
     // Collect parameters from columns
@@ -286,7 +315,10 @@ public:
   /// @param table The table to select from
   /// @return New SelectQuery with the FROM clause added
   template <TableType T>
-  auto from(const T& table) const {
+  constexpr auto from(const T& table) const {
+    static_assert(!detail::tuple_contains_table_v<T, Tables>,
+                  "duplicate table in FROM: relx has no table aliases, and PostgreSQL rejects the "
+                  "same table name appearing twice without an alias");
     using new_tables_type = decltype(std::tuple_cat(tables_, std::tuple<T>()));
     return SelectQuery<Columns, new_tables_type, Joins, Where, GroupBys, OrderBys, HavingCond,
                        LimitVal, OffsetVal, IsDistinct>(
@@ -299,7 +331,11 @@ public:
   /// @param tables The tables to select from
   /// @return New SelectQuery with the FROM clause added
   template <TableType... Args>
-  auto from(const Args&... tables) const {
+  constexpr auto from(const Args&... tables) const {
+    static_assert((!detail::tuple_contains_table_v<Args, Tables> && ...) &&
+                      detail::all_distinct_v<Args...>,
+                  "duplicate table in FROM: relx has no table aliases, and PostgreSQL rejects the "
+                  "same table name appearing twice without an alias");
     using new_tables_type = decltype(std::tuple_cat(tables_, std::tuple<Args...>()));
     return SelectQuery<Columns, new_tables_type, Joins, Where, GroupBys, OrderBys, HavingCond,
                        LimitVal, OffsetVal, IsDistinct>(
@@ -314,16 +350,18 @@ public:
   /// @param cond The join condition
   /// @param type The join type (default: INNER)
   /// @return New SelectQuery with the JOIN clause added
-  template <TableType Table, ConditionExpr Condition>
-  auto join(const Table& table, const Condition& cond, JoinType type = JoinType::Inner) const {
-    using JoinSpec = JoinSpec<Table, Condition>;
-    using new_joins_type = decltype(std::tuple_cat(
-        joins_, std::tuple<JoinSpec>{JoinSpec{table, cond, type}}));
+  template <JoinType Type = JoinType::Inner, TableType Table, ConditionExpr Condition>
+  constexpr auto join(const Table& table, const Condition& cond) const {
+    static_assert(!detail::tuple_contains_table_v<Table, Tables> &&
+                      !detail::joins_contain_table_v<Table, Joins>,
+                  "self-join is not supported: relx has no table aliases, and PostgreSQL rejects "
+                  "the same table name appearing twice without an alias");
+    using Spec = JoinSpec<Table, Condition, Type>;
+    using new_joins_type = decltype(std::tuple_cat(joins_, std::tuple<Spec>{Spec{table, cond}}));
 
     return SelectQuery<Columns, Tables, new_joins_type, Where, GroupBys, OrderBys, HavingCond,
                        LimitVal, OffsetVal, IsDistinct>(
-        columns_, tables_,
-        std::tuple_cat(joins_, std::tuple<JoinSpec>{JoinSpec{table, cond, type}}), where_,
+        columns_, tables_, std::tuple_cat(joins_, std::tuple<Spec>{Spec{table, cond}}), where_,
         group_bys_, order_bys_, having_, limit_, offset_);
   }
 
@@ -334,8 +372,8 @@ public:
   /// @param cond The join condition
   /// @return New SelectQuery with the LEFT JOIN clause added
   template <TableType Table, ConditionExpr Condition>
-  auto left_join(const Table& table, const Condition& cond) const {
-    return join(table, cond, JoinType::Left);
+  constexpr auto left_join(const Table& table, const Condition& cond) const {
+    return join<JoinType::Left>(table, cond);
   }
 
   /// @brief Add a RIGHT JOIN clause to the query
@@ -345,8 +383,8 @@ public:
   /// @param cond The join condition
   /// @return New SelectQuery with the RIGHT JOIN clause added
   template <TableType Table, ConditionExpr Condition>
-  auto right_join(const Table& table, const Condition& cond) const {
-    return join(table, cond, JoinType::Right);
+  constexpr auto right_join(const Table& table, const Condition& cond) const {
+    return join<JoinType::Right>(table, cond);
   }
 
   /// @brief Add a FULL JOIN clause to the query
@@ -356,8 +394,8 @@ public:
   /// @param cond The join condition
   /// @return New SelectQuery with the FULL JOIN clause added
   template <TableType Table, ConditionExpr Condition>
-  auto full_join(const Table& table, const Condition& cond) const {
-    return join(table, cond, JoinType::Full);
+  constexpr auto full_join(const Table& table, const Condition& cond) const {
+    return join<JoinType::Full>(table, cond);
   }
 
   /// @brief Add a CROSS JOIN clause to the query
@@ -365,15 +403,15 @@ public:
   /// @param table The table to join
   /// @return New SelectQuery with the CROSS JOIN clause added
   template <TableType Table>
-  auto cross_join(const Table& table) const {
+  constexpr auto cross_join(const Table& table) const {
     // A cross join doesn't need a condition, so we use a dummy condition
     struct DummyCondition : public SqlExpression {
       // TODO Get rid of this dummy conditions somehow
-      std::string to_sql() const override { return "1=1"; }
-      std::vector<bind_param> bind_params() const override { return {}; }
+      constexpr std::string to_sql() const override { return "1=1"; }
+      constexpr std::vector<bind_param> bind_params() const override { return {}; }
     };
 
-    return join(table, DummyCondition{}, JoinType::Cross);
+    return join<JoinType::Cross>(table, DummyCondition{});
   }
 
   /// @brief Add a WHERE clause to the query
@@ -381,7 +419,7 @@ public:
   /// @param cond The WHERE condition
   /// @return New SelectQuery with the WHERE clause added
   template <ConditionExpr Condition>
-  auto where(const Condition& cond) const {
+  constexpr auto where(const Condition& cond) const {
     return SelectQuery<Columns, Tables, Joins, std::optional<Condition>, GroupBys, OrderBys,
                        HavingCond, LimitVal, OffsetVal, IsDistinct>(
         columns_, tables_, joins_, std::optional<Condition>(cond), group_bys_, order_bys_, having_,
@@ -393,7 +431,7 @@ public:
   /// @param args The GROUP BY expressions
   /// @return New SelectQuery with the GROUP BY clause added
   template <typename... Args>
-  auto group_by(const Args&... args) const {
+  constexpr auto group_by(const Args&... args) const {
     auto transform_arg = []<typename T>(const T& arg) {
       if constexpr (ColumnType<T>) {
         return to_expr(arg);
@@ -417,7 +455,7 @@ public:
   /// @param cond The HAVING condition
   /// @return New SelectQuery with the HAVING clause added
   template <ConditionExpr Condition>
-  auto having(const Condition& cond) const {
+  constexpr auto having(const Condition& cond) const {
     return SelectQuery<Columns, Tables, Joins, Where, GroupBys, OrderBys, std::optional<Condition>,
                        LimitVal, OffsetVal, IsDistinct>(
         columns_, tables_, joins_, where_, group_bys_, order_bys_, std::optional<Condition>(cond),
@@ -429,7 +467,7 @@ public:
   /// @param args The ORDER BY expressions
   /// @return New SelectQuery with the ORDER BY clause added
   template <SqlExpr... Args>
-  auto order_by(const Args&... args) const {
+  constexpr auto order_by(const Args&... args) const {
     using new_order_bys_type = decltype(std::tuple_cat(order_bys_, std::tuple<Args...>{args...}));
 
     return SelectQuery<Columns, Tables, Joins, Where, GroupBys, new_order_bys_type, HavingCond,
@@ -444,7 +482,7 @@ public:
   /// @return New SelectQuery with the ORDER BY clause added
   template <typename T>
     requires ColumnType<T>
-  auto order_by(const T& column) const {
+  constexpr auto order_by(const T& column) const {
     // Type check for ORDER BY - ensure the column is comparable
     // Extract column type from the column template parameters
     using ColumnType = typename T::value_type;
@@ -459,7 +497,7 @@ public:
   /// @brief Add a LIMIT clause to the query
   /// @param limit The LIMIT value
   /// @return New SelectQuery with the LIMIT clause added
-  auto limit(int limit) const {
+  constexpr auto limit(int limit) const {
     auto limit_expr = Value<int>(limit);
 
     return SelectQuery<Columns, Tables, Joins, Where, GroupBys, OrderBys, HavingCond,
@@ -471,7 +509,7 @@ public:
   /// @brief Add an OFFSET clause to the query
   /// @param offset The OFFSET value
   /// @return New SelectQuery with the OFFSET clause added
-  auto offset(int offset) const {
+  constexpr auto offset(int offset) const {
     auto offset_expr = Value<int>(offset);
 
     return SelectQuery<Columns, Tables, Joins, Where, GroupBys, OrderBys, HavingCond, LimitVal,
@@ -500,7 +538,10 @@ private:
 /// @param args The columns or expressions to select
 /// @return A SelectQuery object
 template <typename... Args>
-auto select(const Args&... args) {
+constexpr auto select(const Args&... args) {
+  static_assert((!SelectQueryExpr<Args> && ...),
+                "scalar subqueries in a select list are not supported: the nested SELECT would be "
+                "emitted without parentheses. Use an IN/EXISTS condition, or a join");
   if constexpr ((ColumnType<Args> && ...)) {
     // All arguments are columns
     return SelectQuery(std::tuple<ColumnRef<Args>...>(ColumnRef<Args>(args)...));
@@ -527,7 +568,7 @@ auto select(const Args&... args) {
 /// @param args The column expressions to select
 /// @return A SelectQuery object
 template <typename... Args>
-auto select_expr(const Args&... args) {
+constexpr auto select_expr(const Args&... args) {
   return select(args...);
 }
 
@@ -538,11 +579,11 @@ auto select_expr(const Args&... args) {
 template <SqlExpr Expr>
 class DescendingExpr : public SqlExpression {
 public:
-  explicit DescendingExpr(Expr expr) : expr_(std::move(expr)) {}
+  constexpr explicit DescendingExpr(Expr expr) : expr_(std::move(expr)) {}
 
-  std::string to_sql() const override { return expr_.to_sql() + " DESC"; }
+  constexpr std::string to_sql() const override { return expr_.to_sql() + " DESC"; }
 
-  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
 private:
   Expr expr_;
@@ -553,13 +594,13 @@ private:
 /// @param expr The expression to order by
 /// @return A DescendingExpr object
 template <SqlExpr Expr>
-auto desc(Expr expr) {
+constexpr auto desc(Expr expr) {
   return DescendingExpr<Expr>(std::move(expr));
 }
 
 template <typename T>
   requires ColumnType<T>
-auto desc(const T& column) {
+constexpr auto desc(const T& column) {
   return desc(to_expr(column));
 }
 
@@ -570,11 +611,11 @@ auto desc(const T& column) {
 template <SqlExpr Expr>
 class AscendingExpr : public SqlExpression {
 public:
-  explicit AscendingExpr(Expr expr) : expr_(std::move(expr)) {}
+  constexpr explicit AscendingExpr(Expr expr) : expr_(std::move(expr)) {}
 
-  std::string to_sql() const override { return expr_.to_sql() + " ASC"; }
+  constexpr std::string to_sql() const override { return expr_.to_sql() + " ASC"; }
 
-  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
 private:
   Expr expr_;
@@ -585,7 +626,7 @@ private:
 /// @param expr The expression to order by
 /// @return An AscendingExpr object
 template <SqlExpr Expr>
-auto asc(Expr expr) {
+constexpr auto asc(Expr expr) {
   return AscendingExpr<Expr>(std::move(expr));
 }
 
@@ -595,7 +636,7 @@ auto asc(Expr expr) {
 /// @return An AscendingExpr object
 template <typename T>
   requires ColumnType<T>
-auto asc(const T& column) {
+constexpr auto asc(const T& column) {
   return asc(to_expr(column));
 }
 
@@ -607,7 +648,7 @@ auto asc(const T& column) {
 /// additions/reorderings between compile and execution, and the query synthesizes a row
 /// type like any explicit select (fetch_all/fetch_one work).
 template <TableType Table>
-auto select_all(const Table& table) {
+constexpr auto select_all(const Table& table) {
   static_assert(detail::select_all_columns<Table>().size() > 0,
                 "select_all requires the table to have at least one column");
   return [&table]<std::size_t... I>(std::index_sequence<I...>) {
@@ -621,10 +662,17 @@ auto select_all(const Table& table) {
 /// @tparam Table The table type to select all columns from
 /// @return A SelectQuery object with all columns from the table
 template <TableType Table>
-auto select_all() {
+constexpr auto select_all() {
   // Function-local static: the returned query's column refs point at this instance
   static const Table table{};
   return select_all(table);
+}
+
+/// @brief select_all over an annotated struct directly: select_all<Users>()
+template <typename Table>
+  requires(!TableType<Table>)
+constexpr auto select_all() {
+  return select_all<schema::table_ref<Table>>();
 }
 
 // Add new helper functions for DISTINCT queries
@@ -634,7 +682,10 @@ auto select_all() {
 /// @param args The columns or expressions to select
 /// @return A SelectQuery object with DISTINCT enabled
 template <typename... Args>
-auto select_distinct(const Args&... args) {
+constexpr auto select_distinct(const Args&... args) {
+  static_assert((!SelectQueryExpr<Args> && ...),
+                "scalar subqueries in a select list are not supported: the nested SELECT would be "
+                "emitted without parentheses. Use an IN/EXISTS condition, or a join");
   if constexpr ((ColumnType<Args> && ...)) {
     // All arguments are columns
     return SelectQuery<std::tuple<ColumnRef<Args>...>, std::tuple<>, std::tuple<>, std::nullopt_t,
@@ -680,9 +731,9 @@ auto select_distinct_all(const Table& table) {
   // Create a SelectQuery that selects DISTINCT *
   class StarExpression : public SqlExpression {
   public:
-    std::string to_sql() const override { return "*"; }
+    constexpr std::string to_sql() const override { return "*"; }
 
-    std::vector<bind_param> bind_params() const override { return {}; }
+    constexpr std::vector<bind_param> bind_params() const override { return {}; }
   };
 
   // Use a star expression with DISTINCT
@@ -700,6 +751,13 @@ auto select_distinct_all() {
   // Create a table instance to work with
   Table table{};
   return select_distinct_all(table);
+}
+
+/// @brief select_distinct_all over an annotated struct directly: select_distinct_all<Users>()
+template <typename Table>
+  requires(!TableType<Table>)
+auto select_distinct_all() {
+  return select_distinct_all<schema::table_ref<Table>>();
 }
 
 }  // namespace relx::query

@@ -9,13 +9,14 @@
 #include "query/date.hpp"
 #include "query/delete.hpp"
 #include "query/function.hpp"
-#include "query/helpers.hpp"
 #include "query/insert.hpp"
 #include "query/literals.hpp"
 #include "query/operators.hpp"
 #include "query/row_type.hpp"
 #include "query/schema_adapter.hpp"
 #include "query/select.hpp"
+#include "query/static_shape.hpp"
+#include "query/static_sql.hpp"
 #include "query/update.hpp"
 #include "query/uuid.hpp"
 #include "query/value.hpp"
@@ -33,18 +34,15 @@
  * #include <relx/query.hpp>
  *
  * // Define a table
- * struct Users {
- *     static constexpr auto table_name = "users";
- *     relx::column<Users, "id", int> id;
- *     relx::column<Users, "name", std::string> name;
- *     relx::column<Users, "email", std::string> email;
- *     relx::column<Users, "age", int> age;
- *
- *     relx::primary_key<&Users::id> pk;
+ * struct [[=relx::table("users")]] Users {
+ *     [[=relx::ann::pk]] int id;
+ *     std::string name;
+ *     std::string email;
+ *     int age;
  * };
  *
- * // Create table instance
- * Users u;
+ * // Define the table object once, next to the struct
+ * inline constexpr auto u = relx::t<Users>;
  *
  * // Option 1: Simple select query with modern syntax
  * auto query1 = relx::select(u.id, u.name, u.email)
@@ -66,17 +64,13 @@
  * (users.age > ?) auto params = query1.bind_params();  // ["18"]
  *
  * // Complex queries with joins
- * struct Posts {
- *     static constexpr auto table_name = "posts";
- *     relx::column<Posts, "id", int> id;
- *     relx::column<Posts, "user_id", int> user_id;
- *     relx::column<Posts, "title", std::string> title;
- *
- *     relx::primary_key<&Posts::id> pk;
- *     relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
+ * struct [[=relx::table("posts")]] Posts {
+ *     [[=relx::ann::pk]] int id;
+ *     [[=relx::ann::fk<^^Users::id>]] int user_id;
+ *     std::string title;
  * };
  *
- * Posts p;
+ * inline constexpr auto p = relx::t<Posts>;
  *
  * // Join query
  * auto join_query = relx::select(u.name, p.title)
@@ -95,10 +89,8 @@
  *
  * // Update query
  * auto update_query = relx::update(u)
- *     .set(
- *         relx::set(u.name, "John Smith"),
- *         relx::set(u.email, "john.smith@example.com")
- *     )
+ *     .set(u.name, "John Smith")
+ *     .set(u.email, "john.smith@example.com")
  *     .where(u.id == 1);
  *
  * // Delete query
@@ -107,11 +99,8 @@
  *
  * // Insert query
  * auto insert_query = relx::insert_into(u)
- *     .values(
- *         relx::set(u.name, "Alice"),
- *         relx::set(u.email, "alice@example.com"),
- *         relx::set(u.age, 25)
- *     );
+ *     .columns(u.name, u.email, u.age)
+ *     .values(relx::val("Alice"), relx::val("alice@example.com"), relx::val(25));
  * ```
  */
 
@@ -129,13 +118,17 @@ using query::count_distinct;
 using query::delete_from;
 using query::desc;
 using query::distinct;
+using query::exists;
 using query::in;
+using query::in_any;
 using query::insert_into;
 using query::like;
 using query::max;
 using query::min;
+using query::not_exists;
 using query::on;
 using query::select;
+using query::select_all;
 using query::select_expr;
 using query::sum;
 using query::update;
