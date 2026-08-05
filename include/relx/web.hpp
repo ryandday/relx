@@ -8,11 +8,13 @@
 /// provides the mechanics.
 ///
 /// Design rule: explicitness beats shorter syntax where it matters, especially
-/// error handling. Fallible calls stay visibly fallible — unwrap(...) marks
-/// them at the call site, and Db conveniences return ApiResult rather than
-/// throwing invisibly. When an error is intentionally replaced (e.g. masking
-/// an invite lookup as "event not found" to avoid leaking existence), use the
-/// explicit unwrap(result, override) overload so the masking is readable.
+/// error handling. Fallible calls stay visibly fallible — value-producing
+/// calls return ApiResult and unwrap(...) marks the extraction at the call
+/// site (Db conveniences never throw invisibly); pure guards with no value
+/// (require_*, validate_*) throw directly, their names being the visibility.
+/// When an error is intentionally replaced (e.g. masking an invite lookup as
+/// "event not found" to avoid leaking existence), use the explicit
+/// unwrap(result, override) overload so the masking is readable.
 ///
 /// Requires the RELX_ENABLE_WEB CMake option (adds the glaze dependency).
 

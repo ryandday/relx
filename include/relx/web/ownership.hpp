@@ -31,15 +31,16 @@ ApiResult<Row> one_or_404(relx::PostgreSQLConnection& conn, const Query& query,
   return std::move(rows->front());
 }
 
-/// @brief Ownership check for a fetched row. Responds 404 rather than 403 so
-/// resource existence is not leaked to non-owners.
+/// @brief Ownership guard for a fetched row: throws a 404 on mismatch — rather
+/// than a 403, so resource existence is not leaked to non-owners. Pure guards
+/// (require_*/validate_*) throw directly; the name announces the fallibility,
+/// and there is no value for an unwrap to extract.
 template <typename Id>
-ApiResult<void> require_owner(const Id& row_owner, const Id& current_user,
-                              std::string_view what = "resource") {
+void require_owner(const Id& row_owner, const Id& current_user,
+                   std::string_view what = "resource") {
   if (row_owner != current_user) {
-    return std::unexpected(not_found(std::string(what) + " not found"));
+    throw ApiException(not_found(std::string(what) + " not found"));
   }
-  return {};
 }
 
 }  // namespace relx::web

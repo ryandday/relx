@@ -191,7 +191,7 @@ inline void register_routes(web::Router& router, web::Db& db, std::string jwt_se
             relx::PostgreSQLConnection& conn) -> web::ApiResult<EventInvite> {
           auto event = unwrap(
               web::one_or_404<Event>(conn, rq::select_all(events).where(events.id == eid), "event"));
-          unwrap(web::require_owner(event.owner_id, uid, "event"));
+          web::require_owner(event.owner_id, uid, "event");
           if (invitee == uid) {
             return std::unexpected(web::conflict("cannot invite yourself"));
           }
