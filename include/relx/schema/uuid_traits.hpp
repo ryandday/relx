@@ -24,11 +24,7 @@ struct column_traits<boost::uuids::uuid> {
   }
 
   static boost::uuids::uuid from_sql_string(const std::string& value) {
-    std::string clean = value;
-    if (clean.size() >= 2 && clean.front() == '\'' && clean.back() == '\'') {
-      clean = clean.substr(1, clean.size() - 2);
-    }
-    return boost::uuids::string_generator{}(clean);
+    return boost::uuids::string_generator{}(value);
   }
 };
 

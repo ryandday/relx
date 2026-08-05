@@ -54,8 +54,8 @@ TEST(OptionalColumnTest, ValueConversion) {
   std::optional<std::string> email_value = "test@example.com";
   EXPECT_EQ(email_col.to_sql_string(email_value), "'test@example.com'");
 
-  // Converting from SQL string
-  auto parsed_email = email_col.from_sql_string("'test@example.com'");
+  // Converting from raw protocol text
+  auto parsed_email = email_col.from_sql_string("test@example.com");
   ASSERT_TRUE(parsed_email.has_value());
   EXPECT_EQ(*parsed_email, "test@example.com");
 

@@ -53,7 +53,8 @@ TEST(EnumColumnTest, EnumTraitsRoundTrip) {
   using Traits = relx::schema::column_traits<Status>;
   EXPECT_EQ(Traits::to_sql_string(Status::suspended), "suspended");
   EXPECT_EQ(Traits::from_sql_string("active"), Status::active);
-  EXPECT_EQ(Traits::from_sql_string("'pending'"), Status::pending);
+  EXPECT_EQ(Traits::from_sql_string("pending"), Status::pending);
+  EXPECT_THROW(Traits::from_sql_string("'pending'"), std::invalid_argument);
   EXPECT_THROW(Traits::from_sql_string("bogus"), std::invalid_argument);
 }
 

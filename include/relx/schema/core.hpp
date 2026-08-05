@@ -4,6 +4,7 @@
 #include "fixed_string.hpp"
 
 #include <charconv>
+#include <format>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -16,21 +17,29 @@ namespace relx::schema {
 
 /// @brief Contains schema definition components
 
-/// @brief Metadata for a SQL column
+/// @brief Metadata for a SQL column. The primary template is intentionally
+/// undefined: an unsupported type must fail `ColumnTypeConcept` at compile time,
+/// not at link time. Specializations provide `sql_type_name`, `nullable`,
+/// `to_sql_string`, and `from_sql_string`.
 template <typename T>
-struct column_traits {
-  /// @brief The SQL type name for this C++ type
-  static constexpr auto sql_type_name = "TEXT";
+struct column_traits;
 
-  /// @brief Whether this type can be NULL
-  static constexpr bool nullable = false;
+namespace detail {
 
-  /// @brief Convert a C++ value to a SQL string representation
-  static std::string to_sql_string(const T& value);
+/// @brief Strict numeric parse: the whole string must be consumed
+template <typename T>
+T parse_number(const std::string& value, const char* type_name) {
+  T out{};
+  const char* begin = value.data();
+  const char* end = begin + value.size();
+  auto [ptr, ec] = std::from_chars(begin, end, out);
+  if (ec != std::errc{} || ptr != end) {
+    throw std::invalid_argument("'" + value + "' is not a valid " + type_name);
+  }
+  return out;
+}
 
-  /// @brief Parse a SQL string representation to a C++ value
-  static T from_sql_string(const std::string& value);
-};
+}  // namespace detail
 
 // Specializations for common types
 
@@ -41,7 +50,9 @@ struct column_traits<int> {
 
   static std::string to_sql_string(const int& value) { return std::to_string(value); }
 
-  static int from_sql_string(const std::string& value) { return std::stoi(value); }
+  static int from_sql_string(const std::string& value) {
+    return detail::parse_number<int>(value, "INTEGER");
+  }
 };
 
 template <>
@@ -50,9 +61,13 @@ struct column_traits<double> {
   static constexpr auto sql_type_name = "DOUBLE PRECISION";
   static constexpr bool nullable = false;
 
-  static std::string to_sql_string(const double& value) { return std::to_string(value); }
+  // std::format gives shortest-round-trip form; std::to_string would truncate to 6
+  // digits and follow the locale
+  static std::string to_sql_string(const double& value) { return std::format("{}", value); }
 
-  static double from_sql_string(const std::string& value) { return std::stod(value); }
+  static double from_sql_string(const std::string& value) {
+    return detail::parse_number<double>(value, "DOUBLE PRECISION");
+  }
 };
 
 template <>
@@ -73,20 +88,9 @@ struct column_traits<std::string> {
     return "'" + escaped + "'";
   }
 
-  static std::string from_sql_string(const std::string& value) {
-    // Remove surrounding quotes if present
-    if (value.size() >= 2 && value.front() == '\'' && value.back() == '\'') {
-      std::string unquoted = value.substr(1, value.size() - 2);
-      // Unescape doubled single quotes
-      size_t pos = 0;
-      while ((pos = unquoted.find("''", pos)) != std::string::npos) {
-        unquoted.erase(pos, 1);
-        pos += 1;
-      }
-      return unquoted;
-    }
-    return value;
-  }
+  // Parses raw protocol text: the value is taken verbatim. SQL-literal de-quoting
+  // does not belong here - real data starting and ending with a quote must survive.
+  static std::string from_sql_string(const std::string& value) { return value; }
 };
 
 template <>
@@ -97,8 +101,16 @@ struct column_traits<bool> {
   static std::string to_sql_string(const bool& value) { return value ? "true" : "false"; }
 
   static bool from_sql_string(const std::string& value) {
-    // PostgreSQL emits 't'/'f'; also accept the spellings it accepts as input
-    return value == "t" || value == "true" || value == "TRUE" || value == "1";
+    // PostgreSQL emits 't'/'f'; also accept the spellings it accepts as input.
+    // Anything unrecognized is an error - mapping it to false would silently
+    // corrupt data.
+    if (value == "t" || value == "true" || value == "TRUE" || value == "1") {
+      return true;
+    }
+    if (value == "f" || value == "false" || value == "FALSE" || value == "0") {
+      return false;
+    }
+    throw std::invalid_argument("'" + value + "' is not a valid BOOLEAN");
   }
 };
 
@@ -107,9 +119,11 @@ struct column_traits<float> {
   static constexpr auto sql_type_name = "REAL";
   static constexpr bool nullable = false;
 
-  static std::string to_sql_string(const float& value) { return std::to_string(value); }
+  static std::string to_sql_string(const float& value) { return std::format("{}", value); }
 
-  static float from_sql_string(const std::string& value) { return std::stof(value); }
+  static float from_sql_string(const std::string& value) {
+    return detail::parse_number<float>(value, "REAL");
+  }
 };
 
 template <>
@@ -120,7 +134,9 @@ struct column_traits<long> {
 
   static std::string to_sql_string(const long& value) { return std::to_string(value); }
 
-  static long from_sql_string(const std::string& value) { return std::stol(value); }
+  static long from_sql_string(const std::string& value) {
+    return detail::parse_number<long>(value, "BIGINT");
+  }
 };
 
 template <>
@@ -130,7 +146,9 @@ struct column_traits<long long> {
 
   static std::string to_sql_string(const long long& value) { return std::to_string(value); }
 
-  static long long from_sql_string(const std::string& value) { return std::stoll(value); }
+  static long long from_sql_string(const std::string& value) {
+    return detail::parse_number<long long>(value, "BIGINT");
+  }
 };
 
 namespace detail {
@@ -164,14 +182,9 @@ struct column_traits<E> {
   }
 
   static E from_sql_string(const std::string& value) {
-    // Accept both bare and quoted spellings, mirroring the string traits
-    std::string_view sv = value;
-    if (sv.size() >= 2 && sv.front() == '\'' && sv.back() == '\'') {
-      sv = sv.substr(1, sv.size() - 2);
-    }
-    auto parsed = refl::enum_cast<E>(sv);
+    auto parsed = refl::enum_cast<E>(value);
     if (!parsed) {
-      throw std::invalid_argument("'" + std::string(sv) + "' is not an enumerator of " +
+      throw std::invalid_argument("'" + value + "' is not an enumerator of " +
                                   std::string(refl::type_name<E>()));
     }
     return *parsed;
@@ -195,10 +208,9 @@ struct column_traits<std::optional<T>> {
     return "NULL";
   }
 
+  // NULL is out-of-band (a null cell never reaches this parser); the text "NULL"
+  // is real data for the inner type
   static std::optional<T> from_sql_string(const std::string& value) {
-    if (value == "NULL") {
-      return std::nullopt;
-    }
     return column_traits<T>::from_sql_string(value);
   }
 };

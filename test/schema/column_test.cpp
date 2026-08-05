@@ -63,13 +63,11 @@ TEST(ColumnTest, StringConversion) {
   EXPECT_EQ(name_col.to_sql_string("O'Reilly"), "'O''Reilly'");  // Single quote escaping
   EXPECT_EQ(name_col.to_sql_string(""), "''");
 
-  // Test converting SQL string to string (with unescaping)
-  EXPECT_EQ(name_col.from_sql_string("'hello'"), "hello");
-  EXPECT_EQ(name_col.from_sql_string("'O''Reilly'"), "O'Reilly");  // Single quote unescaping
-  EXPECT_EQ(name_col.from_sql_string("''"), "");
-
-  // Test with string not wrapped in quotes
+  // from_sql_string parses raw protocol text verbatim - no SQL-literal de-quoting,
+  // so data that happens to be wrapped in quotes survives untouched
   EXPECT_EQ(name_col.from_sql_string("hello"), "hello");
+  EXPECT_EQ(name_col.from_sql_string("'hello'"), "'hello'");
+  EXPECT_EQ(name_col.from_sql_string(""), "");
 }
 
 TEST(ColumnTest, BooleanConversion) {
@@ -86,7 +84,9 @@ TEST(ColumnTest, BooleanConversion) {
   EXPECT_FALSE(active_col.from_sql_string("0"));
   EXPECT_FALSE(active_col.from_sql_string("false"));
   EXPECT_FALSE(active_col.from_sql_string("FALSE"));
-  EXPECT_FALSE(active_col.from_sql_string("other"));
+
+  // Unrecognized text is an error, not false
+  EXPECT_THROW(active_col.from_sql_string("other"), std::invalid_argument);
 }
 
 TEST(ColumnTest, ColumnWithLongName) {
