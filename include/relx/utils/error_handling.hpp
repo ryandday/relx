@@ -101,4 +101,22 @@ void throw_if_failed(const std::expected<void, E>& result, const std::string& co
   }
 }
 
+/**
+ * @brief Overload for value-carrying results: throws on error, explicitly discarding
+ * the value on success. Use value_or_throw when the value is wanted.
+ */
+template <typename T, typename E>
+  requires(!std::is_void_v<T>)
+void throw_if_failed(const std::expected<T, E>& result, const std::string& context = "",
+                     const std::source_location& location = std::source_location::current()) {
+  if (!result) {
+    std::string message;
+    if (!context.empty()) {
+      message = std::format("{}: ", context);
+    }
+    message += format_error(result.error());
+    throw RelxException(message, location);
+  }
+}
+
 }  // namespace relx

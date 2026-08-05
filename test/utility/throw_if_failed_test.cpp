@@ -82,3 +82,12 @@ TEST(ExpectedUtilityTest, ThrowIfFailedVoidResultType) {
       },
       relx::RelxException);
 }
+TEST(ExpectedUtilityTest, ThrowIfFailedValueCarryingResultType) {
+  // Value-carrying results can be checked-and-discarded explicitly
+  std::expected<int, relx::connection::ConnectionError> success_value = 42;
+  EXPECT_NO_THROW({ relx::throw_if_failed(success_value); });
+
+  std::expected<int, relx::connection::ConnectionError> error_value = std::unexpected(
+      relx::connection::ConnectionError{.message = "Query failed", .error_code = 123});
+  EXPECT_THROW({ relx::throw_if_failed(error_value); }, relx::RelxException);
+}
