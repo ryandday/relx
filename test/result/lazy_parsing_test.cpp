@@ -201,7 +201,7 @@ TEST_F(LazyParsingTest, BooleanConversion) {
 
 TEST_F(LazyParsingTest, NullHandling) {
   std::string test_data = "id|nullable_col\n"
-                          "1|NULL\n"
+                          "1|\\N\n"
                           "2|valid_value\n";
 
   auto query = create_query();

@@ -22,16 +22,13 @@ public:
   LazyCell(std::string_view raw_data, size_t start_pos, size_t end_pos)
       : raw_data_(raw_data), start_pos_(start_pos), end_pos_(end_pos) {}
 
-  /// @brief Check if the cell contains a NULL value
-  bool is_null() const {
-    auto value = get_raw_value();
-    return value == "NULL";
-  }
+  /// @brief Check if the cell contains a NULL value. Nullness is out-of-band: the
+  /// encoded cell text `\N` marks NULL, while a real "NULL" (or `\N`) value arrives
+  /// escaped and is not null.
+  bool is_null() const { return encoded_value() == text_format::null_marker; }
 
-  /// @brief Get the raw string value (parsed on demand)
-  std::string get_raw_value() const {
-    return std::string(raw_data_.substr(start_pos_, end_pos_ - start_pos_));
-  }
+  /// @brief Get the raw string value (unescaped on demand)
+  std::string get_raw_value() const { return text_format::unescape(encoded_value()); }
 
   /// @brief Parse the cell's value as the specified type
   template <typename T>
@@ -43,7 +40,7 @@ public:
   template <typename T>
   ResultProcessingResult<T> as(bool allow_numeric_bools) const {
     // Create a temporary Cell with the parsed value and delegate
-    Cell temp_cell(get_raw_value());
+    Cell temp_cell = is_null() ? Cell::null() : Cell(get_raw_value());
     return temp_cell.template as<T>(allow_numeric_bools);
   }
 
@@ -51,6 +48,10 @@ private:
   std::string_view raw_data_;
   size_t start_pos_;
   size_t end_pos_;
+
+  std::string_view encoded_value() const {
+    return raw_data_.substr(start_pos_, end_pos_ - start_pos_);
+  }
 };
 
 /// @brief Lazy row that defers cell parsing until accessed
@@ -212,11 +213,16 @@ private:
   void ensure_cells_parsed() const {
     if (cells_parsed_) return;
 
-    // Parse cell positions from raw data
+    // Parse cell positions from raw data; backslash escapes the next character,
+    // so escaped separators inside values do not split cells
     size_t pos = 0;
     size_t start = 0;
 
     while (pos < raw_data_.size()) {
+      if (raw_data_[pos] == '\\' && pos + 1 < raw_data_.size()) {
+        pos += 2;
+        continue;
+      }
       if (raw_data_[pos] == '|') {
         cell_positions_.emplace_back(start, pos);
         start = pos + 1;
@@ -262,12 +268,13 @@ public:
   }
 
   /// @brief Access a row by index using the subscript operator
-  /// @note This method assumes index is valid - use at() for error checking
+  /// @note Throws std::out_of_range on an invalid index - use at() for the
+  /// non-throwing form. Returning an empty row here would silently yield
+  /// default-constructed data.
   LazyRow operator[](size_t index) const {
     auto result = at(index);
     if (!result) {
-      // Return empty LazyRow for invalid index
-      return LazyRow{};
+      throw std::out_of_range(result.error().message);
     }
     return *result;
   }
@@ -287,8 +294,9 @@ public:
     LazyRow operator*() const {
       auto result = result_set_.at(index_);
       if (!result) {
-        // Return empty LazyRow for invalid index (original behavior)
-        return LazyRow{};
+        // Iteration has no error channel; an empty row would silently yield
+        // default-constructed data
+        throw std::out_of_range(result.error().message);
       }
       return *result;
     }
@@ -328,7 +336,7 @@ public:
       for (size_t j = 0; j < lazy_row.size(); ++j) {
         auto lazy_cell = lazy_row.get_cell(j);
         if (lazy_cell) {
-          cells.emplace_back(lazy_cell->get_raw_value());
+          cells.push_back(lazy_cell->is_null() ? Cell::null() : Cell(lazy_cell->get_raw_value()));
         } else {
           return std::unexpected(ResultError{"Failed to get cell at index " + std::to_string(j)});
         }

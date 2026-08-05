@@ -28,6 +28,63 @@ struct ResultError {
   std::string message;
 };
 
+/// @brief Encoding for the internal pipe-delimited row text used by the lazy/streaming
+/// paths and result::parse. NULL is the out-of-band marker `\N` (never produced by
+/// escape); values escape `\`, `|`, and line breaks so any byte sequence round-trips.
+namespace text_format {
+
+/// The two-character cell content that denotes SQL NULL
+inline constexpr std::string_view null_marker = "\\N";
+
+inline std::string escape(std::string_view value) {
+  std::string out;
+  out.reserve(value.size());
+  for (const char c : value) {
+    switch (c) {
+    case '\\':
+      out += "\\\\";
+      break;
+    case '|':
+      out += "\\|";
+      break;
+    case '\n':
+      out += "\\n";
+      break;
+    case '\r':
+      out += "\\r";
+      break;
+    default:
+      out += c;
+    }
+  }
+  return out;
+}
+
+inline std::string unescape(std::string_view value) {
+  std::string out;
+  out.reserve(value.size());
+  for (size_t i = 0; i < value.size(); ++i) {
+    if (value[i] == '\\' && i + 1 < value.size()) {
+      const char next = value[++i];
+      switch (next) {
+      case 'n':
+        out += '\n';
+        break;
+      case 'r':
+        out += '\r';
+        break;
+      default:
+        out += next;
+      }
+    } else {
+      out += value[i];
+    }
+  }
+  return out;
+}
+
+}  // namespace text_format
+
 /// @brief Type alias for result of processing operations
 template <typename T>
 using ResultProcessingResult = std::expected<T, ResultError>;
@@ -67,11 +124,19 @@ std::string get_column_name_from_ptr(ColumnMemberPtr ptr) {
 /// @brief Represents a single cell value from a database result
 class Cell {
 public:
-  /// @brief Constructs a cell with a raw string value from the database
+  /// @brief Constructs a non-NULL cell with a raw string value from the database
   explicit Cell(std::string value) : value_(std::move(value)) {}
 
+  /// @brief Constructs a cell representing SQL NULL. Nullness is out-of-band: a cell
+  /// whose text happens to be "NULL" is NOT null.
+  static Cell null() {
+    Cell cell{std::string("NULL")};
+    cell.is_null_ = true;
+    return cell;
+  }
+
   /// @brief Check if the cell contains a NULL value
-  bool is_null() const { return value_ == "NULL"; }
+  bool is_null() const { return is_null_; }
 
   /// @brief Get the raw string value
   const std::string& raw_value() const { return value_; }
@@ -152,6 +217,9 @@ public:
         return std::unexpected(ResultError{std::string("Error parsing cell value '") + value_ +
                                            "' to integer: " + e.what()});
       }
+    } else if constexpr (std::is_same_v<T, std::string>) {
+      // Raw protocol text is the value itself - no SQL-literal de-quoting
+      return value_;
     } else if constexpr (schema::ColumnTypeConcept<T>) {
       try {
         return schema::column_traits<T>::from_sql_string(value_);
@@ -167,6 +235,7 @@ public:
 
 private:
   std::string value_;
+  bool is_null_ = false;
 
   // Helper to detect optional types
   template <typename T>
@@ -262,8 +331,9 @@ private:
       start = 1;
     }
 
-    return str.length() > start && std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start),
-                                               str.end(), [](char c) { return std::isdigit(c); });
+    return str.length() > start &&
+           std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start), str.end(),
+                       [](unsigned char c) { return std::isdigit(c); });
   }
 
   static bool is_valid_unsigned_integer(const std::string& str) {
@@ -276,8 +346,9 @@ private:
       start = 1;
     }
 
-    return str.length() > start && std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start),
-                                               str.end(), [](char c) { return std::isdigit(c); });
+    return str.length() > start &&
+           std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start), str.end(),
+                       [](unsigned char c) { return std::isdigit(c); });
   }
 
   static bool is_valid_float(const std::string& str) {
@@ -297,7 +368,7 @@ private:
     for (; i < str.length(); i++) {
       const char c = str[i];
 
-      if (std::isdigit(c)) {
+      if (std::isdigit(static_cast<unsigned char>(c))) {
         has_digit = true;
       } else if (c == '.') {
         if (has_decimal || has_exponent) {
@@ -587,8 +658,11 @@ private:
           if (result) {
             return *result;
           }
-          // Return default value for the type if conversion fails
-          return ResultType{};
+          // Iteration has no error channel; fabricating a default value would let
+          // loops silently run over zeros
+          throw std::runtime_error("Failed to convert column " +
+                                   std::to_string(column_indices[Indices]) + ": " +
+                                   result.error().message);
         }()...}};
   }
 };
@@ -717,8 +791,9 @@ public:
         }
       }
       if (!found) {
-        // If column name not found, default to index or 0
-        indices[i] = (i < column_names_.size()) ? i : 0;
+        // A typo or PostgreSQL case-folding would otherwise silently read the
+        // wrong column
+        throw std::invalid_argument("Column name not found in result set: " + column_names[i]);
       }
     }
 
@@ -793,7 +868,7 @@ public:
     std::string result;
     for (const auto& row : rows_) {
       result += row.to_string();
-      std::cout << '\n';
+      result += '\n';
     }
     return result;
   }
@@ -857,18 +932,32 @@ ResultProcessingResult<ResultSet> parse(const Query& /*query*/, const std::strin
         continue;
       }
 
-      // Parse cells
+      // Parse cells (backslash escapes cell separators; `\N` is the NULL marker)
       std::vector<Cell> cells;
+      const auto add_cell = [&cells](std::string_view raw) {
+        if (raw == text_format::null_marker) {
+          cells.push_back(Cell::null());
+        } else {
+          cells.emplace_back(text_format::unescape(raw));
+        }
+      };
       pos = 0;
-
-      while ((next_pos = line.find('|', pos)) != std::string::npos) {
-        cells.emplace_back(line.substr(pos, next_pos - pos));
-        pos = next_pos + 1;
+      size_t cell_start = 0;
+      while (pos < line.size()) {
+        if (line[pos] == '\\' && pos + 1 < line.size()) {
+          pos += 2;
+          continue;
+        }
+        if (line[pos] == '|') {
+          add_cell(std::string_view(line).substr(cell_start, pos - cell_start));
+          cell_start = pos + 1;
+        }
+        ++pos;
       }
 
       // Add the last cell
-      if (pos < line.size()) {
-        cells.emplace_back(line.substr(pos));
+      if (cell_start < line.size()) {
+        add_cell(std::string_view(line).substr(cell_start));
       }
 
       // Create a row with the cells and column names

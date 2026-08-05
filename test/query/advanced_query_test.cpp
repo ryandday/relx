@@ -415,7 +415,7 @@ TEST_F(AdvancedQueryTest, LeftJoinWithNullValues) {
   std::vector<std::string> headers = {"id", "name", "id", "title"};
   std::vector<std::vector<std::string>> rows = {
       {"1", "John Doe", "101", "First Post"},
-      {"2", "Jane Smith", "NULL", "NULL"},  // User without posts
+      {"2", "Jane Smith", "\\N", "\\N"},  // User without posts (\N marks SQL NULL)
       {"3", "Bob Johnson", "301", "Bob's Post"}};
   std::string raw_results = create_raw_results(headers, rows);
 
