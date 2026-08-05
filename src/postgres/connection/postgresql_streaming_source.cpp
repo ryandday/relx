@@ -10,18 +10,9 @@ namespace relx::connection {
 
 PostgreSQLStreamingSource::PostgreSQLStreamingSource(PostgreSQLConnection& connection,
                                                      std::string sql,
-                                                     std::vector<std::string> params)
+                                                     std::vector<bind_param> params)
     : connection_(&connection), sql_(std::move(sql)), params_(std::move(params)),
-      use_binary_(false), initialized_(false), finished_(false), convert_bytea_(false),
-      query_active_(false) {}
-
-PostgreSQLStreamingSource::PostgreSQLStreamingSource(PostgreSQLConnection& connection,
-                                                     std::string sql,
-                                                     std::vector<std::string> params,
-                                                     std::vector<bool> is_binary)
-    : connection_(&connection), sql_(std::move(sql)), params_(std::move(params)),
-      is_binary_(std::move(is_binary)), use_binary_(true), initialized_(false), finished_(false),
-      convert_bytea_(true), query_active_(false) {}
+      initialized_(false), finished_(false), convert_bytea_(false), query_active_(false) {}
 
 PostgreSQLStreamingSource::~PostgreSQLStreamingSource() {
   cleanup();
@@ -29,8 +20,7 @@ PostgreSQLStreamingSource::~PostgreSQLStreamingSource() {
 
 PostgreSQLStreamingSource::PostgreSQLStreamingSource(PostgreSQLStreamingSource&& other) noexcept
     : connection_(other.connection_), sql_(std::move(other.sql_)),
-      params_(std::move(other.params_)), is_binary_(std::move(other.is_binary_)),
-      use_binary_(other.use_binary_), column_names_(std::move(other.column_names_)),
+      params_(std::move(other.params_)), column_names_(std::move(other.column_names_)),
       is_bytea_column_(std::move(other.is_bytea_column_)), initialized_(other.initialized_),
       finished_(other.finished_), convert_bytea_(other.convert_bytea_),
       query_active_(other.query_active_), first_row_cached_(std::move(other.first_row_cached_)),
@@ -51,8 +41,6 @@ PostgreSQLStreamingSource& PostgreSQLStreamingSource::operator=(
     connection_ = other.connection_;
     sql_ = std::move(other.sql_);
     params_ = std::move(other.params_);
-    is_binary_ = std::move(other.is_binary_);
-    use_binary_ = other.use_binary_;
     column_names_ = std::move(other.column_names_);
     is_bytea_column_ = std::move(other.is_bytea_column_);
     initialized_ = other.initialized_;
@@ -130,9 +118,19 @@ std::optional<std::string> PostgreSQLStreamingSource::get_next_row() {
 
   if (status == PGRES_SINGLE_TUPLE) {
     // We have a single row, format it
-    auto row_data = format_row(pg_result);
-    PQclear(pg_result);
-    return row_data;
+    try {
+      auto row_data = format_row(pg_result);
+      PQclear(pg_result);
+      return row_data;
+    } catch (const std::exception& e) {
+      PQclear(pg_result);
+      drain_results();
+      last_error_ = ConnectionError{.message = std::string("Failed to decode row: ") + e.what(),
+                                    .error_code = -1};
+      finished_ = true;
+      query_active_ = false;
+      return std::nullopt;
+    }
   } else if (status == PGRES_TUPLES_OK) {
     // End of results
     PQclear(pg_result);
@@ -177,43 +175,37 @@ ConnectionResult<void> PostgreSQLStreamingSource::start_query() {
     // Convert ? placeholders to $1, $2, etc.
     std::string pg_sql = connection_->convert_placeholders(sql_);
 
-    if (use_binary_) {
-      // Prepare parameter values, lengths, and formats for binary mode
-      std::vector<const char*> param_values;
-      std::vector<int> param_formats;
-      std::vector<int> param_lengths;
+    // Typed parameters: null params bind SQL NULL, kind-tagged params travel in
+    // binary with their type OID, the rest as untyped text
+    std::vector<Oid> types;
+    std::vector<const char*> values;
+    std::vector<int> lengths;
+    std::vector<int> formats;
+    types.reserve(params_.size());
+    values.reserve(params_.size());
+    lengths.reserve(params_.size());
+    formats.reserve(params_.size());
 
-      param_values.reserve(params_.size());
-      param_formats.reserve(params_.size());
-      param_lengths.reserve(params_.size());
-
-      for (size_t i = 0; i < params_.size(); ++i) {
-        param_values.push_back(params_[i].c_str());
-        param_lengths.push_back(static_cast<int>(params_[i].size()));
-        param_formats.push_back(is_binary_[i] ? 1 : 0);
+    for (const auto& param : params_) {
+      types.push_back(static_cast<Oid>(param.kind));
+      if (param.is_null) {
+        values.push_back(nullptr);  // SQL NULL
+        lengths.push_back(0);
+        formats.push_back(0);
+      } else if (param.kind != relx::sql_kind::unspecified) {
+        values.push_back(reinterpret_cast<const char*>(param.binary.data()));
+        lengths.push_back(static_cast<int>(param.binary.size()));
+        formats.push_back(1);  // binary
+      } else {
+        values.push_back(param.value.c_str());
+        lengths.push_back(static_cast<int>(param.value.size()));
+        formats.push_back(0);  // text
       }
-
-      result_code = PQsendQueryParams(pg_conn, pg_sql.c_str(), static_cast<int>(params_.size()),
-                                      nullptr,  // parameter types
-                                      param_values.data(), param_lengths.data(),
-                                      param_formats.data(),
-                                      0);  // result format (text)
-    } else {
-      // Prepare parameter values for text mode
-      std::vector<const char*> param_values;
-      param_values.reserve(params_.size());
-
-      for (const auto& param : params_) {
-        param_values.push_back(param.c_str());
-      }
-
-      result_code = PQsendQueryParams(pg_conn, pg_sql.c_str(), static_cast<int>(params_.size()),
-                                      nullptr,  // parameter types
-                                      param_values.data(),
-                                      nullptr,  // parameter lengths (null-terminated strings)
-                                      nullptr,  // parameter formats (all text)
-                                      0);       // result format (text)
     }
+
+    result_code = PQsendQueryParams(pg_conn, pg_sql.c_str(), static_cast<int>(params_.size()),
+                                    types.data(), values.data(), lengths.data(), formats.data(),
+                                    0);  // result format (text)
   }
 
   if (result_code != 1) {
@@ -299,7 +291,7 @@ std::optional<std::string> PostgreSQLStreamingSource::format_row(PGresult* pg_re
     }
 
     if (PQgetisnull(pg_result, 0, col_idx)) {
-      row_stream << "NULL";
+      row_stream << result::text_format::null_marker;
     } else {
       const char* value = PQgetvalue(pg_result, 0, col_idx);
       std::string cell_value = value ? value : "";
@@ -309,7 +301,7 @@ std::optional<std::string> PostgreSQLStreamingSource::format_row(PGresult* pg_re
         cell_value = convert_pg_bytea_to_binary(cell_value);
       }
 
-      row_stream << cell_value;
+      row_stream << result::text_format::escape(cell_value);
     }
   }
 
@@ -326,14 +318,13 @@ std::string PostgreSQLStreamingSource::convert_pg_bytea_to_binary(
     // Skip the \x prefix and process each hex byte
     for (size_t i = 2; i < hex_value.size(); i += 2) {
       if (i + 1 < hex_value.size()) {
-        try {
-          const std::string hex_byte = hex_value.substr(i, 2);
-          const char byte = static_cast<char>(std::stoi(hex_byte, nullptr, 16));
-          binary_result.push_back(byte);
-        } catch (const std::exception&) {
-          // If conversion fails, just return the original value
-          return hex_value;
+        const std::string hex_byte = hex_value.substr(i, 2);
+        size_t consumed = 0;
+        const int byte = std::stoi(hex_byte, &consumed, 16);
+        if (consumed != 2) {
+          throw std::invalid_argument("Invalid BYTEA hex digit in '" + hex_byte + "'");
         }
+        binary_result.push_back(static_cast<char>(byte));
       }
     }
 

@@ -9,7 +9,7 @@
 namespace relx::connection {
 
 PostgreSQLAsyncStreamingSource::PostgreSQLAsyncStreamingSource(
-    PostgreSQLAsyncConnection& connection, std::string sql, std::vector<std::string> params)
+    PostgreSQLAsyncConnection& connection, std::string sql, std::vector<bind_param> params)
     : connection_(connection), sql_(std::move(sql)), params_(std::move(params)),
       initialized_(false), finished_(false), convert_bytea_(false), query_active_(false),
       current_result_(nullptr, PQclear), current_row_index_(0), has_pending_results_(false) {}
@@ -129,19 +129,29 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
         ExecStatusType status = PQresultStatus(pg_result);
 
         if (status == PGRES_SINGLE_TUPLE) {
-          // We have a single row, format it
-          auto row_data = format_single_row(pg_result);
-          PQclear(pg_result);
-          co_return row_data;
+          // We have a single row, format it (freeing the result even on a decode error)
+          try {
+            auto row_data = format_single_row(pg_result);
+            PQclear(pg_result);
+            co_return row_data;
+          } catch (...) {
+            PQclear(pg_result);
+            drain_results();
+            finished_ = true;
+            query_active_ = false;
+            co_return std::nullopt;
+          }
         } else if (status == PGRES_TUPLES_OK) {
-          // End of results
+          // End of results - drain to NULL so the connection is reusable
           PQclear(pg_result);
+          drain_results();
           finished_ = true;
           query_active_ = false;
           co_return std::nullopt;
         } else {
           // Error condition
           PQclear(pg_result);
+          drain_results();
           finished_ = true;
           query_active_ = false;
           co_return std::nullopt;
@@ -157,7 +167,7 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
 
       boost::system::error_code ec;
       co_await (*socket_result)
-          ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+          ->async_wait(boost::asio::posix::stream_descriptor::wait_read,
                        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
@@ -174,6 +184,18 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
 
 const std::vector<std::string>& PostgreSQLAsyncStreamingSource::get_column_names() const {
   return column_names_;
+}
+
+void PostgreSQLAsyncStreamingSource::drain_results() {
+  PGconn* pg_conn = connection_.get_async_conn().native_handle();
+  if (!pg_conn) {
+    return;
+  }
+
+  PGresult* result;
+  while ((result = PQgetResult(pg_conn)) != nullptr) {
+    PQclear(result);
+  }
 }
 
 boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncStreamingSource::start_query() {
@@ -197,20 +219,37 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncStreamingSource::s
       // Convert ? placeholders to $1, $2, etc.
       std::string pg_sql = sql_utils::convert_placeholders_to_postgresql(sql_);
 
-      // Prepare parameter values for text mode
-      std::vector<const char*> param_values;
-      param_values.reserve(params_.size());
+      // Typed parameters: null params bind SQL NULL, kind-tagged params travel in
+      // binary with their type OID, the rest as untyped text
+      std::vector<Oid> types;
+      std::vector<const char*> values;
+      std::vector<int> lengths;
+      std::vector<int> formats;
+      types.reserve(params_.size());
+      values.reserve(params_.size());
+      lengths.reserve(params_.size());
+      formats.reserve(params_.size());
 
       for (const auto& param : params_) {
-        param_values.push_back(param.c_str());
+        types.push_back(static_cast<Oid>(param.kind));
+        if (param.is_null) {
+          values.push_back(nullptr);  // SQL NULL
+          lengths.push_back(0);
+          formats.push_back(0);
+        } else if (param.kind != relx::sql_kind::unspecified) {
+          values.push_back(reinterpret_cast<const char*>(param.binary.data()));
+          lengths.push_back(static_cast<int>(param.binary.size()));
+          formats.push_back(1);  // binary
+        } else {
+          values.push_back(param.value.c_str());
+          lengths.push_back(static_cast<int>(param.value.size()));
+          formats.push_back(0);  // text
+        }
       }
 
       result_code = PQsendQueryParams(pg_conn, pg_sql.c_str(), static_cast<int>(params_.size()),
-                                      nullptr,  // parameter types
-                                      param_values.data(),
-                                      nullptr,  // parameter lengths (null-terminated strings)
-                                      nullptr,  // parameter formats (all text)
-                                      0);       // result format (text)
+                                      types.data(), values.data(), lengths.data(), formats.data(),
+                                      0);  // result format (text)
     }
 
     if (result_code != 1) {
@@ -248,8 +287,17 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncStreamingSource::s
           // Process column metadata from the first row
           process_column_metadata_from_pg_result(first_result);
 
-          // Cache the first row data so we can return it when get_next_row() is called
-          first_row_cached_ = format_single_row(first_result);
+          // Cache the first row data so we can return it when get_next_row() is
+          // called (freeing the result even on a decode error)
+          try {
+            first_row_cached_ = format_single_row(first_result);
+          } catch (const std::exception& e) {
+            PQclear(first_result);
+            drain_results();
+            finished_ = true;
+            co_return std::unexpected(ConnectionError{
+                .message = std::string("Failed to decode row: ") + e.what(), .error_code = -1});
+          }
 
           PQclear(first_result);
           query_active_ = true;
@@ -261,12 +309,14 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncStreamingSource::s
             process_column_metadata_from_pg_result(first_result);
           }
           PQclear(first_result);
+          drain_results();
           finished_ = true;
           co_return ConnectionResult<void>{};
         } else {
           // Error
           std::string error_msg = PQresultErrorMessage(first_result);
           PQclear(first_result);
+          drain_results();
           co_return std::unexpected(
               ConnectionError{.message = std::string("Query execution failed: ") + error_msg,
                               .error_code = static_cast<int>(status)});
@@ -282,7 +332,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncStreamingSource::s
 
       boost::system::error_code ec;
       co_await (*socket_result)
-          ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+          ->async_wait(boost::asio::posix::stream_descriptor::wait_read,
                        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
@@ -328,7 +378,7 @@ std::string PostgreSQLAsyncStreamingSource::format_single_row(PGresult* pg_resul
     }
 
     if (PQgetisnull(pg_result, 0, col)) {
-      oss << "NULL";
+      oss << result::text_format::null_marker;
     } else {
       const char* value = PQgetvalue(pg_result, 0, col);
       std::string str_value = value ? value : "";
@@ -339,7 +389,7 @@ std::string PostgreSQLAsyncStreamingSource::format_single_row(PGresult* pg_resul
         str_value = convert_pg_bytea_to_binary(str_value);
       }
 
-      oss << str_value;
+      oss << result::text_format::escape(str_value);
     }
   }
 
@@ -356,12 +406,14 @@ std::string PostgreSQLAsyncStreamingSource::convert_pg_bytea_to_binary(
   std::string binary_result;
   const std::string hex_part = hex_value.substr(2);  // Skip \x prefix
 
-  for (size_t i = 0; i < hex_part.length(); i += 2) {
-    if (i + 1 < hex_part.length()) {
-      std::string byte_str = hex_part.substr(i, 2);
-      char byte = static_cast<char>(std::stoi(byte_str, nullptr, 16));
-      binary_result.push_back(byte);
+  for (size_t i = 0; i + 1 < hex_part.length(); i += 2) {
+    const std::string byte_str = hex_part.substr(i, 2);
+    size_t consumed = 0;
+    const int byte = std::stoi(byte_str, &consumed, 16);
+    if (consumed != 2) {
+      throw std::invalid_argument("Invalid BYTEA hex digit in '" + byte_str + "'");
     }
+    binary_result.push_back(static_cast<char>(byte));
   }
 
   return binary_result;
@@ -425,7 +477,7 @@ boost::asio::awaitable<void> PostgreSQLAsyncStreamingSource::async_cleanup() {
 
         boost::system::error_code ec;
         co_await (*socket_result)
-            ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+            ->async_wait(boost::asio::posix::stream_descriptor::wait_read,
                          boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {

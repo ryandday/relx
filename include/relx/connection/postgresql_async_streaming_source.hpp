@@ -1,9 +1,10 @@
 #pragma once
 
+#include "../bind_param.hpp"
 #include "../results/streaming_result.hpp"
 #include "postgresql_async_connection.hpp"
-#include "streaming_params.hpp"
 
+#include <format>
 #include <memory>
 #include <optional>
 #include <string>
@@ -38,7 +39,7 @@ public:
   /// @param sql The SQL query string to execute
   /// @param params Optional query parameters
   PostgreSQLAsyncStreamingSource(PostgreSQLAsyncConnection& connection, std::string sql,
-                                 std::vector<std::string> params = {});
+                                 std::vector<bind_param> params = {});
 
   /// @brief Destructor that cleans up any active query
   ~PostgreSQLAsyncStreamingSource();
@@ -83,7 +84,7 @@ public:
 private:
   PostgreSQLAsyncConnection& connection_;
   std::string sql_;
-  std::vector<std::string> params_;
+  std::vector<bind_param> params_;
 
   std::vector<std::string> column_names_;
   std::vector<bool> is_bytea_column_;
@@ -120,6 +121,9 @@ private:
 
   /// @brief Helper method to clean up any active query
   void cleanup();
+
+  /// @brief Drain PQgetResult to NULL so the connection leaves single-row mode clean
+  void drain_results();
 };
 
 /// @brief Async streaming result set that yields rows asynchronously
@@ -367,28 +371,29 @@ private:
 template <typename... Args>
 AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource> create_async_streaming_result(
     PostgreSQLAsyncConnection& connection, const std::string& sql, Args&&... args) {
-  // Convert parameters to strings (similar to execute_typed)
-  std::vector<std::string> param_strings;
+  // Typed parameters, as in execute_typed: nullptr binds a real SQL NULL,
+  // numeric types travel with their type OID in binary format
+  std::vector<bind_param> params;
   if constexpr (sizeof...(Args) > 0) {
-    param_strings.reserve(sizeof...(Args));
+    params.reserve(sizeof...(Args));
 
-    auto add_param = [&param_strings](auto&& param) {
+    auto add_param = [&params](auto&& param) {
       using ParamType = std::remove_cvref_t<decltype(param)>;
 
       if constexpr (std::is_same_v<ParamType, std::nullptr_t>) {
-        param_strings.push_back("NULL");
+        params.push_back(bind_param::null());
       } else if constexpr (std::is_same_v<ParamType, std::string> ||
                            std::is_same_v<ParamType, const char*> ||
                            std::is_same_v<ParamType, std::string_view>) {
-        param_strings.push_back(std::string(param));
+        params.emplace_back(std::string(param));
       } else if constexpr (std::is_same_v<ParamType, bool>) {
-        param_strings.push_back(param ? "t" : "f");
+        params.push_back(relx::make_bind_param(param, param ? "t" : "f"));
       } else if constexpr (std::is_arithmetic_v<ParamType>) {
-        param_strings.push_back(std::to_string(param));
+        params.push_back(relx::make_bind_param(param, std::format("{}", param)));
       } else {
         std::ostringstream ss;
         ss << param;
-        param_strings.push_back(ss.str());
+        params.emplace_back(ss.str());
       }
     };
 
@@ -396,7 +401,7 @@ AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource> create_async_streaming_r
   }
 
   return AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource>(
-      PostgreSQLAsyncStreamingSource(connection, sql, std::move(param_strings)));
+      PostgreSQLAsyncStreamingSource(connection, sql, std::move(params)));
 }
 
 /// @brief Create an async streaming result set from an async connection and a query object
@@ -406,7 +411,7 @@ AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource> create_async_streaming_r
 /// auto query = relx::select(u.id, u.name).from(u).where(u.age > 30);
 /// auto stream = relx::connection::create_async_streaming_result(conn, query);
 /// ```
-/// Parameters travel in their text form (see streaming_text_params).
+/// Parameters travel as typed bind_params (NULLs and binary kinds included).
 /// @param connection Async PostgreSQL connection to use
 /// @param query Query object exposing to_sql()/bind_params()
 /// @return AsyncStreamingResultSet for processing large result sets incrementally
@@ -414,7 +419,7 @@ template <query::SqlExpr Query>
 AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource> create_async_streaming_result(
     PostgreSQLAsyncConnection& connection, const Query& query) {
   return AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource>(
-      PostgreSQLAsyncStreamingSource(connection, query.to_sql(), streaming_text_params(query)));
+      PostgreSQLAsyncStreamingSource(connection, query.to_sql(), query.bind_params()));
 }
 
 }  // namespace relx::connection
