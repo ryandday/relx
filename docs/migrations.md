@@ -589,20 +589,30 @@ Always review the generated SQL before applying to production:
 
 ```cpp
 auto migration = relx::migrations::generate_migration(relx::t<OldUsers>, relx::t<NewUsers>);
+if (!migration) {
+    std::println("Generation failed: {}", migration.error().format());
+    return 1;
+}
 
 std::println("=== Migration: {} ===", migration->name());
 std::println("Operations: {}", migration->size());
 
-auto forward_sqls = migration.forward_sql();
-std::cout << "\nForward Migration:" << std::endl;
-for (size_t i = 0; i < forward_sqls.size(); ++i) {
-    std::cout << (i + 1) << ". " << forward_sqls[i] << std::endl;
+// forward_sql()/rollback_sql() return MigrationResult<std::vector<std::string>>
+auto forward_sqls = migration->forward_sql();
+auto rollback_sqls = migration->rollback_sql();
+if (!forward_sqls || !rollback_sqls) {
+    std::println("SQL generation failed");
+    return 1;
 }
 
-auto rollback_sqls = migration.rollback_sql();
-std::cout << "\nRollback Migration:" << std::endl;
-for (size_t i = 0; i < rollback_sqls.size(); ++i) {
-    std::cout << (i + 1) << ". " << rollback_sqls[i] << std::endl;
+std::println("\nForward Migration:");
+for (size_t i = 0; i < forward_sqls->size(); ++i) {
+    std::println("{}. {}", i + 1, (*forward_sqls)[i]);
+}
+
+std::println("\nRollback Migration:");
+for (size_t i = 0; i < rollback_sqls->size(); ++i) {
+    std::println("{}. {}", i + 1, (*rollback_sqls)[i]);
 }
 ```
 
@@ -611,19 +621,34 @@ for (size_t i = 0; i < rollback_sqls.size(); ++i) {
 Wrap migration execution in transactions for atomicity:
 
 ```cpp
-// Pseudo-code for migration execution
-void apply_migration(const Migration& migration) {
-    db.begin_transaction();
-    try {
-        auto sqls = migration.forward_sql();
-        for (const auto& sql : sqls) {
-            db.execute(sql);
-        }
-        db.commit();
-    } catch (...) {
-        db.rollback();
-        throw;
+bool apply_migration(relx::connection::PostgreSQLConnection& conn,
+                     const relx::migrations::Migration& migration) {
+    auto sqls = migration.forward_sql();
+    if (!sqls) {
+        std::println("Could not generate SQL: {}", sqls.error().format());
+        return false;
     }
+
+    if (auto begun = conn.begin_transaction(); !begun) {
+        std::println("BEGIN failed: {}", begun.error().message);
+        return false;
+    }
+
+    for (const auto& sql : *sqls) {
+        if (auto executed = conn.execute_raw(sql); !executed) {
+            std::println("Migration statement failed: {}", executed.error().message);
+            if (auto rolled_back = conn.rollback_transaction(); !rolled_back) {
+                std::println("ROLLBACK also failed: {}", rolled_back.error().message);
+            }
+            return false;
+        }
+    }
+
+    if (auto committed = conn.commit_transaction(); !committed) {
+        std::println("COMMIT failed: {}", committed.error().message);
+        return false;
+    }
+    return true;
 }
 ```
 
@@ -632,18 +657,14 @@ void apply_migration(const Migration& migration) {
 ### Incremental Schema Evolution
 
 ```cpp
-// Define evolution path
-UsersV1 users_v1;
-UsersV2 users_v2;  
-UsersV3 users_v3;
-
-// Generate incremental migrations
+// Generate incremental migrations (each returns MigrationResult<Migration>;
+// value_or_throw unwraps or throws a formatted RelxException)
 auto migration_v1_to_v2 = relx::migrations::generate_migration(relx::t<UsersV1>, relx::t<UsersV2>);
 auto migration_v2_to_v3 = relx::migrations::generate_migration(relx::t<UsersV2>, relx::t<UsersV3>);
 
 // Apply in sequence
-apply_migration(migration_v1_to_v2);
-apply_migration(migration_v2_to_v3);
+apply_migration(conn, relx::value_or_throw(migration_v1_to_v2));
+apply_migration(conn, relx::value_or_throw(migration_v2_to_v3));
 ```
 
 ### Conditional Migrations
