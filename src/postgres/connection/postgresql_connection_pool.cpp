@@ -2,6 +2,23 @@
 
 namespace relx::connection {
 
+namespace {
+
+/// Decrement an unsigned counter without wrapping below zero
+void decrement_guarded(std::atomic<size_t>& counter) {
+  size_t current = counter.load();
+  while (current > 0 && !counter.compare_exchange_weak(current, current - 1)) {
+  }
+}
+
+void subtract_guarded(std::atomic<size_t>& counter, size_t amount) {
+  size_t current = counter.load();
+  while (!counter.compare_exchange_weak(current, current >= amount ? current - amount : 0)) {
+  }
+}
+
+}  // namespace
+
 PostgreSQLConnectionPool::PostgreSQLConnectionPool(PostgreSQLConnectionPoolConfig config)
     : config_(std::move(config)) {}
 
@@ -14,23 +31,44 @@ PostgreSQLConnectionPool::~PostgreSQLConnectionPool() {
 }
 
 ConnectionPoolResult<void> PostgreSQLConnectionPool::initialize() {
-  const std::lock_guard<std::mutex> lock(pool_mutex_);
+  // Reserve the slots up front (so concurrent callers cannot overshoot), then
+  // connect WITHOUT holding the pool mutex: N blocking PQconnectdb calls under
+  // the lock would block every other pool operation for the whole connect window.
+  size_t to_create = 0;
+  {
+    const std::lock_guard<std::mutex> lock(pool_mutex_);
+    const size_t existing = total_connections_.load();
+    if (existing >= config_.initial_size) {
+      return {};  // already initialized; calling again is a no-op
+    }
+    to_create = config_.initial_size - existing;
+    total_connections_ += to_create;
+  }
 
-  // Create initial connections
-  for (size_t i = 0; i < config_.initial_size; ++i) {
+  std::vector<PoolEntry> created;
+  created.reserve(to_create);
+  for (size_t i = 0; i < to_create; ++i) {
     auto conn_result = create_connection();
     if (!conn_result) {
-      // If we can't create the initial connections, consider it a failure
+      // Keep what connected so far, release the unused reserved slots
+      subtract_guarded(total_connections_, to_create - created.size());
+      const std::lock_guard<std::mutex> lock(pool_mutex_);
+      for (auto& entry : created) {
+        idle_connections_.push(std::move(entry));
+        conn_available_.notify_one();
+      }
       return std::unexpected(ConnectionPoolError{
           .message = "Failed to initialize connection pool: " + conn_result.error().message,
           .error_code = conn_result.error().error_code});
     }
-
-    idle_connections_.push(
-        {.connection = *conn_result, .last_used = std::chrono::steady_clock::now()});
+    created.push_back({.connection = *conn_result, .last_used = std::chrono::steady_clock::now()});
   }
 
-  total_connections_ = config_.initial_size;
+  const std::lock_guard<std::mutex> lock(pool_mutex_);
+  for (auto& entry : created) {
+    idle_connections_.push(std::move(entry));
+    conn_available_.notify_one();
+  }
   return {};
 }
 
@@ -51,27 +89,52 @@ PostgreSQLConnectionPool::get_raw_connection() {
   // Cleanup old connections first
   cleanup_idle_connections();
 
-  // Try to get an idle connection or create a new one
   std::unique_lock<std::mutex> lock(pool_mutex_);
 
   auto wait_until = steady_clock::now() + config_.connection_timeout;
 
-  while (idle_connections_.empty()) {
-    // If we can create a new connection, do so
-    if (total_connections_ < config_.max_size) {
-      lock.unlock();
-      auto conn_result = create_connection();
-      lock.lock();
+  while (true) {
+    // Prefer an idle connection; validation runs with the mutex released so a
+    // stale socket cannot stall every other checkout
+    while (!idle_connections_.empty()) {
+      auto pooled_connection = std::move(idle_connections_.front());
+      idle_connections_.pop();
+      auto connection = std::move(pooled_connection.connection);
 
+      if (config_.validate_connections) {
+        lock.unlock();
+        if (!validate_connection(connection)) {
+          // Discard the dead connection; its slot frees capacity for a waiter
+          decrement_guarded(total_connections_);
+          conn_available_.notify_one();
+          lock.lock();
+          continue;
+        }
+        ++active_connections_;
+        return connection;
+      }
+
+      ++active_connections_;
+      return connection;
+    }
+
+    // No idle connection: create one if capacity allows. The slot is reserved
+    // before the mutex is released, so concurrent creators cannot overshoot
+    // max_size (check and increment are serialized by the mutex).
+    if (total_connections_.load() < config_.max_size) {
+      ++total_connections_;
+      lock.unlock();
+
+      auto conn_result = create_connection();
       if (!conn_result) {
+        decrement_guarded(total_connections_);
+        conn_available_.notify_one();
         return std::unexpected(ConnectionPoolError{.message = "Failed to create new connection: " +
                                                               conn_result.error().message,
                                                    .error_code = conn_result.error().error_code});
       }
 
-      ++total_connections_;
       ++active_connections_;
-
       return *conn_result;
     }
 
@@ -81,32 +144,6 @@ PostgreSQLConnectionPool::get_raw_connection() {
           ConnectionPoolError{.message = "Timed out waiting for a connection", .error_code = -1});
     }
   }
-
-  // Got an idle connection
-  auto pooled_connection = std::move(idle_connections_.front());
-  idle_connections_.pop();
-
-  auto connection = std::move(pooled_connection.connection);
-
-  // Validate the connection if needed
-  if (config_.validate_connections && !validate_connection(connection)) {
-    // Connection is invalid, try to create a new one
-    lock.unlock();
-    auto conn_result = create_connection();
-    lock.lock();
-
-    if (!conn_result) {
-      --total_connections_;  // The invalid connection is effectively gone
-      return std::unexpected(ConnectionPoolError{
-          .message = "Failed to create replacement connection: " + conn_result.error().message,
-          .error_code = conn_result.error().error_code});
-    }
-
-    connection = *conn_result;
-  }
-
-  ++active_connections_;
-  return connection;
 }
 
 void PostgreSQLConnectionPool::return_connection(std::shared_ptr<PostgreSQLConnection> connection) {
@@ -127,11 +164,12 @@ void PostgreSQLConnectionPool::return_connection(std::shared_ptr<PostgreSQLConne
 
   const std::lock_guard<std::mutex> lock(pool_mutex_);
 
-  --active_connections_;
+  decrement_guarded(active_connections_);
 
   if (!is_valid) {
-    // Discard invalid connection
-    --total_connections_;
+    // Discard invalid connection; the freed slot lets a waiter create anew
+    decrement_guarded(total_connections_);
+    conn_available_.notify_one();
   } else {
     // Return to the pool
     idle_connections_.push(
@@ -221,7 +259,7 @@ void PostgreSQLConnectionPool::cleanup_idle_connections() {
   idle_connections_ = std::move(keep_connections);
 
   // Update the total connection count
-  total_connections_ -= closed;
+  subtract_guarded(total_connections_, closed);
 }
 
 }  // namespace relx::connection

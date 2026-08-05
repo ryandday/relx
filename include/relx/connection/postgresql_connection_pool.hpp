@@ -169,9 +169,22 @@ public:
     PooledConnection(const PooledConnection&) = delete;
     PooledConnection& operator=(const PooledConnection&) = delete;
 
-    // Allow move operations
+    // Allow move operations. Move-assignment must return the currently held
+    // connection to the pool first - silently dropping it would leak its slot
+    // (the pool would count it as active forever).
     PooledConnection(PooledConnection&&) = default;
-    PooledConnection& operator=(PooledConnection&&) = default;
+    PooledConnection& operator=(PooledConnection&& other) noexcept {
+      if (this != &other) {
+        if (connection_) {
+          if (auto pool = pool_.lock()) {
+            pool->return_connection(std::move(connection_));
+          }
+        }
+        connection_ = std::move(other.connection_);
+        pool_ = std::move(other.pool_);
+      }
+      return *this;
+    }
 
     /// @brief Forward -> operator to the underlying connection
     PostgreSQLConnection* operator->() { return connection_.get(); }
