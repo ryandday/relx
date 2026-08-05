@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../reflect.hpp"
+#include "../schema/annotated_table.hpp"
 #include "../schema/check_constraint.hpp"
 #include "../schema/column.hpp"
 #include "../schema/foreign_key.hpp"
@@ -11,6 +12,7 @@
 #include "core.hpp"
 
 #include <map>
+#include <meta>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -75,6 +77,78 @@ struct TableMetadata {
   std::map<std::string, ConstraintMetadata> constraints;
 };
 
+namespace detail {
+
+/// @brief Classify a constraint SQL definition and register it under a deterministic
+/// generated name (shared by classic constraint members and table-level annotations)
+inline void add_constraint_metadata(TableMetadata& metadata, std::string sql_def) {
+  ConstraintMetadata constraint_meta;
+  constraint_meta.sql_definition = std::move(sql_def);
+
+  const std::string& sql = constraint_meta.sql_definition;
+  if (sql.find("PRIMARY KEY") != std::string::npos) {
+    constraint_meta.type = "PRIMARY_KEY";
+    constraint_meta.name = metadata.table_name + "_pk";
+  } else if (sql.find("FOREIGN KEY") != std::string::npos ||
+             sql.find("REFERENCES") != std::string::npos) {
+    constraint_meta.type = "FOREIGN_KEY";
+    constraint_meta.name = metadata.table_name + "_fk_" +
+                           std::to_string(metadata.constraints.size());
+  } else if (sql.find("UNIQUE") != std::string::npos) {
+    constraint_meta.type = "UNIQUE";
+    constraint_meta.name = metadata.table_name + "_unique_" +
+                           std::to_string(metadata.constraints.size());
+  } else if (sql.find("CHECK") != std::string::npos) {
+    constraint_meta.type = "CHECK";
+    constraint_meta.name = metadata.table_name + "_check_" +
+                           std::to_string(metadata.constraints.size());
+  } else if (sql.find("INDEX") != std::string::npos) {
+    constraint_meta.type = "INDEX";
+    constraint_meta.name = metadata.table_name + "_idx_" +
+                           std::to_string(metadata.constraints.size());
+  } else {
+    constraint_meta.type = "UNKNOWN";
+    constraint_meta.name = metadata.table_name + "_constraint_" +
+                           std::to_string(metadata.constraints.size());
+  }
+
+  metadata.constraints[constraint_meta.name] = std::move(constraint_meta);
+}
+
+// clang-format off
+
+/// @brief Add the table-level annotation constraints and indexes of an annotated
+/// struct T to the metadata. Classic tables express these as constraint members; for
+/// annotated tables they only exist as struct annotations, so without this walk a
+/// migration diff would silently drop them.
+template <typename T>
+void add_annotation_constraint_metadata(TableMetadata& metadata) {
+  template for (constexpr std::meta::info a :
+                std::define_static_array(std::meta::annotations_of(^^T))) {
+    using A = typename [:std::meta::remove_cv(std::meta::type_of(a)):];
+    if constexpr (schema::detail::TableConstraintAnnotation<A>) {
+      constexpr std::string_view sql =
+          std::define_static_string(std::meta::extract<A>(a).constraint_sql());
+      add_constraint_metadata(metadata, std::string(sql));
+    } else if constexpr (schema::detail::IndexAnnotation<A>) {
+      constexpr A index_annotation = std::meta::extract<A>(a);
+      constexpr std::string_view name = std::define_static_string(
+          index_annotation.index_name(schema::table_name_of<T>()));
+      constexpr std::string_view body = std::define_static_string(
+          index_annotation.index_sql_body(schema::table_name_of<T>()));
+      ConstraintMetadata constraint_meta;
+      constraint_meta.name = std::string(name);
+      constraint_meta.type = "INDEX";
+      constraint_meta.sql_definition = std::string(body);
+      metadata.constraints[constraint_meta.name] = std::move(constraint_meta);
+    }
+  }
+}
+
+// clang-format on
+
+}  // namespace detail
+
 /// @brief Extract table metadata using reflection
 /// @tparam Table The table type
 /// @param table_instance Instance of the table
@@ -116,11 +190,9 @@ MigrationResult<TableMetadata> extract_table_metadata(const Table& table_instanc
 
         metadata.columns[col_meta.name] = std::move(col_meta);
       } else if constexpr (schema::is_constraint<field_type>) {
-        // Extract constraint metadata
-        ConstraintMetadata constraint_meta;
-
+        std::string sql_def;
         try {
-          constraint_meta.sql_definition = field.sql_definition();
+          sql_def = field.sql_definition();
         } catch (const std::exception& e) {
           error = MigrationError::make(MigrationErrorType::MIGRATION_GENERATION_FAILED,
                                        "Failed to get SQL definition for constraint: " +
@@ -128,42 +200,19 @@ MigrationResult<TableMetadata> extract_table_metadata(const Table& table_instanc
                                        std::string(Table::table_name));
           return;
         }
-
-        // Determine constraint type and generate a unique name based on SQL definition patterns
-        std::string sql_def = constraint_meta.sql_definition;
-        if (sql_def.find("PRIMARY KEY") != std::string::npos) {
-          constraint_meta.type = "PRIMARY_KEY";
-          constraint_meta.name = metadata.table_name + "_pk";
-        } else if (sql_def.find("FOREIGN KEY") != std::string::npos ||
-                   sql_def.find("REFERENCES") != std::string::npos) {
-          constraint_meta.type = "FOREIGN_KEY";
-          constraint_meta.name = metadata.table_name + "_fk_" +
-                                 std::to_string(metadata.constraints.size());
-        } else if (sql_def.find("UNIQUE") != std::string::npos) {
-          constraint_meta.type = "UNIQUE";
-          constraint_meta.name = metadata.table_name + "_unique_" +
-                                 std::to_string(metadata.constraints.size());
-        } else if (sql_def.find("CHECK") != std::string::npos) {
-          constraint_meta.type = "CHECK";
-          constraint_meta.name = metadata.table_name + "_check_" +
-                                 std::to_string(metadata.constraints.size());
-        } else if (sql_def.find("INDEX") != std::string::npos) {
-          constraint_meta.type = "INDEX";
-          constraint_meta.name = metadata.table_name + "_idx_" +
-                                 std::to_string(metadata.constraints.size());
-        } else {
-          constraint_meta.type = "UNKNOWN";
-          constraint_meta.name = metadata.table_name + "_constraint_" +
-                                 std::to_string(metadata.constraints.size());
-        }
-
-        metadata.constraints[constraint_meta.name] = std::move(constraint_meta);
+        detail::add_constraint_metadata(metadata, std::move(sql_def));
       }
     });
 
     // Check if any errors occurred during field processing
     if (error.has_value()) {
       return std::unexpected(*error);
+    }
+
+    // Annotated tables carry cross-column constraints as struct annotations, not
+    // members - collect those too
+    if constexpr (requires { typename Table::annotated_type; }) {
+      detail::add_annotation_constraint_metadata<typename Table::annotated_type>(metadata);
     }
 
     return metadata;

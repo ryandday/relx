@@ -246,6 +246,55 @@ TEST(AnnotatedTableTest, IndexAnnotationsBecomeCreateIndexStatements) {
             "CREATE UNIQUE INDEX order_items_external_ref_idx ON order_items (external_ref)");
 }
 
+// Migrations see table-level annotations: two versions of the same table, the diff
+// carries the added constraint and index
+
+struct [[=relx::table("shipping_rates"),
+        =relx::ann::composite_pk("region", "carrier")]] ShippingRatesV1 {
+  std::string region;
+  std::string carrier;
+  double rate;
+};
+
+struct [[=relx::table("shipping_rates"),
+        =relx::ann::composite_pk("region", "carrier"),
+        =relx::ann::composite_unique("carrier", "rate"),
+        =relx::ann::index_on("carrier")]] ShippingRatesV2 {
+  std::string region;
+  std::string carrier;
+  double rate;
+};
+
+TEST(AnnotatedTableTest, MetadataIncludesTableLevelAnnotations) {
+  auto metadata = relx::migrations::extract_table_metadata(relx::t<ShippingRatesV2>);
+  ASSERT_TRUE(metadata);
+  ASSERT_EQ(metadata->constraints.size(), 3);
+  EXPECT_EQ(metadata->constraints.at("shipping_rates_pk").sql_definition,
+            "PRIMARY KEY (region, carrier)");
+  EXPECT_EQ(metadata->constraints.at("shipping_rates_carrier_idx").type, "INDEX");
+  EXPECT_EQ(metadata->constraints.at("shipping_rates_carrier_idx").sql_definition,
+            "INDEX shipping_rates_carrier_idx ON shipping_rates (carrier)");
+}
+
+TEST(AnnotatedTableTest, MigrationDiffSeesAnnotationConstraints) {
+  auto migration = relx::migrations::generate_migration(relx::t<ShippingRatesV1>,
+                                                        relx::t<ShippingRatesV2>);
+  ASSERT_TRUE(migration) << migration.error().format();
+  auto forward = migration->forward_sql();
+  ASSERT_TRUE(forward);
+
+  std::string all_sql;
+  for (const auto& sql : *forward) {
+    all_sql += sql + "\n";
+  }
+  EXPECT_NE(all_sql.find("ALTER TABLE shipping_rates ADD UNIQUE (carrier, rate);"),
+            std::string::npos)
+      << all_sql;
+  EXPECT_NE(all_sql.find("CREATE INDEX shipping_rates_carrier_idx ON shipping_rates (carrier);"),
+            std::string::npos)
+      << all_sql;
+}
+
 // clang-format on
 
 }  // namespace

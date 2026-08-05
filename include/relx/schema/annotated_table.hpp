@@ -368,18 +368,26 @@ struct index_on : detail::name_list {
     return copy;
   }
 
-  consteval std::string index_sql(std::string_view table) const {
+  consteval std::string index_name(std::string_view table) const {
     std::string name = std::string(table) + "_";
     for (std::size_t i = 0; i < count_; ++i) {
       name += at(i);
       name += "_";
     }
     name += "idx";
+    return name;
+  }
 
-    std::string out = "CREATE ";
-    out += index_type_to_string(type_);
-    out += "INDEX " + name + " ON " + std::string(table) + " (" + joined() + ")";
+  /// @brief The statement body after CREATE, e.g. "UNIQUE INDEX t_a_idx ON t (a)"
+  /// (migrations store this form; AddConstraintOperation prepends CREATE)
+  consteval std::string index_sql_body(std::string_view table) const {
+    std::string out{index_type_to_string(type_)};
+    out += "INDEX " + index_name(table) + " ON " + std::string(table) + " (" + joined() + ")";
     return out;
+  }
+
+  consteval std::string index_sql(std::string_view table) const {
+    return "CREATE " + index_sql_body(table);
   }
 };
 
