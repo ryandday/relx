@@ -10,24 +10,26 @@ Thank you for your interest in contributing to relx! This document provides guid
    cd relx
    ```
 
-2. **Install dependencies:**
+2. **Build the toolchain image.** relx needs GCC 16.1 for C++26 reflection, which no
+   package manager ships on macOS, so building happens inside the container:
    ```bash
-   # macOS
-   brew install boost postgresql doxygen
-
-   # Ubuntu/Debian  
-   sudo apt-get install libboost-all-dev libpq-dev doxygen
+   docker build -t relx-gcc16-dev docker-dev
    ```
 
 3. **Build the project:**
    ```bash
-   make build
+   docker run --rm -v "$PWD":/repo -w /repo relx-gcc16-dev \
+     bash -c 'cmake -B build-gcc16 -G Ninja -DRELX_DEV_MODE=ON && cmake --build build-gcc16 -j'
    ```
 
-4. **Run tests:**
+4. **Run tests** (PostgreSQL runs on the host via `make postgres-up`):
    ```bash
-   make test
+   make postgres-up
+   docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD":/repo -w /repo relx-gcc16-dev \
+     bash -c 'socat TCP-LISTEN:5434,fork,reuseaddr TCP:host.docker.internal:5434 & sleep 1; ./build-gcc16/test/relx_tests'
    ```
+
+See [docs/development.md](docs/development.md) for the full toolchain notes.
 
 ### Documentation Standards
 
@@ -47,10 +49,10 @@ When contributing code, please ensure:
    ```cpp
    /**
     * @brief Create a SELECT query
-    * 
+    *
     * @example
     * ```cpp
-    * Users users;
+    * constexpr auto users = relx::t<Users>;
     * auto query = relx::select(users.id, users.name)
     *     .from(users)
     *     .where(users.age > 18);
@@ -62,15 +64,17 @@ When contributing code, please ensure:
 
 ## Code Style
 
-- Use the provided `.clang-format` configuration
-- Run `make format` before submitting PRs
-- Ensure `make tidy` passes without errors
+- Use the provided `.clang-format` configuration; run `make format` before submitting PRs
+- Wrap reflection-heavy regions in `// clang-format off` / `// clang-format on` — clang-format 20
+  cannot parse `^^`, `[: :]`, `template for`, or `[[=...]]`
+- `make tidy` does **not** work: no released clang-tidy can parse P2996, so it fails on any header
+  using reflection. It becomes usable when Clang ships reflection (~Clang 24)
 
 ## Testing
 
 - Add tests for all new functionality
-- Ensure existing tests pass: `make test`
-- Test coverage can be generated with: `make coverage`
+- Ensure existing tests pass (see Development Setup above for the container invocation)
+- Test coverage can be generated with `make coverage` from inside the container
 
 ## Documentation
 
@@ -95,7 +99,7 @@ make docs-clean
 2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes following the style guidelines
 4. Add/update tests and documentation  
-5. Ensure all tests pass: `make test`
+5. Ensure all tests pass
 6. Format code: `make format`
 7. Submit a pull request with a clear description
 

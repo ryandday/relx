@@ -15,7 +15,7 @@ The escape hatch for anything ❌ is `Connection::execute_raw(sql, params)` — 
 | `DISTINCT` | ✅ | `select_distinct`, `count_distinct`, `distinct(expr)` |
 | `DISTINCT ON (...)` | ❌ | |
 | Multi-table `FROM` | ✅ | Chained/variadic `from()` |
-| Table aliases (`FROM users u`) | ❌ | Blocks correct self-joins — the emitted self-join SQL is invalid |
+| Table aliases (`FROM users u`) | ❌ | Planned — reflection plan Phase 15. Until then self-joins and duplicate FROM tables are compile errors |
 | Subquery in `FROM` | ❌ | `from()` only accepts schema tables |
 | `LATERAL` | ❌ | |
 | `JOIN` (inner/left/right/full/cross) | ✅ | `ON` conditions with bound params; multiple joins |
@@ -183,7 +183,7 @@ Struct-vs-struct diffing only — never against a live database. Every operation
 
 1. **Upsert (`ON CONFLICT`)** — the most common real-world DML relx can't express; already planned (Phase 8).
 2. **Window functions, CTEs, set operations** — whole query classes missing; no clause slots exist yet.
-3. **Table aliases** — blocks self-joins (current self-join output is invalid SQL) and is a prerequisite for subqueries-in-FROM and `UPDATE ... FROM`.
+3. **Table aliases** — blocks self-joins (rejected at compile time) and is a prerequisite for subqueries-in-FROM and `UPDATE ... FROM`. Planned as Phase 15.
 4. **Casts and a raw-expression escape hatch** — today the only fallback is a whole raw statement; a `raw_expr("...")` node would cover most one-off function gaps cheaply.
 5. **JSONB and arrays as column types** — planned (Phase 12); param binding is already ahead of the schema layer here.
 6. **SQLSTATE-aware errors** — the type exists, unwired; duplicate-key detection is the payoff.

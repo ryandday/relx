@@ -48,7 +48,6 @@ int main() {
     }
     
     // Execute query with error checking
-    Users users;
     auto query = relx::select(users.id, users.name).from(users);
     
     auto query_result = conn.execute(query);
@@ -76,14 +75,12 @@ Represents database connection-related failures:
 
 ```cpp
 struct ConnectionError {
-    std::string message;        // Human-readable error description
-    int error_code;            // Database-specific error code
-    std::string source;        // Source of the error (e.g., "PostgreSQL")
-    
-    // Additional context may be included
-    std::optional<std::string> detail;
-    std::optional<std::string> hint;
+    std::string message;     // Human-readable description, including libpq's text
+    int error_code = 0;      // Database-specific error code, 0 when not applicable
 };
+
+template <typename T>
+using ConnectionResult = std::expected<T, ConnectionError>;
 ```
 
 **Common Connection Errors:**
@@ -98,16 +95,15 @@ Represents SQL query execution failures:
 
 ```cpp
 struct QueryError {
-    std::string message;        // Error description
-    int error_code;            // SQL error code
-    std::string query_string;  // The SQL that caused the error
-    
-    // Additional PostgreSQL-specific information
-    std::optional<std::string> severity;
-    std::optional<std::string> state_code;
-    std::optional<int> position;  // Error position in query
+    std::string message;
 };
+
+template <typename T>
+using QueryResult = std::expected<T, QueryError>;
 ```
+
+Query execution errors surface as `ConnectionError` — `QueryError` belongs to the query-building
+layer.
 
 **Common Query Errors:**
 - SQL syntax errors
@@ -121,10 +117,11 @@ Represents errors when processing query results:
 
 ```cpp
 struct ResultError {
-    std::string message;        // Error description
-    std::optional<std::string> column_name;  // Column that caused error
-    std::optional<int> row_index;           // Row index if applicable
+    std::string message;     // Names the offending column or field
 };
+
+template <typename T>
+using ResultProcessingResult = std::expected<T, ResultError>;
 ```
 
 **Common Result Errors:**
@@ -178,8 +175,8 @@ if (result) {
 try {
     const auto& rows = result.value();
     // Process rows...
-} catch (const std::bad_expected_access<QueryError>& e) {
-    std::println("Unexpected error: {}", result.error().message);
+} catch (const std::bad_expected_access<relx::ConnectionError>& e) {
+    std::println("Unexpected error: {}", e.error().message);
 }
 ```
 
@@ -203,11 +200,7 @@ auto processed_result = conn.execute(query)
 auto chained_result = conn.execute(query)
     .and_then([&conn](const auto& rows) -> relx::ConnectionResult<int> {
         if (rows.empty()) {
-            return std::unexpected(QueryError{
-                .message = "No rows found",
-                .error_code = 0,
-                .query_string = "..."
-            });
+            return std::unexpected(relx::ConnectionError{.message = "No rows found"});
         }
         
         // Perform another operation
@@ -216,7 +209,7 @@ auto chained_result = conn.execute(query)
 
 // Handle errors with alternatives
 auto with_fallback = conn.execute(query)
-    .or_else([&conn](const QueryError& error) -> relx::ConnectionResult<ResultSet> {
+    .or_else([&conn](const relx::ConnectionError& error) -> relx::ConnectionResult<relx::result::ResultSet> {
         if (error.error_code == SOME_RECOVERABLE_ERROR) {
             // Try a fallback query
             return conn.execute(fallback_query);
@@ -235,14 +228,16 @@ While `std::expected` is the primary error handling mechanism, relx provides uti
 Converts `std::expected` results to exceptions:
 
 ```cpp
-#include <relx/error.hpp>
+#include <relx/connection.hpp>
 
 try {
-    // These will throw relx::RelxException if they fail
+    // throw_if_failed takes expected<void> results - connect(), commit_transaction(), ...
     relx::throw_if_failed(conn.connect());
-    relx::throw_if_failed(conn.execute(create_table_query));
-    relx::throw_if_failed(conn.execute(insert_query));
-    
+
+    // execute() carries a ResultSet, so it unwraps with value_or_throw
+    relx::value_or_throw(conn.execute(create_table_query));
+    relx::value_or_throw(conn.execute(insert_query));
+
     std::println("All operations successful");
     
 } catch (const relx::RelxException& e) {
@@ -259,7 +254,7 @@ Extracts values from `std::expected` or throws exceptions:
 try {
     // Extract successful results or throw
     auto users = relx::value_or_throw(
-        conn.execute<UserDTO>(query),
+        conn.execute_many<UserDTO>(query),
         "Failed to fetch users"  // Optional context message
     );
     
@@ -279,7 +274,7 @@ Add context to exceptions for better debugging:
 
 ```cpp
 try {
-    auto result = conn.execute<UserDTO>(query);
+    auto result = conn.execute_many<UserDTO>(query);
     auto users = relx::value_or_throw(
         std::move(result),
         "Failed to fetch users from database"
@@ -302,12 +297,11 @@ try {
 relx::ConnectionResult<std::vector<UserDTO>> fetch_active_users(
     relx::PostgreSQLConnection& conn
 ) {
-    Users users;
     auto query = relx::select(users.id, users.name, users.email)
         .from(users)
         .where(users.is_active == true);
-    
-    auto result = conn.execute<UserDTO>(query);
+
+    auto result = conn.execute_many<UserDTO>(query);
     if (!result) {
         // Propagate error
         return std::unexpected(result.error());
@@ -328,7 +322,7 @@ relx::ConnectionResult<UserStats> calculate_user_stats(
     if (!user_result) {
         // Enhance error context
         auto error = user_result.error();
-        error.message = fmt::format(
+        error.message = std::format(
             "Failed to calculate stats for user {}: {}",
             user_id, error.message
         );
@@ -344,54 +338,22 @@ relx::ConnectionResult<UserStats> calculate_user_stats(
 
 ### Error Information Extraction
 
+The error types carry a message (and, for `ConnectionError`, a code) — PostgreSQL's detail, hint,
+and SQLSTATE are folded into the message text by libpq.
+
 ```cpp
 void log_error(const relx::ConnectionError& error) {
-    std::println("Connection Error:");
-    std::println("  Message: {}", error.message);
-    std::println("  Code: {}", error.error_code);
-    std::println("  Source: {}", error.source);
-    
-    if (error.detail) {
-        std::println("  Detail: {}", *error.detail);
-    }
-    if (error.hint) {
-        std::println("  Hint: {}", *error.hint);
-    }
-}
-
-void log_error(const relx::QueryError& error) {
-    std::println("Query Error:");
-    std::println("  Message: {}", error.message);
-    std::println("  Code: {}", error.error_code);
-    std::println("  Query: {}", error.query_string);
-    
-    if (error.position) {
-        std::println("  Position: {}", *error.position);
-    }
-    if (error.state_code) {
-        std::println("  State: {}", *error.state_code);
-    }
+    std::println("Connection error ({}): {}", error.error_code, error.message);
 }
 ```
 
 ### Comprehensive Error Handling
 
 ```cpp
-template<typename T>
-void handle_result(const relx::ConnectionResult<T>& result, const std::string& operation) {
+template <typename T>
+void handle_result(const relx::ConnectionResult<T>& result, std::string_view operation) {
     if (!result) {
-        const auto& error = result.error();
-        
-        std::println("Operation '{}' failed:", operation);
-        
-        // Type-specific error handling
-        if constexpr (std::is_same_v<decltype(error), const relx::ConnectionError&>) {
-            log_error(error);
-        } else if constexpr (std::is_same_v<decltype(error), const relx::QueryError&>) {
-            log_error(error);
-        } else {
-            std::println("  Error: {}", error.message);
-        }
+        std::println("Operation '{}' failed: {}", operation, result.error().message);
     }
 }
 
@@ -422,7 +384,7 @@ auto result = conn.execute(query);
 ```cpp
 // For libraries: Return std::expected
 relx::ConnectionResult<User> fetch_user(int id) {
-    auto result = conn.execute<UserDTO>(query);
+    auto result = conn.execute<UserDTO>(query);  // single row
     if (!result) {
         return std::unexpected(result.error());
     }
@@ -445,32 +407,38 @@ void application_logic() {
 ```cpp
 // Good: Add meaningful context
 auto users = relx::value_or_throw(
-    conn.execute<UserDTO>(query),
+    conn.execute_many<UserDTO>(query),
     "Failed to load user list for dashboard"
 );
 
 // Better: Include relevant parameters
 auto users = relx::value_or_throw(
-    conn.execute<UserDTO>(query),
-    fmt::format("Failed to load users for department {}", dept_id)
+    conn.execute_many<UserDTO>(query),
+    std::format("Failed to load users for department {}", dept_id)
 );
 ```
 
 ### 4. Handle Specific Error Types
 
+Server-reported errors carry the five-character SQLSTATE code and diagnostics
+(`sql_state`, `detail`, `hint`, `constraint_name`); classification helpers cover the
+common cases:
+
 ```cpp
 auto result = conn.execute(query);
 if (!result) {
     const auto& error = result.error();
-    
-    switch (error.error_code) {
-        case UNIQUE_VIOLATION:
-            return handle_duplicate_user();
-        case FOREIGN_KEY_VIOLATION:
-            return handle_invalid_reference();
-        default:
-            return handle_general_error(error);
+
+    if (error.is_duplicate_key_error()) {          // SQLSTATE 23505
+        return handle_duplicate_user(error.constraint_name);
     }
+    if (error.is_foreign_key_violation()) {        // SQLSTATE 23503
+        return handle_invalid_reference();
+    }
+    if (error.is_serialization_failure() || error.is_deadlock()) {
+        return retry_transaction();                // SQLSTATE 40001 / 40P01
+    }
+    return handle_general_error(error);
 }
 ```
 
@@ -478,27 +446,19 @@ if (!result) {
 
 ```cpp
 relx::ConnectionResult<void> perform_transaction() {
-    auto transaction = conn.begin_transaction();
-    
     try {
-        relx::throw_if_failed(conn.execute(query1));
-        relx::throw_if_failed(conn.execute(query2));
-        relx::throw_if_failed(transaction.commit());
-        
-        return {}; // Success
-        
+        // TransactionGuard begins on construction and rolls back on destruction
+        // unless commit() was called
+        relx::TransactionGuard transaction(conn);
+
+        relx::value_or_throw(conn.execute(query1));
+        relx::value_or_throw(conn.execute(query2));
+
+        transaction.commit();
+        return {};
+
     } catch (const relx::RelxException& e) {
-        auto rollback_result = transaction.rollback();
-        if (!rollback_result) {
-            // Log rollback failure but return original error
-            std::println("Rollback failed: {}", rollback_result.error().message);
-        }
-        
-        return std::unexpected(QueryError{
-            .message = e.what(),
-            .error_code = 0,
-            .query_string = "transaction"
-        });
+        return std::unexpected(relx::ConnectionError{.message = e.what(), .error_code = 0});
     }
 }
 ```

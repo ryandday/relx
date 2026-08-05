@@ -1,122 +1,90 @@
 # relx Documentation
 
-Welcome to the relx documentation. This documentation provides comprehensive guides and examples for using the relx C++ query building library.
-
-## Quick Navigation
+relx is a C++26 library for building and executing SQL queries with compile-time type safety.
+Schemas are plain structs carrying reflection annotations; the same struct doubles as the DTO for
+query results.
 
 | Guide | Description |
 |-------|-------------|
-| [Schema Definition](schema-definition.md) | Define tables, columns, and relationships |
-| [Query Building](query-building.md) | Build SQL queries with the fluent API |
-| [Result Parsing](result-parsing.md) | Process query results in a type-safe way |
-| [Streaming Results](streaming-results.md) | Efficient processing of large result sets with lazy parsing |
-| [Migrations](migrations.md) | Database schema migration system with automatic DDL generation |
-| [Error Handling](error-handling.md) | Working with errors and expected results |
-| [Advanced Examples](advanced-examples.md) | Complex query patterns and real-world examples |
-| [Performance Guide](performance.md) | Optimization tips and best practices |
-| [Development Guide](development.md) | Building, testing, and contributing |
+| [Schema Definition](schema-definition.md) | Tables, columns, constraints, and DDL generation |
+| [Query Building](query-building.md) | SELECT, INSERT, UPDATE, DELETE with the fluent API |
+| [Result Parsing](result-parsing.md) | Mapping query results onto C++ types |
+| [Streaming Results](streaming-results.md) | Large result sets with constant memory usage |
+| [Migrations](migrations.md) | Schema diffing and DDL migration generation |
+| [Error Handling](error-handling.md) | Working with `expected`-based results |
+| [Performance Guide](performance.md) | Optimization tips and memory trade-offs |
+| [Development Guide](development.md) | Toolchain, container workflow, building and testing |
+| [C++26 Reflection Plan](cpp26-reflection-plan.md) | Why reflection, and what it replaced |
 
-## Library Overview
+Requires **GCC 16.1+** with `-freflection` — the only released compiler implementing C++26
+reflection (P2996). See the [Development Guide](development.md).
 
-relx is a modern C++23 library for building and executing SQL queries with compile-time type safety. Key capabilities:
-
-- **Schema Definition**: Define database schemas as C++ structures
-- **Type-Safe Queries**: Build SQL queries with a fluent, chainable API
-- **Compile-Time Validation**: Catch SQL errors at compile time
-- **Database Execution**: Execute queries against PostgreSQL databases
-- **Result Mapping**: Process results with automatic type conversion
-- **Streaming Results**: Handle large datasets with constant memory usage and lazy parsing
-
-## Getting Started Example
+## Getting Started
 
 ```cpp
 #include <relx/schema.hpp>
 #include <relx/query.hpp>
 #include <relx/connection.hpp>
-#include <iostream>
+#include <print>
 
-// Define a schema
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int, relx::primary_key> id;
-    relx::column<Users, "name", std::string> name;
-    relx::column<Users, "email", std::string> email;
-    
-    relx::unique_constraint<&Users::email> unique_email;
+// clang-format off
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  [[=relx::ann::unique]] std::string email;
 };
+// clang-format on
 
-// Define a DTO for query results
-struct UserDTO {
-    int id;
-    std::string name;
-    std::string email;
-};
+inline constexpr auto users = relx::t<Users>;
 
 int main() {
-    // Database connection
-    relx::PostgreSQLConnectionParams params{
-        .host = "localhost",
-        .port = 5432,
-        .dbname = "example",
-        .user = "postgres",
-        .password = "postgres",
-        .application_name = "relx_example"
-    };
-    
-    relx::PostgreSQLConnection conn(params);
-    
-    auto connect_result = conn.connect();
-    if (!connect_result) {
-        std::println("Connection error: {}", connect_result.error().message);
-        return 1;
+  relx::PostgreSQLConnection conn({.host = "localhost",
+                                   .port = 5432,
+                                   .dbname = "example",
+                                   .user = "postgres",
+                                   .password = "postgres",
+                                   .application_name = "relx_example"});
+
+  auto connect_result = conn.connect();
+  if (!connect_result) {
+    std::println("Connection error: {}", connect_result.error().message);
+    return 1;
+  }
+
+  // value_or_throw unwraps an expected that carries a value; throw_if_failed is its
+  // counterpart for expected<void> results such as connect()
+  relx::value_or_throw(conn.execute(relx::create_table(users).if_not_exists()));
+
+  relx::value_or_throw(conn.execute(relx::insert_into(users)
+                                        .columns(users.name, users.email)
+                                        .values("John Doe", "john@example.com")));
+
+  auto query = relx::select(users.id, users.name, users.email)
+                   .from(users)
+                   .where(users.name.like("%John%"));
+
+  // Results map onto Users itself; a separate DTO struct works the same way
+  auto result = conn.execute_many<Users>(query);
+  if (result) {
+    for (const auto& user : *result) {
+      std::println("User: {} - {} ({})", user.id, user.name, user.email);
     }
-    
-    Users users;
-    
-    // Create table
-    auto create_result = conn.execute(relx::create_table(users).if_not_exists());
-    relx::throw_if_failed(create_result);
-    
-    // Insert data
-    auto insert_result = conn.execute(
-        relx::insert_into(users)
-            .columns(users.name, users.email)
-            .values("John Doe", "john@example.com")
-    );
-    relx::throw_if_failed(insert_result);
-    
-    // Query data with automatic mapping to DTO
-    auto query = relx::select(users.id, users.name, users.email)
-        .from(users)
-        .where(users.name.like("%John%"));
-    
-    auto result = conn.execute<UserDTO>(query);
-    if (result) {
-        for (const auto& user : *result) {
-            std::println("User: {} - {} ({})", user.id, user.name, user.email);
-        }
-    }
-    
-    return 0;
+  }
 }
 ```
 
-## Architecture Overview
+## Architecture
 
-relx is designed with several key components:
+- **Core library** (header-only): schema definitions, query building, SQL generation
+- **PostgreSQL client**: synchronous database operations over libpq
+- **PostgreSQL async client**: coroutine-based operations with Boost.Asio
+- **Connection pool**: managed pooling for high-concurrency applications
 
-- **Core Library** (header-only): Schema definitions, query building, SQL generation
-- **PostgreSQL Client**: Synchronous database operations
-- **PostgreSQL Async Client**: Asynchronous operations with Boost.Asio
-- **Connection Pool**: Managed connection pooling for high-concurrency applications
+## Reading Order
 
-## Next Steps
-
-1. Start with [Schema Definition](schema-definition.md) to learn how to define your database structure
-2. Read [Query Building](query-building.md) to understand the fluent API
-3. Review [Result Parsing](result-parsing.md) for handling query results
-4. Learn [Streaming Results](streaming-results.md) for efficient large dataset processing
-5. Explore [Migrations](migrations.md) for database schema evolution and automatic DDL generation
-6. Check [Error Handling](error-handling.md) for robust error management
-7. Explore [Advanced Examples](advanced-examples.md) for complex scenarios
+1. [Schema Definition](schema-definition.md) — define your database structure as C++ types
+2. [Query Building](query-building.md) — the fluent query API
+3. [Result Parsing](result-parsing.md) — getting results back into C++ types
+4. [Streaming Results](streaming-results.md) — processing large datasets lazily
+5. [Migrations](migrations.md) — evolving a schema over time
+6. [Error Handling](error-handling.md) — robust error management

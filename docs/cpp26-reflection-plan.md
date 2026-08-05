@@ -32,7 +32,7 @@ Caveats to build around:
 - This makes relx GCC-only until Clang catches up (previously it was Clang-only; there is no
   two-compiler option in 2026).
 
-## Phase 0 — Toolchain (this PR)
+## Phase 0 — Toolchain (done)
 
 - `CMakeLists.txt`: `cmake_minimum_required` → 3.25+ (needed for `cxx_std_26`),
   `CMAKE_CXX_STANDARD 26`, `target_compile_features(relx INTERFACE cxx_std_26)`,
@@ -45,7 +45,7 @@ Caveats to build around:
 - Local dev on macOS: no Homebrew GCC 16 yet — build/test through the `gcc:16` Docker image
   (see `docker-dev/Dockerfile` for the image and usage commands).
 
-## Phase 1 — Replace Boost.PFR with reflection (this PR)
+## Phase 1 — Replace Boost.PFR with reflection (done)
 
 New `include/relx/reflect.hpp`:
 
@@ -154,7 +154,7 @@ Implementation gotcha: `type_of(annotation)` is cv-qualified (`const table`) —
   `PQsendQueryParams`); untagged params (strings, enums, chrono) remain untyped text
   with server-side inference, exactly as before. `bind_param` converts from and compares
   with strings, so string-typed call sites and tests work unchanged. Streaming sources
-  and prepared statements still speak text (`relx::to_text_params` at the boundary).
+  and prepared statements still speak text (they take plain string parameters).
 
 ## Phase 5 — binary results, typed NULLs, constraint-aware migrations, native enums (done)
 
@@ -186,14 +186,58 @@ Implementation gotcha: `type_of(annotation)` is cv-qualified (`const table`) —
 - **Compile-fail tests**: `test/compile_fail/` + CTest (`WILL_FAIL`) covers the
   consteval validation diagnostics, with a must-compile control against flag rot.
 
-## Future ideas
+## Phase 6 — consteval SQL for whole typed queries (done)
 
-- Consteval `to_sql()` for whole typed queries. Assessment: the SQL text of typed
-  queries is now value-independent (NULL binds fixed that), so this is *possible*, but
-  every `to_sql()` in the query layer builds through `std::stringstream` (not
-  constexpr-usable) and would need rewriting to plain string concatenation; dynamic
-  constructs (`in_values` with runtime lists) must stay runtime. Mechanical but broad —
-  do it as a dedicated pass.
-- Prepared-statement caching keyed on query type (`PQprepare` once, `PQexecPrepared`
-  with the binary params after) — unblocked by the stable SQL shape.
-- Binary bind/result support for UUID and JSONB.
+- The entire query-building chain (SELECT/INSERT/UPDATE/DELETE builders, conditions,
+  operators, values, column refs) is constexpr: every `to_sql()` was rewritten from
+  `std::stringstream` to string concatenation, and constructors/builder methods are
+  marked constexpr. `SqlExpression`'s virtuals are constexpr (C++20 allows constexpr
+  virtual dispatch), though the static path never actually dispatches - all calls go
+  through concrete types.
+- `relx::static_sql(query)` renders the statement at compile time into static storage
+  (`define_static_string`); `relx::static_pg_sql(query)` additionally converts `?` to
+  `$1, $2, ...` placeholders at compile time (same quote-aware algorithm as the runtime
+  converter in sql_utils).
+- Works because bind parameters carry values out-of-band - a disengaged optional binds
+  a NULL parameter rather than changing the SQL text (Phase 5), so the statement is
+  value-independent. Requirements: referenced table objects must be constant-expression
+  usable (`relx::t<T>` or constexpr classic instances); aliased columns (shared_ptr)
+  and dynamic IN-lists stay runtime-only, unchanged.
+- UUID values bind as binary OID 2950 (16 bytes verbatim) and decode from binary
+  results to canonical 8-4-4-4-12 text.
+
+## Roadmap — Phases 7+ (agreed 2026-08-04)
+
+Ordered by ergonomic payoff per effort; each phase is a dedicated pass.
+
+- **Phase 7 — FK-derived joins**: `.join(posts)` synthesizes the ON clause from the
+  `fk<^^Users::id>` / `composite_fk` annotation between the two tables. Two candidate
+  FKs between the pair → static_assert directing to explicit `on()`.
+- **Phase 8 — struct-based writes**: `insert(users).values_from(obj)` expands fields via
+  reflection, skipping serial pk / defaulted columns; `.upsert()` derives the ON CONFLICT
+  target from the pk annotation and SET list from non-pk fields; patch update from a
+  struct of optionals (engaged fields only — inherently runtime SQL).
+- **Phase 9 — nested row synthesis for joins**: `fetch_all` on a multi-table select
+  groups columns by originating table into nested structs
+  (`struct { Users user; Posts post; }`); left-joined side becomes `std::optional`.
+- **Phase 10 — schema-drift verification**: `relx::verify_schema<Users, Posts>(conn)`
+  diffs reflected metadata (reusing `migrations/diff.hpp` extraction) against
+  `information_schema` and returns a structured error — boot-time drift check, no
+  migration emitted.
+- **Phase 11 — reflection utility types**: promote pick/omit/partial (prototyped in
+  `crud-server/proto_utility_types.cpp` on the relx-web branch) into `relx::refl`;
+  `where_equals(table, partialObj)` filter-by-example on top of `partial<T>`.
+- **Phase 12 — struct-typed JSONB columns**: `column<..., Metadata, jsonb>` with
+  reflection-driven encode/decode; includes binary bind/result support for JSONB.
+- **Phase 13 — prepared-statement caching**: keyed on query type (`PQprepare` once,
+  `PQexecPrepared` with binary params after); `static_pg_sql` supplies the statement
+  text with zero runtime cost.
+- **Phase 14 — small items**: `relx::debug::dump(row)` pretty-printer via
+  `for_each_named_field`; consteval `$n` placeholder-count check for raw SQL literals.
+- **Phase 15 — table aliases**: `relx::t<Users, "u">` puts the alias in the table_ref
+  type, so two aliases of one table are distinct types, column refs emit `u.col`, and
+  consteval SQL / static-shape memoization keep working. Unblocks self-joins (today a
+  compile error — `tuple_contains_table_v` guards in select.hpp relax to same-table
+  *and* same-alias), and is the prerequisite for subqueries in FROM, `UPDATE ... FROM`,
+  and LATERAL. Phase 7's FK-derived joins need it for self-referential FKs
+  (`manager_id → Users`).

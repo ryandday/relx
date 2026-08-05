@@ -28,42 +28,32 @@ The fastest way to get started is by building a command-line migration tool. Thi
 using namespace relx;
 
 // Define your table versions
-struct UsersV1 {
-    static constexpr auto table_name = "users";
-    
-    column<UsersV1, "id", int, primary_key> id;
-    column<UsersV1, "email", std::string> email;
-    column<UsersV1, "name", std::string> name;
-    
-    unique_constraint<&UsersV1::email> unique_email;
+// clang-format off
+struct [[=relx::table("users")]] UsersV1 {
+    [[=relx::ann::pk]] int id;
+    [[=relx::ann::unique]] std::string email;
+    std::string name;
 };
 
-struct UsersV2 {
-    static constexpr auto table_name = "users";
-    
-    column<UsersV2, "id", int, primary_key> id;
-    column<UsersV2, "email", std::string> email;
-    column<UsersV2, "full_name", std::string> full_name;  // renamed from name
-    column<UsersV2, "age", std::optional<int>> age;       // new nullable column
-    column<UsersV2, "created_at", std::string, string_default<"CURRENT_TIMESTAMP">> created_at;  // new with default
-    column<UsersV2, "is_active", bool, default_value<true>> is_active;                 // new boolean with default
- 
-    unique_constraint<&UsersV2::email> unique_email;
+struct [[=relx::table("users")]] UsersV2 {
+    [[=relx::ann::pk]] int id;
+    [[=relx::ann::unique]] std::string email;
+    std::string full_name;                                        // renamed from name
+    std::optional<int> age;                                       // new nullable column
+    [[=relx::default_sql<"CURRENT_TIMESTAMP">{}]] std::string created_at;
+    [[=relx::default_value<true>{}]] bool is_active;
 };
 
-struct UsersV3 {
-    static constexpr auto table_name = "users";
-    
-    column<UsersV3, "id", int, primary_key> id;
-    column<UsersV3, "email", std::string> email;
-    column<UsersV3, "full_name", std::string> full_name;
-    column<UsersV3, "birth_year", int> birth_year;        // changed from age to birth_year
-    column<UsersV3, "created_at", std::string, 
-           string_default<"CURRENT_TIMESTAMP", true>> created_at;
-    
-    unique_constraint<&UsersV3::email> unique_email;
-    table_check_constraint<"birth_year > 1900 AND birth_year <= EXTRACT(YEAR FROM CURRENT_DATE)"> valid_birth_year;
+struct [[=relx::table("users"),
+        =relx::ann::check("birth_year > 1900 AND birth_year <= EXTRACT(YEAR FROM CURRENT_DATE)")
+             .named("valid_birth_year")]] UsersV3 {
+    [[=relx::ann::pk]] int id;
+    [[=relx::ann::unique]] std::string email;
+    std::string full_name;
+    int birth_year;                                               // replaces age
+    [[=relx::default_sql<"CURRENT_TIMESTAMP">{}]] std::string created_at;
 };
+// clang-format on
 
 // Migration generator functions
 migrations::MigrationResult<migrations::Migration> generate_migration_between_versions(const std::string& from, const std::string& to) {
@@ -73,9 +63,7 @@ migrations::MigrationResult<migrations::Migration> generate_migration_between_ve
         // Handle name -> full_name rename
         options.column_mappings = {{"name", "full_name"}};
         
-        UsersV1 old_table;
-        UsersV2 new_table;
-        return migrations::generate_migration(old_table, new_table, options);
+        return migrations::generate_migration(relx::t<UsersV1>, relx::t<UsersV2>, options);
     }
     else if (from == "v2" && to == "v3") {
         // Handle age -> birth_year transformation
@@ -87,9 +75,7 @@ migrations::MigrationResult<migrations::Migration> generate_migration_between_ve
             }}
         };
         
-        UsersV2 old_table;
-        UsersV3 new_table;
-        return migrations::generate_migration(old_table, new_table, options);
+        return migrations::generate_migration(relx::t<UsersV2>, relx::t<UsersV3>, options);
     }
     else {
         return std::unexpected(migrations::MigrationError::make(
@@ -101,8 +87,7 @@ migrations::MigrationResult<migrations::Migration> generate_migration_between_ve
 
 migrations::MigrationResult<migrations::Migration> generate_create_migration(const std::string& version) {
     if (version == "v1") {
-        UsersV1 table;
-        return migrations::generate_create_table_migration(table);
+        return migrations::generate_create_table_migration(relx::t<UsersV1>);
     }
     else {
         return std::unexpected(migrations::MigrationError::make(
@@ -114,8 +99,7 @@ migrations::MigrationResult<migrations::Migration> generate_create_migration(con
 
 migrations::MigrationResult<migrations::Migration> generate_drop_migration(const std::string& version) {
     if (version == "v3") {
-        UsersV3 table;
-        return migrations::generate_drop_table_migration(table);
+        return migrations::generate_drop_table_migration(relx::t<UsersV3>);
     }
     else {
         return std::unexpected(migrations::MigrationError::make(
@@ -205,54 +189,44 @@ If you prefer to use the migration system programmatically without the CLI, here
 #include <relx/schema.hpp>
 
 // Define your table versions
-struct UsersV1 {
-    static constexpr auto table_name = "users";
-    
-    relx::column<UsersV1, "id", int, relx::primary_key> id;
-    relx::column<UsersV1, "name", std::string> name;
-    relx::column<UsersV1, "email", std::string> email;
-    
-    relx::unique_constraint<&UsersV1::email> unique_email;
+// clang-format off
+struct [[=relx::table("users")]] UsersV1 {
+    [[=relx::ann::pk]] int id;
+    std::string name;
+    [[=relx::ann::unique]] std::string email;
 };
 
-struct UsersV2 {
-    static constexpr auto table_name = "users";
-    
-    relx::column<UsersV2, "id", int, relx::primary_key> id;
-    relx::column<UsersV2, "name", std::string> name;
-    relx::column<UsersV2, "email", std::string> email;
-    relx::column<UsersV2, "age", std::optional<int>> age;  // New nullable column
-    relx::column<UsersV2, "created_at", std::string, 
-                 relx::string_default<"CURRENT_TIMESTAMP", true>> created_at;  // New column with default
-    
-    relx::unique_constraint<&UsersV2::email> unique_email;
+struct [[=relx::table("users")]] UsersV2 {
+    [[=relx::ann::pk]] int id;
+    std::string name;
+    [[=relx::ann::unique]] std::string email;
+    std::optional<int> age;                                       // new nullable column
+    [[=relx::default_sql<"CURRENT_TIMESTAMP">{}]] std::string created_at;
 };
+// clang-format on
 
 int main() {
-    UsersV1 old_users;
-    UsersV2 new_users;
-    
-    // Generate migration
-    auto migration = relx::migrations::generate_migration(old_users, new_users);
-    
-    // Get forward migration SQL
-    auto forward_sqls = migration.forward_sql();
-    for (const auto& sql : forward_sqls) {
-        std::cout << "Forward: " << sql << std::endl;
+    // generate_migration and the SQL accessors all return std::expected
+    auto migration = relx::migrations::generate_migration(relx::t<UsersV1>, relx::t<UsersV2>);
+    if (!migration) {
+        std::println("{}", migration.error().format());
+        return 1;
     }
-    // Output:
+
+    auto forward_sqls = migration->forward_sql();
+    for (const auto& sql : *forward_sqls) {
+        std::println("Forward: {}", sql);
+    }
     // Forward: ALTER TABLE users ADD COLUMN age INTEGER;
     // Forward: ALTER TABLE users ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;
-    
-    // Get rollback migration SQL  
-    auto rollback_sqls = migration.rollback_sql();
-    for (const auto& sql : rollback_sqls) {
-        std::cout << "Rollback: " << sql << std::endl;
+
+    auto rollback_sqls = migration->rollback_sql();
+    for (const auto& sql : *rollback_sqls) {
+        std::println("Rollback: {}", sql);
     }
-    // Output:
     // Rollback: ALTER TABLE users DROP COLUMN created_at;
     // Rollback: ALTER TABLE users DROP COLUMN age;
-    
+
     return 0;
 }
 ```
@@ -267,16 +241,16 @@ Generates a migration by comparing two table structures.
 
 ```cpp
 template <schema::TableConcept OldTable, schema::TableConcept NewTable>
-Migration generate_migration(const OldTable& old_table, const NewTable& new_table, 
-                           const MigrationOptions& options = {});
+MigrationResult<Migration> generate_migration(const OldTable& old_table, const NewTable& new_table,
+                                              const MigrationOptions& options = {});
 ```
 
 **Parameters:**
-- `old_table`: The current table structure
-- `new_table`: The target table structure  
-- `options`: Optional configuration for column mappings and transformations
+- `old_table`, `new_table`: table objects — `relx::t<UsersV1>`, `relx::t<UsersV2>`
+- `options`: optional column mappings and transformations
 
-**Returns:** A `Migration` object containing the operations needed to transform the old table into the new table.
+**Returns:** `std::expected<Migration, MigrationError>`. Both structs must resolve to the same SQL
+table name; a mismatch is a `static_assert`, not a runtime error.
 
 #### `generate_create_table_migration(table)`
 
@@ -284,7 +258,7 @@ Generates a migration to create a new table.
 
 ```cpp
 template <schema::TableConcept Table>
-Migration generate_create_table_migration(const Table& table);
+MigrationResult<Migration> generate_create_table_migration(const Table& table);
 ```
 
 #### `generate_drop_table_migration(table)`
@@ -292,8 +266,8 @@ Migration generate_create_table_migration(const Table& table);
 Generates a migration to drop an existing table.
 
 ```cpp
-template <schema::TableConcept Table>  
-Migration generate_drop_table_migration(const Table& table);
+template <schema::TableConcept Table>
+MigrationResult<Migration> generate_drop_table_migration(const Table& table);
 ```
 
 ### Migration Class
@@ -303,22 +277,20 @@ The `Migration` class contains a sequence of migration operations and provides m
 ```cpp
 class Migration {
 public:
-    // Generate forward migration SQL statements
-    std::vector<std::string> forward_sql() const;
-    
-    // Generate rollback migration SQL statements (in reverse order)
-    std::vector<std::string> rollback_sql() const;
-    
-    // Get migration name
+    // Forward migration SQL statements
+    MigrationResult<std::vector<std::string>> forward_sql() const;
+
+    // Rollback migration SQL statements (operations in reverse order)
+    MigrationResult<std::vector<std::string>> rollback_sql() const;
+
     const std::string& name() const;
-    
-    // Check if migration has any operations
     bool empty() const;
-    
-    // Get number of operations
     size_t size() const;
 };
 ```
+
+An operation whose SQL cannot be produced (an unsupported type change, for instance) surfaces as the
+error side of the `expected` rather than a partially-generated statement list.
 
 ### Migration Options
 
@@ -346,7 +318,7 @@ The system supports the following migration operations:
 | `DROP_COLUMN` | Remove a column | `ALTER TABLE users DROP COLUMN age;` |
 | `RENAME_COLUMN` | Rename a column | `ALTER TABLE users RENAME COLUMN old_name TO new_name;` |
 | `MODIFY_COLUMN` | Change column type/properties | Generated as ADD + UPDATE + DROP sequence |
-| `ADD_CONSTRAINT` | Add table constraint | `ALTER TABLE users ADD UNIQUE (email);` |
+| `ADD_CONSTRAINT` | Add table constraint | `ALTER TABLE users ADD CONSTRAINT users_unique_0 UNIQUE (email);` |
 | `DROP_CONSTRAINT` | Remove table constraint | `ALTER TABLE users DROP CONSTRAINT constraint_name;` |
 | `UPDATE_DATA` | Transform column data | `UPDATE users SET new_col = transform(old_col);` |
 
@@ -357,26 +329,23 @@ The system supports the following migration operations:
 Handle column renames without data loss using column mappings:
 
 ```cpp
+// clang-format off
 // Old table structure
-struct EmployeesV1 {
-    static constexpr auto table_name = "employees";
-    relx::column<EmployeesV1, "first_name", std::string> first_name;
-    relx::column<EmployeesV1, "email_addr", std::string> email_addr;
+struct [[=relx::table("employees")]] EmployeesV1 {
+    std::string first_name;
+    std::string email_addr;
 };
 
 // New table structure with renamed columns
-struct EmployeesV2 {
-    static constexpr auto table_name = "employees";
-    relx::column<EmployeesV2, "given_name", std::string> given_name;  // renamed
-    relx::column<EmployeesV2, "email", std::string> email;            // renamed
+struct [[=relx::table("employees")]] EmployeesV2 {
+    std::string given_name;  // renamed
+    std::string email;       // renamed
 };
-
-EmployeesV1 old_table;
-EmployeesV2 new_table;
+// clang-format on
 
 // ❌ WITHOUT mappings - causes data loss (DROP + ADD)
-auto migration_data_loss = relx::migrations::generate_migration(old_table, new_table);
-// Generates: DROP first_name, DROP email_addr, ADD given_name, ADD email
+auto migration_data_loss = relx::migrations::generate_migration(relx::t<EmployeesV1>, relx::t<EmployeesV2>);
+// Generates: ADD email, ADD given_name, DROP email_addr, DROP first_name
 
 // ✅ WITH mappings - preserves data (RENAME)
 relx::migrations::MigrationOptions options;
@@ -385,11 +354,11 @@ options.column_mappings = {
     {"email_addr", "email"}
 };
 
-auto migration_safe = relx::migrations::generate_migration(old_table, new_table, options);
-auto safe_sqls = migration_safe.forward_sql();
+auto migration_safe = relx::migrations::generate_migration(relx::t<EmployeesV1>, relx::t<EmployeesV2>, options);
+auto safe_sqls = migration_safe->forward_sql();
 // Output:
-// ALTER TABLE employees RENAME COLUMN first_name TO given_name;
 // ALTER TABLE employees RENAME COLUMN email_addr TO email;
+// ALTER TABLE employees RENAME COLUMN first_name TO given_name;
 ```
 
 ### Column Type Changes with Data Transformation
@@ -397,18 +366,15 @@ auto safe_sqls = migration_safe.forward_sql();
 Handle type changes while preserving and transforming data:
 
 ```cpp
-struct ProductsV1 {
-    static constexpr auto table_name = "products";
-    relx::column<ProductsV1, "price_cents", int> price_cents;  // int cents
+// clang-format off
+struct [[=relx::table("products")]] ProductsV1 {
+    int price_cents;             // int cents
 };
 
-struct ProductsV2 {
-    static constexpr auto table_name = "products";
-    relx::column<ProductsV2, "price_dollars", std::string> price_dollars;  // string dollars
+struct [[=relx::table("products")]] ProductsV2 {
+    std::string price_dollars;   // string dollars
 };
-
-ProductsV1 old_products;
-ProductsV2 new_products;
+// clang-format on
 
 relx::migrations::MigrationOptions options;
 options.column_mappings = {{"price_cents", "price_dollars"}};
@@ -419,14 +385,14 @@ options.column_transformations = {
     }}
 };
 
-auto migration = relx::migrations::generate_migration(old_products, new_products, options);
-auto forward_sqls = migration.forward_sql();
+auto migration = relx::migrations::generate_migration(relx::t<ProductsV1>, relx::t<ProductsV2>, options);
+auto forward_sqls = migration->forward_sql();
 // Output:
 // ALTER TABLE products ADD COLUMN price_dollars TEXT NOT NULL;
 // UPDATE products SET price_dollars = CAST(price_cents / 100.0 AS TEXT) || ' USD';
 // ALTER TABLE products DROP COLUMN price_cents;
 
-auto rollback_sqls = migration.rollback_sql();
+auto rollback_sqls = migration->rollback_sql();
 // Output (in reverse order):
 // ALTER TABLE products ADD COLUMN price_cents INTEGER NOT NULL;
 // UPDATE products SET price_cents = CAST(REPLACE(price_dollars, ' USD', '') AS DECIMAL) * 100;
@@ -438,29 +404,80 @@ auto rollback_sqls = migration.rollback_sql();
 The system automatically handles constraint changes:
 
 ```cpp
-struct TableWithoutConstraints {
-    static constexpr auto table_name = "users";
-    relx::column<TableWithoutConstraints, "id", int, relx::primary_key> id;
-    relx::column<TableWithoutConstraints, "email", std::string> email;
+// clang-format off
+struct [[=relx::table("users")]] TableWithoutConstraints {
+    [[=relx::ann::pk]] int id;
+    std::string email;
 };
 
-struct TableWithConstraints {
-    static constexpr auto table_name = "users";
-    relx::column<TableWithConstraints, "id", int, relx::primary_key> id;
-    relx::column<TableWithConstraints, "email", std::string> email;
-    
-    relx::unique_constraint<&TableWithConstraints::email> unique_email;
+// Multi-column constraints are struct-level (composite_unique); a single-column
+// UNIQUE can be either a column annotation or composite_unique("col") — both diff
+// as the same table-level constraint
+struct [[=relx::table("users"), =relx::ann::composite_unique("email")]] TableWithConstraints {
+    [[=relx::ann::pk]] int id;
+    std::string email;
 };
+// clang-format on
 
-TableWithoutConstraints old_table;
-TableWithConstraints new_table;
+auto migration = relx::migrations::generate_migration(relx::t<TableWithoutConstraints>,
+                                                      relx::t<TableWithConstraints>);
+auto forward_sqls = migration->forward_sql();
+// Output: ALTER TABLE users ADD CONSTRAINT users_unique_0 UNIQUE (email);
 
-auto migration = relx::migrations::generate_migration(old_table, new_table);
-auto forward_sqls = migration.forward_sql();
-// Output: ALTER TABLE users ADD UNIQUE (email);
-
-auto rollback_sqls = migration.rollback_sql();  
+auto rollback_sqls = migration->rollback_sql();
 // Output: ALTER TABLE users DROP CONSTRAINT users_unique_0;
+```
+
+#### Column-level constraint modifiers diff as constraints too
+
+`[[=relx::ann::unique]]`, `[[=relx::ann::fk<...>]]` (with any `on_delete`/`on_update` actions), and
+`[[=relx::schema::check<"...">{}]]` all render *into the column definition* in DDL, but the differ
+surfaces each as a table-level constraint (`UNIQUE (col)`, `FOREIGN KEY (col) REFERENCES ...`,
+`CHECK (...)`) — so adding or removing one migrates as `ADD CONSTRAINT` / `DROP CONSTRAINT` and the
+column (and its data) survives. A single-column PRIMARY KEY is the exception: it stays part of the
+column definition, so changing it is a column rebuild — use `composite_pk("col")` if a pk must
+participate in diffs as a constraint:
+
+```cpp
+// clang-format off
+struct [[=relx::table("users")]] V1 { [[=relx::ann::pk]] int id; std::string email; };
+struct [[=relx::table("users")]] V2 { [[=relx::ann::pk]] int id; [[=relx::ann::unique]] std::string email; };
+// clang-format on
+```
+
+```sql
+-- forward
+ALTER TABLE users ADD CONSTRAINT users_unique_0 UNIQUE (email);
+-- rollback
+ALTER TABLE users DROP CONSTRAINT users_unique_0;
+```
+
+#### Generated constraint names are positional
+
+Table-level constraints have no names of their own, so the differ generates
+`<table>_pk`, `<table>_unique_<n>`, `<table>_fk_<n>`, `<table>_check_<n>`, `<table>_idx_<n>`, where
+`n` is the constraint's index in **annotation order**. Reordering a struct's annotations therefore
+renames its constraints, and a diff between the two orderings churns every one of them:
+
+```sql
+-- swapping =relx::ann::composite_unique(...) and =relx::ann::check(...) on the struct
+ALTER TABLE orders ADD CONSTRAINT orders_check_1 CHECK (a > 0);
+ALTER TABLE orders ADD CONSTRAINT orders_unique_0 UNIQUE (a, b);
+ALTER TABLE orders DROP CONSTRAINT orders_check_1;
+ALTER TABLE orders DROP CONSTRAINT orders_unique_0;
+```
+
+Treat annotation order as part of the schema: keep it stable across versions, and append new
+constraint annotations rather than inserting them.
+
+Constraints you name yourself with `.named("...")` are exempt: the explicit name is used as the
+constraint's identity, so `DROP CONSTRAINT` targets the name that was actually created and
+reordering does not rename them. Naming constraints is the way to opt out of positional churn:
+
+```sql
+-- from =relx::ann::check("a > 0").named("a_positive")
+ALTER TABLE t ADD CONSTRAINT a_positive CHECK (a > 0);   -- forward
+ALTER TABLE t DROP CONSTRAINT a_positive;                -- rollback
 ```
 
 ### Table Creation and Deletion
@@ -468,29 +485,32 @@ auto rollback_sqls = migration.rollback_sql();
 Create migrations for entirely new or removed tables:
 
 ```cpp
-struct NewTable {
-    static constexpr auto table_name = "analytics";
-    relx::column<NewTable, "id", int, relx::primary_key> id;
-    relx::column<NewTable, "event", std::string> event;
-    relx::column<NewTable, "timestamp", std::string> timestamp;
+// clang-format off
+struct [[=relx::table("analytics")]] Analytics {
+    [[=relx::ann::pk]] int id;
+    std::string event;
+    std::string timestamp;
 };
-
-NewTable new_table;
+// clang-format on
 
 // Create table migration
-auto create_migration = relx::migrations::generate_create_table_migration(new_table);
-auto create_sqls = create_migration.forward_sql();
-// Forward: CREATE TABLE analytics (id INTEGER NOT NULL, event TEXT NOT NULL, timestamp TEXT NOT NULL, PRIMARY KEY (id));
+auto create_migration = relx::migrations::generate_create_table_migration(relx::t<Analytics>);
+auto create_sqls = create_migration->forward_sql();
+// Forward: CREATE TABLE analytics (
+//           id INTEGER NOT NULL PRIMARY KEY,
+//           event TEXT NOT NULL,
+//           timestamp TEXT NOT NULL
+//           );
 
-auto create_rollback_sqls = create_migration.rollback_sql();
+auto create_rollback_sqls = create_migration->rollback_sql();
 // Rollback: DROP TABLE IF EXISTS analytics;
 
 // Drop table migration
-auto drop_migration = relx::migrations::generate_drop_table_migration(new_table);
-auto drop_sqls = drop_migration.forward_sql();
+auto drop_migration = relx::migrations::generate_drop_table_migration(relx::t<Analytics>);
+auto drop_sqls = drop_migration->forward_sql();
 // Forward: DROP TABLE IF EXISTS analytics;
 
-auto drop_rollback_sqls = drop_migration.rollback_sql();
+auto drop_rollback_sqls = drop_migration->rollback_sql();
 // Rollback: CREATE TABLE analytics (...);
 ```
 
@@ -503,21 +523,22 @@ Build and run tests for every migration to ensure they work correctly:
 ```cpp
 // In your test file
 TEST(MigrationTest, TestUsersMigrationV1ToV2) {
-    UsersV1 old_users;
-    UsersV2 new_users;
-    
-    auto migration = relx::migrations::generate_migration(old_users, new_users);
-    
-    EXPECT_FALSE(migration.empty());
-    EXPECT_EQ(migration.size(), 2);  // Should add 2 columns
-    
-    auto forward_sqls = migration.forward_sql();
-    EXPECT_EQ(forward_sqls[0], "ALTER TABLE users ADD COLUMN age INTEGER;");
-    EXPECT_EQ(forward_sqls[1], "ALTER TABLE users ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;");
-    
-    auto rollback_sqls = migration.rollback_sql();
-    EXPECT_EQ(rollback_sqls[0], "ALTER TABLE users DROP COLUMN created_at;");
-    EXPECT_EQ(rollback_sqls[1], "ALTER TABLE users DROP COLUMN age;");
+    auto migration = relx::migrations::generate_migration(relx::t<UsersV1>, relx::t<UsersV2>);
+    ASSERT_TRUE(migration) << migration.error().format();
+
+    EXPECT_FALSE(migration->empty());
+    EXPECT_EQ(migration->size(), 2);  // Should add 2 columns
+
+    auto forward_sqls = migration->forward_sql();
+    ASSERT_TRUE(forward_sqls);
+    EXPECT_EQ((*forward_sqls)[0], "ALTER TABLE users ADD COLUMN age INTEGER;");
+    EXPECT_EQ((*forward_sqls)[1],
+              "ALTER TABLE users ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;");
+
+    auto rollback_sqls = migration->rollback_sql();
+    ASSERT_TRUE(rollback_sqls);
+    EXPECT_EQ((*rollback_sqls)[0], "ALTER TABLE users DROP COLUMN created_at;");
+    EXPECT_EQ((*rollback_sqls)[1], "ALTER TABLE users DROP COLUMN age;");
 }
 ```
 
@@ -529,10 +550,10 @@ Always use column mappings when renaming columns to avoid data loss:
 // ✅ Good - preserves data
 relx::migrations::MigrationOptions options;
 options.column_mappings = {{"old_name", "new_name"}};
-auto safe_migration = relx::migrations::generate_migration(old_table, new_table, options);
+auto safe_migration = relx::migrations::generate_migration(relx::t<OldUsers>, relx::t<NewUsers>, options);
 
 // ❌ Bad - loses data
-auto unsafe_migration = relx::migrations::generate_migration(old_table, new_table);
+auto unsafe_migration = relx::migrations::generate_migration(relx::t<OldUsers>, relx::t<NewUsers>);
 ```
 
 ### 3. Handle Type Changes Carefully  
@@ -555,14 +576,11 @@ options.column_transformations = {
 Use clear versioning for your table structures:
 
 ```cpp
-// Good naming convention
-struct UsersV1 { /* ... */ };
-struct UsersV2 { /* ... */ };
-struct UsersV3 { /* ... */ };
-
-// Alternative naming
-struct Users_2024_01 { /* ... */ };
-struct Users_2024_02 { /* ... */ };
+// Good naming convention - the SQL table name comes from the annotation, so every
+// version can carry the same table("users") while the struct names differ
+struct [[=relx::table("users")]] UsersV1 { /* ... */ };
+struct [[=relx::table("users")]] UsersV2 { /* ... */ };
+struct [[=relx::table("users")]] UsersV3 { /* ... */ };
 ```
 
 ### 5. Review Generated SQL
@@ -570,10 +588,10 @@ struct Users_2024_02 { /* ... */ };
 Always review the generated SQL before applying to production:
 
 ```cpp
-auto migration = relx::migrations::generate_migration(old_table, new_table);
+auto migration = relx::migrations::generate_migration(relx::t<OldUsers>, relx::t<NewUsers>);
 
-std::cout << "=== Migration: " << migration.name() << " ===" << std::endl;
-std::cout << "Operations: " << migration.size() << std::endl;
+std::println("=== Migration: {} ===", migration->name());
+std::println("Operations: {}", migration->size());
 
 auto forward_sqls = migration.forward_sql();
 std::cout << "\nForward Migration:" << std::endl;
@@ -620,8 +638,8 @@ UsersV2 users_v2;
 UsersV3 users_v3;
 
 // Generate incremental migrations
-auto migration_v1_to_v2 = relx::migrations::generate_migration(users_v1, users_v2);
-auto migration_v2_to_v3 = relx::migrations::generate_migration(users_v2, users_v3);
+auto migration_v1_to_v2 = relx::migrations::generate_migration(relx::t<UsersV1>, relx::t<UsersV2>);
+auto migration_v2_to_v3 = relx::migrations::generate_migration(relx::t<UsersV2>, relx::t<UsersV3>);
 
 // Apply in sequence
 apply_migration(migration_v1_to_v2);
@@ -631,13 +649,13 @@ apply_migration(migration_v2_to_v3);
 ### Conditional Migrations
 
 ```cpp
-auto migration = relx::migrations::generate_migration(old_table, new_table);
+auto migration = relx::migrations::generate_migration(relx::t<OldUsers>, relx::t<NewUsers>);
 
-if (!migration.empty()) {
-    std::cout << "Applying migration: " << migration.name() << std::endl;
-    apply_migration(migration);
+if (!migration->empty()) {
+    std::println("Applying migration: {}", migration->name());
+    apply_migration(*migration);
 } else {
-    std::cout << "No migration needed - tables are identical" << std::endl;
+    std::println("No migration needed - tables are identical");
 }
 ```
 
@@ -662,9 +680,9 @@ options.column_transformations = {
 
 If `generate_migration()` returns an empty migration when you expect changes:
 
-1. **Check table names match**: Ensure both table structures have the same `table_name`
-2. **Verify column definitions**: Make sure column types and constraints are properly defined
-3. **Review boost::pfr compatibility**: Ensure your structs are aggregates (no constructors)
+1. **Check table names match**: both structs must resolve to the same SQL table name — `generate_migration` static_asserts on this
+2. **Verify column definitions**: make sure column types and annotations are what you think they are
+3. **Check the structs are aggregates**: reflection walks non-static data members, so no constructors, no private members
 
 ### Data Loss Warnings
 

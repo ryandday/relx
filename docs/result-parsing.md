@@ -25,16 +25,16 @@ Query execution returns a `ConnectionResult<ResultSet>`, which is a type alias f
 #include <relx/connection.hpp>
 
 // Define schema
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int, relx::primary_key> id;
-    relx::column<Users, "name", std::string> name;
-    relx::column<Users, "email", std::string> email;
-    relx::column<Users, "age", int> age;
+// clang-format off
+struct [[=relx::table("users")]] Users {
+    [[=relx::ann::pk]] int id;
+    std::string name;
+    std::string email;
+    int age;
 };
+// clang-format on
+inline constexpr auto users = relx::t<Users>;
 
-Users users;
 auto query = relx::select(users.id, users.name, users.age)
     .from(users)
     .where(users.age > 21);
@@ -57,32 +57,62 @@ if (result) {
 
 ## DTO Mapping
 
-The most convenient way to process results is through Data Transfer Objects (DTOs) that automatically map query columns to struct members.
+The most convenient way to process results is to map rows onto a struct. Any plain aggregate works —
+a purpose-built DTO, or the annotated table struct itself.
 
 ### Automatic DTO Mapping
 
 ```cpp
-// Define a DTO that matches your query structure
+// A plain struct; no annotations needed
 struct UserDTO {
     int id;
     std::string name;
     int age;
 };
 
-// Execute with automatic mapping
-auto result = conn.execute<UserDTO>(query);
+auto result = conn.execute_many<UserDTO>(query);
 if (result) {
-    // Iterate over automatically mapped objects
     for (const auto& user : *result) {
         std::println("User: {} - {} (Age: {})", user.id, user.name, user.age);
     }
 }
 ```
 
-**Requirements for DTO Mapping:**
-- DTO member names must match column names in the result set
-- DTO members must be in the same order as query columns
-- DTO types must be compatible with SQL column types
+`execute_many<T>` returns `std::vector<T>`. `execute<T>` maps **only the first row** and fails with
+"No results found" on an empty result — use it for queries that yield exactly one row.
+
+**How fields are matched:**
+
+- **By name, not by position.** Each field takes the value of the result column with the same name,
+  so declaration order is irrelevant. Cells map positionally only when the result carries no column
+  names at all.
+- **Every result column must have a field to land in**, otherwise the mapping fails with
+  `result column 'x' has no matching field in struct 'T'`. Selecting a column and forgetting the
+  field would silently drop data, so it is an error. For typed queries this is caught at compile
+  time; the runtime check guards raw SQL and runtime aliases.
+- **A field with no matching column stays default-initialized.** Selecting a subset of a struct's
+  fields is legitimate — it says the rest are not wanted.
+- **Aliases determine the name.** `relx::as(relx::count(posts.id), "post_count")` matches a field
+  named `post_count`.
+- **NULL requires `std::optional`.** A NULL cell sets an optional field to `std::nullopt`; a NULL
+  into a non-optional field fails with `NULL value for non-optional field 'x'`.
+
+Selecting whole tables needs no DTO at all — the annotated struct is one:
+
+```cpp
+// select_all already carries the FROM clause
+auto rows = conn.execute_many<Users>(relx::select_all(users));
+```
+
+And `conn.fetch_all(query)` synthesizes the row type from the select list itself, so no struct has
+to be written or kept in sync:
+
+```cpp
+auto rows = conn.fetch_all(relx::select(users.id, users.name).from(users));
+for (const auto& row : *rows) {
+    std::println("{}: {}", row.id, row.name);
+}
+```
 
 ### Complex DTO Examples
 
@@ -112,7 +142,7 @@ auto stats_query = relx::select_expr(
  .join(users, relx::on(departments.id == users.department_id))
  .group_by(departments.name);
 
-auto stats_result = conn.execute<UserStatsDTO>(stats_query);
+auto stats_result = conn.execute_many<UserStatsDTO>(stats_query);
 ```
 
 ## Structured Binding Support
@@ -153,38 +183,44 @@ Lazy parsing defers type conversion until data is actually accessed, reducing me
 
 ### Basic Lazy Result Set
 
+`relx::result::parse_lazy` wraps raw result text; row and cell boundaries are found on first access
+and values are converted only when asked for.
+
 ```cpp
 #include <relx/results/lazy_result.hpp>
 
-// Execute query and get lazy result set  
-auto result = conn.execute_lazy(query);
-if (result) {
-    // Iterate over lazy rows - no parsing happens yet
-    for (const auto& lazy_row : *result) {
-        // Data is parsed only when accessed
-        auto id = lazy_row.get<int>("id");
-        auto name = lazy_row.get<std::string>("name");
-        
-        if (id && name) {
-            std::println("User {}: {}", *id, *name);
-            
-            // Only parse expensive columns if needed
-            if (*id > 100) {
-                auto bio = lazy_row.get<std::string>("bio");
-                if (bio) {
-                    std::println("  Bio: {}", *bio);
-                }
+auto lazy_result = relx::result::parse_lazy(query, std::move(raw_results));
+
+// Iterating parses row boundaries, not values
+for (const auto& lazy_row : lazy_result) {
+    auto id = lazy_row.get<int>("id");
+    auto name = lazy_row.get<std::string>("name");
+
+    if (id && name) {
+        std::println("User {}: {}", *id, *name);
+
+        // Only parse expensive columns if needed
+        if (*id > 100) {
+            auto bio = lazy_row.get<std::string>("bio");
+            if (bio) {
+                std::println("  Bio: {}", *bio);
             }
         }
     }
 }
+
+// Materialize everything when lazy access is no longer worth it
+auto regular = lazy_result.to_result_set();
 ```
+
+For lazy processing driven straight off a connection — where rows also arrive incrementally from the
+server — use the streaming API instead; see [Streaming Results](streaming-results.md).
 
 ### Conditional Data Processing
 
 ```cpp
 // Only parse expensive columns when needed
-for (const auto& lazy_row : *result) {
+for (const auto& lazy_row : lazy_result) {
     auto user_type = lazy_row.get<std::string>("user_type");
     
     if (user_type && *user_type == "premium") {
@@ -211,7 +247,7 @@ for (const auto& lazy_row : *result) {
 - **Streaming Ready**: Works seamlessly with streaming result sets
 
 <div class="alert info">
-<strong>💡 Tip:</strong> For large result sets or streaming scenarios, see the comprehensive <a href="streaming-results.html">Streaming Results</a> guide.
+<strong>💡 Tip:</strong> For large result sets or streaming scenarios, see the comprehensive <a href="streaming-results.md">Streaming Results</a> guide.
 </div>
 
 ## Column Access Methods
@@ -257,9 +293,7 @@ if (name) {
 When you have schema definitions, use column objects directly:
 
 ```cpp
-Users users;
-
-// Type-safe access using schema column objects
+// Type-safe access using the table object's column members
 auto id = row.get<int>(users.id);
 auto name = row.get<std::string>(users.name);
 auto email = row.get<std::string>(users.email);
@@ -275,13 +309,13 @@ For columns that might contain NULL values, use `std::optional<T>`:
 
 ```cpp
 // Schema with nullable column
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int, relx::primary_key> id;
-    relx::column<Users, "name", std::string> name;
-    relx::column<Users, "bio", std::optional<std::string>> bio;  // Nullable
+// clang-format off
+struct [[=relx::table("users")]] Users {
+    [[=relx::ann::pk]] int id;
+    std::string name;
+    std::optional<std::string> bio;  // Nullable
 };
+// clang-format on
 
 // Access nullable columns
 auto bio = row.get<std::optional<std::string>>("bio");
@@ -309,7 +343,7 @@ struct UserProfileDTO {
     std::optional<int> age;             // Another nullable column
 };
 
-auto result = conn.execute<UserProfileDTO>(query);
+auto result = conn.execute_many<UserProfileDTO>(query);
 if (result) {
     for (const auto& user : *result) {
         std::println("User: {}", user.name);
@@ -376,7 +410,7 @@ try {
 try {
     // Execute query and throw on error
     auto users = relx::value_or_throw(
-        conn.execute<UserDTO>(query),
+        conn.execute_many<UserDTO>(query),
         "Failed to fetch user list"
     );
     
@@ -407,7 +441,7 @@ struct OrderSummaryDTO {
 };
 
 auto orders = relx::value_or_throw(
-    conn.execute<OrderSummaryDTO>(complex_order_query)
+    conn.execute_many<OrderSummaryDTO>(complex_order_query)
 );
 ```
 
@@ -453,7 +487,7 @@ if (!critical_data) {
 // Good: Use exceptions for application-level errors
 try {
     auto user_data = relx::value_or_throw(
-        conn.execute<UserDTO>(query),
+        conn.execute_many<UserDTO>(query),
         "Failed to load user profile"
     );
     display_user_profile(user_data);
@@ -478,7 +512,7 @@ for (const auto& row : *result) {
 }
 
 // Better: Use DTOs for automatic mapping
-auto users = relx::value_or_throw(conn.execute<UserDTO>(query));
+auto users = relx::value_or_throw(conn.execute_many<UserDTO>(query));
 for (const auto& user : users) {
     process_user(user.id, user.name, user.email);
 }
@@ -499,6 +533,6 @@ struct MinimalUserDTO {
 
 // Don't over-fetch data
 auto users = relx::value_or_throw(
-    conn.execute<MinimalUserDTO>(minimal_query)
+    conn.execute_many<MinimalUserDTO>(minimal_query)
 );
 ``` 

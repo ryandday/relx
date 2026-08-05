@@ -1,52 +1,58 @@
 # Schema Definition in relx
 
-relx provides a type-safe way to define database schemas as C++ structures. This document explains how to define tables, columns, and relationships.
+A table is a plain C++ aggregate carrying relx annotations. Column names come from the member
+identifiers, types from the member types, and constraints from annotations — so the struct is the
+single source of truth, and it doubles as the DTO for query results.
+
+Everything here requires C++26 reflection (P2996 + P3394): GCC 16.1 with `-freflection`. See the
+[Development Guide](development.md).
 
 ## Table of Contents
 - [Basic Table Definition](#basic-table-definition)
 - [Column Types](#column-types)
-- [Primary Keys](#primary-keys)
+- [Column Annotations](#column-annotations)
 - [Foreign Keys](#foreign-keys)
-- [Unique Constraints](#unique-constraints)
-- [Nullable Columns](#nullable-columns)
-- [Indexes](#indexes)
-- [Composite Keys](#composite-keys)
+- [Table-Level Annotations](#table-level-annotations)
+- [Enums](#enums)
+- [Generating DDL](#generating-ddl)
+- [Compile-Time Validation](#compile-time-validation)
 
 ## Basic Table Definition
 
-A table in relx is defined as a C++ struct with table metadata and column definitions:
-
 ```cpp
 #include <relx/schema.hpp>
-#include <string>
 #include <optional>
+#include <string>
 
-struct Users {
-    // Table name (required)
-    static constexpr auto table_name = "users";
-    
-    // Column definitions
-    relx::column<Users, "id", int> id;
-    relx::column<Users, "username", std::string> username;
-    relx::column<Users, "email", std::string> email;
-    relx::column<Users, "created_at", std::string> created_at;
-    
-    // Primary key constraint
-    relx::table_primary_key<&Users::id> pk;
-    
-    // Unique constraint
-    relx::unique_constraint<&Users::email> unique_email;
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string username;
+  [[=relx::ann::unique]] std::string email;
+  [[=relx::default_value<true>{}]] bool active;
+  [[=relx::default_sql<"CURRENT_TIMESTAMP">{}]] std::string created_at;
+  std::optional<std::string> bio;
 };
+
+inline constexpr auto users = relx::t<Users>;
 ```
 
-Key points:
-- A table is represented as a struct with a static `table_name` field
-- Each column is defined using the `relx::column<TableType, Name, Type>` template
-- The struct should also contain any constraints that apply to the table
+`relx::t<Users>` is the table object queries are written against — reflection synthesizes one column
+member per field, with the same names, so `users.email` is a column reference. Define it once next
+to the struct.
+
+```cpp
+auto q = relx::select(users.id, users.username).from(users).where(users.id == 42);
+auto rows = conn.execute_many<Users>(q);
+```
+
+`relx::c<^^Users::id>` is a standalone column reference for contexts where no table object is in
+scope; it is otherwise identical to `users.id`.
+
+The `[[=relx::table("...")]]` annotation is optional. Without it the table name is the struct
+identifier verbatim — `struct AuditLog { ... }` becomes `CREATE TABLE AuditLog`, which PostgreSQL
+folds to lowercase. Annotate when you want a name that differs from the identifier.
 
 ## Column Types
-
-relx automatically maps C++ types to SQL types:
 
 | C++ Type | SQL Type |
 |----------|----------|
@@ -54,274 +60,279 @@ relx automatically maps C++ types to SQL types:
 | `long` / `long long` | `BIGINT` |
 | `float` | `REAL` |
 | `double` | `DOUBLE PRECISION` |
-| `std::string` | `TEXT` |
 | `bool` | `BOOLEAN` |
-| `std::optional<T>` | SQL type of T, but allows NULL |
+| `std::string` | `TEXT` |
+| enum type | `TEXT` + a `CHECK` restricting it to the enumerators (see [Enums](#enums)) |
+| `std::chrono::system_clock::time_point` | `TIMESTAMPTZ` |
+| `std::chrono::year_month_day` | `DATE` |
+| `boost::uuids::uuid` | `UUID` |
+| `std::optional<T>` | SQL type of `T`, nullable |
 
-Example:
+A non-optional member is `NOT NULL`; wrapping it in `std::optional` is the only way to make a column
+nullable.
+
+Add your own type by specializing `relx::schema::column_traits<T>` with `sql_type_name`,
+`nullable`, `to_sql_string`, and `from_sql_string` — see `include/relx/schema/uuid_traits.hpp` for a
+short example.
+
+## Column Annotations
+
+| Annotation | Emits |
+|------------|-------|
+| `[[=relx::ann::pk]]` | ` PRIMARY KEY` |
+| `[[=relx::ann::unique]]` | ` UNIQUE` |
+| `[[=relx::ann::autoincrement]]` | ` GENERATED ALWAYS AS IDENTITY` |
+| `[[=relx::identity<Start, Increment, Min, Max, Cycle>{}]]` | identity with explicit options |
+| `[[=relx::default_value<V>{}]]` | ` DEFAULT V` (integral, bool, floating-point, or enum) |
+| `[[=relx::string_default<"s">{}]]` | ` DEFAULT 's'` (quoted) |
+| `[[=relx::default_sql<"now()">{}]]` | ` DEFAULT now()` (unquoted SQL expression) |
+| `[[=relx::null_default{}]]` | ` DEFAULT NULL` |
+| `[[=relx::schema::check<"expr">{}]]` | ` CHECK(expr)` |
+| `[[=relx::ann::native_enum]]` | stores an enum as a native database enum type |
+| `[[=relx::ann::fk<^^Other::col>]]` | ` REFERENCES other(col)` |
+| `[[=relx::on_delete<"CASCADE">{}]]` / `[[=relx::on_update<"SET NULL">{}]]` | FK actions |
+
+Several annotations can share one attribute list, and they apply in the order written:
 
 ```cpp
-struct Products {
-    static constexpr auto table_name = "products";
-    
-    relx::column<Products, "id", int> id;
-    relx::column<Products, "name", std::string> name;
-    relx::column<Products, "price", double> price;
-    relx::column<Products, "is_active", bool> is_active;
-    relx::column<Products, "description", std::optional<std::string>> description;
-    
-    relx::table_primary_key<&Products::id> pk;
+struct [[=relx::table("posts")]] Posts {
+  [[=relx::ann::pk, =relx::ann::autoincrement]] int id;
+  [[=relx::ann::fk<^^Users::id>, =relx::on_delete<"CASCADE">{}]] int user_id;
+  std::string title;
+  [[=relx::schema::check<"views >= 0">{}]] int views;
+  [[=relx::null_default{}]] std::optional<std::string> summary;
 };
+inline constexpr auto posts = relx::t<Posts>;
 ```
 
-In this example:
-- `id` maps to `INTEGER NOT NULL`
-- `name` maps to `TEXT NOT NULL`
-- `price` maps to `DOUBLE PRECISION NOT NULL`
-- `is_active` maps to `BOOLEAN NOT NULL`
-- `description` maps to `TEXT` (nullable)
-
-## Primary Keys
-
-Primary keys are defined using the `primary_key` template:
-
-```cpp
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int> id;
-    relx::column<Users, "username", std::string> username;
-    
-    // Primary key constraint
-    relx::table_primary_key<&Users::id> pk;
-};
+```sql
+CREATE TABLE posts (
+id INTEGER NOT NULL PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+title TEXT NOT NULL,
+views INTEGER NOT NULL CHECK(views >= 0),
+summary TEXT DEFAULT NULL
+);
 ```
 
-The template parameter is a pointer to the member variable that serves as the primary key.
+`default_sql<"...">` is a spelling of `string_default<"...", /*IsLiteral=*/true>`; both leave the
+value unquoted, which is what SQL functions and keywords like `CURRENT_TIMESTAMP` need.
+Writing a known SQL expression (`CURRENT_TIMESTAMP`, `now()`, …) in a plain `string_default`
+is a compile error pointing at `default_sql` — the quoted string is never what you meant.
+
+`relx::identity<>` takes start, increment, minimum, maximum, and a cycle flag, emitting only the
+options that differ from the defaults — `[[=relx::identity<100, 5>{}]]` gives
+` GENERATED ALWAYS AS IDENTITY (START WITH 100 INCREMENT BY 5)`.
 
 ## Foreign Keys
 
-Foreign keys define relationships between tables:
+`ann::fk` names the referenced column by reflection, so a typo or a renamed target column is a
+compile error rather than a runtime DDL failure:
 
 ```cpp
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int> id;
-    // ...
-    
-    relx::table_primary_key<&Users::id> pk;
-};
+[[=relx::ann::fk<^^Users::id>]] int user_id;
+```
 
-struct Posts {
-    static constexpr auto table_name = "posts";
-    
-    relx::column<Posts, "id", int> id;
-    relx::column<Posts, "user_id", int> user_id;
-    // ...
-    
-    relx::table_primary_key<&Posts::id> pk;
-    
-    // Foreign key from Posts.user_id to Users.id
-    relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
+The referenced struct must be **complete** at the point of annotation — define referenced tables
+before the tables that point at them.
+
+### Referential Actions
+
+`on_delete` and `on_update` are separate annotations on the same field, and the SQL clauses come out
+in the order the annotations are written:
+
+```cpp
+[[=relx::ann::fk<^^Users::id>, =relx::on_delete<"CASCADE">{}]] int user_id;
+// user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+```
+
+There is no `no_action` marker — omit the annotation and no clause is emitted, which is exactly
+PostgreSQL's `NO ACTION` default. Writing `on_update<"NO ACTION">{}` is legal but emits the clause
+literally.
+
+### Self-Referencing Foreign Keys
+
+A struct may reference its own members, but only those already declared above the annotation —
+`^^Categories::id` resolves against the partially-declared class:
+
+```cpp
+struct [[=relx::table("categories")]] Categories {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  [[=relx::ann::fk<^^Categories::id>, =relx::on_delete<"SET NULL">{}]] std::optional<int> parent_id;
 };
 ```
 
-The `foreign_key` template takes two parameters:
-1. Pointer to the column in the current table
-2. Pointer to the referenced column in another table
-
-## Unique Constraints
-
-Unique constraints are defined similarly to primary keys:
+If the referencing column has to come *before* the column it points at, `^^Categories::id` fails to
+compile with `'Categories::id' has not been declared`. Name the target as strings instead, using the
+raw modifier the annotation would have produced:
 
 ```cpp
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int> id;
-    relx::column<Users, "email", std::string> email;
-    // ...
-    
-    relx::table_primary_key<&Users::id> pk;
-    
-    // Unique constraint on email
-    relx::unique_constraint<&Users::email> unique_email;
+struct [[=relx::table("categories")]] Categories {
+  [[=relx::schema::references<"categories", "id">{}, =relx::on_delete<"SET NULL">{}]]
+  std::optional<int> parent_id;
+  [[=relx::ann::pk]] int id;
 };
 ```
 
-The template parameter is a pointer to the member variable that must be unique.
+Both spellings emit `parent_id INTEGER REFERENCES categories(id) ON DELETE SET NULL`. The string form
+gives up the compile-time check on the target column, so prefer `ann::fk` and order the members to
+suit it where you can.
 
-## Nullable Columns
+## Table-Level Annotations
 
-To define nullable columns, use `std::optional<T>`:
+Constraints spanning more than one column go on the struct. An annotation cannot reflect on the
+struct's own members while the struct is still incomplete, so local columns are named as strings;
+every name is checked against the members when DDL is generated.
 
 ```cpp
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int> id;
-    relx::column<Users, "name", std::string> name;
-    relx::column<Users, "bio", std::optional<std::string>> bio;
-    relx::column<Users, "last_login", std::optional<std::string>> last_login;
-    // ...
-    
-    relx::table_primary_key<&Users::id> pk;
+struct [[=relx::table("order_items"),
+        =relx::ann::composite_pk("order_id", "product_id"),
+        =relx::ann::composite_unique("region", "external_ref"),
+        =relx::ann::index_on("customer_id", "created_at"),
+        =relx::ann::index_on("external_ref").unique(),
+        =relx::ann::check("quantity > 0").named("positive_quantity")]] OrderItems {
+  int order_id;
+  int product_id;
+  int customer_id;
+  std::string region;
+  std::string external_ref;
+  std::string created_at;
+  int quantity;
 };
 ```
 
-In this example, `bio` and `last_login` are nullable columns.
+```sql
+CREATE TABLE order_items (
+order_id INTEGER NOT NULL,
+product_id INTEGER NOT NULL,
+customer_id INTEGER NOT NULL,
+region TEXT NOT NULL,
+external_ref TEXT NOT NULL,
+created_at TEXT NOT NULL,
+quantity INTEGER NOT NULL,
+PRIMARY KEY (order_id, product_id),
+UNIQUE (region, external_ref),
+CONSTRAINT positive_quantity CHECK (quantity > 0)
+);
+```
 
-## Indexes
+Table-level clauses appear after the columns in annotation order. Indexes are **not** part of
+`CREATE TABLE` — `index_on` produces separate statements, see [Generating DDL](#generating-ddl).
 
-To define indexes for faster queries:
+`ann::check` is the table-level `CHECK (expr)`; the column modifier `schema::check<"expr">` renders
+` CHECK(expr)` inline on its column. `.named("...")` prefixes `CONSTRAINT <name> `.
+
+A composite foreign key names its local columns as strings and its targets by reflection:
 
 ```cpp
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int> id;
-    relx::column<Users, "name", std::string> name;
-    relx::column<Users, "email", std::string> email;
-    // ...
-    
-    relx::table_primary_key<&Users::id> pk;
-    
-    // Regular index on name (for fast searching)
-    relx::index<&Users::name> name_idx;
-    
-    // Unique index on email (for fast searching & enforcing uniqueness)
-    relx::unique_index<&Users::email> email_idx;
+struct [[=relx::table("shipments"),
+        =relx::ann::composite_fk<^^OrderItems::order_id, ^^OrderItems::product_id>(
+            "order_id", "product_id")]] Shipments {
+  [[=relx::ann::pk]] int id;
+  int order_id;
+  int product_id;
 };
 ```
 
-## Composite Keys
+```sql
+FOREIGN KEY (order_id, product_id) REFERENCES order_items (order_id, product_id)
+```
 
-relx also supports composite (multi-column) keys:
+The targets must all belong to one table and must form that table's primary key or a declared unique
+set — the same rule PostgreSQL enforces at `CREATE TABLE` time, checked here at compile time.
+
+## Enums
+
+An enum column defaults to `TEXT` holding the enumerator identifier, plus a generated `CHECK`:
 
 ```cpp
-struct OrderItems {
-    static constexpr auto table_name = "order_items";
-    
-    relx::column<OrderItems, "order_id", int> order_id;
-    relx::column<OrderItems, "product_id", int> product_id;
-    relx::column<OrderItems, "quantity", int> quantity;
-    relx::column<OrderItems, "price", double> price;
-    
-    // Composite primary key
-    relx::composite_primary_key<&OrderItems::order_id, &OrderItems::product_id> pk;
+enum class Status { active, inactive, banned };
+
+struct [[=relx::table("accounts")]] Accounts {
+  [[=relx::ann::pk]] int id;
+  Status status;
+  [[=relx::ann::native_enum]] Status native_status;
+  [[=relx::default_value<Status::active>{}]] Status defaulted;
 };
 ```
 
-Similarly, you can create composite foreign keys and composite unique constraints:
-
-```cpp
-struct Orders {
-    static constexpr auto table_name = "orders";
-    
-    relx::column<Orders, "id", int> id;
-    // ...
-    
-    relx::table_primary_key<&Orders::id> pk;
-};
-
-struct Products {
-    static constexpr auto table_name = "products";
-    
-    relx::column<Products, "id", int> id;
-    // ...
-    
-    relx::table_primary_key<&Products::id> pk;
-};
-
-struct OrderItems {
-    static constexpr auto table_name = "order_items";
-    
-    relx::column<OrderItems, "order_id", int> order_id;
-    relx::column<OrderItems, "product_id", int> product_id;
-    // ...
-    
-    // Composite primary key
-    relx::composite_primary_key<&OrderItems::order_id, &OrderItems::product_id> pk;
-    
-    // Foreign keys to parent tables
-    relx::foreign_key<&OrderItems::order_id, &Orders::id> order_fk;
-    relx::foreign_key<&OrderItems::product_id, &Products::id> product_fk;
-};
+```sql
+CREATE TABLE accounts (
+id INTEGER NOT NULL PRIMARY KEY,
+status TEXT NOT NULL CHECK(status IN ('active', 'inactive', 'banned')),
+native_status status NOT NULL,
+defaulted TEXT NOT NULL DEFAULT 'active' CHECK(defaulted IN ('active', 'inactive', 'banned'))
+);
 ```
 
-## Automatic SQL Generation
-
-relx can automatically generate SQL DDL (Data Definition Language) statements for creating tables:
-
-```cpp
-Users users;
-
-// Generate CREATE TABLE statement
-std::string create_table_sql = relx::create_table(users);
-
-// Output:
-// CREATE TABLE users (
-//   id INTEGER NOT NULL,
-//   username TEXT NOT NULL,
-//   email TEXT NOT NULL,
-//   created_at TEXT NOT NULL,
-//   PRIMARY KEY (id),
-//   UNIQUE (email)
-// )
-```
-
-You can use this to automatically create tables in your database:
+`ann::native_enum` switches the column to a real PostgreSQL enum type, named after the enum
+identifier lowercased. That type has to exist before the table:
 
 ```cpp
-// Create tables
-auto create_users_table = relx::create_table(users);
-conn.execute(create_users_table);
-
-auto create_posts_table = relx::create_table(posts);
-conn.execute(create_posts_table);
+relx::value_or_throw(conn.execute_raw(std::string(relx::create_enum_type_sql<Status>())));
+// CREATE TYPE status AS ENUM ('active', 'inactive', 'banned');
 ```
 
-struct User {
-    static constexpr auto table_name = "users";
-    
-    relx::column<User, "id", int> id;
-    relx::column<User, "username", std::string> username;
-    
-    relx::table_primary_key<&User::id> pk;
-};
+`relx::drop_enum_type_sql<Status>()` produces `DROP TYPE IF EXISTS status;`.
 
-struct Order {
-    static constexpr auto table_name = "orders";
-    
-    relx::column<Order, "id", int> id;
-    
-    relx::table_primary_key<&Order::id> pk;
-};
+## Generating DDL
 
-struct OrderItem {
-    static constexpr auto table_name = "order_items";
-    
-    relx::column<OrderItem, "id", int> id;
-    relx::column<OrderItem, "user_id", int> user_id;
-    
-    relx::table_primary_key<&OrderItem::id> pk;
-    relx::foreign_key<&OrderItem::user_id, &User::id> user_fk;
-};
+DDL is built at compile time. `to_sql()` is `consteval` and returns a `std::string_view` into static
+storage, so the statement costs nothing at runtime:
 
-struct Post {
-    static constexpr auto table_name = "posts";
-    
-    relx::column<Post, "id", int> id;
-    
-    relx::table_primary_key<&Post::id> pk;
-};
+```cpp
+constexpr auto ddl = relx::create_table_sql<Users>().if_not_exists().to_sql();
+```
 
-struct PostTag {
-    static constexpr auto table_name = "post_tags";
-    
-    relx::column<PostTag, "order_id", int> order_id;
-    relx::column<PostTag, "product_id", int> product_id;
+```sql
+CREATE TABLE IF NOT EXISTS users (
+id INTEGER NOT NULL PRIMARY KEY,
+username TEXT NOT NULL,
+email TEXT NOT NULL UNIQUE,
+active BOOLEAN NOT NULL DEFAULT true,
+created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+bio TEXT
+);
+```
 
-    relx::table_primary_key<&PostTag::order_id, &PostTag::product_id> pk;
-}; 
+| Call | Produces |
+|------|----------|
+| `relx::create_table_sql<T>()` | `CREATE TABLE`, with `.if_not_exists()` |
+| `relx::drop_table_sql<T>()` | `DROP TABLE`, with `.if_exists()` and `.cascade()` |
+| `relx::create_indexes_sql<T>()` | `std::array` of `CREATE INDEX` statements, one per `index_on` |
+| `relx::create_enum_type_sql<E>()` / `relx::drop_enum_type_sql<E>()` | `CREATE`/`DROP TYPE` |
+
+```cpp
+for (std::string_view stmt : relx::create_indexes_sql<OrderItems>()) {
+  relx::value_or_throw(conn.execute_raw(std::string(stmt)));
+}
+// CREATE INDEX order_items_customer_id_created_at_idx ON order_items (customer_id, created_at)
+// CREATE UNIQUE INDEX order_items_external_ref_idx ON order_items (external_ref)
+```
+
+Index names are generated as `<table>_<columns joined by _>_idx`, and the statements carry no
+trailing semicolon.
+
+The runtime builders `relx::create_table(relx::t<T>)` and `relx::drop_table(relx::t<T>)` produce the
+same SQL as executable query objects:
+
+```cpp
+auto result = conn.execute(relx::create_table(users).if_not_exists());
+```
+
+Use the runtime form for tables with floating-point `DEFAULT` values — constexpr floating-point
+formatting is not available, so those cannot go through the `consteval` builders.
+
+## Compile-Time Validation
+
+The following are compile errors, not runtime surprises:
+
+- naming a column that does not exist in a struct-level annotation
+- a struct-level annotation naming no columns at all
+- more than one `composite_pk`, or a `composite_pk` alongside a column-level `ann::pk`
+- a `composite_fk` whose targets span tables, or do not form the target's primary key or a declared
+  unique set
+- `ann::fk<^^Other::col>` where `col` is not a member of `Other`
+
+Diagnostics name the offending table and column.

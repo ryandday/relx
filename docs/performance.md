@@ -36,18 +36,19 @@ auto pool = relx::PostgreSQLConnectionPool::create(config);
 Use batch inserts for better performance:
 
 ```cpp
-Users users;
-
-// Efficient: Single multi-row insert
+// Efficient: one statement, several rows
 auto batch_insert = relx::insert_into(users)
-    .columns(users.name, users.email);
-
-for (const auto& user_data : user_list) {
-    batch_insert = batch_insert.values(user_data.name, user_data.email);
-}
+    .columns(users.name, users.email)
+    .values("John Doe", "john@example.com")
+    .values("Jane Smith", "jane@example.com");
 
 auto result = conn.execute(batch_insert);
 ```
+
+Every `.values(...)` produces a **new query type**, so rows cannot be accumulated in a runtime loop —
+the row count is part of the type. For a row count only known at runtime, either fold over the list
+at compile time, or build the statement from a `std::vector` of parameters and send it through
+`conn.execute_raw`.
 
 ## Connection Management
 
@@ -81,8 +82,7 @@ boost::asio::awaitable<void> process_users() {
         co_return;
     }
     
-    // Concurrent query execution
-    auto result = co_await conn.execute<UserDTO>(query);
+    auto result = co_await conn.execute_many<UserDTO>(query);
     
     co_await conn.disconnect();
 }
@@ -95,17 +95,24 @@ boost::asio::awaitable<void> process_users() {
 Ensure your queries use appropriate database indexes:
 
 ```cpp
-struct Users {
-    static constexpr auto table_name = "users";
-    
-    relx::column<Users, "id", int, relx::primary_key> id;
-    relx::column<Users, "email", std::string> email;
-    relx::column<Users, "status", std::string> status;
-    
-    // Create indexes for frequently queried columns
-    relx::index<&Users::email> email_idx;
-    relx::index<&Users::status> status_idx;
+// clang-format off
+struct [[=relx::table("users"),
+        =relx::ann::index_on("email"),
+        =relx::ann::index_on("status")]] Users {
+    [[=relx::ann::pk]] int id;
+    std::string email;
+    std::string status;
 };
+// clang-format on
+inline constexpr auto users = relx::t<Users>;
+```
+
+Indexes are not part of `CREATE TABLE`; run them separately:
+
+```cpp
+for (std::string_view stmt : relx::create_indexes_sql<Users>()) {
+    relx::value_or_throw(conn.execute_raw(std::string(stmt)));
+}
 ```
 
 ### Selective Column Queries
@@ -145,17 +152,16 @@ auto query = relx::select(users.id, users.name)
 Process large result sets efficiently:
 
 ```cpp
-// For large result sets, process incrementally
-auto result = conn.execute<UserDTO>(query);
+auto result = conn.execute_many<UserDTO>(query);
 if (result) {
     for (const auto& user : *result) {
-        // Process one user at a time
         process_user(user);
-        
-        // Avoid storing entire result set in memory
     }
 }
 ```
+
+`execute_many<T>` still materializes every row; for result sets that should never all be resident,
+see [Streaming for Large Datasets](#streaming-for-large-datasets) below.
 
 ### RAII for Resource Management
 
@@ -167,7 +173,7 @@ void process_data() {
     auto conn_result = conn.connect();
     
     // Resources automatically cleaned up on scope exit
-    auto result = conn.execute<UserDTO>(query);
+    auto result = conn.execute_many<UserDTO>(query);
     
     // No manual cleanup needed
 } // Connection automatically closed here
@@ -187,28 +193,26 @@ Use streaming for optimal performance in these scenarios:
 ### Memory Usage Comparison
 
 ```cpp
-// Traditional approach - loads all data into memory
-auto regular_result = conn.execute<UserDTO>(
-    relx::select_all<Users>().limit(1000000)
+// Traditional approach - the whole result set lands in memory
+auto regular_result = conn.execute_many<UserDTO>(
+    relx::select_all(users).limit(1000000)
 );
-// Memory usage: ~150MB for 1M users
 
-// Streaming approach - constant memory usage
+// Streaming approach - one row in memory at a time
 #include <relx/connection/postgresql_streaming_source.hpp>
 
-Users users;
-auto streaming_query = relx::select_all<Users>().limit(1000000);
-auto streaming_result = relx::connection::create_streaming_result(conn, streaming_query);
-// Memory usage: ~1KB regardless of result size
+auto streaming_query = relx::select_all(users).limit(1000000);
+auto streaming_result = relx::connection::create_streaming_result(
+    conn, streaming_query.to_sql(), 1000000);
 
-streaming_result.for_each([](const auto& lazy_row) {
+for (const auto& lazy_row : streaming_result) {
     auto id = lazy_row.get<int>("id");
     auto name = lazy_row.get<std::string>("name");
-    
+
     if (id && name) {
         process_user(*id, *name);
     }
-});
+}
 ```
 
 ### Lazy Parsing Performance
@@ -217,7 +221,7 @@ Lazy parsing improves performance by deferring type conversion:
 
 ```cpp
 // Traditional: Parse all columns immediately
-auto result = conn.execute<UserDTO>(query);
+auto result = conn.execute_many<UserDTO>(query);
 for (const auto& user : *result) {
     // All fields already parsed, even if not used
     if (user.is_premium) {
@@ -226,8 +230,8 @@ for (const auto& user : *result) {
 }
 
 // Lazy: Parse only what you need
-auto lazy_result = conn.execute_lazy(query);
-for (const auto& lazy_row : *lazy_result) {
+auto lazy_result = relx::result::parse_lazy(query, std::move(raw_results));
+for (const auto& lazy_row : lazy_result) {
     auto is_premium = lazy_row.get<bool>("is_premium");
     
     if (is_premium && *is_premium) {
@@ -240,13 +244,6 @@ for (const auto& lazy_row : *lazy_result) {
 }
 ```
 
-struct LargeTable {
-    static constexpr auto table_name = "large_table";
-    
-    relx::column<LargeTable, "id", int, relx::primary_key> id;
-    relx::column<LargeTable, "data", std::string> data;
-};
-
 ### Async Streaming for Concurrency
 
 Use async streaming for maximum throughput:
@@ -258,9 +255,9 @@ boost::asio::awaitable<void> high_performance_processing() {
     relx::connection::PostgreSQLAsyncConnection conn(io_context, params);
     co_await conn.connect();
     
-    LargeTable large_table;
-    auto async_query = relx::select_all<LargeTable>().order_by(large_table.id);
-    auto streaming_result = relx::connection::create_async_streaming_result(conn, async_query);
+    auto async_query = relx::select_all(large_table).order_by(large_table.id);
+    auto streaming_result = relx::connection::create_async_streaming_result(
+        conn, async_query.to_sql());
     
     int batch_count = 0;
     const int BATCH_SIZE = 1000;
@@ -280,58 +277,46 @@ boost::asio::awaitable<void> high_performance_processing() {
 }
 ```
 
-### Performance Benchmarks
+### Choosing an Approach
 
-Comparative performance for 1M row dataset:
+| Approach | Memory | Best for |
+|----------|--------|----------|
+| Regular query | proportional to result size | small results, random access, multiple passes |
+| Synchronous streaming | constant | large results processed once, in order |
+| Async streaming | constant | large results, with other I/O in flight |
+| Lazy parsing | proportional to raw result | wide rows where most columns go unread |
 
-| Approach | Memory Usage | Time to First Result | Total Processing Time |
-|----------|--------------|---------------------|----------------------|
-| Regular Query | 150MB | 2.5s | 3.2s |
-| Synchronous Streaming | 1KB | 50ms | 3.0s |
-| Async Streaming | 1KB | 30ms | 2.1s |
-| Lazy Parsing | Variable | 25ms | 1.8s* |
-
-*Time depends on how much data is actually accessed
-
-struct RecentEvents {
-    static constexpr auto table_name = "recent_events";
-    
-    relx::column<RecentEvents, "id", int, relx::primary_key> id;
-    relx::column<RecentEvents, "timestamp", std::string> timestamp;
-};
-
-struct HugeTable {
-    static constexpr auto table_name = "huge_table";
-    relx::column<HugeTable, "id", int, relx::primary_key> id;
-};
+Lazy parsing saves *conversion* work, not memory — the raw result is still fully in memory.
 
 ### Streaming Best Practices
 
 ```cpp
+// clang-format off
+struct [[=relx::table("recent_events")]] RecentEvents {
+    [[=relx::ann::pk]] int id;
+    std::string timestamp;
+};
+
+struct [[=relx::table("huge_table")]] HugeTable {
+    [[=relx::ann::pk]] int id;
+};
+// clang-format on
+inline constexpr auto recent_events = relx::t<RecentEvents>;
+inline constexpr auto huge_table = relx::t<HugeTable>;
+
 // ✅ Good: Order by indexed columns for efficient streaming
-Users users;
-auto good_query = relx::select_all<Users>().order_by(users.id);  // id is primary key
-auto streaming_result = relx::connection::create_streaming_result(conn, good_query);
+auto good_query = relx::select_all(users).order_by(users.id);  // id is primary key
+auto streaming_result = relx::connection::create_streaming_result(conn, good_query.to_sql());
 
 // ✅ Good: Use LIMIT with streaming for bounded processing
-RecentEvents recent_events;
-auto limited_query = relx::select_all<RecentEvents>()
-    .from(recent_events)
-    .order_by(recent_events.timestamp.desc())
+auto limited_query = relx::select_all(recent_events)
+    .order_by(relx::desc(recent_events.timestamp))
     .limit(10000);
-auto streaming_result2 = relx::connection::create_streaming_result(conn, limited_query);
-
-// ✅ Good: Filter at database level
-auto filtered_query = relx::select_all<Users>()
-    .from(users)
-    .where(users.active == true && users.created_at > cutoff_date)
-    .order_by(users.id);
-auto streaming_result3 = relx::connection::create_streaming_result(conn, filtered_query);
+auto streaming_result2 = relx::connection::create_streaming_result(
+    conn, limited_query.to_sql(), 10000);
 
 // ❌ Avoid: Unordered streaming of very large tables
-HugeTable huge_table;
-auto bad_query = relx::select_all<HugeTable>();  // No ORDER BY
-auto bad_streaming_result = relx::connection::create_streaming_result(conn, bad_query);
+auto bad_query = relx::select_all(huge_table);  // No ORDER BY
 ```
 
 ### Automatic Resource Management
@@ -340,19 +325,18 @@ relx provides RAII-based cleanup for optimal performance:
 
 ```cpp
 {
-    Users users;
-    auto cleanup_query = relx::select_all<Users>();
-    auto streaming_result = relx::connection::create_async_streaming_result(conn, cleanup_query);
-    
-    // Process some data
+    auto cleanup_query = relx::select_all(users);
+    auto streaming_result = relx::connection::create_async_streaming_result(
+        conn, cleanup_query.to_sql());
+
     auto it = streaming_result.begin();
     co_await it.advance();
-    
-    // Early exit - automatic cleanup
+
+    // Early exit before the rows run out is fine
     if (found_target) {
-        break;
+        // ... use *it, then leave the scope
     }
-    
+
 } // Destructor automatically resets connection state
 
 // Connection immediately ready for next operation
@@ -371,8 +355,8 @@ Measure query execution time:
 void benchmark_query() {
     auto start = std::chrono::high_resolution_clock::now();
     
-    auto result = conn.execute<UserDTO>(query);
-    
+    auto result = conn.execute_many<UserDTO>(query);
+
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     
@@ -385,11 +369,8 @@ void benchmark_query() {
 Monitor connection pool performance:
 
 ```cpp
-auto stats = pool->get_statistics();
-std::println("Active connections: {}", stats.active_connections);
-std::println("Idle connections: {}", stats.idle_connections);
-std::println("Total created: {}", stats.total_created);
-std::println("Total destroyed: {}", stats.total_destroyed);
+std::println("Active connections: {}", pool->active_connections());
+std::println("Idle connections: {}", pool->idle_connections());
 ```
 
 ## Performance Tips Summary

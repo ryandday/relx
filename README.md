@@ -137,7 +137,7 @@ int main() {
         relx::throw_if_failed(connect_result);
 
         auto create_table_result = conn.execute(relx::create_table(users).if_not_exists());
-        relx::throw_if_failed(create_table_result);
+        relx::value_or_throw(create_table_result);
 
         auto insert_statement = relx::insert_into(users)
             .columns(users.username, users.email)
@@ -145,7 +145,7 @@ int main() {
             .values("Bob Johnson", "bob@example.com");
         
         auto insert_result = conn.execute(insert_statement);
-        relx::throw_if_failed(insert_result);
+        relx::value_or_throw(insert_result);
 
         // Building a simple SELECT query
         auto query = relx::select(users.id, users.username)
@@ -177,7 +177,7 @@ int main() {
         }
         
         auto drop_result = conn.execute(relx::drop_table(users));
-        relx::throw_if_failed(drop_result);
+        relx::value_or_throw(drop_result);
         return 0;
     } catch (const relx::RelxException& e) {
         std::println("{}", e.what());
@@ -186,50 +186,19 @@ int main() {
 }
 ```
 
-### Classic Explicit Schema DSL
-
-The annotation DSL is sugar over the explicit column DSL, which remains fully supported.
-Both styles use identical member-access query syntax (`users.id`) and produce identical SQL —
-with annotations the table object comes from `relx::t<Users>`, with the classic DSL it is an
-instance of the struct itself.
+### Creating and Dropping Tables
 
 ```cpp
-struct Users {
-    static constexpr auto table_name = "users";
+// Runtime builders, executable through the connection
+auto create_users = relx::create_table(users);
+auto create_posts = relx::create_table(posts).if_not_exists();
 
-    relx::column<Users, "id", int, relx::primary_key> id;
-    relx::column<Users, "username", std::string> username;
-    relx::column<Users, "email", std::string> email;
-
-    relx::unique_constraint<&Users::email> unique_email;
-};
-
-struct Posts {
-    static constexpr auto table_name = "posts";
-
-    relx::column<Posts, "id", int, relx::primary_key> id;
-    relx::column<Posts, "user_id", int> user_id;
-    relx::column<Posts, "title", std::string> title;
-    relx::column<Posts, "content", std::string> content;
-
-    relx::foreign_key<&Posts::user_id, &Users::id> user_fk;
-};
-```
-
-### Creating and Dropping Table Examples
-
-```cpp
-// Define schemas (as shown in previous examples)
-Users users;
-Posts posts;
-
-// Create tables
-auto create_users = relx::schema::create_table(users);
-auto create_posts = relx::schema::create_table(posts).if_not_exists();
-
-// Drop tables
 auto drop_users = relx::drop_table(users).if_exists().cascade();
 auto drop_posts = relx::drop_table(posts).if_exists();
+
+// Or built entirely at compile time - to_sql() is consteval and returns a view of
+// static storage, so the statement costs nothing at runtime
+constexpr auto ddl = relx::create_table_sql<Users>().if_not_exists().to_sql();
 ```
 
 ### Query Building Examples
@@ -237,9 +206,6 @@ auto drop_posts = relx::drop_table(posts).if_exists();
 #### SELECT Queries
 
 ```cpp
-Users users;
-Posts posts;
-
 // Basic SELECT
 auto query1 = relx::select(users.id, users.username, users.email)
     .from(users);
@@ -279,14 +245,10 @@ auto query6 = relx::select_expr(
 #### INSERT Queries
 
 ```cpp
-Users users;
-
 // Simple INSERT
 auto insert1 = relx::insert_into(users)
-    .values(
-        relx::set(users.username, "john_doe"),
-        relx::set(users.email, "john@example.com")
-    );
+    .columns(users.username, users.email)
+    .values("john_doe", "john@example.com");
 
 // Multi-row INSERT
 auto insert2 = relx::insert_into(users)
@@ -298,22 +260,16 @@ auto insert2 = relx::insert_into(users)
 #### UPDATE Queries
 
 ```cpp
-Users users;
-
 // Basic UPDATE
 auto update1 = relx::update(users)
-    .set(
-        relx::set(users.username, "new_username"),
-        relx::set(users.email, "new_email@example.com")
-    )
+    .set(users.username, "new_username")
+    .set(users.email, "new_email@example.com")
     .where(users.id == 1);
 ```
 
 #### DELETE Queries
 
 ```cpp
-Users users;
-
 // Basic DELETE
 auto delete1 = relx::delete_from(users)
     .where(users.id == 1);
@@ -322,21 +278,25 @@ auto delete1 = relx::delete_from(users)
 auto delete2 = relx::delete_from(users);
 ```
 
-For more advanced examples, see our [documentation](docs/README.md).
+For the full guides, see the [documentation](docs/README.md).
 
 ## Schema Features
 
 relx provides a rich set of schema definition features:
 
-| Feature | Description | Example |
-|---------|-------------|---------|
-| **Tables** | Define database tables with strongly typed columns | `struct Users { static constexpr auto table_name = "users"; ... };` |
-| **Columns** | Specify column names, types, and constraints | `relx::column<Users, "id", int, relx::primary_key> id;` |
-| **Primary Keys** | Single-column and composite primary keys | `relx::table_primary_key<`relx::primary_key<&Users::id>`Users::id>` |
-| **Foreign Keys** | Define relationships between tables | `relx::foreign_key<&Posts::user_id, &Users::id>` |
-| **Indexes** | Create regular and unique indexes | `relx::unique_constraint<&Users::email>` |
-| **Constraints** | Check constraints, unique constraints, default values | `relx::check_constraint</* condition */>` |
-| **Nullable Columns** | Support for NULL values via std::optional | `relx::column<Users, "age", std::optional<int>>` |
+| Feature | Example |
+|---------|---------|
+| **Tables** | `struct [[=relx::table("users")]] Users { ... };` |
+| **Columns** | member identifiers and types: `std::string email;` |
+| **Primary keys** | `[[=relx::ann::pk]] int id;` — composite: `=relx::ann::composite_pk("a", "b")` on the struct |
+| **Foreign keys** | `[[=relx::ann::fk<^^Users::id>]] int user_id;` |
+| **Unique** | `[[=relx::ann::unique]]` — composite: `=relx::ann::composite_unique("a", "b")` |
+| **Indexes** | `=relx::ann::index_on("email").unique()` on the struct; emitted by `relx::create_indexes_sql<T>()` |
+| **Check constraints** | column: `[[=relx::schema::check<"price > 0">{}]]`; table: `=relx::ann::check("a < b").named("ck")` |
+| **Defaults** | `[[=relx::default_value<18>{}]]`, `[[=relx::string_default<"guest">{}]]`, `[[=relx::default_sql<"now()">{}]]` |
+| **Nullable columns** | `std::optional<int> age;` |
+
+See [Schema Definition](docs/schema-definition.md) for the full annotation vocabulary.
 
 ## Advanced Features
 
@@ -377,33 +337,22 @@ if (!conn_result) {
     return 1;
 }
 
-// Define the schema
-struct Users {
-    static constexpr auto table_name = "users";
-    relx::column<Users, "id", int> id;
-    relx::column<Users, "name", std::string> name;
-    relx::column<Users, "email", std::string> email;
-};
-
-// Create a table instance
-Users users;
-
-// Define a DTO for user data
+// Define a DTO for the columns this query selects
 struct UserDTO {
-    std::string name;
+    std::string username;
 };
 
 // Build a type-safe query using the fluent API
-auto query = relx::select(users.name)
+auto query = relx::select(users.username)
     .from(users)
     .where(users.id > 5);
 
 // Execute the query with automatic mapping to UserDTO
-auto result = conn.execute<UserDTO>(query);
+auto result = conn.execute_many<UserDTO>(query);
 if (result) {
     // Process results - automatically mapped to UserDTO objects
     for (const auto& user : *result) {
-        std::println("Name: {}", user.name);
+        std::println("Name: {}", user.username);
     }
 }
 
@@ -443,27 +392,24 @@ if (!init_result) {
     return 1;
 }
 
+// A DTO for the count result; one definition serves both patterns below
+struct CountDTO {
+    int count;
+};
+
 // Method 1: Get a connection from the pool
 auto conn_result = pool->get_connection();
 if (conn_result) {
     auto& conn = *conn_result;
-    
-    // Define schema
-    Users users;
-    
+
     // Create a type-safe query
     auto query = relx::select_expr(relx::as(relx::count_all(), "count")).from(users);
-    
-    // Define a DTO for the count result
-    struct CountDTO {
-        int count;
-    };
-    
+
     // Execute with automatic mapping to CountDTO
-    auto query_result = conn->execute<CountDTO>(query);
+    auto query_result = conn->execute<CountDTO>(query);  // single row
     
     if (query_result) {
-        std::println("User count: {}", (*query_result).at(0).count);
+        std::println("User count: {}", query_result->count);
     }
     
     // Connection automatically returned to pool when conn goes out of scope
@@ -471,24 +417,20 @@ if (conn_result) {
 
 // Method 2: Use the with_connection pattern
 auto user_count = pool->with_connection([](auto& conn) -> relx::ConnectionResult<int> {
-    // Define a simple DTO for the count result
-    struct CountDTO {
-        int count;
-    };
-    
-    Users users;
     auto query = relx::select_expr(relx::as(relx::count_all(), "count")).from(users);
-    auto result = conn->execute<CountDTO>(query);
-    
+    // conn is a generic lambda parameter, so the member template needs `template`
+    auto result = conn->template execute<CountDTO>(query);
+
     if (!result) {
         return std::unexpected(result.error());
     }
     
-    return (*result).at(0).count;
+    return result->count;
 });
 
-if (user_count) {
-    std::println("User count: {}", *user_count);
+// with_connection wraps the callable's own result, so there are two layers to unwrap
+if (user_count && *user_count) {
+    std::println("User count: {}", **user_count);
 }
 ```
 
@@ -524,10 +466,6 @@ boost::asio::awaitable<void> run_async_queries(boost::asio::io_context& io_conte
         co_return;
     }
     
-    // Define schema
-    Users users;
-    
-    // Simple query
     auto query = relx::select(users.id, users.username)
         .from(users)
         .where(users.id > 10);
@@ -539,7 +477,7 @@ boost::asio::awaitable<void> run_async_queries(boost::asio::io_context& io_conte
     };
     
     // Execute asynchronously with automatic mapping to UserDTO
-    auto result = co_await conn.execute<UserDTO>(query);
+    auto result = co_await conn.execute_many<UserDTO>(query);
     if (result) {
         // Process results - automatically mapped to UserDTO objects
         for (const auto& user : *result) {
