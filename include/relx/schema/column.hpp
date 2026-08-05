@@ -229,9 +229,33 @@ struct default_value {
   }
 };
 
+namespace detail {
+
+/// @brief SQL expressions users predictably mistype as quoted string defaults
+consteval bool is_known_sql_default_expression(std::string_view v) {
+  constexpr std::string_view known[] = {
+      "CURRENT_TIMESTAMP", "CURRENT_DATE", "CURRENT_TIME", "LOCALTIME", "LOCALTIMESTAMP",
+      "CURRENT_USER",      "SESSION_USER", "now()",        "NOW()",     "current_timestamp",
+      "gen_random_uuid()",
+  };
+  for (std::string_view k : known) {
+    if (v == k) {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace detail
+
 /// @brief DEFAULT value for string literals
 template <fixed_string Value, bool IsLiteral = false>
 struct string_default {
+  static_assert(IsLiteral || !detail::is_known_sql_default_expression(std::string_view(Value)),
+                "string_default quotes its value: this would emit the *string* "
+                "'CURRENT_TIMESTAMP', not the SQL expression. Use "
+                "relx::default_sql<\"...\"> for an unquoted SQL-expression DEFAULT.");
+
   static constexpr auto value = Value;
 
   static constexpr std::string to_sql() {
