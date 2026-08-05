@@ -1,4 +1,5 @@
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -110,10 +111,13 @@ TEST_F(PostgreSQLStatementTest, TestBasicPreparedStatement) {
   create_test_table(conn);
 
   // Create a prepared statement
-  auto stmt = conn.prepare_statement("insert_statement",
-                                     "INSERT INTO prepared_test (name, value) VALUES ($1, $2)",
-                                     2  // 2 parameters
+  auto stmt_result = conn.prepare_statement("insert_statement",
+                                            "INSERT INTO prepared_test (name, value) VALUES ($1, "
+                                            "$2)",
+                                            2  // 2 parameters
   );
+  ASSERT_TRUE(stmt_result) << "Failed to prepare statement: " << stmt_result.error().message;
+  auto& stmt = *stmt_result;
 
   // Execute the prepared statement multiple times
   auto result1 = stmt->execute({"Item 1", "100"});
@@ -178,10 +182,13 @@ TEST_F(PostgreSQLStatementTest, TestTypedPreparedStatement) {
   create_test_table(conn);
 
   // Create a prepared statement
-  auto stmt = conn.prepare_statement("insert_typed_statement",
-                                     "INSERT INTO prepared_test (name, value) VALUES ($1, $2)",
-                                     2  // 2 parameters
+  auto stmt_result = conn.prepare_statement("insert_typed_statement",
+                                            "INSERT INTO prepared_test (name, value) VALUES ($1, "
+                                            "$2)",
+                                            2  // 2 parameters
   );
+  ASSERT_TRUE(stmt_result) << "Failed to prepare statement: " << stmt_result.error().message;
+  auto& stmt = *stmt_result;
 
   // Execute the prepared statement with typed parameters
   auto result1 = stmt->execute_typed("Item A", 111);
@@ -224,6 +231,33 @@ TEST_F(PostgreSQLStatementTest, TestTypedPreparedStatement) {
   conn.disconnect();
 }
 
+TEST_F(PostgreSQLStatementTest, TestNullParameter) {
+  relx::connection::PostgreSQLConnection conn(conn_string);
+  ASSERT_TRUE(conn.connect());
+
+  auto stmt_result = conn.prepare_statement("null_param_stmt", "SELECT $1::text IS NULL AS is_null",
+                                            1);
+  ASSERT_TRUE(stmt_result) << stmt_result.error().message;
+  auto& stmt = *stmt_result;
+
+  // std::nullopt binds SQL NULL
+  auto null_result = stmt->execute({std::nullopt});
+  ASSERT_TRUE(null_result) << null_result.error().message;
+  auto is_null = (*null_result)[0].get<bool>("is_null");
+  ASSERT_TRUE(is_null);
+  EXPECT_TRUE(*is_null);
+
+  // The literal string "NULL" is a value, not SQL NULL
+  auto text_result = stmt->execute({std::string("NULL")});
+  ASSERT_TRUE(text_result) << text_result.error().message;
+  auto is_null2 = (*text_result)[0].get<bool>("is_null");
+  ASSERT_TRUE(is_null2);
+  EXPECT_FALSE(*is_null2);
+
+  stmt.reset();
+  conn.disconnect();
+}
+
 TEST_F(PostgreSQLStatementTest, TestStatementLifecycle) {
   relx::connection::PostgreSQLConnection conn(conn_string);
   ASSERT_TRUE(conn.connect());
@@ -234,8 +268,10 @@ TEST_F(PostgreSQLStatementTest, TestStatementLifecycle) {
   // Scope for the first statement
   {
     // Create a prepared statement
-    auto stmt1 = conn.prepare_statement(
+    auto stmt1_result = conn.prepare_statement(
         "statement1", "INSERT INTO prepared_test (name, value) VALUES ($1, $2)", 2);
+    ASSERT_TRUE(stmt1_result) << "Failed to prepare statement: " << stmt1_result.error().message;
+    auto& stmt1 = *stmt1_result;
 
     // Execute it
     auto result = stmt1->execute({"Lifecycle Test", "999"});
@@ -246,8 +282,10 @@ TEST_F(PostgreSQLStatementTest, TestStatementLifecycle) {
 
   // Create another statement with the same name, which should succeed
   // since the previous one should have been deallocated
-  auto stmt2 = conn.prepare_statement("statement1",  // Same name as before
-                                      "SELECT * FROM prepared_test WHERE value = $1", 1);
+  auto stmt2_result = conn.prepare_statement("statement1",  // Same name as before
+                                             "SELECT * FROM prepared_test WHERE value = $1", 1);
+  ASSERT_TRUE(stmt2_result) << "Failed to prepare statement: " << stmt2_result.error().message;
+  auto& stmt2 = *stmt2_result;
 
   // Execute the new statement
   auto result = stmt2->execute({"999"});
@@ -280,14 +318,20 @@ TEST_F(PostgreSQLStatementTest, TestMultipleStatements) {
   create_test_table(conn);
 
   // Create multiple prepared statements at once
-  auto insert_stmt = conn.prepare_statement(
+  auto insert_result = conn.prepare_statement(
       "insert_stmt", "INSERT INTO prepared_test (name, value) VALUES ($1, $2)", 2);
+  ASSERT_TRUE(insert_result) << insert_result.error().message;
+  auto& insert_stmt = *insert_result;
 
-  auto update_stmt = conn.prepare_statement(
+  auto update_result = conn.prepare_statement(
       "update_stmt", "UPDATE prepared_test SET value = $1 WHERE name = $2", 2);
+  ASSERT_TRUE(update_result) << update_result.error().message;
+  auto& update_stmt = *update_result;
 
-  auto select_stmt = conn.prepare_statement(
+  auto select_result = conn.prepare_statement(
       "select_stmt", "SELECT * FROM prepared_test WHERE value > $1 ORDER BY value", 1);
+  ASSERT_TRUE(select_result) << select_result.error().message;
+  auto& select_stmt = *select_result;
 
   // Insert some data
   ASSERT_TRUE(insert_stmt->execute({"Alpha", "100"}));
@@ -341,8 +385,10 @@ TEST_F(PostgreSQLStatementTest, TestInvalidConnection) {
 
   create_test_table(conn);
 
-  auto stmt = conn.prepare_statement("invalid_conn_test",
-                                     "INSERT INTO prepared_test (name, value) VALUES ($1, $2)", 2);
+  auto stmt_result = conn.prepare_statement(
+      "invalid_conn_test", "INSERT INTO prepared_test (name, value) VALUES ($1, $2)", 2);
+  ASSERT_TRUE(stmt_result) << stmt_result.error().message;
+  auto& stmt = *stmt_result;
 
   // Statement should work initially
   auto result1 = stmt->execute({"Initial Test", "100"});
@@ -362,8 +408,10 @@ TEST_F(PostgreSQLStatementTest, TestInvalidConnection) {
   ASSERT_TRUE(conn2.connect());
 
   // Should be able to create statement with same name since old one was cleaned up
-  auto stmt2 = conn2.prepare_statement("invalid_conn_test",
-                                       "SELECT * FROM prepared_test WHERE value = $1", 1);
+  auto stmt2_result = conn2.prepare_statement("invalid_conn_test",
+                                              "SELECT * FROM prepared_test WHERE value = $1", 1);
+  ASSERT_TRUE(stmt2_result) << stmt2_result.error().message;
+  auto& stmt2 = *stmt2_result;
 
   EXPECT_TRUE(stmt2->is_valid());
   stmt2.reset();

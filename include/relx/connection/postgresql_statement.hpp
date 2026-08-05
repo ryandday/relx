@@ -2,8 +2,6 @@
 
 #include "postgresql_connection.hpp"
 
-#include <expected>
-#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -11,9 +9,6 @@
 #include <type_traits>
 #include <vector>
 
-// Forward declaration
-struct pg_result;
-using PGresult = pg_result;
 namespace relx::connection {
 
 /// @brief Represents a prepared statement in PostgreSQL
@@ -39,9 +34,11 @@ public:
   PostgreSQLStatement& operator=(PostgreSQLStatement&&) noexcept;
 
   /// @brief Execute the prepared statement with parameters
-  /// @param params Vector of parameter values
+  /// @param params Parameter values sent through the protocol (PQexecPrepared);
+  /// std::nullopt binds SQL NULL
   /// @return Result containing the query results or an error
-  ConnectionResult<result::ResultSet> execute(const std::vector<std::string>& params = {});
+  ConnectionResult<result::ResultSet> execute(
+      const std::vector<std::optional<std::string>>& params = {});
 
   /// @brief Execute the prepared statement with typed parameters
   /// @tparam Args The types of the parameters
@@ -50,32 +47,28 @@ public:
   template <typename... Args>
   ConnectionResult<result::ResultSet> execute_typed(Args&&... args) {
     // Convert each parameter to its string representation
-    std::vector<std::string> param_strings;
-    param_strings.reserve(sizeof...(Args));
+    std::vector<std::optional<std::string>> params;
+    params.reserve(sizeof...(Args));
 
     // Helper to convert a parameter to string and add to vector
-    auto add_param = [&param_strings](auto&& param) {
+    auto add_param = [&params](auto&& param) {
       using ParamType = std::remove_cvref_t<decltype(param)>;
 
       if constexpr (std::is_same_v<ParamType, std::nullptr_t>) {
-        // Handle NULL values
-        param_strings.push_back("NULL");
+        params.push_back(std::nullopt);
       } else if constexpr (std::is_same_v<ParamType, std::string> ||
                            std::is_same_v<ParamType, const char*> ||
                            std::is_same_v<ParamType, std::string_view>) {
-        // String types
-        param_strings.push_back(std::string(param));
-      } else if constexpr (std::is_arithmetic_v<ParamType>) {
-        // Numeric types
-        param_strings.push_back(std::to_string(param));
+        params.emplace_back(std::string(param));
       } else if constexpr (std::is_same_v<ParamType, bool>) {
-        // Boolean values
-        param_strings.push_back(param ? "t" : "f");
+        params.emplace_back(param ? "t" : "f");
+      } else if constexpr (std::is_arithmetic_v<ParamType>) {
+        params.emplace_back(std::to_string(param));
       } else {
         // Other types, try to use stream conversion
         std::ostringstream ss;
         ss << param;
-        param_strings.push_back(ss.str());
+        params.emplace_back(ss.str());
       }
     };
 
@@ -83,7 +76,7 @@ public:
     (add_param(std::forward<Args>(args)), ...);
 
     // Call the string-based execute with our converted parameters
-    return execute(param_strings);
+    return execute(params);
   }
 
   /// @brief Get the name of the prepared statement
@@ -103,28 +96,11 @@ public:
   bool is_valid() const { return is_valid_; }
 
 private:
-  PostgreSQLConnection& connection_;
+  PostgreSQLConnection* connection_;  // pointer so move-assignment can rebind
   std::string name_;
   std::string sql_;
   int param_count_;
   bool is_valid_ = true;
-
-  /// @brief Execute the prepared statement with parameters
-  /// @param params Vector of parameter values
-  /// @param result_format Format of the result (0 for text, 1 for binary)
-  /// @return PGresult pointer or error
-  ConnectionResult<PGresult*> execute_raw(const std::vector<std::string>& params,
-                                          int result_format = 0);
-
-  /// @brief Process PGresult into a ResultSet
-  /// @param pg_result The PGresult to process
-  /// @return ResultSet or error
-  static ConnectionResult<result::ResultSet> process_result(PGresult* pg_result);
-
-  /// @brief Helper to escape string literals for PostgreSQL
-  /// @param str The string to escape
-  /// @return The escaped string
-  static std::string escape_string(const std::string& str);
 };
 
 }  // namespace relx::connection

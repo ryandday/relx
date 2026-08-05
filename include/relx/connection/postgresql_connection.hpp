@@ -3,10 +3,12 @@
 #include "connection.hpp"
 
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 // Forward declarations to avoid including libpq headers in our public API
 struct pg_conn;
@@ -138,11 +140,19 @@ public:
 
   /// @brief Create a prepared statement
   /// @param name The name of the prepared statement
-  /// @param sql The SQL query text
+  /// @param sql The SQL query text (? placeholders are converted to $n)
   /// @param param_count The number of parameters in the statement
-  /// @return A new prepared statement
-  std::unique_ptr<PostgreSQLStatement> prepare_statement(const std::string& name,
-                                                         const std::string& sql, int param_count);
+  /// @return A new prepared statement, or the error PQprepare reported
+  ConnectionResult<std::unique_ptr<PostgreSQLStatement>> prepare_statement(const std::string& name,
+                                                                           const std::string& sql,
+                                                                           int param_count);
+
+  /// @brief Execute a previously prepared statement via PQexecPrepared
+  /// @param statement_name The name the statement was prepared under
+  /// @param params Text-format parameter values; std::nullopt binds SQL NULL
+  /// @return Result containing the query results or an error
+  ConnectionResult<result::ResultSet> execute_prepared(
+      const std::string& statement_name, const std::vector<std::optional<std::string>>& params);
 
   /// @brief Get direct access to the PostgreSQL connection
   /// @return The PGconn pointer
