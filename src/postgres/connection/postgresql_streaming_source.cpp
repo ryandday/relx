@@ -11,14 +11,15 @@ namespace relx::connection {
 PostgreSQLStreamingSource::PostgreSQLStreamingSource(PostgreSQLConnection& connection,
                                                      std::string sql,
                                                      std::vector<std::string> params)
-    : connection_(connection), sql_(std::move(sql)), params_(std::move(params)), use_binary_(false),
-      initialized_(false), finished_(false), convert_bytea_(false), query_active_(false) {}
+    : connection_(&connection), sql_(std::move(sql)), params_(std::move(params)),
+      use_binary_(false), initialized_(false), finished_(false), convert_bytea_(false),
+      query_active_(false) {}
 
 PostgreSQLStreamingSource::PostgreSQLStreamingSource(PostgreSQLConnection& connection,
                                                      std::string sql,
                                                      std::vector<std::string> params,
                                                      std::vector<bool> is_binary)
-    : connection_(connection), sql_(std::move(sql)), params_(std::move(params)),
+    : connection_(&connection), sql_(std::move(sql)), params_(std::move(params)),
       is_binary_(std::move(is_binary)), use_binary_(true), initialized_(false), finished_(false),
       convert_bytea_(true), query_active_(false) {}
 
@@ -32,12 +33,14 @@ PostgreSQLStreamingSource::PostgreSQLStreamingSource(PostgreSQLStreamingSource&&
       use_binary_(other.use_binary_), column_names_(std::move(other.column_names_)),
       is_bytea_column_(std::move(other.is_bytea_column_)), initialized_(other.initialized_),
       finished_(other.finished_), convert_bytea_(other.convert_bytea_),
-      query_active_(other.query_active_), first_row_cached_(std::move(other.first_row_cached_)) {
+      query_active_(other.query_active_), first_row_cached_(std::move(other.first_row_cached_)),
+      last_error_(std::move(other.last_error_)) {
   // Mark the other object as moved-from
   other.initialized_ = false;
   other.finished_ = true;
   other.query_active_ = false;
   other.first_row_cached_.reset();
+  other.last_error_.reset();
 }
 
 PostgreSQLStreamingSource& PostgreSQLStreamingSource::operator=(
@@ -45,7 +48,7 @@ PostgreSQLStreamingSource& PostgreSQLStreamingSource::operator=(
   if (this != &other) {
     cleanup();  // Clean up current state
 
-    connection_ = std::move(other.connection_);
+    connection_ = other.connection_;
     sql_ = std::move(other.sql_);
     params_ = std::move(other.params_);
     is_binary_ = std::move(other.is_binary_);
@@ -57,12 +60,14 @@ PostgreSQLStreamingSource& PostgreSQLStreamingSource::operator=(
     convert_bytea_ = other.convert_bytea_;
     query_active_ = other.query_active_;
     first_row_cached_ = std::move(other.first_row_cached_);
+    last_error_ = std::move(other.last_error_);
 
     // Mark the other object as moved-from
     other.initialized_ = false;
     other.finished_ = true;
     other.query_active_ = false;
     other.first_row_cached_.reset();
+    other.last_error_.reset();
   }
   return *this;
 }
@@ -82,7 +87,18 @@ ConnectionResult<void> PostgreSQLStreamingSource::initialize() {
 }
 
 std::optional<std::string> PostgreSQLStreamingSource::get_next_row() {
-  if (!initialized_ || finished_) {
+  if (!initialized_) {
+    // The first row pull starts the query, as it does on the async source. Callers that
+    // reach the source through create_streaming_result never hold it directly and so have
+    // no chance to call initialize() themselves.
+    if (auto init_result = initialize(); !init_result) {
+      last_error_ = init_result.error();
+      finished_ = true;
+      return std::nullopt;
+    }
+  }
+
+  if (finished_) {
     return std::nullopt;
   }
 
@@ -94,8 +110,9 @@ std::optional<std::string> PostgreSQLStreamingSource::get_next_row() {
   }
 
   // Get the next result using PQgetResult
-  PGconn* pg_conn = connection_.get_pg_conn();
+  PGconn* pg_conn = connection_->get_pg_conn();
   if (!pg_conn) {
+    last_error_ = ConnectionError{.message = "Invalid connection", .error_code = -1};
     finished_ = true;
     return std::nullopt;
   }
@@ -119,12 +136,17 @@ std::optional<std::string> PostgreSQLStreamingSource::get_next_row() {
   } else if (status == PGRES_TUPLES_OK) {
     // End of results
     PQclear(pg_result);
+    drain_results();
     finished_ = true;
     query_active_ = false;
     return std::nullopt;
   } else {
     // Error condition
+    last_error_ = ConnectionError{.message = std::string("Streaming query failed: ") +
+                                             PQresultErrorMessage(pg_result),
+                                  .error_code = static_cast<int>(status)};
     PQclear(pg_result);
+    drain_results();
     finished_ = true;
     query_active_ = false;
     return std::nullopt;
@@ -136,12 +158,12 @@ const std::vector<std::string>& PostgreSQLStreamingSource::get_column_names() co
 }
 
 ConnectionResult<void> PostgreSQLStreamingSource::start_query() {
-  if (!connection_.is_connected()) {
+  if (!connection_->is_connected()) {
     return std::unexpected(
         ConnectionError{.message = "Not connected to database", .error_code = -1});
   }
 
-  PGconn* pg_conn = connection_.get_pg_conn();
+  PGconn* pg_conn = connection_->get_pg_conn();
   if (!pg_conn) {
     return std::unexpected(ConnectionError{.message = "Invalid connection", .error_code = -1});
   }
@@ -153,7 +175,7 @@ ConnectionResult<void> PostgreSQLStreamingSource::start_query() {
     result_code = PQsendQuery(pg_conn, sql_.c_str());
   } else {
     // Convert ? placeholders to $1, $2, etc.
-    std::string pg_sql = connection_.convert_placeholders(sql_);
+    std::string pg_sql = connection_->convert_placeholders(sql_);
 
     if (use_binary_) {
       // Prepare parameter values, lengths, and formats for binary mode
@@ -202,6 +224,7 @@ ConnectionResult<void> PostgreSQLStreamingSource::start_query() {
 
   // Enable single-row mode for streaming
   if (PQsetSingleRowMode(pg_conn) != 1) {
+    drain_results();  // the query is already in flight
     return std::unexpected(
         ConnectionError{.message = "Failed to enable single-row mode", .error_code = -1});
   }
@@ -229,12 +252,15 @@ ConnectionResult<void> PostgreSQLStreamingSource::start_query() {
     // Empty result set
     process_column_metadata(first_result);
     PQclear(first_result);
+    drain_results();
     finished_ = true;
     return {};
   } else {
     // Error
     std::string error_msg = PQresultErrorMessage(first_result);
     PQclear(first_result);
+    drain_results();
+    finished_ = true;
     return std::unexpected(
         ConnectionError{.message = std::string("Query execution failed: ") + error_msg,
                         .error_code = static_cast<int>(status)});
@@ -320,17 +346,22 @@ std::string PostgreSQLStreamingSource::convert_pg_bytea_to_binary(
 
 void PostgreSQLStreamingSource::cleanup() {
   if (query_active_) {
-    // Consume any remaining results to clean up the connection state
-    PGconn* pg_conn = connection_.get_pg_conn();
-    if (pg_conn) {
-      PGresult* result;
-      while ((result = PQgetResult(pg_conn)) != nullptr) {
-        PQclear(result);
-      }
-    }
+    drain_results();
     query_active_ = false;
   }
   finished_ = true;
+}
+
+void PostgreSQLStreamingSource::drain_results() {
+  PGconn* pg_conn = connection_->get_pg_conn();
+  if (!pg_conn) {
+    return;
+  }
+
+  PGresult* result;
+  while ((result = PQgetResult(pg_conn)) != nullptr) {
+    PQclear(result);
+  }
 }
 
 }  // namespace relx::connection

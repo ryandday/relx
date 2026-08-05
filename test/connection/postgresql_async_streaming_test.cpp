@@ -19,6 +19,23 @@
 using namespace relx;
 namespace asio = boost::asio;
 
+namespace {
+
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
+// Mirrors the users table the streaming tests create
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
+  int age;
+};
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
+
+}  // namespace
+
 // Test fixture for PostgreSQL async streaming tests
 class PostgreSQLAsyncStreamingTest : public ::testing::Test {
 protected:
@@ -312,6 +329,74 @@ TEST_F(PostgreSQLAsyncStreamingTest, ManualAsyncIteration) {
     // No manual reset needed - it's done automatically when streaming completes
 
     // Clean up
+    auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
+    EXPECT_TRUE(drop_result);
+
+    co_await conn.disconnect();
+  });
+}
+
+// Streaming straight from a query object, without restating its SQL or parameters
+TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingFromQueryObject) {
+  connection::PostgreSQLAsyncConnection conn(io_context, conn_string);
+
+  run_test([&]() -> asio::awaitable<void> {
+    auto connect_result = co_await conn.connect();
+    EXPECT_TRUE(connect_result);
+
+    auto create_result = co_await conn.execute_raw(R"(
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                email VARCHAR(100),
+                age INTEGER NOT NULL
+            )
+        )");
+    EXPECT_TRUE(create_result);
+
+    auto clear_result = co_await conn.execute_raw("DELETE FROM users");
+    EXPECT_TRUE(clear_result);
+
+    auto insert_result = co_await conn.execute_raw(R"(
+            INSERT INTO users (name, email, age) VALUES
+            ('Alice Johnson', 'alice@example.com', 30),
+            ('Bob Smith', 'bob@example.com', 25),
+            ('Charlie Brown', NULL, 61)
+        )");
+    EXPECT_TRUE(insert_result);
+
+    {
+      auto query = relx::select(users.id, users.name, users.age)
+                       .from(users)
+                       .where(users.age < 60)
+                       .order_by(users.age);
+
+      auto streaming_result = connection::create_async_streaming_result(conn, query);
+
+      std::vector<std::string> names;
+      std::vector<int> ages;
+      co_await streaming_result.for_each([&names, &ages](const auto& lazy_row) {
+        auto name_result = lazy_row.template get<std::string>("name");
+        auto age_result = lazy_row.template get<int>("age");
+        EXPECT_TRUE(name_result);
+        EXPECT_TRUE(age_result);
+        if (name_result && age_result) {
+          names.push_back(*name_result);
+          ages.push_back(*age_result);
+        }
+      });
+
+      // The query's bound parameter (age < 60) must have reached the server, so
+      // Charlie is filtered out and the rest arrive in age order
+      EXPECT_EQ(names.size(), 2);
+      if (names.size() == 2) {
+        EXPECT_EQ(names.at(0), "Bob Smith");
+        EXPECT_EQ(names.at(1), "Alice Johnson");
+        EXPECT_EQ(ages.at(0), 25);
+        EXPECT_EQ(ages.at(1), 30);
+      }
+    }
+
     auto drop_result = co_await conn.execute_raw("DROP TABLE IF EXISTS users");
     EXPECT_TRUE(drop_result);
 

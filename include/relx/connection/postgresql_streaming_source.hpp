@@ -2,6 +2,7 @@
 
 #include "../results/streaming_result.hpp"
 #include "postgresql_connection.hpp"
+#include "streaming_params.hpp"
 
 #include <memory>
 #include <optional>
@@ -67,8 +68,17 @@ public:
   /// @return True if more rows are available, false if end of results or error
   bool has_more_rows() const { return !finished_; }
 
+  /// @brief The error that ended the stream, if any
+  /// @details Empty when the stream ended because the rows ran out. Set when the query
+  /// failed to start or the server reported an error mid-stream, so that a caller
+  /// iterating through StreamingResultSet - which can only observe "no more rows" - can
+  /// still tell an empty result apart from a failed one.
+  const std::optional<ConnectionError>& last_error() const { return last_error_; }
+
 private:
-  PostgreSQLConnection& connection_;
+  // Pointer, not reference: moves must rebind to the moved-from source's connection
+  // (a reference member would move-assign *through* the reference instead)
+  PostgreSQLConnection* connection_;
   std::string sql_;
   std::vector<std::string> params_;
   std::vector<bool> is_binary_;
@@ -85,6 +95,9 @@ private:
 
   // Cache for the first row (since we consume it during metadata processing)
   std::optional<std::string> first_row_cached_;
+
+  // Error that ended the stream, if it ended for a reason other than running out of rows
+  std::optional<ConnectionError> last_error_;
 
   /// @brief Helper method to start the streaming query
   ConnectionResult<void> start_query();
@@ -105,6 +118,12 @@ private:
 
   /// @brief Helper method to clean up any active query
   void cleanup();
+
+  /// @brief Consume results until libpq reports the command is done
+  /// @details libpq only leaves the busy state once PQgetResult returns null, which it
+  /// does after the final PGRES_TUPLES_OK. Skipping this leaves the connection unusable
+  /// for the next query ("another command is already in progress").
+  void drain_results();
 };
 
 /// @brief Create a streaming result set from a PostgreSQL connection and query
@@ -129,10 +148,10 @@ result::StreamingResultSet<PostgreSQLStreamingSource> create_streaming_result(
                            std::is_same_v<ParamType, const char*> ||
                            std::is_same_v<ParamType, std::string_view>) {
         param_strings.push_back(std::string(param));
-      } else if constexpr (std::is_arithmetic_v<ParamType>) {
-        param_strings.push_back(std::to_string(param));
       } else if constexpr (std::is_same_v<ParamType, bool>) {
         param_strings.push_back(param ? "t" : "f");
+      } else if constexpr (std::is_arithmetic_v<ParamType>) {
+        param_strings.push_back(std::to_string(param));
       } else {
         std::ostringstream ss;
         ss << param;
@@ -145,6 +164,24 @@ result::StreamingResultSet<PostgreSQLStreamingSource> create_streaming_result(
 
   return result::StreamingResultSet<PostgreSQLStreamingSource>(
       PostgreSQLStreamingSource(connection, sql, std::move(param_strings)));
+}
+
+/// @brief Create a streaming result set from a PostgreSQL connection and a query object
+/// @details Takes the SQL and the bound parameters straight off the query, so a built
+/// query streams without the caller restating its parameters:
+/// ```cpp
+/// auto query = relx::select(u.id, u.name).from(u).where(u.age > 30);
+/// auto stream = relx::connection::create_streaming_result(conn, query);
+/// ```
+/// Parameters travel in their text form (see streaming_text_params).
+/// @param connection PostgreSQL connection to use
+/// @param query Query object exposing to_sql()/bind_params()
+/// @return StreamingResultSet for processing large result sets incrementally
+template <query::SqlExpr Query>
+result::StreamingResultSet<PostgreSQLStreamingSource> create_streaming_result(
+    PostgreSQLConnection& connection, const Query& query) {
+  return result::StreamingResultSet<PostgreSQLStreamingSource>(
+      PostgreSQLStreamingSource(connection, query.to_sql(), streaming_text_params(query)));
 }
 
 }  // namespace relx::connection

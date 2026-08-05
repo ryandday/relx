@@ -2,6 +2,7 @@
 
 #include "../results/streaming_result.hpp"
 #include "postgresql_async_connection.hpp"
+#include "streaming_params.hpp"
 
 #include <memory>
 #include <optional>
@@ -380,10 +381,10 @@ AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource> create_async_streaming_r
                            std::is_same_v<ParamType, const char*> ||
                            std::is_same_v<ParamType, std::string_view>) {
         param_strings.push_back(std::string(param));
-      } else if constexpr (std::is_arithmetic_v<ParamType>) {
-        param_strings.push_back(std::to_string(param));
       } else if constexpr (std::is_same_v<ParamType, bool>) {
         param_strings.push_back(param ? "t" : "f");
+      } else if constexpr (std::is_arithmetic_v<ParamType>) {
+        param_strings.push_back(std::to_string(param));
       } else {
         std::ostringstream ss;
         ss << param;
@@ -396,6 +397,24 @@ AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource> create_async_streaming_r
 
   return AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource>(
       PostgreSQLAsyncStreamingSource(connection, sql, std::move(param_strings)));
+}
+
+/// @brief Create an async streaming result set from an async connection and a query object
+/// @details Takes the SQL and the bound parameters straight off the query, so a built
+/// query streams without the caller restating its parameters:
+/// ```cpp
+/// auto query = relx::select(u.id, u.name).from(u).where(u.age > 30);
+/// auto stream = relx::connection::create_async_streaming_result(conn, query);
+/// ```
+/// Parameters travel in their text form (see streaming_text_params).
+/// @param connection Async PostgreSQL connection to use
+/// @param query Query object exposing to_sql()/bind_params()
+/// @return AsyncStreamingResultSet for processing large result sets incrementally
+template <query::SqlExpr Query>
+AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource> create_async_streaming_result(
+    PostgreSQLAsyncConnection& connection, const Query& query) {
+  return AsyncStreamingResultSet<PostgreSQLAsyncStreamingSource>(
+      PostgreSQLAsyncStreamingSource(connection, query.to_sql(), streaming_text_params(query)));
 }
 
 }  // namespace relx::connection

@@ -15,15 +15,22 @@
 
 namespace relx::test {
 
-// Test table schema for users
-struct Users {
-  schema::column<Users, "id", int> id;
-  schema::column<Users, "name", std::string> name;
-  schema::column<Users, "email", std::string> email;
-  schema::column<Users, "age", int> age;
+namespace {
 
-  static constexpr std::string_view table_name = "users";
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
+// Test table schema for users
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
+  int age;
 };
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
+
+}  // namespace
 
 // Test fixture for PostgreSQL streaming tests
 class PostgreSQLStreamingTest : public ::testing::Test {
@@ -148,14 +155,145 @@ TEST_F(PostgreSQLStreamingTest, StreamingWithParameters) {
   EXPECT_GT(count, 0);
 }
 
+TEST_F(PostgreSQLStreamingTest, StreamingFromQueryObject) {
+  if (!connection) GTEST_SKIP();
+
+  // The query object carries both its SQL and its bound parameters
+  auto query = relx::select(users.id, users.name, users.age)
+                   .from(users)
+                   .where(users.age >= 25 && users.age <= 35)
+                   .order_by(users.id);
+
+  auto streaming_result = connection::create_streaming_result(*connection, query);
+
+  int count = 0;
+  int last_id = 0;
+  for (const auto& lazy_row : streaming_result) {
+    auto id_result = lazy_row.get<int>("id");
+    ASSERT_TRUE(id_result) << "Failed to get id: " << id_result.error().message;
+    EXPECT_GT(*id_result, last_id);
+    last_id = *id_result;
+
+    // Parameters from the query must have reached the server
+    auto age_result = lazy_row.get<int>("age");
+    ASSERT_TRUE(age_result) << "Failed to get age: " << age_result.error().message;
+    EXPECT_GE(*age_result, 25);
+    EXPECT_LE(*age_result, 35);
+
+    ++count;
+  }
+
+  // Same predicate, executed non-streaming, must yield the same row count
+  auto reference = connection->execute_typed(
+      "SELECT COUNT(*) FROM users WHERE age >= ? AND age <= ?", 25, 35);
+  ASSERT_TRUE(reference) << "Reference query failed: " << reference.error().message;
+  auto expected_count = reference->at(0).get<int>(0);
+  ASSERT_TRUE(expected_count) << "Failed to read count: " << expected_count.error().message;
+
+  EXPECT_GT(count, 0);
+  EXPECT_EQ(count, *expected_count);
+  EXPECT_FALSE(streaming_result.last_error().has_value());
+}
+
+TEST_F(PostgreSQLStreamingTest, ForEachProcessesEveryRow) {
+  if (!connection) GTEST_SKIP();
+
+  // No explicit initialize(): the first row pull starts the query
+  auto streaming_result = result::StreamingResultSet(connection::PostgreSQLStreamingSource(
+      *connection, "SELECT id, name FROM users ORDER BY id LIMIT 10"));
+
+  std::vector<int> ids;
+  streaming_result.for_each([&ids](const auto& lazy_row) {
+    auto id_result = lazy_row.template get<int>("id");
+    ASSERT_TRUE(id_result) << "Failed to get id: " << id_result.error().message;
+    ids.push_back(*id_result);
+  });
+
+  ASSERT_EQ(ids.size(), 10);
+  EXPECT_EQ(ids.front(), 1);
+  EXPECT_EQ(ids.back(), 10);
+}
+
+TEST_F(PostgreSQLStreamingTest, ForEachStopsWhenCallbackReturnsTrue) {
+  if (!connection) GTEST_SKIP();
+
+  auto streaming_result = result::StreamingResultSet(
+      connection::PostgreSQLStreamingSource(*connection, "SELECT id, name FROM users ORDER BY id"));
+
+  int count = 0;
+  streaming_result.for_each([&count](const auto& lazy_row) -> bool {
+    auto id_result = lazy_row.template get<int>("id");
+    EXPECT_TRUE(id_result);
+    ++count;
+    return count >= 5;  // true breaks the iteration
+  });
+
+  EXPECT_EQ(count, 5);
+}
+
+TEST_F(PostgreSQLStreamingTest, ManualIterationWithAdvanceAndIsAtEnd) {
+  if (!connection) GTEST_SKIP();
+
+  auto streaming_result = result::StreamingResultSet(connection::PostgreSQLStreamingSource(
+      *connection, "SELECT id, name FROM users ORDER BY id LIMIT 3"));
+
+  // begin() already sits on the first row, so advance() comes after processing it
+  auto it = streaming_result.begin();
+  int count = 0;
+  while (!it.is_at_end()) {
+    auto id_result = (*it).get<int>("id");
+    ASSERT_TRUE(id_result) << "Failed to get id: " << id_result.error().message;
+    EXPECT_EQ(*id_result, count + 1);
+    ++count;
+    it.advance();
+  }
+
+  EXPECT_EQ(count, 3);
+
+  // Advancing past the end stays at the end
+  it.advance();
+  EXPECT_TRUE(it.is_at_end());
+}
+
+TEST_F(PostgreSQLStreamingTest, LastErrorDistinguishesFailureFromEmptyResult) {
+  if (!connection) GTEST_SKIP();
+
+  auto failed = result::StreamingResultSet(
+      connection::PostgreSQLStreamingSource(*connection, "SELECT * FROM non_existent_table"));
+
+  int failed_count = 0;
+  for (const auto& lazy_row : failed) {
+    (void)lazy_row;
+    ++failed_count;
+  }
+
+  EXPECT_EQ(failed_count, 0);
+  ASSERT_TRUE(failed.last_error().has_value()) << "A failed query must not look like an empty one";
+  EXPECT_NE(failed.last_error()->message.find("non_existent_table"), std::string::npos);
+
+  // An empty result set, by contrast, reports no error
+  auto empty = result::StreamingResultSet(
+      connection::PostgreSQLStreamingSource(*connection, "SELECT id FROM users WHERE id > 100000"));
+
+  int empty_count = 0;
+  for (const auto& lazy_row : empty) {
+    (void)lazy_row;
+    ++empty_count;
+  }
+
+  EXPECT_EQ(empty_count, 0);
+  EXPECT_FALSE(empty.last_error().has_value());
+}
+
 TEST_F(PostgreSQLStreamingTest, StreamingWithSchemaIntegration) {
   if (!connection) GTEST_SKIP();
 
-  Users users;
+  // Table name comes from the schema rather than being hard-coded
+  const std::string sql = "SELECT id, name, email, age FROM " + std::string(users.table_name) +
+                          " ORDER BY id LIMIT 5";
 
   // Create and initialize the streaming source
-  connection::PostgreSQLStreamingSource source(
-      *connection, "SELECT id, name, email, age FROM users ORDER BY id LIMIT 5");
+  connection::PostgreSQLStreamingSource source(*connection, sql);
   auto init_result = source.initialize();
   ASSERT_TRUE(init_result) << "Failed to initialize streaming: " << init_result.error().message;
 
