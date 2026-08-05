@@ -1,7 +1,5 @@
 #include "relx/connection/postgresql_statement.hpp"
 
-#include <iostream>
-
 namespace relx::connection {
 
 PostgreSQLStatement::PostgreSQLStatement(PostgreSQLConnection& connection, std::string name,
@@ -14,12 +12,10 @@ PostgreSQLStatement::PostgreSQLStatement(PostgreSQLConnection& connection, std::
 
 PostgreSQLStatement::~PostgreSQLStatement() {
   if (is_valid_) {
-    // Deallocate the prepared statement
-    auto result = connection_->execute_raw("DEALLOCATE " + name_);
-    if (!result) {
-      // TODO more customizable user behavior for this
-      std::cerr << "Failed to deallocate statement: " << result.error().message << std::endl;
-    }
+    // Deallocate the prepared statement. A destructor has no error channel, and a
+    // library must not write to stderr; a failed DEALLOCATE is resolved when the
+    // connection closes anyway.
+    [[maybe_unused]] auto result = connection_->execute_raw("DEALLOCATE " + name_);
   }
 }
 
@@ -34,10 +30,8 @@ PostgreSQLStatement& PostgreSQLStatement::operator=(PostgreSQLStatement&& other)
   if (this != &other) {
     // Clean up this object
     if (is_valid_) {
-      auto result = connection_->execute_raw("DEALLOCATE " + name_);
-      if (!result) {
-        std::cerr << "Failed to deallocate statement: " << result.error().message << std::endl;
-      }
+      // See the destructor: no error channel here, and no stderr from library code
+      [[maybe_unused]] auto result = connection_->execute_raw("DEALLOCATE " + name_);
     }
 
     // Move data from other

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../connection/connection.hpp"
+#include "../migrations/core.hpp"
 #include "../query/core.hpp"
 #include "../results/result.hpp"
 
@@ -42,6 +43,13 @@ inline std::string format_error(const query::QueryError& error) {
  */
 inline std::string format_error(const result::ResultError& error) {
   return std::format("Result processing error: {}", error.message);
+}
+
+/**
+ * @brief Format a MigrationError for exception messages
+ */
+inline std::string format_error(const migrations::MigrationError& error) {
+  return std::format("Migration error: {}", error.format());
 }
 
 /**

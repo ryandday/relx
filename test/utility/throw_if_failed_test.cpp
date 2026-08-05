@@ -91,3 +91,17 @@ TEST(ExpectedUtilityTest, ThrowIfFailedValueCarryingResultType) {
       relx::connection::ConnectionError{.message = "Query failed", .error_code = 123});
   EXPECT_THROW({ relx::throw_if_failed(error_value); }, relx::RelxException);
 }
+
+TEST(ExpectedUtilityTest, ValueOrThrowMigrationErrorFormatted) {
+  relx::migrations::MigrationError error = relx::migrations::MigrationError::make(
+      relx::migrations::MigrationErrorType::VALIDATION_FAILED, "boom", "users");
+  std::expected<int, relx::migrations::MigrationError> result = std::unexpected(error);
+
+  try {
+    relx::value_or_throw(result);
+    FAIL() << "value_or_throw should have thrown";
+  } catch (const relx::RelxException& e) {
+    EXPECT_NE(std::string(e.what()).find("Migration error: users: boom"), std::string::npos)
+        << e.what();
+  }
+}
