@@ -156,6 +156,64 @@ ConnectionResult<PGresult*> PostgreSQLConnection::handle_pg_result(PGresult* res
   return result;
 }
 
+namespace {
+
+/// @brief Map a PGresult's status to success or a ConnectionError
+ConnectionResult<void> validate_exec_status(PGresult* result) {
+  const ExecStatusType status = PQresultStatus(result);
+
+  switch (status) {
+  case PGRES_COMMAND_OK:
+  case PGRES_TUPLES_OK:
+  case PGRES_SINGLE_TUPLE:
+    // These are all success cases
+    return {};
+
+  case PGRES_EMPTY_QUERY:
+    return std::unexpected(ConnectionError{.message = "Empty query string was executed",
+                                           .error_code = static_cast<int>(status)});
+
+  case PGRES_NONFATAL_ERROR:
+    // Log the warning but continue processing
+    // TODO more customizable user behavior for this
+    std::cerr << "PostgreSQL warning: " << PQresultErrorMessage(result) << std::endl;
+    return {};
+
+  case PGRES_COPY_IN:
+  case PGRES_COPY_OUT:
+  case PGRES_COPY_BOTH:
+    return std::unexpected(
+        ConnectionError{.message = "COPY operations are not supported in this context",
+                        .error_code = static_cast<int>(status)});
+
+  case PGRES_PIPELINE_SYNC:
+    return std::unexpected(
+        ConnectionError{.message = "Pipeline operations are not supported in this context",
+                        .error_code = static_cast<int>(status)});
+
+  case PGRES_BAD_RESPONSE:
+  case PGRES_FATAL_ERROR:
+  case PGRES_PIPELINE_ABORTED:
+  default:
+    // Attach the server diagnostics so callers can classify the failure
+    // (e.g. ConnectionError::is_duplicate_key_error) instead of parsing the message
+    auto diag = [result](int field) {
+      const char* value = PQresultErrorField(result, field);
+      return value ? std::string(value) : std::string();
+    };
+    return std::unexpected(ConnectionError{
+        .message = "PostgreSQL error: " + std::string(PQresultErrorMessage(result)),
+        .error_code = static_cast<int>(status),
+        .sql_state = diag(PG_DIAG_SQLSTATE),
+        .detail = diag(PG_DIAG_MESSAGE_DETAIL),
+        .hint = diag(PG_DIAG_MESSAGE_HINT),
+        .constraint_name = diag(PG_DIAG_CONSTRAINT_NAME),
+    });
+  }
+}
+
+}  // namespace
+
 // Nice for debugging
 constexpr bool ultra_verbose = false;
 ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
@@ -221,7 +279,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_params_interna
         param_formats.push_back(0);
       } else if (param.kind != sql_kind::unspecified) {
         param_values.push_back(reinterpret_cast<const char*>(param.binary.data()));
-        param_lengths.push_back(param.binary_size);
+        param_lengths.push_back(static_cast<int>(param.binary.size()));
         param_formats.push_back(1);  // binary
       } else {
         param_values.push_back(param.value.c_str());
@@ -241,45 +299,8 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_params_interna
     return std::unexpected(ConnectionError{.message = "Failed to execute query", .error_code = -1});
   }
 
-  // Handle the result
-  const ExecStatusType status = PQresultStatus(pg_result.get());
-
-  // Handle different result statuses
-  switch (status) {
-  case PGRES_COMMAND_OK:
-  case PGRES_TUPLES_OK:
-  case PGRES_SINGLE_TUPLE:
-    // These are all success cases
-    break;
-
-  case PGRES_EMPTY_QUERY:
-    return std::unexpected(ConnectionError{.message = "Empty query string was executed",
-                                           .error_code = static_cast<int>(status)});
-
-  case PGRES_NONFATAL_ERROR:
-    // Log the warning but continue processing
-    // TODO more customizable user behavior for this
-    std::cerr << "PostgreSQL warning: " << PQresultErrorMessage(pg_result.get()) << std::endl;
-    break;
-
-  case PGRES_COPY_IN:
-  case PGRES_COPY_OUT:
-  case PGRES_COPY_BOTH:
-    return std::unexpected(
-        ConnectionError{.message = "COPY operations are not supported in this context",
-                        .error_code = static_cast<int>(status)});
-
-  case PGRES_PIPELINE_SYNC:
-    return std::unexpected(
-        ConnectionError{.message = "Pipeline operations are not supported in this context",
-                        .error_code = static_cast<int>(status)});
-
-  case PGRES_BAD_RESPONSE:
-  case PGRES_FATAL_ERROR:
-  case PGRES_PIPELINE_ABORTED:
-    const std::string error_msg = PQresultErrorMessage(pg_result.get());
-    return std::unexpected(ConnectionError{.message = "PostgreSQL error: " + error_msg,
-                                           .error_code = static_cast<int>(status)});
+  if (auto status_ok = validate_exec_status(pg_result.get()); !status_ok) {
+    return std::unexpected(status_ok.error());
   }
 
   // Process result using shared utility function
@@ -429,10 +450,11 @@ std::string PostgreSQLConnection::convert_placeholders(const std::string& sql) {
   return sql_utils::convert_placeholders_to_postgresql(sql);
 }
 
-std::unique_ptr<PostgreSQLStatement> PostgreSQLConnection::prepare_statement(
+ConnectionResult<std::unique_ptr<PostgreSQLStatement>> PostgreSQLConnection::prepare_statement(
     const std::string& name, const std::string& sql, int param_count) {
   if (!is_connected_ || !pg_conn_) {
-    throw ConnectionError{.message = "Not connected to database", .error_code = -1};
+    return std::unexpected(
+        ConnectionError{.message = "Not connected to database", .error_code = -1});
   }
 
   // Convert ? placeholders to $1, $2, etc.
@@ -443,13 +465,44 @@ std::unique_ptr<PostgreSQLStatement> PostgreSQLConnection::prepare_statement(
                                          nullptr  // Use default parameter types
                                          ));
 
-  auto result_handler = handle_pg_result(result.get());
+  auto result_handler = handle_pg_result(result.get(), PGRES_COMMAND_OK);
   if (!result_handler) {
-    throw result_handler.error();
+    return std::unexpected(result_handler.error());
   }
 
   // Create and return the statement object
   return std::make_unique<PostgreSQLStatement>(*this, name, sql, param_count);
+}
+
+ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_prepared(
+    const std::string& statement_name, const std::vector<std::optional<std::string>>& params) {
+  if (!is_connected_ || !pg_conn_) {
+    return std::unexpected(
+        ConnectionError{.message = "Not connected to database", .error_code = -1});
+  }
+
+  std::vector<const char*> param_values;
+  param_values.reserve(params.size());
+  for (const auto& param : params) {
+    param_values.push_back(param ? param->c_str() : nullptr);  // nullptr binds SQL NULL
+  }
+
+  const PGResultWrapper pg_result(PQexecPrepared(pg_conn_, statement_name.c_str(),
+                                                 static_cast<int>(params.size()),
+                                                 param_values.data(), nullptr, nullptr,
+                                                 0  // text-format results
+                                                 ));
+
+  if (!pg_result.get()) {
+    return std::unexpected(
+        ConnectionError{.message = "Failed to execute prepared statement", .error_code = -1});
+  }
+
+  if (auto status_ok = validate_exec_status(pg_result.get()); !status_ok) {
+    return std::unexpected(status_ok.error());
+  }
+
+  return sql_utils::process_postgresql_result(pg_result.get(), false);
 }
 
 }  // namespace relx::connection

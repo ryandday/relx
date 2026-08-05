@@ -40,10 +40,10 @@ public:
 
   explicit TypedAlias(Expr expr) : expr_(std::move(expr)) {}
 
-  std::string to_sql() const override {
+  constexpr std::string to_sql() const override {
     return expr_.to_sql() + " AS " + std::string(std::string_view(alias_name));
   }
-  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
   std::string column_name() const override { return std::string(std::string_view(alias_name)); }
   std::string table_name() const override { return ""; }
 

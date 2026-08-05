@@ -27,7 +27,7 @@ public:
       : func_name_(std::move(func_name)), unit_(std::move(unit)), left_(std::move(left)),
         right_(std::move(right)) {}
 
-  std::string to_sql() const override {
+  constexpr std::string to_sql() const override {
     // Generate PostgreSQL-compatible SQL for date differences
     if (func_name_ == "DATE_DIFF") {
       if (unit_ == "year") {
@@ -51,7 +51,7 @@ public:
     return func_name_ + "('" + unit_ + "', " + left_.to_sql() + ", " + right_.to_sql() + ")";
   }
 
-  std::vector<bind_param> bind_params() const override {
+  constexpr std::vector<bind_param> bind_params() const override {
     auto left_params = left_.bind_params();
     auto right_params = right_.bind_params();
     left_params.insert(left_params.end(), right_params.begin(), right_params.end());
@@ -79,7 +79,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator==(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr)>(*this, "=", val_expr);
+    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr), "=">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -87,7 +87,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator!=(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr)>(*this, "!=", val_expr);
+    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr), "!=">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -95,7 +95,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator>(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr)>(*this, ">", val_expr);
+    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr), ">">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -103,7 +103,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator<(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr)>(*this, "<", val_expr);
+    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr), "<">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -111,7 +111,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator>=(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr)>(*this, ">=", val_expr);
+    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr), ">=">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -119,7 +119,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator<=(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr)>(*this, "<=", val_expr);
+    return BinaryCondition<BinaryDateFunctionExpr, decltype(val_expr), "<=">(*this, val_expr);
   }
 
   // Arithmetic operator overloads
@@ -165,7 +165,7 @@ public:
   UnaryDateFunctionExpr(std::string func_name, std::string unit, Expr expr)
       : func_name_(std::move(func_name)), unit_(std::move(unit)), expr_(std::move(expr)) {}
 
-  std::string to_sql() const override {
+  constexpr std::string to_sql() const override {
     if (func_name_ == "EXTRACT") {
       return "EXTRACT(" + unit_ + " FROM " + expr_.to_sql() + ")";
     }
@@ -175,7 +175,7 @@ public:
     return func_name_ + "('" + unit_ + "', " + expr_.to_sql() + ")";
   }
 
-  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
   std::string column_name() const override { return func_name_ + "_" + unit_; }
 
@@ -192,7 +192,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator==(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr)>(*this, "=", val_expr);
+    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr), "=">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -200,7 +200,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator!=(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr)>(*this, "!=", val_expr);
+    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr), "!=">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -208,7 +208,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator>(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr)>(*this, ">", val_expr);
+    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr), ">">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -216,7 +216,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator<(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr)>(*this, "<", val_expr);
+    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr), "<">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -224,7 +224,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator>=(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr)>(*this, ">=", val_expr);
+    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr), ">=">(*this, val_expr);
   }
 
   template <typename LiteralT>
@@ -232,7 +232,7 @@ public:
              std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
   auto operator<=(LiteralT&& literal) const {
     auto val_expr = val(std::forward<LiteralT>(literal));
-    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr)>(*this, "<=", val_expr);
+    return BinaryCondition<UnaryDateFunctionExpr, decltype(val_expr), "<=">(*this, val_expr);
   }
 
   // Arithmetic operator overloads
@@ -275,9 +275,9 @@ class IntervalExpr : public ColumnExpression {
 public:
   explicit IntervalExpr(std::string interval) : interval_(std::move(interval)) {}
 
-  std::string to_sql() const override { return "INTERVAL '" + interval_ + "'"; }
+  constexpr std::string to_sql() const override { return "INTERVAL '" + interval_ + "'"; }
 
-  std::vector<bind_param> bind_params() const override { return {}; }
+  constexpr std::vector<bind_param> bind_params() const override { return {}; }
 
   std::string column_name() const override { return "INTERVAL"; }
 
@@ -295,11 +295,11 @@ public:
       : date_expr_(std::move(date_expr)), op_(std::move(op)),
         interval_expr_(std::move(interval_expr)) {}
 
-  std::string to_sql() const override {
+  constexpr std::string to_sql() const override {
     return "(" + date_expr_.to_sql() + " " + op_ + " " + interval_expr_.to_sql() + ")";
   }
 
-  std::vector<bind_param> bind_params() const override {
+  constexpr std::vector<bind_param> bind_params() const override {
     auto date_params = date_expr_.bind_params();
     auto interval_params = interval_expr_.bind_params();
     date_params.insert(date_params.end(), interval_params.begin(), interval_params.end());
@@ -332,9 +332,9 @@ class CurrentDateTimeExpr : public ColumnExpression {
 public:
   explicit CurrentDateTimeExpr(std::string func_name) : func_name_(std::move(func_name)) {}
 
-  std::string to_sql() const override { return func_name_; }
+  constexpr std::string to_sql() const override { return func_name_; }
 
-  std::vector<bind_param> bind_params() const override { return {}; }
+  constexpr std::vector<bind_param> bind_params() const override { return {}; }
 
   std::string column_name() const override { return func_name_; }
 
@@ -344,74 +344,74 @@ public:
   template <typename T>
     requires date_checking::DateTimeColumn<T>
   auto operator>(const T& column) const {
-    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column))>(*this, ">",
-                                                                           to_expr(column));
+    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column)), ">">(*this,
+                                                                                to_expr(column));
   }
 
   template <typename T>
     requires date_checking::DateTimeColumn<T>
   auto operator<(const T& column) const {
-    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column))>(*this, "<",
-                                                                           to_expr(column));
+    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column)), "<">(*this,
+                                                                                to_expr(column));
   }
 
   template <typename T>
     requires date_checking::DateTimeColumn<T>
   auto operator>=(const T& column) const {
-    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column))>(*this,
-                                                                           ">=", to_expr(column));
+    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column)), ">=">(*this,
+                                                                                 to_expr(column));
   }
 
   template <typename T>
     requires date_checking::DateTimeColumn<T>
   auto operator<=(const T& column) const {
-    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column))>(*this,
-                                                                           "<=", to_expr(column));
+    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column)), "<=">(*this,
+                                                                                 to_expr(column));
   }
 
   template <typename T>
     requires date_checking::DateTimeColumn<T>
   auto operator==(const T& column) const {
-    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column))>(*this, "=",
-                                                                           to_expr(column));
+    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column)), "=">(*this,
+                                                                                to_expr(column));
   }
 
   template <typename T>
     requires date_checking::DateTimeColumn<T>
   auto operator!=(const T& column) const {
-    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column))>(*this,
-                                                                           "!=", to_expr(column));
+    return BinaryCondition<CurrentDateTimeExpr, decltype(to_expr(column)), "!=">(*this,
+                                                                                 to_expr(column));
   }
 
   // Comparison operators with other date expressions
   template <SqlExpr Expr>
   auto operator>(Expr expr) const {
-    return BinaryCondition<CurrentDateTimeExpr, Expr>(*this, ">", std::move(expr));
+    return BinaryCondition<CurrentDateTimeExpr, Expr, ">">(*this, std::move(expr));
   }
 
   template <SqlExpr Expr>
   auto operator<(Expr expr) const {
-    return BinaryCondition<CurrentDateTimeExpr, Expr>(*this, "<", std::move(expr));
+    return BinaryCondition<CurrentDateTimeExpr, Expr, "<">(*this, std::move(expr));
   }
 
   template <SqlExpr Expr>
   auto operator>=(Expr expr) const {
-    return BinaryCondition<CurrentDateTimeExpr, Expr>(*this, ">=", std::move(expr));
+    return BinaryCondition<CurrentDateTimeExpr, Expr, ">=">(*this, std::move(expr));
   }
 
   template <SqlExpr Expr>
   auto operator<=(Expr expr) const {
-    return BinaryCondition<CurrentDateTimeExpr, Expr>(*this, "<=", std::move(expr));
+    return BinaryCondition<CurrentDateTimeExpr, Expr, "<=">(*this, std::move(expr));
   }
 
   template <SqlExpr Expr>
   auto operator==(Expr expr) const {
-    return BinaryCondition<CurrentDateTimeExpr, Expr>(*this, "=", std::move(expr));
+    return BinaryCondition<CurrentDateTimeExpr, Expr, "=">(*this, std::move(expr));
   }
 
   template <SqlExpr Expr>
   auto operator!=(Expr expr) const {
-    return BinaryCondition<CurrentDateTimeExpr, Expr>(*this, "!=", std::move(expr));
+    return BinaryCondition<CurrentDateTimeExpr, Expr, "!=">(*this, std::move(expr));
   }
 
 private:
@@ -862,9 +862,9 @@ public:
 
   explicit Value(std::chrono::system_clock::time_point value) : value_(value) {}
 
-  std::string to_sql() const override { return "?"; }
+  constexpr std::string to_sql() const override { return "?"; }
 
-  std::vector<bind_param> bind_params() const override {
+  constexpr std::vector<bind_param> bind_params() const override {
     // Reuse the traits' formatting, stripping the SQL-literal quotes
     std::string quoted = schema::column_traits<value_type>::to_sql_string(value_);
     return {quoted.substr(1, quoted.size() - 2)};

@@ -17,10 +17,10 @@ class CaseExpr;
 /// @brief Base class for column expressions
 class ColumnExpression : public SqlExpression {
 public:
-  virtual ~ColumnExpression() = default;
-  virtual std::string column_name() const = 0;
-  virtual std::string table_name() const = 0;
-  virtual std::string qualified_name() const {
+  constexpr ~ColumnExpression() override = default;
+  constexpr virtual std::string column_name() const = 0;
+  constexpr virtual std::string table_name() const = 0;
+  constexpr virtual std::string qualified_name() const {
     std::string qualified = column_name();
     auto table = table_name();
     if (!table.empty()) {
@@ -38,15 +38,15 @@ public:
   using column_type = Column;
   using value_type = typename Column::value_type;
 
-  explicit ColumnRef(const Column& col) : col_(col) {}
+  constexpr explicit ColumnRef(const Column& col) : col_(col) {}
 
-  std::string to_sql() const override { return qualified_name(); }
+  constexpr std::string to_sql() const override { return qualified_name(); }
 
-  std::vector<bind_param> bind_params() const override { return {}; }
+  constexpr std::vector<bind_param> bind_params() const override { return {}; }
 
-  std::string column_name() const override { return std::string(Column::name); }
+  constexpr std::string column_name() const override { return std::string(Column::name); }
 
-  std::string table_name() const override {
+  constexpr std::string table_name() const override {
     // Get the table name from the parent table class
     using parent_table = typename Column::table_type;
     return std::string(parent_table::table_name);
@@ -63,7 +63,7 @@ private:
 /// @param col The column
 /// @return A ColumnRef expression
 template <ColumnType Column>
-auto column_ref(const Column& col) {
+constexpr auto column_ref(const Column& col) {
   return ColumnRef<Column>(col);
 }
 
@@ -82,9 +82,9 @@ public:
   AliasedColumn(std::shared_ptr<Expr> expr, std::string alias)
       : expr_(std::move(expr)), alias_(std::move(alias)) {}
 
-  std::string to_sql() const override { return expr_->to_sql() + " AS " + alias_; }
+  constexpr std::string to_sql() const override { return expr_->to_sql() + " AS " + alias_; }
 
-  std::vector<bind_param> bind_params() const override { return expr_->bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const override { return expr_->bind_params(); }
 
   std::string column_name() const override { return alias_; }
 

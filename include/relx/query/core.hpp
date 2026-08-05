@@ -62,10 +62,13 @@ template <typename T>
 concept ConditionExpr = SqlExpr<T>;
 
 /// @brief Base class for SQL expressions
+/// @brief Base class for SQL expressions. constexpr virtuals so typed queries can
+/// render their SQL at compile time (see static_sql); expressions holding runtime-only
+/// state simply cannot be constant-evaluated, which is fine.
 struct SqlExpression {
-  virtual ~SqlExpression() = default;
-  virtual std::string to_sql() const = 0;
-  virtual std::vector<bind_param> bind_params() const = 0;
+  constexpr virtual ~SqlExpression() = default;
+  constexpr virtual std::string to_sql() const = 0;
+  constexpr virtual std::vector<bind_param> bind_params() const = 0;
 };
 
 /// @brief Types of JOIN operations

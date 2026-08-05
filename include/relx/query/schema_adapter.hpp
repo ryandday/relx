@@ -21,16 +21,16 @@ public:
   using value_type = typename C::value_type;
 
   // TODO delete table_name
-  explicit SchemaColumnAdapter(const C& col, std::string_view table_name = "")
+  constexpr explicit SchemaColumnAdapter(const C& col, std::string_view table_name = "")
       : col_(col), table_name_(table_name.empty() ? get_parent_table_name() : table_name) {}
 
-  std::string to_sql() const override { return qualified_name(); }
+  constexpr std::string to_sql() const override { return qualified_name(); }
 
-  std::vector<bind_param> bind_params() const override { return {}; }
+  constexpr std::vector<bind_param> bind_params() const override { return {}; }
 
-  std::string column_name() const override { return std::string(C::name); }
+  constexpr std::string column_name() const override { return std::string(C::name); }
 
-  std::string table_name() const override { return std::string(table_name_); }
+  constexpr std::string table_name() const override { return std::string(table_name_); }
 
   const C& column() const { return col_; }
 
@@ -38,14 +38,14 @@ private:
   const C& col_;
   std::string_view table_name_;
 
-  std::string qualified_name() const override {
+  constexpr std::string qualified_name() const override {
     if (table_name_.empty()) {
       return std::string(C::name);
     }
     return std::string(table_name_) + "." + std::string(C::name);
   }
 
-  std::string_view get_parent_table_name() const {
+  constexpr std::string_view get_parent_table_name() const {
     // Get table name from parent table if available
     if constexpr (requires { typename C::table_type; }) {
       using parent_table = typename C::table_type;
@@ -82,7 +82,7 @@ private:
 /// @param col The column to wrap
 /// @return A SchemaColumnAdapter that implements the SqlExpr concept
 template <ColumnType C>
-auto to_expr(const C& col, std::string_view table_name = "") {
+constexpr auto to_expr(const C& col, std::string_view table_name = "") {
   return SchemaColumnAdapter<C>(col, table_name);
 }
 

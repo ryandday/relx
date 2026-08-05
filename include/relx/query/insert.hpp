@@ -33,7 +33,7 @@ struct InsertItem {
 
   std::string value_sql() const { return value.to_sql(); }
 
-  std::vector<bind_param> bind_params() const { return value.bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const { return value.bind_params(); }
 };
 
 /// @brief Base INSERT query builder
@@ -53,45 +53,39 @@ private:
   ReturningColumns returning_columns_;
 
   // Helper to convert a tuple of column references to column names for INSERT
-  std::string columns_to_sql() const {
-    std::stringstream ss;
-    ss << "(";
+  constexpr std::string columns_to_sql() const {
+    std::string out = "(";
     int i = 0;
     std::apply(
-        [&](const auto&... cols) { ((ss << (i++ > 0 ? ", " : "") << cols.column_name()), ...); },
+        [&](const auto&... cols) {
+          ((out += (i++ > 0 ? ", " : ""), out += cols.column_name()), ...);
+        },
         columns_);
-    ss << ")";
-    return ss.str();
+    out += ")";
+    return out;
   }
 
   // Helper to convert a tuple of values to SQL for a single row VALUES clause
   template <typename ValueTuple>
-  std::string values_row_to_sql(const ValueTuple& value_tuple) const {
-    std::stringstream ss;
-    ss << "(";
-    int i = 0;
-    std::apply([&](const auto&... vals) { ((ss << (i++ > 0 ? ", " : "") << vals.to_sql()), ...); },
-               value_tuple);
-    ss << ")";
-    return ss.str();
+  constexpr std::string values_row_to_sql(const ValueTuple& value_tuple) const {
+    return "(" + tuple_to_sql(value_tuple, ", ") + ")";
   }
 
   // Helper to convert a tuple of value tuples to SQL for the VALUES clause
-  std::string values_to_sql() const {
-    std::stringstream ss;
-    ss << "VALUES ";
+  constexpr std::string values_to_sql() const {
+    std::string out = "VALUES ";
     int i = 0;
     std::apply(
         [&](const auto&... value_tuples) {
-          ((ss << (i++ > 0 ? ", " : "") << values_row_to_sql(value_tuples)), ...);
+          ((out += (i++ > 0 ? ", " : ""), out += values_row_to_sql(value_tuples)), ...);
         },
         values_);
-    return ss.str();
+    return out;
   }
 
   // Helper to collect bind parameters from a tuple of values
   template <typename ValueTuple>
-  std::vector<bind_param> values_row_bind_params(const ValueTuple& value_tuple) const {
+  constexpr std::vector<bind_param> values_row_bind_params(const ValueTuple& value_tuple) const {
     std::vector<bind_param> params;
 
     std::apply(
@@ -109,7 +103,7 @@ private:
   }
 
   // Helper to collect bind parameters from a tuple of value tuples
-  std::vector<bind_param> values_bind_params() const {
+  constexpr std::vector<bind_param> values_bind_params() const {
     std::vector<bind_param> params;
 
     std::apply(
@@ -127,22 +121,16 @@ private:
   }
 
   // Helper to convert the RETURNING clause to SQL
-  std::string returning_to_sql() const {
+  constexpr std::string returning_to_sql() const {
     if constexpr (is_empty_tuple<ReturningColumns>()) {
       return "";
     } else {
-      std::stringstream ss;
-      ss << " RETURNING ";
-      int i = 0;
-      std::apply(
-          [&](const auto&... cols) { ((ss << (i++ > 0 ? ", " : "") << cols.to_sql()), ...); },
-          returning_columns_);
-      return ss.str();
+      return " RETURNING " + tuple_to_sql(returning_columns_, ", ");
     }
   }
 
   // Helper to collect bind parameters from RETURNING clause
-  std::vector<bind_param> returning_bind_params() const {
+  constexpr std::vector<bind_param> returning_bind_params() const {
     std::vector<bind_param> params;
 
     if constexpr (!is_empty_tuple<ReturningColumns>()) {
@@ -174,44 +162,45 @@ public:
   /// @param values The values to insert
   /// @param select The SELECT statement (for INSERT ... SELECT)
   /// @param returning_columns The columns to return after insertion
-  explicit InsertQuery(Table table, Columns columns = {}, Values values = {},
-                       SelectStmt select = std::nullopt, ReturningColumns returning_columns = {})
+  constexpr explicit InsertQuery(Table table, Columns columns = {}, Values values = {},
+                                 SelectStmt select = std::nullopt,
+                                 ReturningColumns returning_columns = {})
       : table_(std::move(table)), columns_(std::move(columns)), values_(std::move(values)),
         select_(std::move(select)), returning_columns_(std::move(returning_columns)) {}
 
   /// @brief Generate the SQL for this INSERT query
   /// @return The SQL string
-  std::string to_sql() const {
-    std::stringstream ss;
-    ss << "INSERT INTO " << table_.table_name;
+  constexpr std::string to_sql() const {
+    std::string out = "INSERT INTO ";
+    out += table_.table_name;
 
     // Add columns clause if columns are specified
     if constexpr (!is_empty_tuple<Columns>()) {
-      ss << " " << columns_to_sql();
+      out += " " + columns_to_sql();
     }
 
     // Handle different types of INSERT statements
 
     // INSERT ... VALUES ...
     if constexpr (!is_empty_tuple<Values>() && std::is_same_v<SelectStmt, std::nullopt_t>) {
-      ss << " " << values_to_sql();
+      out += " " + values_to_sql();
     }
     // INSERT ... SELECT ...
     else if constexpr (!std::is_same_v<SelectStmt, std::nullopt_t>) {
       if (select_.has_value()) {
-        ss << " " << select_.value().to_sql();
+        out += " " + select_.value().to_sql();
       }
     }
 
     // Add RETURNING clause if specified
-    ss << returning_to_sql();
+    out += returning_to_sql();
 
-    return ss.str();
+    return out;
   }
 
   /// @brief Get the bind parameters for this INSERT query
   /// @return Vector of bind parameters
-  std::vector<bind_param> bind_params() const {
+  constexpr std::vector<bind_param> bind_params() const {
     std::vector<bind_param> params;
 
     // INSERT ... VALUES ...
@@ -239,7 +228,7 @@ public:
   /// @param cols The columns to insert into
   /// @return New InsertQuery with columns specified
   template <ColumnType... Cols>
-  auto columns(const Cols&... cols) const {
+  constexpr auto columns(const Cols&... cols) const {
     using NewColumns = std::tuple<ColumnRef<Cols>...>;
     auto column_refs = std::make_tuple(ColumnRef<Cols>(cols)...);
 
@@ -252,7 +241,7 @@ public:
   /// @param args The values to insert (automatically wrapped with val() if not already SqlExpr)
   /// @return New InsertQuery with the values added
   template <typename... Args>
-  auto values(Args&&... args) const {
+  constexpr auto values(Args&&... args) const {
     // Helper to convert arguments to SqlExpr if they're not already
     auto to_expr = [](auto&& arg) {
       if constexpr (SqlExpr<std::remove_cvref_t<decltype(arg)>>) {
@@ -288,7 +277,7 @@ public:
   /// @return New InsertQuery with the SELECT query set
   template <typename Select>
     requires SqlExpr<Select>
-  auto select(const Select& select) const {
+  constexpr auto select(const Select& select) const {
     return InsertQuery<Table, Columns, Values, std::optional<Select>, ReturningColumns>(
         table_, columns_, values_, std::optional<Select>(select), returning_columns_);
   }
@@ -298,7 +287,7 @@ public:
   /// @param args The columns or expressions to return
   /// @return New InsertQuery with the RETURNING clause added
   template <typename... Args>
-  auto returning(const Args&... args) const {
+  constexpr auto returning(const Args&... args) const {
     // Helper to convert columns to ColumnRef expressions if they're not already SqlExpr
     auto to_expr = [](const auto& arg) {
       if constexpr (SqlExpr<std::remove_cvref_t<decltype(arg)>>) {
@@ -334,7 +323,7 @@ public:
 /// @param table The table to insert into
 /// @return An InsertQuery object
 template <TableType Table>
-auto insert_into(const Table& table) {
+constexpr auto insert_into(const Table& table) {
   return InsertQuery<Table>(table);
 }
 

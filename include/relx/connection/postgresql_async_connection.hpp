@@ -82,9 +82,12 @@ public:
   /// @return Awaitable that resolves with the query results
   template <query::SqlExpr Query>
   boost::asio::awaitable<ConnectionResult<result::ResultSet>> execute(Query query) {
-    std::string sql = query.to_sql();
-    std::vector<bind_param> params = query.bind_params();
-    return execute_raw(sql, params);
+    if constexpr (query::has_static_shape_v<std::remove_cvref_t<Query>>) {
+      static const std::string sql = query.to_sql();  // once per query type
+      return execute_raw(sql, query.bind_params());
+    } else {
+      return execute_raw(query.to_sql(), query.bind_params());
+    }
   }
 
   /// @brief Execute a query and map results to a user-defined type asynchronously

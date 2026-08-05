@@ -46,18 +46,20 @@ static constexpr bool is_empty_tuple() {
 
 /// @brief Helper to convert a tuple of expressions to SQL
 template <typename Tuple>
-std::string tuple_to_sql(const Tuple& tuple, const char* separator) {
-  std::stringstream ss;
+constexpr std::string tuple_to_sql(const Tuple& tuple, const char* separator) {
+  std::string out;
   int i = 0;
   std::apply(
-      [&](const auto&... items) { ((ss << (i++ > 0 ? separator : "") << items.to_sql()), ...); },
+      [&](const auto&... items) {
+        ((out += (i++ > 0 ? separator : ""), out += items.to_sql()), ...);
+      },
       tuple);
-  return ss.str();
+  return out;
 }
 
 /// @brief Helper to collect bind parameters from a tuple of expressions
 template <typename Tuple>
-std::vector<bind_param> tuple_bind_params(const Tuple& tuple) {
+constexpr std::vector<bind_param> tuple_bind_params(const Tuple& tuple) {
   std::vector<bind_param> params;
 
   std::apply(
@@ -78,7 +80,7 @@ std::vector<bind_param> tuple_bind_params(const Tuple& tuple) {
 
 /// @brief Helper to apply a function to each element of a tuple
 template <typename Func, typename Tuple>
-static void apply_tuple(Func&& func, const Tuple& tuple) {
+static constexpr void apply_tuple(Func&& func, const Tuple& tuple) {
   std::apply([&func](const auto&... args) { (func(args), ...); }, tuple);
 }
 
@@ -93,19 +95,5 @@ struct class_of_t<T Class::*> {
 
 template <typename T>
 using class_of_t_t = typename class_of_t<T>::type;
-
-/// @brief Helper to extract column type from member pointer
-template <auto MemberPtr>
-struct column_type_of {
-  using table_type = class_of_t_t<decltype(MemberPtr)>;
-  using column_type = std::remove_reference_t<decltype(std::declval<table_type>().*MemberPtr)>;
-};
-
-/// @brief Helper to get column name from member pointer
-template <auto MemberPtr>
-constexpr auto column_name_of() {
-  using column_t = typename column_type_of<MemberPtr>::column_type;
-  return column_t::name;
-}
 
 }  // namespace relx::query

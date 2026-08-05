@@ -96,42 +96,46 @@ namespace schema {
 
 // Equality comparison with direct values
 template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
-auto operator==(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
+constexpr auto operator==(const column<TableT, Name, T, Modifiers...>& col,
+                          const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col == query::val(value);
 }
 
 // Inequality comparison with direct values
 template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
-auto operator!=(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
+constexpr auto operator!=(const column<TableT, Name, T, Modifiers...>& col,
+                          const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col != query::val(value);
 }
 
 // Greater than comparison with direct values
 template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
-auto operator>(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
+constexpr auto operator>(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col > query::val(value);
 }
 
 // Less than comparison with direct values
 template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
-auto operator<(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
+constexpr auto operator<(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col < query::val(value);
 }
 
 // Greater than or equal comparison with direct values
 template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
-auto operator>=(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
+constexpr auto operator>=(const column<TableT, Name, T, Modifiers...>& col,
+                          const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col >= query::val(value);
 }
 
 // Less than or equal comparison with direct values
 template <typename TableT, fixed_string Name, typename T, typename... Modifiers, typename ValueType>
-auto operator<=(const column<TableT, Name, T, Modifiers...>& col, const ValueType& value) {
+constexpr auto operator<=(const column<TableT, Name, T, Modifiers...>& col,
+                          const ValueType& value) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col <= query::val(value);
 }
@@ -139,8 +143,8 @@ auto operator<=(const column<TableT, Name, T, Modifiers...>& col, const ValueTyp
 // Column to column equality comparison
 template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
           typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
-auto operator==(const column<TableT1, Name1, T1, Modifiers1...>& col1,
-                const column<TableT2, Name2, T2, Modifiers2...>& col2) {
+constexpr auto operator==(const column<TableT1, Name1, T1, Modifiers1...>& col1,
+                          const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
                 "Column types in comparisons (especially JOIN conditions) must be compatible. "
                 "For example, you cannot join an int column with a string column. "
@@ -153,8 +157,8 @@ auto operator==(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 // Column to column inequality comparison
 template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
           typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
-auto operator!=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
-                const column<TableT2, Name2, T2, Modifiers2...>& col2) {
+constexpr auto operator!=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
+                          const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
                 "Column types in comparisons must be compatible. "
                 "Both columns must have the same type or be string-compatible types.");
@@ -166,8 +170,8 @@ auto operator!=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 // Column to column greater than comparison
 template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
           typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
-auto operator>(const column<TableT1, Name1, T1, Modifiers1...>& col1,
-               const column<TableT2, Name2, T2, Modifiers2...>& col2) {
+constexpr auto operator>(const column<TableT1, Name1, T1, Modifiers1...>& col1,
+                         const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
                 "Column types in comparisons must be compatible. "
                 "Both columns must have the same type or be string-compatible types.");
@@ -179,8 +183,8 @@ auto operator>(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 // Column to column less than comparison
 template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
           typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
-auto operator<(const column<TableT1, Name1, T1, Modifiers1...>& col1,
-               const column<TableT2, Name2, T2, Modifiers2...>& col2) {
+constexpr auto operator<(const column<TableT1, Name1, T1, Modifiers1...>& col1,
+                         const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
                 "Column types in comparisons must be compatible. "
                 "Both columns must have the same type or be string-compatible types.");
@@ -192,8 +196,8 @@ auto operator<(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 // Column to column greater than or equal comparison
 template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
           typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
-auto operator>=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
-                const column<TableT2, Name2, T2, Modifiers2...>& col2) {
+constexpr auto operator>=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
+                          const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
                 "Column types in comparisons must be compatible. "
                 "Both columns must have the same type or be string-compatible types.");
@@ -205,8 +209,8 @@ auto operator>=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 // Column to column less than or equal comparison
 template <typename TableT1, fixed_string Name1, typename T1, typename... Modifiers1,
           typename TableT2, fixed_string Name2, typename T2, typename... Modifiers2>
-auto operator<=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
-                const column<TableT2, Name2, T2, Modifiers2...>& col2) {
+constexpr auto operator<=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
+                          const column<TableT2, Name2, T2, Modifiers2...>& col2) {
   static_assert(type_checking::TypeCompatible<T1, T2>,
                 "Column types in comparisons must be compatible. "
                 "Both columns must have the same type or be string-compatible types.");
@@ -219,7 +223,7 @@ auto operator<=(const column<TableT1, Name1, T1, Modifiers1...>& col1,
 
 // Boolean negation operator
 template <typename TableT, fixed_string Name, typename... Modifiers>
-auto operator!(const column<TableT, Name, bool, Modifiers...>& col) {
+constexpr auto operator!(const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
   // Using the logical NOT operator
   return !col_expr;
@@ -227,28 +231,28 @@ auto operator!(const column<TableT, Name, bool, Modifiers...>& col) {
 
 // Logical AND operator between a column and a query::SqlExpr
 template <typename TableT, fixed_string Name, typename... Modifiers, query::SqlExpr Expr>
-auto operator&&(const column<TableT, Name, bool, Modifiers...>& col, const Expr& expr) {
+constexpr auto operator&&(const column<TableT, Name, bool, Modifiers...>& col, const Expr& expr) {
   auto col_expr = query::to_expr(col);
   return col_expr && expr;
 }
 
 // Logical AND operator between a query::SqlExpr and a column (reverse)
 template <query::SqlExpr Expr, typename TableT, fixed_string Name, typename... Modifiers>
-auto operator&&(const Expr& expr, const column<TableT, Name, bool, Modifiers...>& col) {
+constexpr auto operator&&(const Expr& expr, const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
   return expr && col_expr;
 }
 
 // Logical OR operator between a column and a query::SqlExpr
 template <typename TableT, fixed_string Name, typename... Modifiers, query::SqlExpr Expr>
-auto operator||(const column<TableT, Name, bool, Modifiers...>& col, const Expr& expr) {
+constexpr auto operator||(const column<TableT, Name, bool, Modifiers...>& col, const Expr& expr) {
   auto col_expr = query::to_expr(col);
   return col_expr || expr;
 }
 
 // Logical OR operator between a query::SqlExpr and a column (reverse)
 template <query::SqlExpr Expr, typename TableT, fixed_string Name, typename... Modifiers>
-auto operator||(const Expr& expr, const column<TableT, Name, bool, Modifiers...>& col) {
+constexpr auto operator||(const Expr& expr, const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
   return expr || col_expr;
 }
@@ -257,42 +261,46 @@ auto operator||(const Expr& expr, const column<TableT, Name, bool, Modifiers...>
 
 // Equality comparison with direct values (reversed)
 template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
-auto operator==(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator==(const ValueType& value,
+                          const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col == value;
 }
 
 // Inequality comparison with direct values (reversed)
 template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
-auto operator!=(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator!=(const ValueType& value,
+                          const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col != value;
 }
 
 // Greater than comparison with direct values (reversed)
 template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
-auto operator>(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col < value;
 }
 
 // Less than comparison with direct values (reversed)
 template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
-auto operator<(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col > value;
 }
 
 // Greater than or equal comparison with direct values (reversed)
 template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
-auto operator>=(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>=(const ValueType& value,
+                          const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col <= value;
 }
 
 // Less than or equal comparison with direct values (reversed)
 template <typename ValueType, typename TableT, fixed_string Name, typename T, typename... Modifiers>
-auto operator<=(const ValueType& value, const column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<=(const ValueType& value,
+                          const column<TableT, Name, T, Modifiers...>& col) {
   static_assert(type_checking::TypeCompatible<T, ValueType>, type_checking::type_error_message);
   return col >= value;
 }
@@ -302,7 +310,7 @@ auto operator<=(const ValueType& value, const column<TableT, Name, T, Modifiers.
 // Logical AND between column and any condition
 template <typename TableT, fixed_string Name, typename... Modifiers, typename Cond>
   requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
-auto operator&&(const column<TableT, Name, bool, Modifiers...>& col, const Cond& cond) {
+constexpr auto operator&&(const column<TableT, Name, bool, Modifiers...>& col, const Cond& cond) {
   auto col_expr = query::to_expr(col);
   if constexpr (query::SqlExpr<Cond>) {
     return col_expr && cond;
@@ -315,7 +323,7 @@ auto operator&&(const column<TableT, Name, bool, Modifiers...>& col, const Cond&
 // Logical OR between column and any condition
 template <typename TableT, fixed_string Name, typename... Modifiers, typename Cond>
   requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
-auto operator||(const column<TableT, Name, bool, Modifiers...>& col, const Cond& cond) {
+constexpr auto operator||(const column<TableT, Name, bool, Modifiers...>& col, const Cond& cond) {
   auto col_expr = query::to_expr(col);
   if constexpr (query::SqlExpr<Cond>) {
     return col_expr || cond;
@@ -328,7 +336,7 @@ auto operator||(const column<TableT, Name, bool, Modifiers...>& col, const Cond&
 // Logical AND between condition and column (reversed)
 template <typename Cond, typename TableT, fixed_string Name, typename... Modifiers>
   requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
-auto operator&&(const Cond& cond, const column<TableT, Name, bool, Modifiers...>& col) {
+constexpr auto operator&&(const Cond& cond, const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
   if constexpr (query::SqlExpr<Cond>) {
     return cond && col_expr;
@@ -341,7 +349,7 @@ auto operator&&(const Cond& cond, const column<TableT, Name, bool, Modifiers...>
 // Logical OR between condition and column (reversed)
 template <typename Cond, typename TableT, fixed_string Name, typename... Modifiers>
   requires query::SqlExpr<Cond> || (!std::same_as<Cond, bool>)
-auto operator||(const Cond& cond, const column<TableT, Name, bool, Modifiers...>& col) {
+constexpr auto operator||(const Cond& cond, const column<TableT, Name, bool, Modifiers...>& col) {
   auto col_expr = query::to_expr(col);
   if constexpr (query::SqlExpr<Cond>) {
     return cond || col_expr;
@@ -372,8 +380,8 @@ constexpr bool is_specialization_v = is_specialization<T, Template>::value;
 // Equality comparison with Value
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
-auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col,
-                const Value<ValueT>& value) {
+constexpr auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          const Value<ValueT>& value) {
   auto col_expr = to_expr(col);
   return col_expr == value;
 }
@@ -381,8 +389,8 @@ auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col,
 // Inequality comparison with Value
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
-auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col,
-                const Value<ValueT>& value) {
+constexpr auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          const Value<ValueT>& value) {
   auto col_expr = to_expr(col);
   return col_expr != value;
 }
@@ -390,8 +398,8 @@ auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col,
 // Greater than comparison with Value
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
-auto operator>(const schema::column<TableT, Name, T, Modifiers...>& col,
-               const Value<ValueT>& value) {
+constexpr auto operator>(const schema::column<TableT, Name, T, Modifiers...>& col,
+                         const Value<ValueT>& value) {
   auto col_expr = to_expr(col);
   return col_expr > value;
 }
@@ -399,8 +407,8 @@ auto operator>(const schema::column<TableT, Name, T, Modifiers...>& col,
 // Less than comparison with Value
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
-auto operator<(const schema::column<TableT, Name, T, Modifiers...>& col,
-               const Value<ValueT>& value) {
+constexpr auto operator<(const schema::column<TableT, Name, T, Modifiers...>& col,
+                         const Value<ValueT>& value) {
   auto col_expr = to_expr(col);
   return col_expr < value;
 }
@@ -408,8 +416,8 @@ auto operator<(const schema::column<TableT, Name, T, Modifiers...>& col,
 // Greater than or equal comparison with Value
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
-auto operator>=(const schema::column<TableT, Name, T, Modifiers...>& col,
-                const Value<ValueT>& value) {
+constexpr auto operator>=(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          const Value<ValueT>& value) {
   auto col_expr = to_expr(col);
   return col_expr >= value;
 }
@@ -417,8 +425,8 @@ auto operator>=(const schema::column<TableT, Name, T, Modifiers...>& col,
 // Less than or equal comparison with Value
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename ValueT>
-auto operator<=(const schema::column<TableT, Name, T, Modifiers...>& col,
-                const Value<ValueT>& value) {
+constexpr auto operator<=(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          const Value<ValueT>& value) {
   auto col_expr = to_expr(col);
   return col_expr <= value;
 }
@@ -432,7 +440,8 @@ template <typename TableT, schema::fixed_string Name, typename T, typename... Mo
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col, LiteralT&& literal) {
+constexpr auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          LiteralT&& literal) {
   auto col_expr = to_expr(col);
   auto val_expr = val(std::forward<LiteralT>(literal));
   return col_expr == val_expr;
@@ -444,7 +453,8 @@ template <typename TableT, schema::fixed_string Name, typename T, typename... Mo
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col, LiteralT&& literal) {
+constexpr auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          LiteralT&& literal) {
   auto col_expr = to_expr(col);
   auto val_expr = val(std::forward<LiteralT>(literal));
   return col_expr != val_expr;
@@ -456,7 +466,8 @@ template <typename TableT, schema::fixed_string Name, typename T, typename... Mo
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator>(const schema::column<TableT, Name, T, Modifiers...>& col, LiteralT&& literal) {
+constexpr auto operator>(const schema::column<TableT, Name, T, Modifiers...>& col,
+                         LiteralT&& literal) {
   auto col_expr = to_expr(col);
   auto val_expr = val(std::forward<LiteralT>(literal));
   return col_expr > val_expr;
@@ -468,7 +479,8 @@ template <typename TableT, schema::fixed_string Name, typename T, typename... Mo
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator<(const schema::column<TableT, Name, T, Modifiers...>& col, LiteralT&& literal) {
+constexpr auto operator<(const schema::column<TableT, Name, T, Modifiers...>& col,
+                         LiteralT&& literal) {
   auto col_expr = to_expr(col);
   auto val_expr = val(std::forward<LiteralT>(literal));
   return col_expr < val_expr;
@@ -480,7 +492,8 @@ template <typename TableT, schema::fixed_string Name, typename T, typename... Mo
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator>=(const schema::column<TableT, Name, T, Modifiers...>& col, LiteralT&& literal) {
+constexpr auto operator>=(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          LiteralT&& literal) {
   auto col_expr = to_expr(col);
   auto val_expr = val(std::forward<LiteralT>(literal));
   return col_expr >= val_expr;
@@ -492,7 +505,8 @@ template <typename TableT, schema::fixed_string Name, typename T, typename... Mo
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator<=(const schema::column<TableT, Name, T, Modifiers...>& col, LiteralT&& literal) {
+constexpr auto operator<=(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          LiteralT&& literal) {
   auto col_expr = to_expr(col);
   auto val_expr = val(std::forward<LiteralT>(literal));
   return col_expr <= val_expr;
@@ -506,7 +520,8 @@ template <typename LiteralT, typename TableT, schema::fixed_string Name, typenam
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator==(LiteralT&& literal, const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator==(LiteralT&& literal,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col == std::forward<LiteralT>(literal);
 }
 
@@ -516,7 +531,8 @@ template <typename LiteralT, typename TableT, schema::fixed_string Name, typenam
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator!=(LiteralT&& literal, const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator!=(LiteralT&& literal,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col != std::forward<LiteralT>(literal);
 }
 
@@ -526,7 +542,8 @@ template <typename LiteralT, typename TableT, schema::fixed_string Name, typenam
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator>(LiteralT&& literal, const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>(LiteralT&& literal,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col < std::forward<LiteralT>(literal);
 }
 
@@ -536,7 +553,8 @@ template <typename LiteralT, typename TableT, schema::fixed_string Name, typenam
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator<(LiteralT&& literal, const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<(LiteralT&& literal,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col > std::forward<LiteralT>(literal);
 }
 
@@ -546,7 +564,8 @@ template <typename LiteralT, typename TableT, schema::fixed_string Name, typenam
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator>=(LiteralT&& literal, const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>=(LiteralT&& literal,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col <= std::forward<LiteralT>(literal);
 }
 
@@ -556,7 +575,8 @@ template <typename LiteralT, typename TableT, schema::fixed_string Name, typenam
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator<=(LiteralT&& literal, const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<=(LiteralT&& literal,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col >= std::forward<LiteralT>(literal);
 }
 
@@ -565,7 +585,8 @@ auto operator<=(LiteralT&& literal, const schema::column<TableT, Name, T, Modifi
 
 // Equality comparison with string literal
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
-auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col, const char* str) {
+constexpr auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          const char* str) {
   auto col_expr = to_expr(col);
   auto val_expr = val(str);
   return col_expr == val_expr;
@@ -573,7 +594,8 @@ auto operator==(const schema::column<TableT, Name, T, Modifiers...>& col, const 
 
 // Inequality comparison with string literal
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
-auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col, const char* str) {
+constexpr auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col,
+                          const char* str) {
   auto col_expr = to_expr(col);
   auto val_expr = val(str);
   return col_expr != val_expr;
@@ -581,12 +603,14 @@ auto operator!=(const schema::column<TableT, Name, T, Modifiers...>& col, const 
 
 // String literal comparison (reversed)
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
-auto operator==(const char* str, const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator==(const char* str,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col == str;
 }
 
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
-auto operator!=(const char* str, const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator!=(const char* str,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   return col != str;
 }
 
@@ -663,7 +687,7 @@ template <typename Column, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator==(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+constexpr auto operator==(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
   return col == val(std::forward<LiteralT>(literal));
 }
 
@@ -671,7 +695,7 @@ template <typename Column, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator!=(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+constexpr auto operator!=(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
   return col != val(std::forward<LiteralT>(literal));
 }
 
@@ -679,7 +703,7 @@ template <typename Column, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator>(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+constexpr auto operator>(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
   return col > val(std::forward<LiteralT>(literal));
 }
 
@@ -687,7 +711,7 @@ template <typename Column, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator<(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+constexpr auto operator<(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
   return col < val(std::forward<LiteralT>(literal));
 }
 
@@ -695,7 +719,7 @@ template <typename Column, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator>=(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+constexpr auto operator>=(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
   return col >= val(std::forward<LiteralT>(literal));
 }
 
@@ -703,7 +727,7 @@ template <typename Column, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator<=(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
+constexpr auto operator<=(const SchemaColumnAdapter<Column>& col, LiteralT&& literal) {
   return col <= val(std::forward<LiteralT>(literal));
 }
 
@@ -712,7 +736,7 @@ template <typename LiteralT, typename Column>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator==(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+constexpr auto operator==(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
   return col == std::forward<LiteralT>(literal);
 }
 
@@ -720,7 +744,7 @@ template <typename LiteralT, typename Column>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator!=(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+constexpr auto operator!=(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
   return col != std::forward<LiteralT>(literal);
 }
 
@@ -728,7 +752,7 @@ template <typename LiteralT, typename Column>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator>(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+constexpr auto operator>(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
   return col < std::forward<LiteralT>(literal);
 }
 
@@ -736,7 +760,7 @@ template <typename LiteralT, typename Column>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator<(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+constexpr auto operator<(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
   return col > std::forward<LiteralT>(literal);
 }
 
@@ -744,7 +768,7 @@ template <typename LiteralT, typename Column>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator>=(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+constexpr auto operator>=(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
   return col <= std::forward<LiteralT>(literal);
 }
 
@@ -752,28 +776,28 @@ template <typename LiteralT, typename Column>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> &&
            (!std::is_same_v<LiteralT, bool>) &&
            (!meta::is_specialization_v<std::remove_cvref_t<LiteralT>, Value>)
-auto operator<=(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
+constexpr auto operator<=(LiteralT&& literal, const SchemaColumnAdapter<Column>& col) {
   return col >= std::forward<LiteralT>(literal);
 }
 
 // String literal comparisons for SchemaColumnAdapter
 template <typename Column>
-auto operator==(const SchemaColumnAdapter<Column>& col, const char* str) {
+constexpr auto operator==(const SchemaColumnAdapter<Column>& col, const char* str) {
   return col == val(str);
 }
 
 template <typename Column>
-auto operator!=(const SchemaColumnAdapter<Column>& col, const char* str) {
+constexpr auto operator!=(const SchemaColumnAdapter<Column>& col, const char* str) {
   return col != val(str);
 }
 
 template <typename Column>
-auto operator==(const char* str, const SchemaColumnAdapter<Column>& col) {
+constexpr auto operator==(const char* str, const SchemaColumnAdapter<Column>& col) {
   return col == str;
 }
 
 template <typename Column>
-auto operator!=(const char* str, const SchemaColumnAdapter<Column>& col) {
+constexpr auto operator!=(const char* str, const SchemaColumnAdapter<Column>& col) {
   return col != str;
 }
 
@@ -785,28 +809,28 @@ auto operator!=(const char* str, const SchemaColumnAdapter<Column>& col) {
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator==(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+constexpr auto operator==(const AliasedColumn<Expr>& col, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, "=", val_expr);
+  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr), "=">(col, val_expr);
 }
 
 // For literals == AliasedColumn
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator==(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+constexpr auto operator==(LiteralT&& literal, const AliasedColumn<Expr>& col) {
   return col == std::forward<LiteralT>(literal);
 }
 
 // Special case for string literals with AliasedColumn
 template <SqlExpr Expr>
-auto operator==(const AliasedColumn<Expr>& col, const char* str) {
+constexpr auto operator==(const AliasedColumn<Expr>& col, const char* str) {
   auto str_val = val(str);
-  return BinaryCondition<AliasedColumn<Expr>, decltype(str_val)>(col, "=", str_val);
+  return BinaryCondition<AliasedColumn<Expr>, decltype(str_val), "=">(col, str_val);
 }
 
 template <SqlExpr Expr>
-auto operator==(const char* str, const AliasedColumn<Expr>& col) {
+constexpr auto operator==(const char* str, const AliasedColumn<Expr>& col) {
   return col == str;
 }
 
@@ -814,28 +838,28 @@ auto operator==(const char* str, const AliasedColumn<Expr>& col) {
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator!=(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+constexpr auto operator!=(const AliasedColumn<Expr>& col, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, "!=", val_expr);
+  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr), "!=">(col, val_expr);
 }
 
 // For literals != AliasedColumn
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator!=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+constexpr auto operator!=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
   return col != std::forward<LiteralT>(literal);
 }
 
 // Special case for string literals with AliasedColumn
 template <SqlExpr Expr>
-auto operator!=(const AliasedColumn<Expr>& col, const char* str) {
+constexpr auto operator!=(const AliasedColumn<Expr>& col, const char* str) {
   auto str_val = val(str);
-  return BinaryCondition<AliasedColumn<Expr>, decltype(str_val)>(col, "!=", str_val);
+  return BinaryCondition<AliasedColumn<Expr>, decltype(str_val), "!=">(col, str_val);
 }
 
 template <SqlExpr Expr>
-auto operator!=(const char* str, const AliasedColumn<Expr>& col) {
+constexpr auto operator!=(const char* str, const AliasedColumn<Expr>& col) {
   return col != str;
 }
 
@@ -843,61 +867,61 @@ auto operator!=(const char* str, const AliasedColumn<Expr>& col) {
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+constexpr auto operator>(const AliasedColumn<Expr>& col, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, ">", val_expr);
+  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr), ">">(col, val_expr);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+constexpr auto operator<(const AliasedColumn<Expr>& col, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, "<", val_expr);
+  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr), "<">(col, val_expr);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>=(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+constexpr auto operator>=(const AliasedColumn<Expr>& col, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, ">=", val_expr);
+  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr), ">=">(col, val_expr);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<=(const AliasedColumn<Expr>& col, LiteralT&& literal) {
+constexpr auto operator<=(const AliasedColumn<Expr>& col, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr)>(col, "<=", val_expr);
+  return BinaryCondition<AliasedColumn<Expr>, decltype(val_expr), "<=">(col, val_expr);
 }
 
 // Reversed comparison operators with literals
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+constexpr auto operator>(LiteralT&& literal, const AliasedColumn<Expr>& col) {
   return col < std::forward<LiteralT>(literal);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+constexpr auto operator<(LiteralT&& literal, const AliasedColumn<Expr>& col) {
   return col > std::forward<LiteralT>(literal);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+constexpr auto operator>=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
   return col <= std::forward<LiteralT>(literal);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
+constexpr auto operator<=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
   return col >= std::forward<LiteralT>(literal);
 }
 
@@ -907,28 +931,28 @@ auto operator<=(LiteralT&& literal, const AliasedColumn<Expr>& col) {
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator==(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+constexpr auto operator==(const FunctionExpr<Expr>& func, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, "=", val_expr);
+  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr), "=">(func, val_expr);
 }
 
 // For literals == FunctionExpr
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator==(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+constexpr auto operator==(LiteralT&& literal, const FunctionExpr<Expr>& func) {
   return func == std::forward<LiteralT>(literal);
 }
 
 // Special case for string literals with FunctionExpr
 template <SqlExpr Expr>
-auto operator==(const FunctionExpr<Expr>& func, const char* str) {
+constexpr auto operator==(const FunctionExpr<Expr>& func, const char* str) {
   auto str_val = val(str);
-  return BinaryCondition<FunctionExpr<Expr>, decltype(str_val)>(func, "=", str_val);
+  return BinaryCondition<FunctionExpr<Expr>, decltype(str_val), "=">(func, str_val);
 }
 
 template <SqlExpr Expr>
-auto operator==(const char* str, const FunctionExpr<Expr>& func) {
+constexpr auto operator==(const char* str, const FunctionExpr<Expr>& func) {
   return func == str;
 }
 
@@ -936,28 +960,28 @@ auto operator==(const char* str, const FunctionExpr<Expr>& func) {
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator!=(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+constexpr auto operator!=(const FunctionExpr<Expr>& func, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, "!=", val_expr);
+  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr), "!=">(func, val_expr);
 }
 
 // For literals != FunctionExpr
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator!=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+constexpr auto operator!=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
   return func != std::forward<LiteralT>(literal);
 }
 
 // Special case for string literals with FunctionExpr
 template <SqlExpr Expr>
-auto operator!=(const FunctionExpr<Expr>& func, const char* str) {
+constexpr auto operator!=(const FunctionExpr<Expr>& func, const char* str) {
   auto str_val = val(str);
-  return BinaryCondition<FunctionExpr<Expr>, decltype(str_val)>(func, "!=", str_val);
+  return BinaryCondition<FunctionExpr<Expr>, decltype(str_val), "!=">(func, str_val);
 }
 
 template <SqlExpr Expr>
-auto operator!=(const char* str, const FunctionExpr<Expr>& func) {
+constexpr auto operator!=(const char* str, const FunctionExpr<Expr>& func) {
   return func != str;
 }
 
@@ -965,61 +989,61 @@ auto operator!=(const char* str, const FunctionExpr<Expr>& func) {
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+constexpr auto operator>(const FunctionExpr<Expr>& func, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, ">", val_expr);
+  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr), ">">(func, val_expr);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+constexpr auto operator<(const FunctionExpr<Expr>& func, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, "<", val_expr);
+  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr), "<">(func, val_expr);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>=(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+constexpr auto operator>=(const FunctionExpr<Expr>& func, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, ">=", val_expr);
+  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr), ">=">(func, val_expr);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<=(const FunctionExpr<Expr>& func, LiteralT&& literal) {
+constexpr auto operator<=(const FunctionExpr<Expr>& func, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr)>(func, "<=", val_expr);
+  return BinaryCondition<FunctionExpr<Expr>, decltype(val_expr), "<=">(func, val_expr);
 }
 
 // Reversed comparison operators with literals
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+constexpr auto operator>(LiteralT&& literal, const FunctionExpr<Expr>& func) {
   return func < std::forward<LiteralT>(literal);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+constexpr auto operator<(LiteralT&& literal, const FunctionExpr<Expr>& func) {
   return func > std::forward<LiteralT>(literal);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+constexpr auto operator>=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
   return func <= std::forward<LiteralT>(literal);
 }
 
 template <SqlExpr Expr, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
+constexpr auto operator<=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
   return func >= std::forward<LiteralT>(literal);
 }
 
@@ -1029,30 +1053,32 @@ auto operator<=(LiteralT&& literal, const FunctionExpr<Expr>& func) {
 template <SqlExpr First, SqlExpr Second, SqlExpr... Rest, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator==(const CoalesceExpr<First, Second, Rest...>& coalesce, LiteralT&& literal) {
+constexpr auto operator==(const CoalesceExpr<First, Second, Rest...>& coalesce,
+                          LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(val_expr)>(coalesce, "=",
-                                                                                   val_expr);
+  return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(val_expr), "=">(coalesce,
+                                                                                        val_expr);
 }
 
 // For literals == CoalesceExpr
 template <SqlExpr First, SqlExpr Second, SqlExpr... Rest, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator==(LiteralT&& literal, const CoalesceExpr<First, Second, Rest...>& coalesce) {
+constexpr auto operator==(LiteralT&& literal,
+                          const CoalesceExpr<First, Second, Rest...>& coalesce) {
   return coalesce == std::forward<LiteralT>(literal);
 }
 
 // Special case for string literals with CoalesceExpr
 template <SqlExpr First, SqlExpr Second, SqlExpr... Rest>
-auto operator==(const CoalesceExpr<First, Second, Rest...>& coalesce, const char* str) {
+constexpr auto operator==(const CoalesceExpr<First, Second, Rest...>& coalesce, const char* str) {
   auto str_val = val(str);
-  return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(str_val)>(coalesce, "=",
-                                                                                  str_val);
+  return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(str_val), "=">(coalesce,
+                                                                                       str_val);
 }
 
 template <SqlExpr First, SqlExpr Second, SqlExpr... Rest>
-auto operator==(const char* str, const CoalesceExpr<First, Second, Rest...>& coalesce) {
+constexpr auto operator==(const char* str, const CoalesceExpr<First, Second, Rest...>& coalesce) {
   return coalesce == str;
 }
 
@@ -1060,30 +1086,32 @@ auto operator==(const char* str, const CoalesceExpr<First, Second, Rest...>& coa
 template <SqlExpr First, SqlExpr Second, SqlExpr... Rest, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator!=(const CoalesceExpr<First, Second, Rest...>& coalesce, LiteralT&& literal) {
+constexpr auto operator!=(const CoalesceExpr<First, Second, Rest...>& coalesce,
+                          LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(val_expr)>(coalesce,
-                                                                                   "!=", val_expr);
+  return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(val_expr), "!=">(coalesce,
+                                                                                         val_expr);
 }
 
 // For literals != CoalesceExpr
 template <SqlExpr First, SqlExpr Second, SqlExpr... Rest, typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator!=(LiteralT&& literal, const CoalesceExpr<First, Second, Rest...>& coalesce) {
+constexpr auto operator!=(LiteralT&& literal,
+                          const CoalesceExpr<First, Second, Rest...>& coalesce) {
   return coalesce != std::forward<LiteralT>(literal);
 }
 
 // Special case for string literals with CoalesceExpr
 template <SqlExpr First, SqlExpr Second, SqlExpr... Rest>
-auto operator!=(const CoalesceExpr<First, Second, Rest...>& coalesce, const char* str) {
+constexpr auto operator!=(const CoalesceExpr<First, Second, Rest...>& coalesce, const char* str) {
   auto str_val = val(str);
-  return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(str_val)>(coalesce,
-                                                                                  "!=", str_val);
+  return BinaryCondition<CoalesceExpr<First, Second, Rest...>, decltype(str_val), "!=">(coalesce,
+                                                                                        str_val);
 }
 
 template <SqlExpr First, SqlExpr Second, SqlExpr... Rest>
-auto operator!=(const char* str, const CoalesceExpr<First, Second, Rest...>& coalesce) {
+constexpr auto operator!=(const char* str, const CoalesceExpr<First, Second, Rest...>& coalesce) {
   return coalesce != str;
 }
 
@@ -1091,95 +1119,95 @@ auto operator!=(const char* str, const CoalesceExpr<First, Second, Rest...>& coa
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator==(const CountAllExpr& expr, LiteralT&& literal) {
+constexpr auto operator==(const CountAllExpr& expr, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, "=", val_expr);
+  return BinaryCondition<CountAllExpr, decltype(val_expr), "=">(expr, val_expr);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator==(LiteralT&& literal, const CountAllExpr& expr) {
+constexpr auto operator==(LiteralT&& literal, const CountAllExpr& expr) {
   return expr == std::forward<LiteralT>(literal);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator!=(const CountAllExpr& expr, LiteralT&& literal) {
+constexpr auto operator!=(const CountAllExpr& expr, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, "!=", val_expr);
+  return BinaryCondition<CountAllExpr, decltype(val_expr), "!=">(expr, val_expr);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator!=(LiteralT&& literal, const CountAllExpr& expr) {
+constexpr auto operator!=(LiteralT&& literal, const CountAllExpr& expr) {
   return expr != std::forward<LiteralT>(literal);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>(const CountAllExpr& expr, LiteralT&& literal) {
+constexpr auto operator>(const CountAllExpr& expr, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, ">", val_expr);
+  return BinaryCondition<CountAllExpr, decltype(val_expr), ">">(expr, val_expr);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>(LiteralT&& literal, const CountAllExpr& expr) {
+constexpr auto operator>(LiteralT&& literal, const CountAllExpr& expr) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<decltype(val_expr), CountAllExpr>(val_expr, ">", expr);
+  return BinaryCondition<decltype(val_expr), CountAllExpr, ">">(val_expr, expr);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<(const CountAllExpr& expr, LiteralT&& literal) {
+constexpr auto operator<(const CountAllExpr& expr, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, "<", val_expr);
+  return BinaryCondition<CountAllExpr, decltype(val_expr), "<">(expr, val_expr);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<(LiteralT&& literal, const CountAllExpr& expr) {
+constexpr auto operator<(LiteralT&& literal, const CountAllExpr& expr) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<decltype(val_expr), CountAllExpr>(val_expr, "<", expr);
+  return BinaryCondition<decltype(val_expr), CountAllExpr, "<">(val_expr, expr);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>=(const CountAllExpr& expr, LiteralT&& literal) {
+constexpr auto operator>=(const CountAllExpr& expr, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, ">=", val_expr);
+  return BinaryCondition<CountAllExpr, decltype(val_expr), ">=">(expr, val_expr);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator>=(LiteralT&& literal, const CountAllExpr& expr) {
+constexpr auto operator>=(LiteralT&& literal, const CountAllExpr& expr) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<decltype(val_expr), CountAllExpr>(val_expr, ">=", expr);
+  return BinaryCondition<decltype(val_expr), CountAllExpr, ">=">(val_expr, expr);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<=(const CountAllExpr& expr, LiteralT&& literal) {
+constexpr auto operator<=(const CountAllExpr& expr, LiteralT&& literal) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<CountAllExpr, decltype(val_expr)>(expr, "<=", val_expr);
+  return BinaryCondition<CountAllExpr, decltype(val_expr), "<=">(expr, val_expr);
 }
 
 template <typename LiteralT>
   requires std::is_arithmetic_v<std::remove_cvref_t<LiteralT>> ||
            std::is_convertible_v<std::remove_cvref_t<LiteralT>, std::string>
-auto operator<=(LiteralT&& literal, const CountAllExpr& expr) {
+constexpr auto operator<=(LiteralT&& literal, const CountAllExpr& expr) {
   auto val_expr = val(std::forward<LiteralT>(literal));
-  return BinaryCondition<decltype(val_expr), CountAllExpr>(val_expr, "<=", expr);
+  return BinaryCondition<decltype(val_expr), CountAllExpr, "<=">(val_expr, expr);
 }
 
 // Forward declaration for date expressions
@@ -1194,227 +1222,227 @@ class DateArithmeticExpr;
 // Operators for CurrentDateTimeExpr with date columns
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator>(const CurrentDateTimeExpr& expr,
-               const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>(const CurrentDateTimeExpr& expr,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, ">", col_expr);
+  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr), ">">(expr, col_expr);
 }
 
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator<(const CurrentDateTimeExpr& expr,
-               const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<(const CurrentDateTimeExpr& expr,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, "<", col_expr);
+  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr), "<">(expr, col_expr);
 }
 
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator>=(const CurrentDateTimeExpr& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>=(const CurrentDateTimeExpr& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, ">=", col_expr);
+  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr), ">=">(expr, col_expr);
 }
 
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator<=(const CurrentDateTimeExpr& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<=(const CurrentDateTimeExpr& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, "<=", col_expr);
+  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr), "<=">(expr, col_expr);
 }
 
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator==(const CurrentDateTimeExpr& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator==(const CurrentDateTimeExpr& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, "=", col_expr);
+  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr), "=">(expr, col_expr);
 }
 
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator!=(const CurrentDateTimeExpr& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator!=(const CurrentDateTimeExpr& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr)>(expr, "!=", col_expr);
+  return BinaryCondition<CurrentDateTimeExpr, decltype(col_expr), "!=">(expr, col_expr);
 }
 
 // Operators for UnaryDateFunctionExpr with date columns
 template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator>(const UnaryDateFunctionExpr<Expr>& expr,
-               const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>(const UnaryDateFunctionExpr<Expr>& expr,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, ">", col_expr);
+  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr), ">">(expr, col_expr);
 }
 
 template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator<(const UnaryDateFunctionExpr<Expr>& expr,
-               const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<(const UnaryDateFunctionExpr<Expr>& expr,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, "<", col_expr);
+  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr), "<">(expr, col_expr);
 }
 
 template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator>=(const UnaryDateFunctionExpr<Expr>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>=(const UnaryDateFunctionExpr<Expr>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, ">=", col_expr);
+  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr), ">=">(expr, col_expr);
 }
 
 template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator<=(const UnaryDateFunctionExpr<Expr>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<=(const UnaryDateFunctionExpr<Expr>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, "<=", col_expr);
+  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr), "<=">(expr, col_expr);
 }
 
 template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator==(const UnaryDateFunctionExpr<Expr>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator==(const UnaryDateFunctionExpr<Expr>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, "=", col_expr);
+  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr), "=">(expr, col_expr);
 }
 
 template <SqlExpr Expr, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator!=(const UnaryDateFunctionExpr<Expr>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator!=(const UnaryDateFunctionExpr<Expr>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr)>(expr, "!=", col_expr);
+  return BinaryCondition<UnaryDateFunctionExpr<Expr>, decltype(col_expr), "!=">(expr, col_expr);
 }
 
 // Operators for BinaryDateFunctionExpr with date columns
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator>(const BinaryDateFunctionExpr<Left, Right>& expr,
-               const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>(const BinaryDateFunctionExpr<Left, Right>& expr,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr)>(expr, ">",
-                                                                                  col_expr);
+  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr), ">">(expr,
+                                                                                       col_expr);
 }
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator<(const BinaryDateFunctionExpr<Left, Right>& expr,
-               const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<(const BinaryDateFunctionExpr<Left, Right>& expr,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr)>(expr, "<",
-                                                                                  col_expr);
+  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr), "<">(expr,
+                                                                                       col_expr);
 }
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator>=(const BinaryDateFunctionExpr<Left, Right>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>=(const BinaryDateFunctionExpr<Left, Right>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr)>(expr,
-                                                                                  ">=", col_expr);
+  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr), ">=">(expr,
+                                                                                        col_expr);
 }
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator<=(const BinaryDateFunctionExpr<Left, Right>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<=(const BinaryDateFunctionExpr<Left, Right>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr)>(expr,
-                                                                                  "<=", col_expr);
+  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr), "<=">(expr,
+                                                                                        col_expr);
 }
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator==(const BinaryDateFunctionExpr<Left, Right>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator==(const BinaryDateFunctionExpr<Left, Right>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr)>(expr, "=",
-                                                                                  col_expr);
+  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr), "=">(expr,
+                                                                                       col_expr);
 }
 
 template <SqlExpr Left, SqlExpr Right, typename TableT, schema::fixed_string Name, typename T,
           typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator!=(const BinaryDateFunctionExpr<Left, Right>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator!=(const BinaryDateFunctionExpr<Left, Right>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr)>(expr,
-                                                                                  "!=", col_expr);
+  return BinaryCondition<BinaryDateFunctionExpr<Left, Right>, decltype(col_expr), "!=">(expr,
+                                                                                        col_expr);
 }
 
 // Operators for DateArithmeticExpr with date columns
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator>(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
-               const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr)>(expr, ">",
-                                                                                         col_expr);
+  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr), ">">(
+      expr, col_expr);
 }
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator<(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
-               const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
+                         const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr)>(expr, "<",
-                                                                                         col_expr);
+  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr), "<">(
+      expr, col_expr);
 }
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator>=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator>=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr)>(
-      expr, ">=", col_expr);
+  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr), ">=">(
+      expr, col_expr);
 }
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator<=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator<=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr)>(
-      expr, "<=", col_expr);
+  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr), "<=">(
+      expr, col_expr);
 }
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator==(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator==(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr)>(expr, "=",
-                                                                                         col_expr);
+  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr), "=">(
+      expr, col_expr);
 }
 
 template <SqlExpr DateExpr, SqlExpr IntervalExpr, typename TableT, schema::fixed_string Name,
           typename T, typename... Modifiers>
   requires date_checking::DateTimeType<T>
-auto operator!=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
-                const schema::column<TableT, Name, T, Modifiers...>& col) {
+constexpr auto operator!=(const DateArithmeticExpr<DateExpr, IntervalExpr>& expr,
+                          const schema::column<TableT, Name, T, Modifiers...>& col) {
   auto col_expr = to_expr(col);
-  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr)>(
-      expr, "!=", col_expr);
+  return BinaryCondition<DateArithmeticExpr<DateExpr, IntervalExpr>, decltype(col_expr), "!=">(
+      expr, col_expr);
 }
 
 }  // namespace query

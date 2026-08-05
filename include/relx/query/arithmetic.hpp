@@ -60,11 +60,11 @@ public:
   ArithmeticExpr(Left left, std::string op, Right right)
       : left_(std::move(left)), op_(std::move(op)), right_(std::move(right)) {}
 
-  std::string to_sql() const override {
+  constexpr std::string to_sql() const override {
     return "(" + left_.to_sql() + " " + op_ + " " + right_.to_sql() + ")";
   }
 
-  std::vector<bind_param> bind_params() const override {
+  constexpr std::vector<bind_param> bind_params() const override {
     auto left_params = left_.bind_params();
     auto right_params = right_.bind_params();
     left_params.insert(left_params.end(), right_params.begin(), right_params.end());

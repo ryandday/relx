@@ -213,4 +213,38 @@ TEST_F(AnnotatedTableIntegrationTest, NativeEnumRoundTrip) {
   ASSERT_TRUE(conn->execute_raw("DROP TYPE shipstate;"));
 }
 
+TEST_F(AnnotatedTableIntegrationTest, InAnyArrayBind) {
+  auto insert = relx::query::insert_into(products)
+                    .columns(products.id, products.sku, products.name, products.price)
+                    .values(1, "S1", "A", 1.0)
+                    .values(2, "S2", "B", 2.0)
+                    .values(3, "S3", "C", 3.0);
+  ASSERT_TRUE(conn->execute(insert));
+
+  auto rows = conn->fetch_all(relx::query::select(products.id, products.name)
+                                  .from(products)
+                                  .where(relx::query::in_any(products.id, std::vector<int>{1, 3}))
+                                  .order_by(products.id));
+  ASSERT_TRUE(rows) << rows.error().message;
+  ASSERT_EQ(rows->size(), 2);
+  EXPECT_EQ((*rows)[0].name, "A");
+  EXPECT_EQ((*rows)[1].name, "C");
+
+  // string element array
+  auto by_sku = conn->fetch_all(
+      relx::query::select(products.id)
+          .from(products)
+          .where(relx::query::in_any(products.sku, std::vector<std::string>{"S2"})));
+  ASSERT_TRUE(by_sku) << by_sku.error().message;
+  ASSERT_EQ(by_sku->size(), 1);
+  EXPECT_EQ((*by_sku)[0].id, 2);
+
+  // empty list: valid SQL (unlike IN ()), matches nothing
+  auto none = conn->fetch_all(relx::query::select(products.id)
+                                  .from(products)
+                                  .where(relx::query::in_any(products.id, std::vector<int>{})));
+  ASSERT_TRUE(none) << none.error().message;
+  EXPECT_TRUE(none->empty());
+}
+
 }  // namespace

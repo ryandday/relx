@@ -26,11 +26,12 @@ struct SetItem {
   Value value;
 
   // Constructor to ensure the SetItem can be properly initialized
-  SetItem(ColumnRef<Column> col, Value val) : column(std::move(col)), value(std::move(val)) {}
+  constexpr SetItem(ColumnRef<Column> col, Value val)
+      : column(std::move(col)), value(std::move(val)) {}
 
-  std::string to_sql() const { return column.column_name() + " = " + value.to_sql(); }
+  constexpr std::string to_sql() const { return column.column_name() + " = " + value.to_sql(); }
 
-  std::vector<bind_param> bind_params() const { return value.bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const { return value.bind_params(); }
 };
 
 /// @brief Base UPDATE query builder
@@ -48,22 +49,16 @@ private:
   ReturningColumns returning_columns_;
 
   // Helper to convert the RETURNING clause to SQL
-  std::string returning_to_sql() const {
+  constexpr std::string returning_to_sql() const {
     if constexpr (is_empty_tuple<ReturningColumns>()) {
       return "";
     } else {
-      std::stringstream ss;
-      ss << " RETURNING ";
-      int i = 0;
-      std::apply(
-          [&](const auto&... cols) { ((ss << (i++ > 0 ? ", " : "") << cols.to_sql()), ...); },
-          returning_columns_);
-      return ss.str();
+      return " RETURNING " + tuple_to_sql(returning_columns_, ", ");
     }
   }
 
   // Helper to collect bind parameters from RETURNING clause
-  std::vector<bind_param> returning_bind_params() const {
+  constexpr std::vector<bind_param> returning_bind_params() const {
     std::vector<bind_param> params;
 
     if constexpr (!is_empty_tuple<ReturningColumns>()) {
@@ -93,39 +88,38 @@ public:
   /// @param sets The SET clause items
   /// @param where The WHERE condition
   /// @param returning_columns The columns to return after update
-  explicit UpdateQuery(Table table, Sets sets = {}, Where where = std::nullopt,
-                       ReturningColumns returning_columns = {})
+  constexpr explicit UpdateQuery(Table table, Sets sets = {}, Where where = std::nullopt,
+                                 ReturningColumns returning_columns = {})
       : table_(std::move(table)), sets_(std::move(sets)), where_(std::move(where)),
         returning_columns_(std::move(returning_columns)) {}
 
   /// @brief Generate the SQL for this UPDATE query
   /// @return The SQL string
-  std::string to_sql() const {
-    std::stringstream ss;
-    ss << "UPDATE " << table_.table_name;
+  constexpr std::string to_sql() const {
+    std::string out = "UPDATE ";
+    out += table_.table_name;
 
     // Add SET clause
     if constexpr (!is_empty_tuple<Sets>()) {
-      ss << " SET ";
-      ss << tuple_to_sql(sets_, ", ");
+      out += " SET " + tuple_to_sql(sets_, ", ");
     }
 
     // Add WHERE clause
     if constexpr (!std::is_same_v<Where, std::nullopt_t>) {
       if (where_.has_value()) {
-        ss << " WHERE " << where_.value().to_sql();
+        out += " WHERE " + where_.value().to_sql();
       }
     }
 
     // Add RETURNING clause if specified
-    ss << returning_to_sql();
+    out += returning_to_sql();
 
-    return ss.str();
+    return out;
   }
 
   /// @brief Get the bind parameters for this UPDATE query
   /// @return Vector of bind parameters
-  std::vector<bind_param> bind_params() const {
+  constexpr std::vector<bind_param> bind_params() const {
     std::vector<bind_param> params;
 
     // Collect parameters from SET items
@@ -156,7 +150,7 @@ public:
   /// @param val The value to set
   /// @return New UpdateQuery with the SET clause added
   template <ColumnType Col, SqlExpr Val>
-  auto set(const Col& column, Val&& val) const {
+  constexpr auto set(const Col& column, Val&& val) const {
     using SetItemType = SetItem<Col, std::remove_cvref_t<Val>>;
 
     // Create a new SetItem
@@ -182,7 +176,7 @@ public:
   /// @return New UpdateQuery with the SET clause added
   template <ColumnType Col, typename T>
     requires(!SqlExpr<T>)
-  auto set(const Col& column, T&& val) const {
+  constexpr auto set(const Col& column, T&& val) const {
     // Note: For now, we'll use a basic type check until we can access the type_checking utilities
     // This provides a good foundation for type safety in UPDATE operations
 
@@ -196,7 +190,7 @@ public:
   /// @param cond The WHERE condition
   /// @return New UpdateQuery with the WHERE clause added
   template <ConditionExpr Condition>
-  auto where(const Condition& cond) const {
+  constexpr auto where(const Condition& cond) const {
     return UpdateQuery<Table, Sets, std::optional<Condition>, ReturningColumns>(
         table_, sets_, std::optional<Condition>(cond), returning_columns_);
   }
@@ -220,7 +214,7 @@ public:
   /// @param args The columns or expressions to return
   /// @return New UpdateQuery with the RETURNING clause added
   template <typename... Args>
-  auto returning(const Args&... args) const {
+  constexpr auto returning(const Args&... args) const {
     // Helper to convert columns to ColumnRef expressions if they're not already SqlExpr
     auto to_expr = [](const auto& arg) {
       if constexpr (SqlExpr<std::remove_cvref_t<decltype(arg)>>) {
@@ -256,7 +250,7 @@ public:
 /// @param table The table to update
 /// @return An UpdateQuery object
 template <TableType Table>
-auto update(const Table& table) {
+constexpr auto update(const Table& table) {
   return UpdateQuery<Table>(table);
 }
 

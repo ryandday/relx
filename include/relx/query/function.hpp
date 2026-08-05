@@ -18,9 +18,9 @@ class FunctionExpr : public ColumnExpression {
 public:
   FunctionExpr(std::string name, Expr expr) : func_name_(std::move(name)), expr_(std::move(expr)) {}
 
-  std::string to_sql() const override { return func_name_ + "(" + expr_.to_sql() + ")"; }
+  constexpr std::string to_sql() const override { return func_name_ + "(" + expr_.to_sql() + ")"; }
 
-  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
   std::string column_name() const override { return func_name_ + "(" + expr_.column_name() + ")"; }
 
@@ -43,9 +43,9 @@ class NullaryFunctionExpr : public ColumnExpression {
 public:
   explicit NullaryFunctionExpr(std::string name) : func_name_(std::move(name)) {}
 
-  std::string to_sql() const override { return func_name_ + "()"; }
+  constexpr std::string to_sql() const override { return func_name_ + "()"; }
 
-  std::vector<bind_param> bind_params() const override { return {}; }
+  constexpr std::vector<bind_param> bind_params() const override { return {}; }
 
   std::string column_name() const override { return func_name_ + "()"; }
 
@@ -58,9 +58,9 @@ private:
 /// @brief Expression representing COUNT(*) in SQL
 class CountAllExpr : public ColumnExpression {
 public:
-  std::string to_sql() const override { return "COUNT(*)"; }
+  constexpr std::string to_sql() const override { return "COUNT(*)"; }
 
-  std::vector<bind_param> bind_params() const override { return {}; }
+  constexpr std::vector<bind_param> bind_params() const override { return {}; }
 
   std::string column_name() const override { return "COUNT(*)"; }
 
@@ -227,9 +227,9 @@ class DistinctExpr : public ColumnExpression {
 public:
   explicit DistinctExpr(Expr expr) : expr_(std::move(expr)) {}
 
-  std::string to_sql() const override { return "DISTINCT " + expr_.to_sql(); }
+  constexpr std::string to_sql() const override { return "DISTINCT " + expr_.to_sql(); }
 
-  std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
   std::string column_name() const override {
     if constexpr (std::is_base_of_v<ColumnExpression, Expr>) {
@@ -358,7 +358,7 @@ public:
       : first_(std::move(first)), second_(std::move(second)),
         rest_(std::make_tuple(std::move(rest)...)) {}
 
-  std::string to_sql() const override {
+  constexpr std::string to_sql() const override {
     std::stringstream ss;
     ss << "COALESCE(" << first_.to_sql() << ", " << second_.to_sql();
 
@@ -368,7 +368,7 @@ public:
     return ss.str();
   }
 
-  std::vector<bind_param> bind_params() const override {
+  constexpr std::vector<bind_param> bind_params() const override {
     std::vector<bind_param> params;
 
     auto first_params = first_.bind_params();
@@ -463,7 +463,7 @@ public:
   CaseExpr(const CaseExpr&) = delete;
   CaseExpr& operator=(const CaseExpr&) = delete;
 
-  std::string to_sql() const override {
+  constexpr std::string to_sql() const override {
     std::string sql = "CASE";
 
     for (const auto& [when_cond, then_val] : when_thens_) {
@@ -484,7 +484,7 @@ public:
     return sql;
   }
 
-  std::vector<bind_param> bind_params() const override {
+  constexpr std::vector<bind_param> bind_params() const override {
     std::vector<bind_param> params;
 
     // Interleave condition and value parameters in the expected order

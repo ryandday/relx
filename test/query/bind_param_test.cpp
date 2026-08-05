@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 #include <relx/bind_param.hpp>
 #include <relx/query.hpp>
+#include <relx/schema.hpp>
 
 using relx::bind_param;
 using relx::sql_kind;
@@ -20,7 +21,7 @@ TEST(BindParamTest, IntParamIsTaggedInt4) {
   ASSERT_EQ(params.size(), 1);
   EXPECT_EQ(params[0], "42");  // text form preserved
   EXPECT_EQ(params[0].kind, sql_kind::int4);
-  ASSERT_EQ(params[0].binary_size, 4);
+  ASSERT_EQ(params[0].binary.size(), 4);
   EXPECT_EQ(params[0].binary[0], 0x00);
   EXPECT_EQ(params[0].binary[1], 0x00);
   EXPECT_EQ(params[0].binary[2], 0x00);
@@ -40,7 +41,7 @@ TEST(BindParamTest, LongLongIsTaggedInt8) {
   auto params = relx::query::val(1LL << 40).bind_params();
   ASSERT_EQ(params.size(), 1);
   EXPECT_EQ(params[0].kind, sql_kind::int8);
-  EXPECT_EQ(params[0].binary_size, 8);
+  EXPECT_EQ(params[0].binary.size(), 8);
   EXPECT_EQ(params[0].binary[2], 0x01);  // bit 40, big-endian
 }
 
@@ -48,7 +49,7 @@ TEST(BindParamTest, BoolIsTaggedBoolean) {
   auto params = relx::query::val(true).bind_params();
   ASSERT_EQ(params.size(), 1);
   EXPECT_EQ(params[0].kind, sql_kind::boolean);
-  EXPECT_EQ(params[0].binary_size, 1);
+  EXPECT_EQ(params[0].binary.size(), 1);
   EXPECT_EQ(params[0].binary[0], 1);
 }
 
@@ -56,7 +57,7 @@ TEST(BindParamTest, DoubleIsTaggedFloat8WithExactBits) {
   auto params = relx::query::val(1.5).bind_params();
   ASSERT_EQ(params.size(), 1);
   EXPECT_EQ(params[0].kind, sql_kind::float8);
-  EXPECT_EQ(params[0].binary_size, 8);
+  EXPECT_EQ(params[0].binary.size(), 8);
   // 1.5 == 0x3FF8000000000000
   EXPECT_EQ(params[0].binary[0], 0x3F);
   EXPECT_EQ(params[0].binary[1], 0xF8);
@@ -68,7 +69,7 @@ TEST(BindParamTest, StringStaysUntypedText) {
   ASSERT_EQ(params.size(), 1);
   EXPECT_EQ(params[0], "hello");
   EXPECT_EQ(params[0].kind, sql_kind::unspecified);
-  EXPECT_EQ(params[0].binary_size, 0);
+  EXPECT_EQ(params[0].binary.size(), 0);
 }
 
 TEST(BindParamTest, EngagedOptionalIsTyped) {
@@ -77,15 +78,20 @@ TEST(BindParamTest, EngagedOptionalIsTyped) {
   EXPECT_EQ(params[0].kind, sql_kind::int4);
 }
 
-struct users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<users, "id", int> id;
-  relx::schema::column<users, "name", std::string> name;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string name;
 };
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
 
 TEST(BindParamTest, QueryParamsCarryKinds) {
-  users u;
-  auto query = relx::query::select(u.id, u.name).from(u).where(u.id == 42 && u.name == "bob");
+  auto query = relx::query::select(users.id, users.name)
+                   .from(users)
+                   .where(users.id == 42 && users.name == "bob");
   auto params = query.bind_params();
   ASSERT_EQ(params.size(), 2);
   EXPECT_EQ(params[0], "42");
@@ -134,10 +140,44 @@ TEST(BindParamTest, UuidBindsAsBinaryOid2950) {
   ASSERT_EQ(params.size(), 1);
   EXPECT_EQ(params[0], "6fa1cb19-5a9a-4363-9a1b-aa1b3e2c8d51");  // text form
   EXPECT_EQ(params[0].kind, sql_kind::uuid);
-  ASSERT_EQ(params[0].binary_size, 16);
+  ASSERT_EQ(params[0].binary.size(), 16);
   EXPECT_EQ(params[0].binary[0], 0x6F);  // bytes verbatim, no endian swizzle
   EXPECT_EQ(params[0].binary[1], 0xA1);
   EXPECT_EQ(params[0].binary[15], 0x51);
+}
+
+TEST(BindParamTest, ArrayParamEncodesPostgresArrayFormat) {
+  auto params = relx::make_array_bind_param(std::vector<int>{1, 2});
+  EXPECT_EQ(params.kind, sql_kind::int4_array);
+  EXPECT_EQ(params.value, "{1,2}");  // text form is the array literal
+  // header: ndims=1, hasnull=0, elem oid=23, dim=2, lbound=1, then (len=4, 1), (len=4, 2)
+  ASSERT_EQ(params.binary.size(), 20 + 2 * 8);
+  EXPECT_EQ(params.binary[3], 1);    // ndims
+  EXPECT_EQ(params.binary[11], 23);  // int4 oid
+  EXPECT_EQ(params.binary[15], 2);   // dimension length
+  EXPECT_EQ(params.binary[27], 1);   // first element value
+  EXPECT_EQ(params.binary[35], 2);   // second element value
+}
+
+TEST(BindParamTest, StringArrayParam) {
+  auto params = relx::make_array_bind_param(std::vector<std::string>{"a", "b\"c"});
+  EXPECT_EQ(params.kind, sql_kind::text_array);
+  EXPECT_EQ(params.value, "{\"a\",\"b\\\"c\"}");
+}
+
+TEST(BindParamTest, InAnyConditionIsOneParam) {
+  auto cond = relx::query::in_any(users.id, std::vector<int>{1, 2, 3});
+  EXPECT_EQ(cond.to_sql(), "users.id = ANY(?)");
+  auto params = cond.bind_params();
+  ASSERT_EQ(params.size(), 1);
+  EXPECT_EQ(params[0].kind, sql_kind::int4_array);
+}
+
+TEST(BindParamTest, InAnyIsStaticShaped) {
+  auto query = relx::query::select(users.id).from(users).where(
+      relx::query::in_any(users.id, std::vector<int>{1}));
+  static_assert(relx::has_static_shape_v<decltype(query)>);
+  SUCCEED();
 }
 
 }  // namespace

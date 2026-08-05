@@ -2,6 +2,7 @@
 
 #include "../query/core.hpp"
 #include "../query/row_type.hpp"
+#include "../query/static_shape.hpp"
 #include "../results/result.hpp"
 #include "meta.hpp"
 
@@ -22,9 +23,29 @@ namespace relx {
 namespace connection {
 
 /// @brief Error type for database connection operations
+/// @details For errors reported by the server, sql_state carries the five-character
+/// SQLSTATE code (e.g. "23505") and the diagnostic fields whatever the server attached;
+/// all of them are empty for client-side errors (not connected, bad parameters, ...)
 struct ConnectionError {
   std::string message;
   int error_code = 0;
+  std::string sql_state;
+  std::string detail;
+  std::string hint;
+  std::string constraint_name;
+
+  /// @brief True if this is a unique-constraint violation (SQLSTATE 23505)
+  bool is_duplicate_key_error() const { return sql_state == "23505"; }
+  /// @brief True if this is a foreign-key violation (SQLSTATE 23503)
+  bool is_foreign_key_violation() const { return sql_state == "23503"; }
+  /// @brief True if this is a check-constraint violation (SQLSTATE 23514)
+  bool is_check_constraint_violation() const { return sql_state == "23514"; }
+  /// @brief True if this is a not-null violation (SQLSTATE 23502)
+  bool is_not_null_violation() const { return sql_state == "23502"; }
+  /// @brief True if the transaction must be retried: serialization failure (SQLSTATE 40001)
+  bool is_serialization_failure() const { return sql_state == "40001"; }
+  /// @brief True if the transaction must be retried: deadlock detected (SQLSTATE 40P01)
+  bool is_deadlock() const { return sql_state == "40P01"; }
 };
 
 /// @brief Type alias for result of connection operations
@@ -235,17 +256,19 @@ public:
   /// @brief Execute a query expression. Typed select queries whose select list is
   /// binary-decodable use libpq's binary result format (no server-side text
   /// formatting, no text parsing of numerics); everything else uses the text protocol.
+  /// Static-shaped queries (SQL text fully determined by the type - see
+  /// has_static_shape_v) render their SQL once per query type instead of on every
+  /// execution.
   /// @param query The query expression to execute
   /// @return Result containing the query results or an error
   template <query::SqlExpr Query>
   [[nodiscard]]
   ConnectionResult<result::ResultSet> execute(const Query& query) {
-    std::string sql = query.to_sql();
-    std::vector<bind_param> params = query.bind_params();
-    if constexpr (detail::query_supports_binary_results<Query>()) {
-      return execute_raw_binary_result(sql, params);
+    if constexpr (query::has_static_shape_v<std::remove_cvref_t<Query>>) {
+      static const std::string sql = query.to_sql();  // once per query type
+      return execute_with_sql(sql, query);
     } else {
-      return execute_raw(sql, params);
+      return execute_with_sql(query.to_sql(), query);
     }
   }
 
@@ -354,6 +377,18 @@ public:
   /// @return True if connected, false otherwise
   virtual bool is_connected() const = 0;
 
+private:
+  template <query::SqlExpr Query>
+  ConnectionResult<result::ResultSet> execute_with_sql(const std::string& sql, const Query& query) {
+    std::vector<bind_param> params = query.bind_params();
+    if constexpr (detail::query_supports_binary_results<Query>()) {
+      return execute_raw_binary_result(sql, params);
+    } else {
+      return execute_raw(sql, params);
+    }
+  }
+
+public:
   /// @brief Begin a new transaction
   /// @param isolation_level The isolation level for the transaction
   /// @return Result indicating success or failure

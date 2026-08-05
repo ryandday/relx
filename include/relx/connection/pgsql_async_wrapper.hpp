@@ -482,7 +482,7 @@ public:
         formats.push_back(0);
       } else if (param.kind != relx::sql_kind::unspecified) {
         values.push_back(reinterpret_cast<const char*>(param.binary.data()));
-        lengths.push_back(param.binary_size);
+        lengths.push_back(static_cast<int>(param.binary.size()));
         formats.push_back(1);  // binary
       } else {
         values.push_back(param.value.c_str());

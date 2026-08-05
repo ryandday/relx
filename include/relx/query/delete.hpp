@@ -29,22 +29,16 @@ private:
   ReturningColumns returning_columns_;
 
   // Helper to convert the RETURNING clause to SQL
-  std::string returning_to_sql() const {
+  constexpr std::string returning_to_sql() const {
     if constexpr (is_empty_tuple<ReturningColumns>()) {
       return "";
     } else {
-      std::stringstream ss;
-      ss << " RETURNING ";
-      int i = 0;
-      std::apply(
-          [&](const auto&... cols) { ((ss << (i++ > 0 ? ", " : "") << cols.to_sql()), ...); },
-          returning_columns_);
-      return ss.str();
+      return " RETURNING " + tuple_to_sql(returning_columns_, ", ");
     }
   }
 
   // Helper to collect bind parameters from RETURNING clause
-  std::vector<bind_param> returning_bind_params() const {
+  constexpr std::vector<bind_param> returning_bind_params() const {
     std::vector<bind_param> params;
 
     if constexpr (!is_empty_tuple<ReturningColumns>()) {
@@ -72,32 +66,32 @@ public:
   /// @param table The table to delete from
   /// @param where The WHERE condition
   /// @param returning_columns The columns to return after deletion
-  explicit DeleteQuery(Table table, Where where = std::nullopt,
-                       ReturningColumns returning_columns = {})
+  constexpr explicit DeleteQuery(Table table, Where where = std::nullopt,
+                                 ReturningColumns returning_columns = {})
       : table_(std::move(table)), where_(std::move(where)),
         returning_columns_(std::move(returning_columns)) {}
 
   /// @brief Generate the SQL for this DELETE query
   /// @return The SQL string
-  std::string to_sql() const {
-    std::stringstream ss;
-    ss << "DELETE FROM " << table_.table_name;
+  constexpr std::string to_sql() const {
+    std::string out = "DELETE FROM ";
+    out += table_.table_name;
 
     // Add WHERE clause
     if constexpr (!std::is_same_v<Where, std::nullopt_t>) {
       if (where_.has_value()) {
-        ss << " WHERE " << where_.value().to_sql();
+        out += " WHERE " + where_.value().to_sql();
       }
     }
 
-    ss << returning_to_sql();
+    out += returning_to_sql();
 
-    return ss.str();
+    return out;
   }
 
   /// @brief Get the bind parameters for this DELETE query
   /// @return Vector of bind parameters
-  std::vector<bind_param> bind_params() const {
+  constexpr std::vector<bind_param> bind_params() const {
     std::vector<bind_param> params;
 
     // Collect parameters from WHERE clause
@@ -119,7 +113,7 @@ public:
   /// @param cond The WHERE condition
   /// @return New DeleteQuery with the WHERE clause added
   template <ConditionExpr Condition>
-  auto where(const Condition& cond) const {
+  constexpr auto where(const Condition& cond) const {
     return DeleteQuery<Table, std::optional<Condition>, ReturningColumns>(
         table_, std::optional<Condition>(cond), returning_columns_);
   }
@@ -143,7 +137,7 @@ public:
   /// @param args The columns or expressions to return
   /// @return New DeleteQuery with the RETURNING clause added
   template <typename... Args>
-  auto returning(const Args&... args) const {
+  constexpr auto returning(const Args&... args) const {
     // Helper to convert columns to ColumnRef expressions if they're not already SqlExpr
     auto to_expr = [](const auto& arg) {
       if constexpr (SqlExpr<std::remove_cvref_t<decltype(arg)>>) {
@@ -178,7 +172,7 @@ public:
 /// @param table The table to delete from
 /// @return A DeleteQuery object
 template <TableType Table>
-auto delete_from(const Table& table) {
+constexpr auto delete_from(const Table& table) {
   return DeleteQuery<Table>(table);
 }
 
