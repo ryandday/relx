@@ -4,9 +4,11 @@
 #include "fixed_string.hpp"
 
 #include <optional>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <vector>
 
 namespace relx::schema {
 
@@ -287,6 +289,70 @@ constexpr std::string apply_modifiers() {
   return result;
 }
 
+// Modifier-kind traits for the constraint modifiers the migration differ hoists
+// into table-level constraints (so their changes diff as ADD/DROP CONSTRAINT
+// instead of a data-destroying DROP COLUMN + ADD COLUMN)
+template <typename M>
+struct is_check_modifier : std::false_type {};
+template <fixed_string Expr>
+struct is_check_modifier<check<Expr>> : std::true_type {};
+
+template <typename M>
+struct is_references_modifier : std::false_type {};
+template <fixed_string Table, fixed_string Column>
+struct is_references_modifier<references<Table, Column>> : std::true_type {};
+
+template <typename M>
+struct is_fk_action_modifier : std::false_type {};
+template <fixed_string Action>
+struct is_fk_action_modifier<on_delete<Action>> : std::true_type {};
+template <fixed_string Action>
+struct is_fk_action_modifier<on_update<Action>> : std::true_type {};
+
+template <typename M>
+struct is_hoisted_constraint_modifier
+    : std::bool_constant<std::is_same_v<M, unique> || is_check_modifier<M>::value ||
+                         is_references_modifier<M>::value || is_fk_action_modifier<M>::value> {};
+
+/// @brief Apply the column modifiers, skipping those the migration differ hoists
+/// into table-level constraints
+template <typename... Modifiers>
+constexpr std::string apply_modifiers_sans_hoisted() {
+  std::string result;
+  auto add = [&result]<typename Mod>() {
+    if constexpr (!is_hoisted_constraint_modifier<Mod>::value) {
+      result += Mod::to_sql();
+    }
+  };
+  (add.template operator()<Modifiers>(), ...);
+  return result;
+}
+
+/// @brief The inline constraint modifiers of a column as table-level constraint
+/// definitions, in modifier order (FK actions attach to the REFERENCES clause).
+/// Used by migration diffing.
+template <fixed_string Name, typename... Modifiers>
+std::vector<std::string> hoisted_constraint_defs() {
+  std::vector<std::string> defs;
+  std::string fk;
+  auto add = [&]<typename Mod>() {
+    if constexpr (std::is_same_v<Mod, unique>) {
+      defs.push_back("UNIQUE (" + std::string(std::string_view(Name)) + ")");
+    } else if constexpr (is_check_modifier<Mod>::value) {
+      defs.push_back("CHECK (" + std::string(std::string_view(Mod::expr)) + ")");
+    } else if constexpr (is_references_modifier<Mod>::value) {
+      fk = "FOREIGN KEY (" + std::string(std::string_view(Name)) + ")" + Mod::to_sql();
+    } else if constexpr (is_fk_action_modifier<Mod>::value) {
+      fk += Mod::to_sql();
+    }
+  };
+  (add.template operator()<Modifiers>(), ...);
+  if (!fk.empty()) {
+    defs.push_back(std::move(fk));
+  }
+  return defs;
+}
+
 // Type trait to detect default_value specialization
 template <typename TypeParam>
 struct is_default_value_specialization : std::false_type {};
@@ -337,9 +403,28 @@ public:
   /// @brief Flag indicating if the column can be NULL
   static constexpr bool nullable = column_traits<T>::nullable;
 
+  /// @brief Whether the column carries inline constraint modifiers the migration
+  /// differ hoists into table-level constraints (unique/check/references + actions)
+  static constexpr bool has_hoisted_constraints =
+      (is_hoisted_constraint_modifier<Modifiers>::value || ...);
+
   /// @brief Get the SQL definition of this column
   /// @return A string containing the SQL column definition
-  constexpr std::string sql_definition() const {
+  constexpr std::string sql_definition() const { return definition_impl<false>(); }
+
+  /// @brief Definition without the hoisted constraint modifiers. Migrations surface
+  /// those as table-level constraints instead, so their changes diff as ADD/DROP
+  /// CONSTRAINT rather than DROP COLUMN + ADD COLUMN.
+  constexpr std::string sql_definition_sans_constraints() const { return definition_impl<true>(); }
+
+  /// @brief The hoisted constraint modifiers as table-level constraint definitions
+  static std::vector<std::string> hoisted_constraint_definitions() {
+    return hoisted_constraint_defs<Name, Modifiers...>();
+  }
+
+private:
+  template <bool SkipHoisted>
+  constexpr std::string definition_impl() const {
     std::string result = std::string(std::string_view(name)) + " " +
                          std::string(std::string_view(sql_type));
 
@@ -349,7 +434,11 @@ public:
     }
 
     // Apply all modifiers
-    result += apply_modifiers<Modifiers...>();
+    if constexpr (SkipHoisted) {
+      result += apply_modifiers_sans_hoisted<Modifiers...>();
+    } else {
+      result += apply_modifiers<Modifiers...>();
+    }
 
     // Value-set constraint supplied by the type itself (e.g. enums generate
     // CHECK(col IN ('a', 'b', ...)))
@@ -361,6 +450,7 @@ public:
     return result;
   }
 
+public:
   /// @brief Convert a C++ value to SQL string
   /// @param value The value to convert
   /// @return SQL string representation
@@ -483,14 +573,35 @@ public:
 
   static constexpr bool nullable = true;
 
-  constexpr std::string sql_definition() const {
+  /// @brief Whether the column carries inline constraint modifiers the migration
+  /// differ hoists into table-level constraints (see the primary template)
+  static constexpr bool has_hoisted_constraints =
+      (is_hoisted_constraint_modifier<Modifiers>::value || ...);
+
+  constexpr std::string sql_definition() const { return definition_impl<false>(); }
+
+  /// @brief Definition without the hoisted constraint modifiers (see the primary template)
+  constexpr std::string sql_definition_sans_constraints() const { return definition_impl<true>(); }
+
+  /// @brief The hoisted constraint modifiers as table-level constraint definitions
+  static std::vector<std::string> hoisted_constraint_definitions() {
+    return hoisted_constraint_defs<Name, Modifiers...>();
+  }
+
+private:
+  template <bool SkipHoisted>
+  constexpr std::string definition_impl() const {
     std::string result = std::string(std::string_view(name)) + " " +
                          std::string(std::string_view(sql_type));
 
     // No NOT NULL constraint for optional columns
 
     // Apply all modifiers
-    result += apply_modifiers<Modifiers...>();
+    if constexpr (SkipHoisted) {
+      result += apply_modifiers_sans_hoisted<Modifiers...>();
+    } else {
+      result += apply_modifiers<Modifiers...>();
+    }
 
     // Value-set constraint from the underlying type (NULL passes a SQL CHECK)
     if constexpr (!uses_native_enum &&
@@ -501,6 +612,7 @@ public:
     return result;
   }
 
+public:
   static std::string to_sql_string(const std::optional<T>& value) {
     if (value.has_value()) {
       return column_traits<T>::to_sql_string(*value);

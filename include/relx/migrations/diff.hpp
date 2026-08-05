@@ -2,13 +2,8 @@
 
 #include "../reflect.hpp"
 #include "../schema/annotated_table.hpp"
-#include "../schema/check_constraint.hpp"
 #include "../schema/column.hpp"
-#include "../schema/foreign_key.hpp"
-#include "../schema/index.hpp"
-#include "../schema/primary_key.hpp"
 #include "../schema/table.hpp"
-#include "../schema/unique_constraint.hpp"
 #include "core.hpp"
 
 #include <map>
@@ -42,7 +37,7 @@ struct MigrationOptions {
   std::map<std::string, std::pair<std::string, std::string>> column_transformations;
 };
 
-/// @brief Metadata about a column extracted from PFR analysis
+/// @brief Metadata about a column extracted via reflection
 struct ColumnMetadata {
   std::string name;
   std::string sql_definition;
@@ -56,7 +51,7 @@ struct ColumnMetadata {
   bool operator!=(const ColumnMetadata& other) const { return !(*this == other); }
 };
 
-/// @brief Metadata about a constraint extracted from PFR analysis
+/// @brief Metadata about a constraint extracted via reflection
 struct ConstraintMetadata {
   std::string name;
   std::string sql_definition;
@@ -80,7 +75,7 @@ struct TableMetadata {
 namespace detail {
 
 /// @brief Classify a constraint SQL definition and register it under a deterministic
-/// generated name (shared by classic constraint members and table-level annotations)
+/// generated name
 inline void add_constraint_metadata(TableMetadata& metadata, std::string sql_def) {
   ConstraintMetadata constraint_meta;
   constraint_meta.sql_definition = std::move(sql_def);
@@ -112,15 +107,24 @@ inline void add_constraint_metadata(TableMetadata& metadata, std::string sql_def
                            std::to_string(metadata.constraints.size());
   }
 
+  // An explicit CONSTRAINT name overrides the generated positional name, so
+  // ADD/DROP CONSTRAINT operations target the name that actually exists in the DB
+  constexpr std::string_view name_prefix = "CONSTRAINT ";
+  if (sql.starts_with(name_prefix)) {
+    const std::size_t name_end = sql.find(' ', name_prefix.size());
+    if (name_end != std::string::npos) {
+      constraint_meta.name = sql.substr(name_prefix.size(), name_end - name_prefix.size());
+    }
+  }
+
   metadata.constraints[constraint_meta.name] = std::move(constraint_meta);
 }
 
 // clang-format off
 
 /// @brief Add the table-level annotation constraints and indexes of an annotated
-/// struct T to the metadata. Classic tables express these as constraint members; for
-/// annotated tables they only exist as struct annotations, so without this walk a
-/// migration diff would silently drop them.
+/// struct T to the metadata. Cross-column constraints only exist as struct
+/// annotations, so without this walk a migration diff would silently drop them.
 template <typename T>
 void add_annotation_constraint_metadata(TableMetadata& metadata) {
   template for (constexpr std::meta::info a :
@@ -176,7 +180,24 @@ MigrationResult<TableMetadata> extract_table_metadata(const Table& table_instanc
         col_meta.name = std::string(field_type::name);
 
         try {
-          col_meta.sql_definition = field.sql_definition();
+          // Inline constraint modifiers (unique/check/fk + actions) are surfaced as
+          // table-level constraints so their changes diff as ADD/DROP CONSTRAINT,
+          // not a data-destroying DROP COLUMN + ADD COLUMN
+          constexpr bool hoisted = [] {
+            if constexpr (requires { field_type::has_hoisted_constraints; }) {
+              return field_type::has_hoisted_constraints;
+            } else {
+              return false;
+            }
+          }();
+          if constexpr (hoisted) {
+            col_meta.sql_definition = field.sql_definition_sans_constraints();
+            for (std::string& def : field_type::hoisted_constraint_definitions()) {
+              detail::add_constraint_metadata(metadata, std::move(def));
+            }
+          } else {
+            col_meta.sql_definition = field.sql_definition();
+          }
         } catch (const std::exception& e) {
           error = MigrationError::make(MigrationErrorType::MIGRATION_GENERATION_FAILED,
                                        "Failed to get SQL definition for column '" + col_meta.name +
@@ -189,18 +210,6 @@ MigrationResult<TableMetadata> extract_table_metadata(const Table& table_instanc
         col_meta.nullable = field_type::nullable;
 
         metadata.columns[col_meta.name] = std::move(col_meta);
-      } else if constexpr (schema::is_constraint<field_type>) {
-        std::string sql_def;
-        try {
-          sql_def = field.sql_definition();
-        } catch (const std::exception& e) {
-          error = MigrationError::make(MigrationErrorType::MIGRATION_GENERATION_FAILED,
-                                       "Failed to get SQL definition for constraint: " +
-                                           std::string(e.what()),
-                                       std::string(Table::table_name));
-          return;
-        }
-        detail::add_constraint_metadata(metadata, std::move(sql_def));
       }
     });
 

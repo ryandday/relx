@@ -7,6 +7,20 @@
 
 namespace relx::migrations {
 
+namespace detail {
+
+/// @brief The ADD clause with the tracked name embedded: an unnamed definition would
+/// get a server-generated name the differ can't know, and the paired DROP CONSTRAINT
+/// must target a name that actually exists
+inline std::string add_constraint_clause(const ConstraintMetadata& constraint) {
+  if (constraint.sql_definition.starts_with("CONSTRAINT ")) {
+    return constraint.sql_definition;  // explicitly named via .named()
+  }
+  return "CONSTRAINT " + constraint.name + " " + constraint.sql_definition;
+}
+
+}  // namespace detail
+
 /// @brief ADD CONSTRAINT migration operation
 class AddConstraintOperation : public MigrationOperation {
 private:
@@ -28,7 +42,8 @@ public:
       // Indexes use CREATE INDEX syntax, not ALTER TABLE
       return "CREATE " + constraint_.sql_definition + ";";
     } else {
-      return "ALTER TABLE " + table_name_ + " ADD " + constraint_.sql_definition + ";";
+      return "ALTER TABLE " + table_name_ + " ADD " + detail::add_constraint_clause(constraint_) +
+             ";";
     }
   }
 
@@ -41,8 +56,6 @@ public:
 
     if (constraint_.type == "INDEX") {
       return "DROP INDEX IF EXISTS " + constraint_.name + ";";
-    } else if (constraint_.type == "PRIMARY_KEY") {
-      return "ALTER TABLE " + table_name_ + " DROP PRIMARY KEY;";
     } else {
       return "ALTER TABLE " + table_name_ + " DROP CONSTRAINT " + constraint_.name + ";";
     }
@@ -71,8 +84,6 @@ public:
 
     if (constraint_.type == "INDEX") {
       return "DROP INDEX IF EXISTS " + constraint_.name + ";";
-    } else if (constraint_.type == "PRIMARY_KEY") {
-      return "ALTER TABLE " + table_name_ + " DROP PRIMARY KEY;";
     } else {
       return "ALTER TABLE " + table_name_ + " DROP CONSTRAINT " + constraint_.name + ";";
     }
@@ -89,7 +100,8 @@ public:
     if (constraint_.type == "INDEX") {
       return "CREATE " + constraint_.sql_definition + ";";
     } else {
-      return "ALTER TABLE " + table_name_ + " ADD " + constraint_.sql_definition + ";";
+      return "ALTER TABLE " + table_name_ + " ADD " + detail::add_constraint_clause(constraint_) +
+             ";";
     }
   }
 
