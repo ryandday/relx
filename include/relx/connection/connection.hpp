@@ -5,6 +5,7 @@
 #include "../results/result.hpp"
 #include "meta.hpp"
 
+#include <chrono>
 #include <expected>
 #include <memory>
 #include <optional>
@@ -61,6 +62,49 @@ struct uncovered_columns<T, std::tuple<Es...>> {
     return out;
   }
 };
+
+/// @brief Whether a select-list element's C++ type can be decoded from PostgreSQL's
+/// binary result format (see sql_utils::process_postgresql_result_binary)
+template <typename T>
+consteval bool binary_decodable_value_type() {
+  using Stripped = std::remove_cvref_t<T>;
+  if constexpr (requires {
+                  typename Stripped::value_type;
+                  requires std::same_as<Stripped, std::optional<typename Stripped::value_type>>;
+                }) {
+    return binary_decodable_value_type<typename Stripped::value_type>();
+  } else {
+    return std::is_same_v<Stripped, bool> || std::is_integral_v<Stripped> ||
+           std::is_floating_point_v<Stripped> || std::is_same_v<Stripped, std::string> ||
+           std::is_enum_v<Stripped> ||
+           std::is_same_v<Stripped, std::chrono::system_clock::time_point> ||
+           std::is_same_v<Stripped, std::chrono::year_month_day>;
+  }
+}
+
+template <typename E>
+consteval bool binary_decodable_element() {
+  if constexpr (requires { typename E::value_type; }) {
+    return binary_decodable_value_type<typename E::value_type>();
+  } else {
+    return false;
+  }
+}
+
+/// @brief Whether every element of the query's compile-time select list maps to a
+/// binary-decodable type. Queries without a select list (raw SQL, inserts) or with
+/// elements of unknown type (e.g. aggregates without value_type) use the text protocol.
+template <typename Query>
+consteval bool query_supports_binary_results() {
+  using Q = std::remove_cvref_t<Query>;
+  if constexpr (!requires { typename Q::columns_type; }) {
+    return false;
+  } else {
+    return []<typename... Es>(std::type_identity<std::tuple<Es...>>) {
+      return (binary_decodable_element<Es>() && ...);
+    }(std::type_identity<typename Q::columns_type>{});
+  }
+}
 
 }  // namespace detail
 
@@ -174,7 +218,20 @@ public:
   virtual ConnectionResult<result::ResultSet> execute_raw(
       const std::string& sql, const std::vector<bind_param>& params = {}) = 0;
 
-  /// @brief Execute a query expression
+  /// @brief Execute a raw SQL query requesting results in binary format, decoded back
+  /// into canonical text cells. Connections without binary support fall back to the
+  /// text protocol. Only call for single-statement queries whose result columns are
+  /// binary-decodable (bool/int/float/text/enum) - typed execute() gates this
+  /// automatically.
+  [[nodiscard]]
+  virtual ConnectionResult<result::ResultSet> execute_raw_binary_result(
+      const std::string& sql, const std::vector<bind_param>& params = {}) {
+    return execute_raw(sql, params);
+  }
+
+  /// @brief Execute a query expression. Typed select queries whose select list is
+  /// binary-decodable use libpq's binary result format (no server-side text
+  /// formatting, no text parsing of numerics); everything else uses the text protocol.
   /// @param query The query expression to execute
   /// @return Result containing the query results or an error
   template <query::SqlExpr Query>
@@ -182,7 +239,11 @@ public:
   ConnectionResult<result::ResultSet> execute(const Query& query) {
     std::string sql = query.to_sql();
     std::vector<bind_param> params = query.bind_params();
-    return execute_raw(sql, params);
+    if constexpr (detail::query_supports_binary_results<Query>()) {
+      return execute_raw_binary_result(sql, params);
+    } else {
+      return execute_raw(sql, params);
+    }
   }
 
   /// @brief Execute a query and map results to a user-defined type using reflection

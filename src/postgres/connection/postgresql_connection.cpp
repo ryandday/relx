@@ -160,6 +160,16 @@ ConnectionResult<PGresult*> PostgreSQLConnection::handle_pg_result(PGresult* res
 constexpr bool ultra_verbose = false;
 ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     const std::string& sql, const std::vector<bind_param>& params) {
+  return execute_params_internal(sql, params, /*binary_results=*/false);
+}
+
+ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw_binary_result(
+    const std::string& sql, const std::vector<bind_param>& params) {
+  return execute_params_internal(sql, params, /*binary_results=*/true);
+}
+
+ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_params_internal(
+    const std::string& sql, const std::vector<bind_param>& params, bool binary_results) {
   if constexpr (ultra_verbose) {
     std::cout << "Executing raw SQL: " << sql << std::endl;
     for (const auto& param : params) {
@@ -181,9 +191,13 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
 
   PGResultWrapper pg_result(nullptr);
 
-  if (params.empty()) {
-    // Execute without parameters
+  if (params.empty() && !binary_results) {
+    // Execute without parameters (PQexec also supports multi-statement SQL)
     pg_result = PGResultWrapper(PQexec(pg_conn_, sql.c_str()));
+  } else if (params.empty()) {
+    // Binary results need PQexecParams; typed queries are single statements
+    pg_result = PGResultWrapper(PQexecParams(pg_conn_, sql.c_str(), 0, nullptr, nullptr, nullptr,
+                                             nullptr, 1 /* binary results */));
   } else {
     // Convert ? placeholders to $1, $2, etc.
     const std::string pg_sql = convert_placeholders(sql);
@@ -201,7 +215,11 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
 
     for (const auto& param : params) {
       param_types.push_back(static_cast<Oid>(param.kind));
-      if (param.kind != sql_kind::unspecified) {
+      if (param.is_null) {
+        param_values.push_back(nullptr);  // SQL NULL
+        param_lengths.push_back(0);
+        param_formats.push_back(0);
+      } else if (param.kind != sql_kind::unspecified) {
         param_values.push_back(reinterpret_cast<const char*>(param.binary.data()));
         param_lengths.push_back(param.binary_size);
         param_formats.push_back(1);  // binary
@@ -213,11 +231,9 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
     }
 
     // Execute with parameters
-    pg_result = PGResultWrapper(
-        PQexecParams(pg_conn_, pg_sql.c_str(), static_cast<int>(params.size()), param_types.data(),
-                     param_values.data(), param_lengths.data(), param_formats.data(),
-                     0  // Use text format for results
-                     ));
+    pg_result = PGResultWrapper(PQexecParams(
+        pg_conn_, pg_sql.c_str(), static_cast<int>(params.size()), param_types.data(),
+        param_values.data(), param_lengths.data(), param_formats.data(), binary_results ? 1 : 0));
   }
 
   // Check if memory allocation failed
@@ -267,6 +283,14 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_raw(
   }
 
   // Process result using shared utility function
+  if (binary_results) {
+    auto decoded = sql_utils::process_postgresql_result_binary(pg_result.get());
+    if (!decoded) {
+      return std::unexpected(ConnectionError{
+          .message = "Failed to decode binary result: " + decoded.error(), .error_code = -1});
+    }
+    return *decoded;
+  }
   return sql_utils::process_postgresql_result(pg_result.get(), false);
 }
 

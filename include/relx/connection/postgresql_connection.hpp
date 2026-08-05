@@ -61,6 +61,11 @@ public:
   ConnectionResult<result::ResultSet> execute_raw(
       const std::string& sql, const std::vector<bind_param>& params = {}) override;
 
+  /// @brief Execute a query requesting binary-format results, decoded back into
+  /// canonical text cells (see Connection::execute_raw_binary_result)
+  ConnectionResult<result::ResultSet> execute_raw_binary_result(
+      const std::string& sql, const std::vector<bind_param>& params = {}) override;
+
   /// @brief Execute a raw SQL query with binary parameters
   /// @param sql The SQL query string
   /// @param params Vector of parameter values
@@ -159,6 +164,11 @@ private:
   /// @param expected_status Expected status code (or -1 to ignore)
   /// @return ConnectionResult with error or success
   ConnectionResult<PGresult*> handle_pg_result(PGresult* result, int expected_status = -1);
+
+  /// @brief Shared implementation of execute_raw / execute_raw_binary_result
+  ConnectionResult<result::ResultSet> execute_params_internal(const std::string& sql,
+                                                              const std::vector<bind_param>& params,
+                                                              bool binary_results);
 };
 
 }  // namespace relx::connection
