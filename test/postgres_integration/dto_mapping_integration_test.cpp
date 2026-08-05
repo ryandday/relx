@@ -12,28 +12,20 @@
 
 namespace {
 
-// Define a simple test table
-struct Users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<Users, "id", int, relx::identity<>> id;
-  relx::schema::column<Users, "name", std::string> name;
-  relx::schema::column<Users, "email", std::string> email;
-  relx::schema::column<Users, "age", int> age;
-  relx::schema::column<Users, "active", bool> active;
-  relx::schema::column<Users, "score", double> score;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  relx::schema::table_primary_key<&Users::id> pk;
-};
-
-// Define a DTO that matches the table columns
-struct UserDTO {
-  int id;
+// The annotated table struct is also the DTO for whole-row results
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk, =relx::ann::identity]] int id;
   std::string name;
   std::string email;
   int age;
   bool active;
   double score;
 };
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
 
 // Define a partial DTO with fewer fields
 struct PartialUserDTO {
@@ -59,7 +51,6 @@ protected:
   std::string conn_string =
       "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
   std::unique_ptr<relx::PostgreSQLConnection> conn;
-  Users users;
 
   void SetUp() override {
     // Connect to the database
@@ -115,7 +106,7 @@ protected:
   }
 };
 
-// Test mapping a complete DTO with exact field match
+// Test mapping a whole row onto the annotated table struct
 TEST_F(DtoMappingIntegrationTest, CompleteStructMapping) {
   // Create a select query
   auto query = relx::query::select(users.id, users.name, users.email, users.age, users.active,
@@ -123,14 +114,14 @@ TEST_F(DtoMappingIntegrationTest, CompleteStructMapping) {
                    .from(users)
                    .where(users.id == 1);
 
-  // Execute the query with DTO mapping
-  auto result = conn->execute<UserDTO>(query);
+  // Execute the query, mapping onto the table struct
+  auto result = conn->execute<Users>(query);
 
   // Verify result
   ASSERT_TRUE(result) << "Failed to execute query: " << result.error().message;
 
   // Check mapped struct fields
-  UserDTO user = *result;
+  Users user = *result;
   EXPECT_EQ(1, user.id);
   EXPECT_EQ("John Doe", user.name);
   EXPECT_EQ("john@example.com", user.email);
@@ -166,8 +157,8 @@ TEST_F(DtoMappingIntegrationTest, MultipleRowMapping) {
                    .from(users)
                    .order_by(users.id);
 
-  // Execute the query with DTO mapping for multiple rows
-  auto result = conn->execute_many<UserDTO>(query);
+  // Execute the query, mapping every row onto the table struct
+  auto result = conn->execute_many<Users>(query);
 
   // Verify result
   ASSERT_TRUE(result) << "Failed to execute query: " << result.error().message;
@@ -196,7 +187,7 @@ TEST_F(DtoMappingIntegrationTest, FieldTypeConversion) {
                    .where(users.score > 90.0);
 
   // Get users with score > 90
-  auto result = conn->execute_many<UserDTO>(query);
+  auto result = conn->execute_many<Users>(query);
   ASSERT_TRUE(result) << "Failed to execute query: " << result.error().message;
 
   // Should return Jane and Alice
@@ -220,7 +211,7 @@ TEST_F(DtoMappingIntegrationTest, FilteringAndConditions) {
                    .order_by(users.age);
 
   // This should return Alice (active and age 42)
-  auto result = conn->execute_many<UserDTO>(query);
+  auto result = conn->execute_many<Users>(query);
   ASSERT_TRUE(result) << "Failed to execute query: " << result.error().message;
 
   const auto& filtered_users = *result;
@@ -263,12 +254,12 @@ TEST_F(DtoMappingIntegrationTest, EmptyResultSet) {
                    .where(users.id == 999);  // Non-existent ID
 
   // This should return an error for single result
-  auto single_result = conn->execute<UserDTO>(query);
+  auto single_result = conn->execute<Users>(query);
   EXPECT_FALSE(single_result);
   EXPECT_EQ("No results found", single_result.error().message);
 
   // But for multiple results, it should return an empty vector
-  auto multi_result = conn->execute_many<UserDTO>(query);
+  auto multi_result = conn->execute_many<Users>(query);
   ASSERT_TRUE(multi_result);
   EXPECT_TRUE(multi_result->empty());
 }

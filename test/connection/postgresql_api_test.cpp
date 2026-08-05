@@ -6,21 +6,20 @@
 
 namespace {
 
-// Test table definition with all constraints defined in the class
-struct Products {
-  static constexpr auto table_name = "products";
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  // Define columns with their types and constraints
-  relx::schema::column<Products, "id", int> id;
-  relx::schema::column<Products, "name", std::string> name;
-  relx::schema::column<Products, "description", std::string> description;
-  relx::schema::column<Products, "price", double> price;
-  relx::schema::column<Products, "in_stock", bool> in_stock;
-  relx::schema::column<Products, "category", std::string> category;
-
-  // Define constraints
-  relx::schema::table_primary_key<&Products::id> pk;
+// Test table definition
+struct [[=relx::table("products")]] Products {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string description;
+  double price;
+  bool in_stock;
+  std::string category;
 };
+inline constexpr auto products = relx::t<Products>;
+
+// clang-format on
 
 class PostgreSQLApiTest : public ::testing::Test {
 protected:
@@ -44,7 +43,7 @@ protected:
     auto connect_result = conn.connect();
     if (connect_result) {
       // Use the schema's drop_table function
-      Products p;
+      constexpr auto p = products;
       auto raw_sql = relx::schema::drop_table(p).cascade();
       auto drop_result = conn.execute(raw_sql);
       conn.disconnect();
@@ -53,11 +52,11 @@ protected:
 
   // Helper to create the test table using schema
   void create_test_table(relx::Connection& conn) {
-    Products p;
+    constexpr auto p = products;
 
     // For PostgreSQL, we need SERIAL for auto-incrementing primary keys
     // Since our schema doesn't generate this automatically, we need to modify the SQL
-    auto create_sql = "CREATE TABLE IF NOT EXISTS " + std::string(Products::table_name) +
+    auto create_sql = "CREATE TABLE IF NOT EXISTS " + std::string(p.table_name) +
                       " (\n"
                       "id SERIAL PRIMARY KEY,\n"
                       "name TEXT NOT NULL,\n"
@@ -82,7 +81,7 @@ TEST_F(PostgreSQLApiTest, TestTableCreation) {
   create_test_table(conn);
 
   // Verify table exists by trying to insert data
-  Products p;
+  constexpr auto p = products;
   auto insert_result = conn.execute(
       relx::query::insert_into(p)
           .columns(p.name, p.description, p.price, p.in_stock, p.category)
@@ -102,7 +101,7 @@ TEST_F(PostgreSQLApiTest, TestInsertAndSelect) {
   create_test_table(conn);
 
   // Insert test data
-  Products p;
+  constexpr auto p = products;
   auto insert1 = conn.execute(
       relx::query::insert_into(p)
           .columns(p.name, p.description, p.price, p.in_stock, p.category)
@@ -188,7 +187,7 @@ TEST_F(PostgreSQLApiTest, TestUpdate) {
   create_test_table(conn);
 
   // Insert test data
-  Products p;
+  constexpr auto p = products;
   auto insert_result = conn.execute(
       relx::query::insert_into(p)
           .columns(p.name, p.description, p.price, p.in_stock, p.category)
@@ -236,7 +235,7 @@ TEST_F(PostgreSQLApiTest, TestDelete) {
   create_test_table(conn);
 
   // Insert test data
-  Products p;
+  constexpr auto p = products;
   auto insert1 = conn.execute(relx::query::insert_into(p)
                                   .columns(p.name, p.description, p.price, p.in_stock, p.category)
                                   .values("Product 1", "Description 1", 10.99, true, "Category A"));
@@ -297,7 +296,7 @@ TEST_F(PostgreSQLApiTest, TestTransactionsWithApi) {
   ASSERT_TRUE(conn.begin_transaction());
 
   // Insert data in transaction
-  Products p;
+  constexpr auto p = products;
   auto insert1 = conn.execute(
       relx::query::insert_into(p)
           .columns(p.name, p.description, p.price, p.in_stock, p.category)
@@ -356,7 +355,7 @@ TEST_F(PostgreSQLApiTest, TestPostgreSQLReturningClause) {
   create_test_table(conn);
 
   // Test INSERT with RETURNING clause
-  Products p;
+  constexpr auto p = products;
   auto insert_result = conn.execute(
       relx::query::insert_into(p)
           .columns(p.name, p.description, p.price, p.in_stock, p.category)

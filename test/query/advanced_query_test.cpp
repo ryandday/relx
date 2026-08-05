@@ -10,41 +10,45 @@
 #include <relx/schema.hpp>
 
 // Define test tables for our advanced query tests
-struct Users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<Users, "id", int> id;
-  relx::schema::column<Users, "name", std::string> name;
-  relx::schema::column<Users, "email", std::string> email;
-  relx::schema::column<Users, "age", int> age;
-  relx::schema::column<Users, "is_active", bool> is_active;
-  relx::schema::column<Users, "department_id", int> department_id;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
+namespace {
+
+struct [[=relx::table("departments")]] Departments {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  double budget;
 };
 
-struct Posts {
-  static constexpr auto table_name = "posts";
-  relx::schema::column<Posts, "id", int> id;
-  relx::schema::column<Posts, "user_id", int> user_id;
-  relx::schema::column<Posts, "title", std::string> title;
-  relx::schema::column<Posts, "content", std::string> content;
-  relx::schema::column<Posts, "views", int> views;
-  relx::schema::column<Posts, "created_at", std::string> created_at;
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
+  int age;
+  bool is_active;
+  [[=relx::ann::fk<^^Departments::id>]] int department_id;
 };
 
-struct Comments {
-  static constexpr auto table_name = "comments";
-  relx::schema::column<Comments, "id", int> id;
-  relx::schema::column<Comments, "post_id", int> post_id;
-  relx::schema::column<Comments, "user_id", int> user_id;
-  relx::schema::column<Comments, "content", std::string> content;
-  relx::schema::column<Comments, "created_at", std::string> created_at;
+struct [[=relx::table("posts")]] Posts {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^Users::id>]] int user_id;
+  std::string title;
+  std::string content;
+  int views;
+  std::string created_at;
 };
 
-struct Departments {
-  static constexpr auto table_name = "departments";
-  relx::schema::column<Departments, "id", int> id;
-  relx::schema::column<Departments, "name", std::string> name;
-  relx::schema::column<Departments, "budget", double> budget;
+struct [[=relx::table("comments")]] Comments {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^Posts::id>]] int post_id;
+  [[=relx::ann::fk<^^Users::id>]] int user_id;
+  std::string content;
+  std::string created_at;
 };
+
+}  // namespace
+
+// clang-format on
 
 // Utility function to create sample raw results for testing
 std::string create_raw_results(const std::vector<std::string>& headers,
@@ -77,10 +81,10 @@ std::string create_raw_results(const std::vector<std::string>& headers,
 // Test fixture for advanced query and result processing tests
 class AdvancedQueryTest : public ::testing::Test {
 protected:
-  Users users;
-  Posts posts;
-  Comments comments;
-  Departments departments;
+  static constexpr auto users = relx::t<Users>;
+  static constexpr auto posts = relx::t<Posts>;
+  static constexpr auto comments = relx::t<Comments>;
+  static constexpr auto departments = relx::t<Departments>;
 };
 
 // Test a join between Users and Posts

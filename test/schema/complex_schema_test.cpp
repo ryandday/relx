@@ -1,314 +1,279 @@
-#include <chrono>
-#include <iostream>
 #include <optional>
 #include <string>
-#include <vector>
 
 #include <gtest/gtest.h>
 #include <relx/schema.hpp>
 
-using namespace relx::schema;
+// A realistic e-commerce schema exercising the whole annotation vocabulary at once:
+// column-level pk/unique/defaults/foreign keys with actions, struct-level composite keys,
+// composite uniques, table checks and indexes, across six tables that reference each other.
+// Referenced tables are declared before the tables that point at them - fk<^^T::m> needs T
+// to be complete.
 
-// This test demonstrates a more complex database schema with relationships
-// and various constraints to test the entire system working together
+namespace {
 
-// Define constraint conditions as string constants
-const std::string valid_status_condition =
-    "status IN ('active', 'inactive', 'suspended', 'deleted')";
-const std::string valid_email_condition = "email_pattern IS NULL OR email_pattern LIKE '%@%.%'";
-const std::string valid_price_condition = "price >= 0";
-const std::string valid_stock_condition = "stock >= 0";
-const std::string valid_order_status_condition =
-    "status IN ('pending', 'processing', 'shipped', 'delivered', 'canceled')";
-const std::string valid_quantity_condition = "quantity > 0";
-const std::string order_total_condition = "total >= 0";
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-// Define string literals for default values
-inline constexpr fixed_string active_status = "active";
-inline constexpr fixed_string pending_status = "pending";
-inline constexpr fixed_string user_role = "customer";
-inline constexpr fixed_string credit_card = "credit_card";
-
-// Users table with all features
-struct Users {
-  static constexpr auto table_name = "users";
-
-  column<Users, "id", int> id;
-  column<Users, "username", std::string> username;
-  column<Users, "email", std::string> email;
-  column<Users, "password_hash", std::string> password_hash;
-  column<Users, "email_verified", bool, default_value<false>> email_verified;
-  column<Users, "profile_image", std::optional<std::string>> profile_image;
-  column<Users, "active", bool, default_value<true>> active;
-  column<Users, "status", std::string, string_default<active_status>> status;
-  column<Users, "login_attempts", int, default_value<0>> login_attempts;
-  column<Users, "role", std::string, string_default<user_role>> role;
-
-  // Constraints
-  table_primary_key<&Users::id> pk;
-  unique_constraint<&Users::username> unique_username;
-  unique_constraint<&Users::email> unique_email;
-
-  // Check constraints
-  table_check_constraint<"email LIKE '%@%.%' AND length(email) > 5"> valid_email;
-  table_check_constraint<"status IN ('active', 'inactive', 'pending', 'suspended')"> valid_status;
-  table_check_constraint<"login_attempts >= 0 AND login_attempts <= 5"> valid_login;
-
-  // Table-level check constraint
-  table_check_constraint<"(active = 0 AND status = 'inactive') OR active = 1"> consistent_status;
+struct [[=relx::table("users"),
+        =relx::ann::check("email LIKE '%@%.%' AND length(email) > 5"),
+        =relx::ann::check("status IN ('active', 'inactive', 'pending', 'suspended')"),
+        =relx::ann::check("login_attempts >= 0 AND login_attempts <= 5"),
+        =relx::ann::check("(active = 0 AND status = 'inactive') OR active = 1")]] Users {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::unique]] std::string username;
+  [[=relx::ann::unique]] std::string email;
+  std::string password_hash;
+  [[=relx::default_value<false>{}]] bool email_verified;
+  std::optional<std::string> profile_image;
+  [[=relx::default_value<true>{}]] bool active;
+  [[=relx::string_default<"active">{}]] std::string status;
+  [[=relx::default_value<0>{}]] int login_attempts;
+  [[=relx::string_default<"customer">{}]] std::string role;
 };
+inline constexpr auto users = relx::t<Users>;
 
-// Categories table
-struct Categories {
-  static constexpr auto table_name = "categories";
-
-  column<Categories, "id", int> id;
-  column<Categories, "name", std::string> name_col;
-  column<Categories, "description", std::optional<std::string>> description;
-  column<Categories, "parent_id", std::optional<int>> parent_id;
-  column<Categories, "is_active", bool, default_value<true>> is_active;
-  column<Categories, "display_order", int, default_value<0>> display_order;
-
-  // Constraints
-  table_primary_key<&Categories::id> pk;
-  unique_constraint<&Categories::name_col> unique_name;
-  foreign_key<&Categories::parent_id, &Categories::id> parent_fk{reference_action::set_null,
-                                                                 reference_action::cascade};
-
-  // Check constraints
-  table_check_constraint<"display_order >= 0"> valid_display_order;
-  table_check_constraint<"parent_id IS NULL OR parent_id != id"> prevent_self_reference;
+// parent_id is a self-referencing FK. An annotation cannot reflect on the struct it is
+// attached to, so ann::fk<^^Categories::id> is impossible here; the underlying
+// references<> modifier names the target as strings and produces the same SQL.
+struct [[=relx::table("categories"),
+        =relx::ann::check("display_order >= 0"),
+        =relx::ann::check("parent_id IS NULL OR parent_id != id")]] Categories {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::unique]] std::string name;
+  std::optional<std::string> description;
+  [[=relx::references<"categories", "id">{}, =relx::on_delete<"SET NULL">{},
+    =relx::on_update<"CASCADE">{}]] std::optional<int> parent_id;
+  [[=relx::default_value<true>{}]] bool is_active;
+  [[=relx::default_value<0>{}]] int display_order;
 };
+inline constexpr auto categories = relx::t<Categories>;
 
-// Products table with all features
-struct Products {
-  static constexpr auto table_name = "products";
-
-  column<Products, "id", int> id;
-  column<Products, "name", std::string> name_col;
-  column<Products, "sku", std::string> sku;
-  column<Products, "price", double, default_value<0.0>> price;
-  column<Products, "discount_price", std::optional<double>> discount_price;
-  column<Products, "stock", int, default_value<0>> stock;
-  column<Products, "description", std::optional<std::string>> description;
-  column<Products, "is_featured", bool, default_value<false>> is_featured;
-  column<Products, "weight", std::optional<double>> weight;
-  column<Products, "category_id", int> category_id;
-  column<Products, "created_by", int> created_by;
-  column<Products, "status", std::string, string_default<active_status>> status;
-
-  // Constraints
-  table_primary_key<&Products::id> pk;
-  unique_constraint<&Products::sku> unique_sku;
-  composite_unique_constraint<&Products::name_col, &Products::category_id> unique_name_per_category;
-
-  foreign_key<&Products::category_id, &Categories::id> category_fk;
-  foreign_key<&Products::created_by, &Users::id> user_fk;
-
-  // Check constraints
-  table_check_constraint<"price >= 0 AND price <= 10000.0"> valid_price;
-  table_check_constraint<"stock >= 0"> valid_stock;
-  table_check_constraint<
-      "(discount_price IS NULL) OR (discount_price < price AND discount_price >= 0)">
-      valid_discount;
-  table_check_constraint<"status IN ('active', 'inactive', 'discontinued')"> valid_product_status;
+struct [[=relx::table("products"),
+        =relx::ann::composite_unique("name", "category_id"),
+        =relx::ann::index_on("category_id"),
+        =relx::ann::check("price >= 0 AND price <= 10000.0"),
+        =relx::ann::check("stock >= 0"),
+        =relx::ann::check(
+            "(discount_price IS NULL) OR (discount_price < price AND discount_price >= 0)"),
+        =relx::ann::check("status IN ('active', 'inactive', 'discontinued')")]] Products {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  [[=relx::ann::unique]] std::string sku;
+  [[=relx::default_value<0.0>{}]] double price;
+  std::optional<double> discount_price;
+  [[=relx::default_value<0>{}]] int stock;
+  std::optional<std::string> description;
+  [[=relx::default_value<false>{}]] bool is_featured;
+  std::optional<double> weight;
+  [[=relx::ann::fk<^^Categories::id>]] int category_id;
+  [[=relx::ann::fk<^^Users::id>]] int created_by;
+  [[=relx::string_default<"active">{}]] std::string status;
 };
+inline constexpr auto products = relx::t<Products>;
 
-// Orders table with all features
-struct Orders {
-  static constexpr auto table_name = "orders";
-
-  column<Orders, "id", int> id;
-  column<Orders, "user_id", int> user_id;
-  column<Orders, "total", double, default_value<0.0>> total;
-  column<Orders, "status", std::string, string_default<pending_status>> status;
-  column<Orders, "shipping_address", std::optional<std::string>> shipping_address;
-  column<Orders, "billing_address", std::optional<std::string>> billing_address;
-  column<Orders, "payment_method", std::string, string_default<credit_card>> payment_method;
-  column<Orders, "notes", std::optional<std::string>, null_default> notes;
-  column<Orders, "tracking_number", std::optional<std::string>> tracking_number;
-
-  // Constraints
-  table_primary_key<&Orders::id> pk;
-  foreign_key<&Orders::user_id, &Users::id> user_fk;
-
-  // Check constraints
-  table_check_constraint<"total >= 0"> valid_total;
-  table_check_constraint<"status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')">
-      valid_order_status;
-  table_check_constraint<
-      "(status != 'shipped' AND status != 'delivered') OR tracking_number IS NOT NULL">
-      tracking_required;
+struct [[=relx::table("orders"),
+        =relx::ann::index_on("user_id"),
+        =relx::ann::check("total >= 0"),
+        =relx::ann::check(
+            "status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')"),
+        =relx::ann::check(
+            "(status != 'shipped' AND status != 'delivered') OR tracking_number IS NOT NULL")]]
+Orders {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^Users::id>]] int user_id;
+  [[=relx::default_value<0.0>{}]] double total;
+  [[=relx::string_default<"pending">{}]] std::string status;
+  std::optional<std::string> shipping_address;
+  std::optional<std::string> billing_address;
+  [[=relx::string_default<"credit_card">{}]] std::string payment_method;
+  [[=relx::null_default{}]] std::optional<std::string> notes;
+  std::optional<std::string> tracking_number;
 };
+inline constexpr auto orders = relx::t<Orders>;
 
-// Order_Items table with enhanced features
-struct OrderItems {
-  static constexpr auto table_name = "order_items";
-
-  column<OrderItems, "order_id", int> order_id;
-  column<OrderItems, "product_id", int> product_id;
-  column<OrderItems, "quantity", int, default_value<1>> quantity;
-  column<OrderItems, "price", double> price;  // Price at time of order
-  column<OrderItems, "discount", double, default_value<0.0>> discount;
-  column<OrderItems, "subtotal", double, default_value<0.0>> subtotal;
-  column<OrderItems, "notes", std::optional<std::string>, null_default> notes;
-
-  // Constraints - composite primary key
-  composite_primary_key<&OrderItems::order_id, &OrderItems::product_id> pk;
-  foreign_key<&OrderItems::order_id, &Orders::id> order_fk{reference_action::cascade,
-                                                           reference_action::cascade};
-  foreign_key<&OrderItems::product_id, &Products::id> product_fk{reference_action::restrict,
-                                                                 reference_action::restrict};
-
-  // Check constraints
-  table_check_constraint<"quantity > 0"> valid_quantity;
-  table_check_constraint<"price >= 0"> valid_price;
-  table_check_constraint<"discount >= 0 AND discount <= price * quantity"> valid_discount;
-  table_check_constraint<"subtotal >= 0"> valid_subtotal;
-  table_check_constraint<"subtotal = (price * quantity) - discount"> correct_subtotal;
+struct [[=relx::table("order_items"),
+        =relx::ann::composite_pk("order_id", "product_id"),
+        =relx::ann::check("quantity > 0"),
+        =relx::ann::check("price >= 0"),
+        =relx::ann::check("discount >= 0 AND discount <= price * quantity"),
+        =relx::ann::check("subtotal >= 0"),
+        =relx::ann::check("subtotal = (price * quantity) - discount")]] OrderItems {
+  [[=relx::ann::fk<^^Orders::id>, =relx::on_delete<"CASCADE">{},
+    =relx::on_update<"CASCADE">{}]] int order_id;
+  [[=relx::ann::fk<^^Products::id>, =relx::on_delete<"RESTRICT">{},
+    =relx::on_update<"RESTRICT">{}]] int product_id;
+  [[=relx::default_value<1>{}]] int quantity;
+  double price;  // price at time of order
+  [[=relx::default_value<0.0>{}]] double discount;
+  [[=relx::default_value<0.0>{}]] double subtotal;
+  [[=relx::null_default{}]] std::optional<std::string> notes;
 };
+inline constexpr auto order_items = relx::t<OrderItems>;
 
-// Customer Reviews table to demonstrate more features
-struct CustomerReviews {
-  static constexpr auto table_name = "customer_reviews";
-
-  column<CustomerReviews, "id", int> id;
-  column<CustomerReviews, "product_id", int> product_id;
-  column<CustomerReviews, "user_id", int> user_id;
-  column<CustomerReviews, "rating", int> rating;
-  column<CustomerReviews, "review_text", std::string> review_text;
-  column<CustomerReviews, "is_verified_purchase", bool, default_value<false>> is_verified_purchase;
-  column<CustomerReviews, "helpful_votes", int, default_value<0>> helpful_votes;
-  column<CustomerReviews, "unhelpful_votes", int, default_value<0>> unhelpful_votes;
-
-  // Constraints
-  table_primary_key<&CustomerReviews::id> pk;
-  composite_unique_constraint<&CustomerReviews::product_id, &CustomerReviews::user_id>
-      one_review_per_product;
-  foreign_key<&CustomerReviews::product_id, &Products::id> product_fk;
-  foreign_key<&CustomerReviews::user_id, &Users::id> user_fk;
-
-  // Check constraints
-  table_check_constraint<"rating BETWEEN 1 AND 5"> valid_rating;
-  table_check_constraint<"helpful_votes >= 0"> valid_helpful_votes;
-  table_check_constraint<"unhelpful_votes >= 0"> valid_unhelpful_votes;
+struct [[=relx::table("customer_reviews"),
+        =relx::ann::composite_unique("product_id", "user_id"),
+        =relx::ann::check("rating BETWEEN 1 AND 5"),
+        =relx::ann::check("helpful_votes >= 0"),
+        =relx::ann::check("unhelpful_votes >= 0")]] CustomerReviews {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^Products::id>]] int product_id;
+  [[=relx::ann::fk<^^Users::id>]] int user_id;
+  int rating;
+  std::string review_text;
+  [[=relx::default_value<false>{}]] bool is_verified_purchase;
+  [[=relx::default_value<0>{}]] int helpful_votes;
+  [[=relx::default_value<0>{}]] int unhelpful_votes;
 };
+inline constexpr auto reviews = relx::t<CustomerReviews>;
 
-// Test case for complex schema
-TEST(ComplexSchemaTest, EnhancedECommerceSchema) {
-  // Create instances of all tables
-  Users users;
-  Categories categories;
-  Products products;
-  Orders orders;
-  OrderItems orderItems;
-  CustomerReviews reviews;
+// Single-column pk/unique/fk render inline on the column; only constraints spanning
+// columns (and the table checks) become table-level clauses after the columns.
 
-  // Generate SQL for each table
-  std::string users_sql = create_table(users).if_not_exists().to_sql();
-  std::string categories_sql = create_table(categories).if_not_exists().to_sql();
-  std::string products_sql = create_table(products).if_not_exists().to_sql();
-  std::string orders_sql = create_table(orders).if_not_exists().to_sql();
-  std::string order_items_sql = create_table(orderItems).if_not_exists().to_sql();
-  std::string reviews_sql = create_table(reviews).if_not_exists().to_sql();
-
-  // Print the SQL statements for debugging
-
-  // Assertions to verify basic structure
-  EXPECT_TRUE(users_sql.find("CREATE TABLE IF NOT EXISTS users") != std::string::npos);
-  EXPECT_TRUE(categories_sql.find("CREATE TABLE IF NOT EXISTS categories") != std::string::npos);
-  EXPECT_TRUE(products_sql.find("CREATE TABLE IF NOT EXISTS products") != std::string::npos);
-  EXPECT_TRUE(orders_sql.find("CREATE TABLE IF NOT EXISTS orders") != std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("CREATE TABLE IF NOT EXISTS order_items") != std::string::npos);
-  EXPECT_TRUE(reviews_sql.find("CREATE TABLE IF NOT EXISTS customer_reviews") != std::string::npos);
-
-  // Assertions to verify primary keys
-  EXPECT_TRUE(users_sql.find("PRIMARY KEY (id)") != std::string::npos);
-  EXPECT_TRUE(categories_sql.find("PRIMARY KEY (id)") != std::string::npos);
-  EXPECT_TRUE(products_sql.find("PRIMARY KEY (id)") != std::string::npos);
-  EXPECT_TRUE(orders_sql.find("PRIMARY KEY (id)") != std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("PRIMARY KEY (order_id, product_id)") != std::string::npos);
-  EXPECT_TRUE(reviews_sql.find("PRIMARY KEY (id)") != std::string::npos);
-
-  // Assertions to verify foreign keys
-  EXPECT_TRUE(products_sql.find("FOREIGN KEY (category_id) REFERENCES categories(id)") !=
-              std::string::npos);
-  EXPECT_TRUE(products_sql.find("FOREIGN KEY (created_by) REFERENCES users(id)") !=
-              std::string::npos);
-  EXPECT_TRUE(orders_sql.find("FOREIGN KEY (user_id) REFERENCES users(id)") != std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("FOREIGN KEY (order_id) REFERENCES orders(id)") !=
-              std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("FOREIGN KEY (product_id) REFERENCES products(id)") !=
-              std::string::npos);
-
-  // Assertions to verify unique constraints
-  EXPECT_TRUE(users_sql.find("UNIQUE (username)") != std::string::npos);
-  EXPECT_TRUE(users_sql.find("UNIQUE (email)") != std::string::npos);
-  EXPECT_TRUE(categories_sql.find("UNIQUE (name)") != std::string::npos);
-  EXPECT_TRUE(products_sql.find("UNIQUE (sku)") != std::string::npos);
-  EXPECT_TRUE(products_sql.find("UNIQUE (name, category_id)") != std::string::npos);
-  EXPECT_TRUE(reviews_sql.find("UNIQUE (product_id, user_id)") != std::string::npos);
-
-  // Assertions to verify default values
-  EXPECT_TRUE(users_sql.find("email_verified BOOLEAN NOT NULL DEFAULT false") != std::string::npos);
-  EXPECT_TRUE(users_sql.find("active BOOLEAN NOT NULL DEFAULT true") != std::string::npos);
-  EXPECT_TRUE(users_sql.find("status TEXT NOT NULL DEFAULT 'active'") != std::string::npos);
-  EXPECT_TRUE(users_sql.find("login_attempts INTEGER NOT NULL DEFAULT 0") != std::string::npos);
-  EXPECT_TRUE(users_sql.find("role TEXT NOT NULL DEFAULT 'customer'") != std::string::npos);
-
-  EXPECT_TRUE(categories_sql.find("is_active BOOLEAN NOT NULL DEFAULT true") != std::string::npos);
-  EXPECT_TRUE(categories_sql.find("display_order INTEGER NOT NULL DEFAULT 0") != std::string::npos);
-
-  EXPECT_TRUE(products_sql.find("price DOUBLE PRECISION NOT NULL DEFAULT 0") != std::string::npos);
-  EXPECT_FALSE(products_sql.find("discount_price") == std::string::npos);
-  EXPECT_TRUE(products_sql.find("stock INTEGER NOT NULL DEFAULT 0") != std::string::npos);
-  EXPECT_TRUE(products_sql.find("is_featured BOOLEAN NOT NULL DEFAULT false") != std::string::npos);
-
-  EXPECT_TRUE(orders_sql.find("total DOUBLE PRECISION NOT NULL DEFAULT 0") != std::string::npos);
-  EXPECT_TRUE(orders_sql.find("status TEXT NOT NULL DEFAULT 'pending'") != std::string::npos);
-  EXPECT_TRUE(orders_sql.find("payment_method TEXT NOT NULL DEFAULT 'credit_card'") !=
-              std::string::npos);
-  EXPECT_TRUE(orders_sql.find("notes TEXT DEFAULT NULL") != std::string::npos);
-
-  EXPECT_TRUE(order_items_sql.find("quantity INTEGER NOT NULL DEFAULT 1") != std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("discount DOUBLE PRECISION NOT NULL DEFAULT 0") !=
-              std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("subtotal DOUBLE PRECISION NOT NULL DEFAULT 0") !=
-              std::string::npos);
-
-  EXPECT_TRUE(reviews_sql.find("is_verified_purchase BOOLEAN NOT NULL DEFAULT false") !=
-              std::string::npos);
-  EXPECT_TRUE(reviews_sql.find("helpful_votes INTEGER NOT NULL DEFAULT 0") != std::string::npos);
-  EXPECT_TRUE(reviews_sql.find("unhelpful_votes INTEGER NOT NULL DEFAULT 0") != std::string::npos);
-
-  // Assertions to verify check constraints
-  EXPECT_TRUE(users_sql.find("CHECK (email LIKE '%@%.%' AND length(email) > 5)") !=
-              std::string::npos);
-  EXPECT_TRUE(users_sql.find("CHECK (status IN ('active', 'inactive', 'pending', 'suspended'))") !=
-              std::string::npos);
-  EXPECT_TRUE(users_sql.find("CHECK (login_attempts >= 0 AND login_attempts <= 5)") !=
-              std::string::npos);
-
-  EXPECT_TRUE(categories_sql.find("CHECK (display_order >= 0)") != std::string::npos);
-  EXPECT_TRUE(categories_sql.find("CHECK (parent_id IS NULL OR parent_id != id)") !=
-              std::string::npos);
-
-  EXPECT_TRUE(products_sql.find("CHECK (price >= 0 AND price <= 10000.0)") != std::string::npos);
-  EXPECT_TRUE(products_sql.find("CHECK (stock >= 0)") != std::string::npos);
-  EXPECT_TRUE(
-      products_sql.find(
-          "CHECK ((discount_price IS NULL) OR (discount_price < price AND discount_price >= 0))") !=
-      std::string::npos);
-
-  EXPECT_TRUE(orders_sql.find("CHECK (total >= 0)") != std::string::npos);
-
-  EXPECT_TRUE(order_items_sql.find("CHECK (quantity > 0)") != std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("CHECK (price >= 0)") != std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("CHECK (discount >= 0 AND discount <= price * quantity)") !=
-              std::string::npos);
-  EXPECT_TRUE(order_items_sql.find("CHECK (subtotal >= 0)") != std::string::npos);
-
-  EXPECT_TRUE(reviews_sql.find("CHECK (rating BETWEEN 1 AND 5)") != std::string::npos);
-  EXPECT_TRUE(reviews_sql.find("CHECK (helpful_votes >= 0)") != std::string::npos);
-  EXPECT_TRUE(reviews_sql.find("CHECK (unhelpful_votes >= 0)") != std::string::npos);
+TEST(ComplexSchemaTest, UsersDdl) {
+  EXPECT_EQ(relx::create_table(users).if_not_exists().to_sql(),
+            "CREATE TABLE IF NOT EXISTS users (\n"
+            "id INTEGER NOT NULL PRIMARY KEY,\n"
+            "username TEXT NOT NULL UNIQUE,\n"
+            "email TEXT NOT NULL UNIQUE,\n"
+            "password_hash TEXT NOT NULL,\n"
+            "email_verified BOOLEAN NOT NULL DEFAULT false,\n"
+            "profile_image TEXT,\n"
+            "active BOOLEAN NOT NULL DEFAULT true,\n"
+            "status TEXT NOT NULL DEFAULT 'active',\n"
+            "login_attempts INTEGER NOT NULL DEFAULT 0,\n"
+            "role TEXT NOT NULL DEFAULT 'customer',\n"
+            "CHECK (email LIKE '%@%.%' AND length(email) > 5),\n"
+            "CHECK (status IN ('active', 'inactive', 'pending', 'suspended')),\n"
+            "CHECK (login_attempts >= 0 AND login_attempts <= 5),\n"
+            "CHECK ((active = 0 AND status = 'inactive') OR active = 1)\n"
+            ");");
 }
+
+TEST(ComplexSchemaTest, CategoriesDdlWithSelfReferencingForeignKey) {
+  EXPECT_EQ(relx::create_table(categories).if_not_exists().to_sql(),
+            "CREATE TABLE IF NOT EXISTS categories (\n"
+            "id INTEGER NOT NULL PRIMARY KEY,\n"
+            "name TEXT NOT NULL UNIQUE,\n"
+            "description TEXT,\n"
+            "parent_id INTEGER REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE,\n"
+            "is_active BOOLEAN NOT NULL DEFAULT true,\n"
+            "display_order INTEGER NOT NULL DEFAULT 0,\n"
+            "CHECK (display_order >= 0),\n"
+            "CHECK (parent_id IS NULL OR parent_id != id)\n"
+            ");");
+}
+
+TEST(ComplexSchemaTest, ProductsDdl) {
+  EXPECT_EQ(
+      relx::create_table(products).if_not_exists().to_sql(),
+      "CREATE TABLE IF NOT EXISTS products (\n"
+      "id INTEGER NOT NULL PRIMARY KEY,\n"
+      "name TEXT NOT NULL,\n"
+      "sku TEXT NOT NULL UNIQUE,\n"
+      "price DOUBLE PRECISION NOT NULL DEFAULT 0,\n"
+      "discount_price DOUBLE PRECISION,\n"
+      "stock INTEGER NOT NULL DEFAULT 0,\n"
+      "description TEXT,\n"
+      "is_featured BOOLEAN NOT NULL DEFAULT false,\n"
+      "weight DOUBLE PRECISION,\n"
+      "category_id INTEGER NOT NULL REFERENCES categories(id),\n"
+      "created_by INTEGER NOT NULL REFERENCES users(id),\n"
+      "status TEXT NOT NULL DEFAULT 'active',\n"
+      "UNIQUE (name, category_id),\n"
+      "CHECK (price >= 0 AND price <= 10000.0),\n"
+      "CHECK (stock >= 0),\n"
+      "CHECK ((discount_price IS NULL) OR (discount_price < price AND discount_price >= 0)),\n"
+      "CHECK (status IN ('active', 'inactive', 'discontinued'))\n"
+      ");");
+}
+
+TEST(ComplexSchemaTest, OrdersDdl) {
+  EXPECT_EQ(
+      relx::create_table(orders).if_not_exists().to_sql(),
+      "CREATE TABLE IF NOT EXISTS orders (\n"
+      "id INTEGER NOT NULL PRIMARY KEY,\n"
+      "user_id INTEGER NOT NULL REFERENCES users(id),\n"
+      "total DOUBLE PRECISION NOT NULL DEFAULT 0,\n"
+      "status TEXT NOT NULL DEFAULT 'pending',\n"
+      "shipping_address TEXT,\n"
+      "billing_address TEXT,\n"
+      "payment_method TEXT NOT NULL DEFAULT 'credit_card',\n"
+      "notes TEXT DEFAULT NULL,\n"
+      "tracking_number TEXT,\n"
+      "CHECK (total >= 0),\n"
+      "CHECK (status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')),\n"
+      "CHECK ((status != 'shipped' AND status != 'delivered') OR tracking_number IS NOT NULL)\n"
+      ");");
+}
+
+TEST(ComplexSchemaTest, OrderItemsDdlWithCompositeKeyAndForeignKeyActions) {
+  EXPECT_EQ(relx::create_table(order_items).if_not_exists().to_sql(),
+            "CREATE TABLE IF NOT EXISTS order_items (\n"
+            "order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE ON UPDATE "
+            "CASCADE,\n"
+            "product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT ON UPDATE "
+            "RESTRICT,\n"
+            "quantity INTEGER NOT NULL DEFAULT 1,\n"
+            "price DOUBLE PRECISION NOT NULL,\n"
+            "discount DOUBLE PRECISION NOT NULL DEFAULT 0,\n"
+            "subtotal DOUBLE PRECISION NOT NULL DEFAULT 0,\n"
+            "notes TEXT DEFAULT NULL,\n"
+            "PRIMARY KEY (order_id, product_id),\n"
+            "CHECK (quantity > 0),\n"
+            "CHECK (price >= 0),\n"
+            "CHECK (discount >= 0 AND discount <= price * quantity),\n"
+            "CHECK (subtotal >= 0),\n"
+            "CHECK (subtotal = (price * quantity) - discount)\n"
+            ");");
+}
+
+TEST(ComplexSchemaTest, CustomerReviewsDdl) {
+  EXPECT_EQ(relx::create_table(reviews).if_not_exists().to_sql(),
+            "CREATE TABLE IF NOT EXISTS customer_reviews (\n"
+            "id INTEGER NOT NULL PRIMARY KEY,\n"
+            "product_id INTEGER NOT NULL REFERENCES products(id),\n"
+            "user_id INTEGER NOT NULL REFERENCES users(id),\n"
+            "rating INTEGER NOT NULL,\n"
+            "review_text TEXT NOT NULL,\n"
+            "is_verified_purchase BOOLEAN NOT NULL DEFAULT false,\n"
+            "helpful_votes INTEGER NOT NULL DEFAULT 0,\n"
+            "unhelpful_votes INTEGER NOT NULL DEFAULT 0,\n"
+            "UNIQUE (product_id, user_id),\n"
+            "CHECK (rating BETWEEN 1 AND 5),\n"
+            "CHECK (helpful_votes >= 0),\n"
+            "CHECK (unhelpful_votes >= 0)\n"
+            ");");
+}
+
+// Indexes are separate statements, not part of CREATE TABLE
+TEST(ComplexSchemaTest, IndexStatements) {
+  constexpr auto product_indexes = relx::create_indexes_sql<Products>();
+  static_assert(product_indexes.size() == 1);
+  EXPECT_EQ(product_indexes[0], "CREATE INDEX products_category_id_idx ON products (category_id)");
+
+  constexpr auto order_indexes = relx::create_indexes_sql<Orders>();
+  static_assert(order_indexes.size() == 1);
+  EXPECT_EQ(order_indexes[0], "CREATE INDEX orders_user_id_idx ON orders (user_id)");
+}
+
+// Tables without floating-point defaults build their whole DDL at compile time; the
+// consteval and runtime builders must agree on this schema too
+TEST(ComplexSchemaTest, ConstevalDdlMatchesRuntime) {
+  constexpr auto users_ddl = relx::create_table_sql<Users>().if_not_exists().to_sql();
+  EXPECT_EQ(users_ddl, relx::create_table(users).if_not_exists().to_sql());
+
+  constexpr auto categories_ddl = relx::create_table_sql<Categories>().if_not_exists().to_sql();
+  EXPECT_EQ(categories_ddl, relx::create_table(categories).if_not_exists().to_sql());
+
+  constexpr auto reviews_ddl = relx::create_table_sql<CustomerReviews>().if_not_exists().to_sql();
+  EXPECT_EQ(reviews_ddl, relx::create_table(reviews).if_not_exists().to_sql());
+}
+
+TEST(ComplexSchemaTest, DropTableSql) {
+  EXPECT_EQ(relx::drop_table(order_items).if_exists().to_sql(),
+            "DROP TABLE IF EXISTS order_items;");
+}
+
+// clang-format on
+
+}  // namespace

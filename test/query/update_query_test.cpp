@@ -8,27 +8,33 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <relx/schema.hpp>
 
 using namespace relx;
 
 // Define a simple User table for testing
-struct User {
-  static constexpr auto table_name = "users";
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  schema::column<User, "id", int> id;
-  schema::column<User, "name", std::string> name;
-  schema::column<User, "email", std::string> email;
-  schema::column<User, "active", bool> active;
-  schema::column<User, "login_count", int> login_count;
-  schema::column<User, "last_login", std::string> last_login;
-  schema::column<User, "status", std::string> status;
-  schema::column<User, "age", int> age;
+namespace {
+
+struct [[=relx::table("users")]] User {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
+  bool active;
+  int login_count;
+  std::string last_login;
+  std::string status;
+  int age;
 };
+constexpr auto users = relx::t<User>;
+
+}  // namespace
+
+// clang-format on
 
 // Test basic UPDATE query without WHERE clause
 TEST(UpdateQueryTest, BasicUpdate) {
-  User users;
-
   auto query =
       query::update(users).set(users.name, "John Doe").set(users.email, "john@example.com");
 
@@ -42,8 +48,6 @@ TEST(UpdateQueryTest, BasicUpdate) {
 
 // Test UPDATE query with WHERE clause
 TEST(UpdateQueryTest, UpdateWithWhere) {
-  User users;
-
   auto query = query::update(users)
                    .set(users.name, "John Doe")
                    .set(users.email, "john@example.com")
@@ -60,8 +64,6 @@ TEST(UpdateQueryTest, UpdateWithWhere) {
 
 // Test UPDATE query with complex WHERE clause
 TEST(UpdateQueryTest, UpdateWithComplexWhere) {
-  User users;
-
   auto query =
       query::update(users).set(users.name, "John Doe").where(users.id > 10 && users.active == true);
 
@@ -77,8 +79,6 @@ TEST(UpdateQueryTest, UpdateWithComplexWhere) {
 
 // Test UPDATE query with multiple SET operations
 TEST(UpdateQueryTest, UpdateWithMultipleSets) {
-  User users;
-
   auto query = query::update(users)
                    .set(users.name, "Jane Doe")
                    .set(users.email, "jane@example.com")
@@ -95,8 +95,6 @@ TEST(UpdateQueryTest, UpdateWithMultipleSets) {
 
 // Test UPDATE with function in SET clause
 TEST(UpdateQueryTest, UpdateWithFunctionInSet) {
-  User users;
-
   // Update last_login with a function call
   auto current_timestamp = query::NullaryFunctionExpr("CURRENT_TIMESTAMP");
 
@@ -112,9 +110,7 @@ TEST(UpdateQueryTest, UpdateWithFunctionInSet) {
 
 // Test UPDATE with CASE expression in SET clause
 // TEST(UpdateQueryTest, UpdateWithCaseExpressionInSet) {
-//     User users;
-
-//     // Create a CASE expression for determining the status
+//   //     // Create a CASE expression for determining the status
 //     auto case_builder = query::case_()
 //         .when(query::column_ref(users.login_count) > query::val(10), query::val("active"))
 //         .when(query::column_ref(users.login_count) > query::val(0), query::val("new"))
@@ -139,8 +135,6 @@ TEST(UpdateQueryTest, UpdateWithFunctionInSet) {
 
 // Test UPDATE with IN condition in WHERE clause
 TEST(UpdateQueryTest, UpdateWithInCondition) {
-  User users;
-
   // Create a list of IDs to update
   std::vector<std::string> ids = {"1", "3", "5", "7"};
 
@@ -159,8 +153,6 @@ TEST(UpdateQueryTest, UpdateWithInCondition) {
 
 // Alternative approach to test with CASE-like functionality
 TEST(UpdateQueryTest, UpdateWithConditionalValue) {
-  User users;
-
   // Create separate update queries based on conditions
   auto query = query::update(users)
                    .set(users.status, query::val("active"))
@@ -176,8 +168,6 @@ TEST(UpdateQueryTest, UpdateWithConditionalValue) {
 
 // Test UPDATE with RETURNING clause
 TEST(UpdateQueryTest, UpdateWithReturning) {
-  User users;
-
   // Test basic returning with column references
   auto basic_query = query::update(users)
                          .set(users.name, "John Doe")

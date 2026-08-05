@@ -8,88 +8,75 @@
 #include <relx/query.hpp>
 #include <relx/schema.hpp>
 
-// Common test tables used across query tests
+// Common test tables used across query tests.
+// Each annotated struct is paired with its table object; tests use the table object
+// (test_tables::users) wherever they used to declare an instance.
 namespace test_tables {
 
-// User table
-struct users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<users, "id", int> id;
-  relx::schema::column<users, "name", std::string> name;
-  relx::schema::column<users, "email", std::string> email;
-  relx::schema::column<users, "age", int> age;
-  relx::schema::column<users, "created_at", std::string> created_at;
-  relx::schema::column<users, "is_active", bool> is_active;
-  relx::schema::column<users, "bio", std::optional<std::string>> bio;
-  relx::schema::column<users, "login_count", int> login_count;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  relx::schema::table_primary_key<&users::id> pk;
-  relx::schema::unique_constraint<&users::email> unique_email;
+// User table
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  [[=relx::ann::unique]] std::string email;
+  int age;
+  std::string created_at;
+  bool is_active;
+  std::optional<std::string> bio;
+  int login_count;
 };
+inline constexpr auto users = relx::t<Users>;
 
 // Post table with foreign key to users
-struct posts {
-  static constexpr auto table_name = "posts";
-  relx::schema::column<posts, "id", int> id;
-  relx::schema::column<posts, "user_id", int> user_id;
-  relx::schema::column<posts, "title", std::string> title;
-  relx::schema::column<posts, "content", std::string> content;
-  relx::schema::column<posts, "views", int> views;
-  relx::schema::column<posts, "created_at", std::string> created_at;
-  relx::schema::column<posts, "is_published", bool> is_published;
-
-  relx::schema::table_primary_key<&posts::id> pk;
-  relx::schema::foreign_key<&posts::user_id, &users::id> user_fk;
+struct [[=relx::table("posts")]] Posts {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^Users::id>]] int user_id;
+  std::string title;
+  std::string content;
+  int views;
+  std::string created_at;
+  bool is_published;
 };
+inline constexpr auto posts = relx::t<Posts>;
 
 // Comments table with foreign keys to posts and users
-struct comments {
-  static constexpr auto table_name = "comments";
-  relx::schema::column<comments, "id", int> id;
-  relx::schema::column<comments, "post_id", int> post_id;
-  relx::schema::column<comments, "user_id", int> user_id;
-  relx::schema::column<comments, "content", std::string> content;
-  relx::schema::column<comments, "created_at", std::string> created_at;
-  relx::schema::column<comments, "is_approved", bool> is_approved;
-
-  relx::schema::table_primary_key<&comments::id> pk;
-  relx::schema::foreign_key<&comments::post_id, &posts::id> post_fk;
-  relx::schema::foreign_key<&comments::user_id, &users::id> user_fk;
+struct [[=relx::table("comments")]] Comments {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^Posts::id>]] int post_id;
+  [[=relx::ann::fk<^^Users::id>]] int user_id;
+  std::string content;
+  std::string created_at;
+  bool is_approved;
 };
+inline constexpr auto comments = relx::t<Comments>;
 
 // Tags table for a many-to-many relationship with posts
-struct tags {
-  static constexpr auto table_name = "tags";
-  relx::schema::column<tags, "id", int> id;
-  relx::schema::column<tags, "name", std::string> name;
-
-  relx::schema::table_primary_key<&tags::id> pk;
-  relx::schema::unique_constraint<&tags::name> unique_name;
+struct [[=relx::table("tags")]] Tags {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::unique]] std::string name;
 };
+inline constexpr auto tags = relx::t<Tags>;
 
 // Junction table for posts <-> tags many-to-many relationship
-struct post_tags {
-  static constexpr auto table_name = "post_tags";
-  relx::schema::column<post_tags, "post_id", int> post_id;
-  relx::schema::column<post_tags, "tag_id", int> tag_id;
-
-  relx::schema::composite_primary_key<&post_tags::post_id, &post_tags::tag_id> pk;
-  relx::schema::foreign_key<&post_tags::post_id, &posts::id> post_fk;
-  relx::schema::foreign_key<&post_tags::tag_id, &tags::id> tag_fk;
+struct [[=relx::table("post_tags"),
+        =relx::ann::composite_pk("post_id", "tag_id")]] PostTags {
+  [[=relx::ann::fk<^^Posts::id>]] int post_id;
+  [[=relx::ann::fk<^^Tags::id>]] int tag_id;
 };
+inline constexpr auto post_tags = relx::t<PostTags>;
 
 // User profile table with one-to-one relationship with users
-struct user_profiles {
-  static constexpr auto table_name = "user_profiles";
-  relx::schema::column<user_profiles, "user_id", int> user_id;
-  relx::schema::column<user_profiles, "profile_image", std::optional<std::string>> profile_image;
-  relx::schema::column<user_profiles, "description", std::optional<std::string>> description;
-  relx::schema::column<user_profiles, "website", std::optional<std::string>> website;
-  relx::schema::column<user_profiles, "location", std::optional<std::string>> location;
-
-  relx::schema::table_primary_key<&user_profiles::user_id> pk;
-  relx::schema::foreign_key<&user_profiles::user_id, &users::id> user_fk;
+struct [[=relx::table("user_profiles")]] UserProfiles {
+  [[=relx::ann::pk, =relx::ann::fk<^^Users::id>]] int user_id;
+  std::optional<std::string> profile_image;
+  std::optional<std::string> description;
+  std::optional<std::string> website;
+  std::optional<std::string> location;
 };
+inline constexpr auto user_profiles = relx::t<UserProfiles>;
+
+// clang-format on
 
 }  // namespace test_tables
 

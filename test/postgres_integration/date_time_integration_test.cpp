@@ -12,60 +12,46 @@
 
 namespace {
 
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
 /// @brief Events table with comprehensive date/time columns using C++ chrono types
-struct EventsTable {
-  static constexpr auto table_name = "events";
-
-  relx::schema::column<EventsTable, "id", int> id;
-  relx::schema::column<EventsTable, "name", std::string> name;
-  relx::schema::column<EventsTable, "event_date", std::chrono::system_clock::time_point> event_date;
-  relx::schema::column<EventsTable, "created_at", std::chrono::system_clock::time_point> created_at;
-  relx::schema::column<EventsTable, "updated_at",
-                       std::optional<std::chrono::system_clock::time_point>>
-      updated_at;
-  relx::schema::column<EventsTable, "start_time", std::chrono::system_clock::time_point> start_time;
-  relx::schema::column<EventsTable, "end_time",
-                       std::optional<std::chrono::system_clock::time_point>>
-      end_time;
-  relx::schema::column<EventsTable, "birthdate", std::chrono::year_month_day> birthdate;
-  relx::schema::column<EventsTable, "is_active", bool> is_active;
-
-  // Primary key
-  relx::schema::table_primary_key<&EventsTable::id> primary;
+struct [[=relx::table("events")]] EventsTable {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::chrono::system_clock::time_point event_date;
+  std::chrono::system_clock::time_point created_at;
+  std::optional<std::chrono::system_clock::time_point> updated_at;
+  std::chrono::system_clock::time_point start_time;
+  std::optional<std::chrono::system_clock::time_point> end_time;
+  std::chrono::year_month_day birthdate;
+  bool is_active;
 };
+inline constexpr auto events = relx::t<EventsTable>;
 
 /// @brief Time zones table for testing timezone-aware operations
-struct TimeZonesTable {
-  static constexpr auto table_name = "time_zones";
-
-  relx::schema::column<TimeZonesTable, "id", int> id;
-  relx::schema::column<TimeZonesTable, "zone_name", std::string> zone_name;
-  relx::schema::column<TimeZonesTable, "utc_time", std::chrono::system_clock::time_point> utc_time;
-  relx::schema::column<TimeZonesTable, "local_time", std::chrono::system_clock::time_point>
-      local_time;
-  relx::schema::column<TimeZonesTable, "offset_hours", int> offset_hours;
-
-  // Primary key
-  relx::schema::table_primary_key<&TimeZonesTable::id> primary;
+struct [[=relx::table("time_zones")]] TimeZonesTable {
+  [[=relx::ann::pk]] int id;
+  std::string zone_name;
+  std::chrono::system_clock::time_point utc_time;
+  std::chrono::system_clock::time_point local_time;
+  int offset_hours;
 };
+inline constexpr auto time_zones = relx::t<TimeZonesTable>;
 
 /// @brief Employee table for business logic date tests
-struct EmployeeTable {
-  static constexpr auto table_name = "employees_dt";  // Different name to avoid conflicts
-
-  relx::schema::column<EmployeeTable, "id", int> id;
-  relx::schema::column<EmployeeTable, "name", std::string> name;
-  relx::schema::column<EmployeeTable, "hire_date", std::chrono::year_month_day> hire_date;
-  relx::schema::column<EmployeeTable, "birth_date", std::chrono::year_month_day> birth_date;
-  relx::schema::column<EmployeeTable, "last_promotion",
-                       std::optional<std::chrono::system_clock::time_point>>
-      last_promotion;
-  relx::schema::column<EmployeeTable, "salary", double> salary;
-  relx::schema::column<EmployeeTable, "department", std::string> department;
-
-  // Primary key
-  relx::schema::table_primary_key<&EmployeeTable::id> primary;
+/// (table name differs from the other suites' employees table to avoid conflicts)
+struct [[=relx::table("employees_dt")]] EmployeeTable {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::chrono::year_month_day hire_date;
+  std::chrono::year_month_day birth_date;
+  std::optional<std::chrono::system_clock::time_point> last_promotion;
+  double salary;
+  std::string department;
 };
+inline constexpr auto employees = relx::t<EmployeeTable>;
+
+// clang-format on
 
 }  // namespace
 
@@ -216,11 +202,6 @@ private:
       conn.disconnect();
     }
   }
-
-protected:
-  EventsTable events;
-  TimeZonesTable time_zones;
-  EmployeeTable employees;
 };
 
 /// @brief Test basic date/time column operations

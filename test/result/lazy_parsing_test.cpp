@@ -1,8 +1,7 @@
 #include "relx/query/core.hpp"
 #include "relx/query/select.hpp"
 #include "relx/results/result.hpp"
-#include "relx/schema/column.hpp"
-#include "relx/schema/table.hpp"
+#include "relx/schema.hpp"
 
 #include <chrono>
 
@@ -10,15 +9,20 @@
 
 using namespace relx;
 
-// Table schema that matches our test data
-struct Users {
-  static constexpr std::string_view table_name = "users";
+namespace {
 
-  schema::column<Users, "id", int> id;
-  schema::column<Users, "name", std::string> name;
-  schema::column<Users, "email", std::string> email;
-  schema::column<Users, "age", int> age;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
+// Table schema that matches our test data
+struct [[=relx::table("users")]] Users {
+  int id;
+  std::string name;
+  std::string email;
+  int age;
 };
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
 
 class LazyParsingTest : public ::testing::Test {
 protected:
@@ -33,8 +37,7 @@ protected:
 
   // Helper to create the query
   auto create_query() {
-    Users users;
-    return query::select(&Users::id, &Users::name, &Users::email, &Users::age).from(users);
+    return query::select(users.id, users.name, users.email, users.age).from(users);
   }
 };
 
@@ -334,3 +337,5 @@ TEST_F(LazyParsingTest, MemoryUsageComparison) {
   // The remaining 99 rows' data cells haven't been parsed yet
   // This saves memory compared to eager parsing which would parse everything
 }
+
+}  // namespace

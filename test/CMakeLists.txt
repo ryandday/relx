@@ -16,19 +16,11 @@ add_executable(relx_tests
     # Schema tests
     schema/fixed_string_test.cpp
     schema/column_test.cpp
-    schema/table_test.cpp
-    schema/primary_key_test.cpp
-    schema/foreign_key_test.cpp
-    schema/index_test.cpp
     schema/complex_schema_test.cpp
-    schema/concepts_test.cpp
     schema/custom_column_types_test.cpp
     schema/default_value_test.cpp
     schema/check_constraint_test.cpp
-    schema/unique_constraint_test.cpp
     schema/optional_column_test.cpp
-    schema/composite_foreign_key_test.cpp
-    schema/constraint_alias_test.cpp
     schema/column_like_test.cpp
     schema/timezone_parsing_test.cpp
     schema/annotated_table_test.cpp
@@ -51,7 +43,9 @@ add_executable(relx_tests
     query/delete_query_test.cpp
     query/insert_query_test.cpp
     query/select_all_test.cpp
+    query/subquery_test.cpp
     query/bind_param_test.cpp
+    query/static_sql_test.cpp
     query/web_core_gaps_test.cpp
     query/distinct_select_test.cpp
     query/edge_case_test.cpp
@@ -80,7 +74,6 @@ add_executable(relx_tests
     postgres_integration/schema_integration_test.cpp
     postgres_integration/join_integration_test.cpp
     postgres_integration/dml_integration_test.cpp
-    # postgres_integration/connection_pool_integration_test.cpp
     postgres_integration/query_integration_test.cpp
     postgres_integration/dto_mapping_integration_test.cpp
     postgres_integration/async_dto_mapping_test.cpp
@@ -101,9 +94,6 @@ target_link_libraries(relx_tests PRIVATE
 # Register test
 add_test(NAME relx_tests COMMAND relx_tests)
 
-# Add static_assert tests executable
-add_executable(static_assert_tests static_assert_tests.cpp)
-target_link_libraries(static_assert_tests PRIVATE relx_postgresql)
 # Compile-failure tests: each source must FAIL to compile (consteval validation of
 # table-level annotations), checked with -fsyntax-only so no artifacts are produced.
 # control_must_compile.cpp guards against the suite passing for the wrong reason.
@@ -113,6 +103,9 @@ set(RELX_COMPILE_FAIL_SOURCES
     compile_fail/composite_pk_conflicts_with_member_pk.cpp
     compile_fail/composite_fk_targets_non_key.cpp
     compile_fail/select_missing_row_field.cpp
+    compile_fail/string_default_sql_expression.cpp
+    compile_fail/self_join_without_alias.cpp
+    compile_fail/scalar_subquery_in_select_list.cpp
 )
 foreach(compile_fail_src ${RELX_COMPILE_FAIL_SOURCES})
   get_filename_component(compile_fail_name ${compile_fail_src} NAME_WE)

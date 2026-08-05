@@ -1,4 +1,6 @@
 #include <iostream>
+#include <optional>
+#include <string>
 
 #include <gtest/gtest.h>
 #include <relx/migrations.hpp>
@@ -6,55 +8,63 @@
 
 using namespace relx;
 
+namespace {
+
 // Test table definitions
+//
+// Single-column UNIQUEs here use the struct-level composite_unique spelling; the
+// differ also surfaces inline [[=relx::ann::unique]] as the same table-level
+// constraint (see InlineUniqueDiffsAsConstraintNotColumnRebuild below).
+
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
 // Version 1 of Users table
-struct UsersV1 {
-  static constexpr auto table_name = "users";
-
-  column<UsersV1, "id", int, primary_key> id;
-  column<UsersV1, "name", std::string> name;
-  column<UsersV1, "email", std::string> email;
-
-  unique_constraint<&UsersV1::email> unique_email;
+struct [[=relx::table("users"), =relx::ann::composite_unique("email")]] UsersV1 {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
 };
 
 // Version 2 of Users table - with additional columns
-struct UsersV2 {
-  static constexpr auto table_name = "users";
-
-  column<UsersV2, "id", int, primary_key> id;
-  column<UsersV2, "name", std::string> name;
-  column<UsersV2, "email", std::string> email;
-  column<UsersV2, "age", std::optional<int>> age;  // New nullable column
-  column<UsersV2, "created_at", std::string, string_default<"CURRENT_TIMESTAMP", true>>
-      created_at;  // New column with default
-
-  unique_constraint<&UsersV2::email> unique_email;
+struct [[=relx::table("users"), =relx::ann::composite_unique("email")]] UsersV2 {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
+  std::optional<int> age;  // New nullable column
+  [[=relx::string_default<"CURRENT_TIMESTAMP", true>{}]]
+  std::string created_at;  // New column with default
 };
 
 // Version 3 of Users table - removed a column
-struct UsersV3 {
-  static constexpr auto table_name = "users";
-
-  column<UsersV3, "id", int, primary_key> id;
-  column<UsersV3, "name", std::string> name;
-  column<UsersV3, "age", std::optional<int>> age;
-  column<UsersV3, "created_at", std::string, string_default<"CURRENT_TIMESTAMP", true>> created_at;
+struct [[=relx::table("users")]] UsersV3 {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::optional<int> age;
+  [[=relx::string_default<"CURRENT_TIMESTAMP", true>{}]] std::string created_at;
 
   // Note: email column and unique constraint removed
 };
 
 // Simple table for creation/deletion tests
-struct SimpleTable {
-  static constexpr auto table_name = "simple_table";
-
-  column<SimpleTable, "id", int, primary_key> id;
-  column<SimpleTable, "data", std::string> data;
+struct [[=relx::table("simple_table")]] SimpleTable {
+  [[=relx::ann::pk]] int id;
+  std::string data;
 };
 
+// clang-format on
+
+inline constexpr auto users_v1 = relx::t<UsersV1>;
+inline constexpr auto users_v2 = relx::t<UsersV2>;
+inline constexpr auto users_v3 = relx::t<UsersV3>;
+inline constexpr auto simple_table = relx::t<SimpleTable>;
+
+// The CREATE TABLE both the create and the drop migration round-trip through
+static const std::string kSimpleTableDdl = "CREATE TABLE simple_table (\n"
+                                           "id INTEGER NOT NULL PRIMARY KEY,\n"
+                                           "data TEXT NOT NULL\n"
+                                           ");";
+
 TEST(MigrationsTest, ExtractTableMetadata) {
-  UsersV1 users_v1;
   auto metadata_result = migrations::extract_table_metadata(users_v1);
 
   ASSERT_TRUE(metadata_result) << "Failed to extract metadata: "
@@ -75,15 +85,14 @@ TEST(MigrationsTest, ExtractTableMetadata) {
   EXPECT_EQ(metadata.columns.at("name").name, "name");
   EXPECT_EQ(metadata.columns.at("email").name, "email");
 
-  // Check that constraints are extracted
-  EXPECT_GT(metadata.constraints.size(), 0);
+  // Check that the struct-level constraint is extracted
+  ASSERT_EQ(metadata.constraints.size(), 1);
+  EXPECT_EQ(metadata.constraints.at("users_unique_0").type, "UNIQUE");
+  EXPECT_EQ(metadata.constraints.at("users_unique_0").sql_definition, "UNIQUE (email)");
 }
 
 TEST(MigrationsTest, GenerateAddColumnMigration) {
-  UsersV1 old_users;
-  UsersV2 new_users;
-
-  auto migration_result = relx::migrations::generate_migration(old_users, new_users);
+  auto migration_result = relx::migrations::generate_migration(users_v1, users_v2);
 
   ASSERT_TRUE(migration_result) << "Failed to generate migration: "
                                 << migration_result.error().format();
@@ -115,10 +124,7 @@ TEST(MigrationsTest, GenerateAddColumnMigration) {
 }
 
 TEST(MigrationsTest, GenerateDropColumnMigration) {
-  UsersV2 old_users;
-  UsersV3 new_users;
-
-  auto migration_result = relx::migrations::generate_migration(old_users, new_users);
+  auto migration_result = relx::migrations::generate_migration(users_v2, users_v3);
 
   ASSERT_TRUE(migration_result) << "Failed to generate migration: "
                                 << migration_result.error().format();
@@ -160,7 +166,7 @@ TEST(MigrationsTest, GenerateDropColumnMigration) {
   bool found_add_column = false;
 
   for (const auto& sql : rollback_sqls) {
-    if (sql.find("ADD UNIQUE") != std::string::npos) {
+    if (sql.find("UNIQUE (email)") != std::string::npos) {
       found_add_constraint = true;
     }
     if (sql.find("ADD COLUMN email") != std::string::npos) {
@@ -173,8 +179,6 @@ TEST(MigrationsTest, GenerateDropColumnMigration) {
 }
 
 TEST(MigrationsTest, GenerateCreateTableMigration) {
-  SimpleTable simple_table;
-
   auto migration_result = relx::migrations::generate_create_table_migration(simple_table);
 
   ASSERT_TRUE(migration_result) << "Failed to generate create migration: "
@@ -191,12 +195,7 @@ TEST(MigrationsTest, GenerateCreateTableMigration) {
   ASSERT_EQ(forward_sqls.size(), 1);
 
   // Check exact SQL for table creation
-  std::string expected_create = "CREATE TABLE simple_table (\n"
-                                "id INTEGER NOT NULL,\n"
-                                "name TEXT NOT NULL,\n"
-                                "active BOOLEAN NOT NULL\n"
-                                ");";
-  EXPECT_EQ(forward_sqls[0], expected_create);
+  EXPECT_EQ(forward_sqls[0], kSimpleTableDdl);
 
   // Check rollback drops the table
   auto rollback_result = migration.rollback_sql();
@@ -209,8 +208,6 @@ TEST(MigrationsTest, GenerateCreateTableMigration) {
 }
 
 TEST(MigrationsTest, GenerateDropTableMigration) {
-  SimpleTable simple_table;
-
   auto migration_result = migrations::generate_drop_table_migration(simple_table);
 
   ASSERT_TRUE(migration_result) << "Failed to generate drop migration: "
@@ -236,19 +233,11 @@ TEST(MigrationsTest, GenerateDropTableMigration) {
   const auto& rollback_sqls = *rollback_result;
   ASSERT_EQ(rollback_sqls.size(), 1);
 
-  std::string expected_create = "CREATE TABLE simple_table (\n"
-                                "id INTEGER NOT NULL,\n"
-                                "name TEXT NOT NULL,\n"
-                                "active BOOLEAN NOT NULL\n"
-                                ");";
-  EXPECT_EQ(rollback_sqls[0], expected_create);
+  EXPECT_EQ(rollback_sqls[0], kSimpleTableDdl);
 }
 
 TEST(MigrationsTest, EmptyMigrationForIdenticalTables) {
-  UsersV1 users1;
-  UsersV1 users2;
-
-  auto migration_result = migrations::generate_migration(users1, users2);
+  auto migration_result = migrations::generate_migration(users_v1, users_v1);
 
   ASSERT_TRUE(migration_result) << "Failed to generate migration: "
                                 << migration_result.error().format();
@@ -271,23 +260,20 @@ TEST(MigrationsTest, EmptyMigrationForIdenticalTables) {
 }
 
 TEST(MigrationsTest, MigrationNaming) {
-  UsersV1 old_users;
-  UsersV2 new_users;
-
-  auto migration_result = migrations::generate_migration(old_users, new_users);
+  auto migration_result = migrations::generate_migration(users_v1, users_v2);
   ASSERT_TRUE(migration_result) << "Failed to generate migration: "
                                 << migration_result.error().format();
   const auto& migration = *migration_result;
 
   EXPECT_EQ(migration.name(), "diff_users_to_users");
 
-  auto create_result = migrations::generate_create_table_migration(old_users);
+  auto create_result = migrations::generate_create_table_migration(users_v1);
   ASSERT_TRUE(create_result) << "Failed to generate create migration: "
                              << create_result.error().format();
   const auto& create_migration = *create_result;
   EXPECT_EQ(create_migration.name(), "create_users");
 
-  auto drop_result = migrations::generate_drop_table_migration(old_users);
+  auto drop_result = migrations::generate_drop_table_migration(users_v1);
   ASSERT_TRUE(drop_result) << "Failed to generate drop migration: " << drop_result.error().format();
   const auto& drop_migration = *drop_result;
   EXPECT_EQ(drop_migration.name(), "drop_users");
@@ -295,11 +281,8 @@ TEST(MigrationsTest, MigrationNaming) {
 
 // Demo test that shows the library in action
 TEST(MigrationsTest, DemoUsage) {
-  UsersV1 old_users;
-  UsersV2 new_users;
-
   // Generate migration from V1 to V2
-  auto migration_result = migrations::generate_migration(old_users, new_users);
+  auto migration_result = migrations::generate_migration(users_v1, users_v2);
 
   ASSERT_TRUE(migration_result) << "Failed to generate migration: "
                                 << migration_result.error().format();
@@ -335,89 +318,81 @@ TEST(MigrationsTest, DemoUsage) {
 }
 
 // Test structs for comprehensive coverage analysis
-struct OriginalTable {
-  static constexpr auto table_name = "test_table";
 
-  column<OriginalTable, "id", int, primary_key> id;
-  column<OriginalTable, "name", std::string> name;
-  column<OriginalTable, "age", int> age;  // int type
+// clang-format off
+
+struct [[=relx::table("test_table")]] OriginalTable {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  int age;  // int type
 };
 
-struct ModifiedTypeTable {
-  static constexpr auto table_name = "test_table";
-
-  column<ModifiedTypeTable, "id", int, primary_key> id;
-  column<ModifiedTypeTable, "name", std::string> name;
-  column<ModifiedTypeTable, "age", std::string> age;  // Changed to string type
+struct [[=relx::table("test_table")]] ModifiedTypeTable {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string age;  // Changed to string type
 };
 
-struct TableWithoutConstraints {
-  static constexpr auto table_name = "constraint_test";
-
-  column<TableWithoutConstraints, "id", int, primary_key> id;
-  column<TableWithoutConstraints, "email", std::string> email;
-  column<TableWithoutConstraints, "username", std::string> username;
+struct [[=relx::table("constraint_test")]] TableWithoutConstraints {
+  [[=relx::ann::pk]] int id;
+  std::string email;
+  std::string username;
 };
 
-struct TableWithConstraints {
-  static constexpr auto table_name = "constraint_test";
-
-  column<TableWithConstraints, "id", int, primary_key> id;
-  column<TableWithConstraints, "email", std::string> email;
-  column<TableWithConstraints, "username", std::string> username;
-
-  unique_constraint<&TableWithConstraints::email> unique_email;
-  unique_constraint<&TableWithConstraints::username> unique_username;
+// Annotation order fixes the generated constraint names: email is constraint_test_unique_0,
+// username is constraint_test_unique_1
+struct [[=relx::table("constraint_test"),
+        =relx::ann::composite_unique("email"),
+        =relx::ann::composite_unique("username")]] TableWithConstraints {
+  [[=relx::ann::pk]] int id;
+  std::string email;
+  std::string username;
 };
 
-struct NullableTable {
-  static constexpr auto table_name = "nullable_test";
-
-  column<NullableTable, "id", int, primary_key> id;
-  column<NullableTable, "optional_field", std::optional<std::string>> optional_field;
+struct [[=relx::table("nullable_test")]] NullableTable {
+  [[=relx::ann::pk]] int id;
+  std::optional<std::string> optional_field;
 };
 
-struct NonNullableTable {
-  static constexpr auto table_name = "nullable_test";
-
-  column<NonNullableTable, "id", int, primary_key> id;
-  column<NonNullableTable, "optional_field", std::string> optional_field;  // Made non-nullable
+struct [[=relx::table("nullable_test")]] NonNullableTable {
+  [[=relx::ann::pk]] int id;
+  std::string optional_field;  // Made non-nullable
 };
 
-struct TableNoDefaults {
-  static constexpr auto table_name = "defaults_test";
-
-  column<TableNoDefaults, "id", int, primary_key> id;
-  column<TableNoDefaults, "status", std::string> status;
+struct [[=relx::table("defaults_test")]] TableNoDefaults {
+  [[=relx::ann::pk]] int id;
+  std::string status;
 };
 
-struct TableWithDefaults {
-  static constexpr auto table_name = "defaults_test";
-
-  column<TableWithDefaults, "id", int, primary_key> id;
-  column<TableWithDefaults, "status", std::string, string_default<"active", false>>
-      status;  // Added default
+struct [[=relx::table("defaults_test")]] TableWithDefaults {
+  [[=relx::ann::pk]] int id;
+  [[=relx::string_default<"active">{}]] std::string status;  // Added default
 };
 
-struct TableWithIndex {
-  static constexpr auto table_name = "index_test";
-
-  column<TableWithIndex, "id", int, primary_key> id;
-  column<TableWithIndex, "name", std::string> name;
-  column<TableWithIndex, "email", std::string> email;
-
-  // Note: Currently there's no explicit index constraint type,
-  // but unique constraints are a form of index
-  unique_constraint<&TableWithIndex::email> unique_email_index;
+struct [[=relx::table("index_test")]] TableWithoutIndex {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
 };
 
-struct TableWithoutIndex {
-  static constexpr auto table_name = "index_test";
-
-  column<TableWithoutIndex, "id", int, primary_key> id;
-  column<TableWithoutIndex, "name", std::string> name;
-  column<TableWithoutIndex, "email", std::string> email;
+struct [[=relx::table("index_test"), =relx::ann::index_on("email")]] TableWithIndex {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
 };
+
+// clang-format on
+
+inline constexpr auto original_table = relx::t<OriginalTable>;
+inline constexpr auto modified_type_table = relx::t<ModifiedTypeTable>;
+inline constexpr auto table_no_constraints = relx::t<TableWithoutConstraints>;
+inline constexpr auto table_with_constraints = relx::t<TableWithConstraints>;
+inline constexpr auto nullable_table = relx::t<NullableTable>;
+inline constexpr auto non_nullable_table = relx::t<NonNullableTable>;
+inline constexpr auto table_no_defaults = relx::t<TableNoDefaults>;
+inline constexpr auto table_with_defaults = relx::t<TableWithDefaults>;
+inline constexpr auto table_no_index = relx::t<TableWithoutIndex>;
+inline constexpr auto table_with_index = relx::t<TableWithIndex>;
 
 TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
   std::cout << "\n=== Migration Coverage Analysis ===" << std::endl;
@@ -425,10 +400,7 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
   // Test 1: Column Type Changes (MODIFY_COLUMN)
   std::cout << "\n1. Testing Column Type Changes..." << std::endl;
 
-  OriginalTable orig_table;
-  ModifiedTypeTable mod_table;
-
-  auto type_migration_result = migrations::generate_migration(orig_table, mod_table);
+  auto type_migration_result = migrations::generate_migration(original_table, modified_type_table);
   ASSERT_TRUE(type_migration_result)
       << "Failed to generate type migration: " << type_migration_result.error().format();
   const auto& type_migration = *type_migration_result;
@@ -454,11 +426,16 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     std::cout << "Rollback[" << i << "]: " << type_rollback[i] << std::endl;
   }
 
+  // A type change is expressed as drop-then-add of the column
+  ASSERT_EQ(type_forward.size(), 2);
+  EXPECT_EQ(type_forward[0], "ALTER TABLE test_table DROP COLUMN age;");
+  EXPECT_EQ(type_forward[1], "ALTER TABLE test_table ADD COLUMN age TEXT NOT NULL;");
+  ASSERT_EQ(type_rollback.size(), 2);
+  EXPECT_EQ(type_rollback[0], "ALTER TABLE test_table DROP COLUMN age;");
+  EXPECT_EQ(type_rollback[1], "ALTER TABLE test_table ADD COLUMN age INTEGER NOT NULL;");
+
   // Test 2: Constraint Changes
   std::cout << "\n2. Testing Constraint Changes..." << std::endl;
-
-  TableWithoutConstraints table_no_constraints;
-  TableWithConstraints table_with_constraints;
 
   auto constraint_migration_result = migrations::generate_migration(table_no_constraints,
                                                                     table_with_constraints);
@@ -487,11 +464,20 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     std::cout << "Constraint Rollback[" << i << "]: " << constraint_rollback[i] << std::endl;
   }
 
+  ASSERT_EQ(constraint_forward.size(), 2);
+  EXPECT_EQ(constraint_forward[0],
+            "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_0 UNIQUE (email);");
+  EXPECT_EQ(
+      constraint_forward[1],
+      "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_1 UNIQUE (username);");
+  ASSERT_EQ(constraint_rollback.size(), 2);
+  EXPECT_EQ(constraint_rollback[0],
+            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_1;");
+  EXPECT_EQ(constraint_rollback[1],
+            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_0;");
+
   // Test 3: Nullable to Non-Nullable Changes
   std::cout << "\n3. Testing Nullability Changes..." << std::endl;
-
-  NullableTable nullable_table;
-  NonNullableTable non_nullable_table;
 
   auto nullable_migration_result = migrations::generate_migration(nullable_table,
                                                                   non_nullable_table);
@@ -520,11 +506,16 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     std::cout << "Nullable Rollback[" << i << "]: " << nullable_rollback[i] << std::endl;
   }
 
+  ASSERT_EQ(nullable_forward.size(), 2);
+  EXPECT_EQ(nullable_forward[0], "ALTER TABLE nullable_test DROP COLUMN optional_field;");
+  EXPECT_EQ(nullable_forward[1],
+            "ALTER TABLE nullable_test ADD COLUMN optional_field TEXT NOT NULL;");
+  ASSERT_EQ(nullable_rollback.size(), 2);
+  EXPECT_EQ(nullable_rollback[0], "ALTER TABLE nullable_test DROP COLUMN optional_field;");
+  EXPECT_EQ(nullable_rollback[1], "ALTER TABLE nullable_test ADD COLUMN optional_field TEXT;");
+
   // Test 4: Default Value Changes
   std::cout << "\n4. Testing Default Value Changes..." << std::endl;
-
-  TableNoDefaults table_no_defaults;
-  TableWithDefaults table_with_defaults;
 
   auto defaults_migration_result = migrations::generate_migration(table_no_defaults,
                                                                   table_with_defaults);
@@ -553,54 +544,21 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     std::cout << "Defaults Rollback[" << i << "]: " << defaults_rollback[i] << std::endl;
   }
 
-  // Summary of findings
-  std::cout << "\n=== Coverage Summary ===" << std::endl;
-  std::cout << "✅ CREATE_TABLE: Working" << std::endl;
-  std::cout << "✅ DROP_TABLE: Working" << std::endl;
-  std::cout << "✅ ADD_COLUMN: Working" << std::endl;
-  std::cout << "✅ DROP_COLUMN: Working" << std::endl;
+  ASSERT_EQ(defaults_forward.size(), 2);
+  EXPECT_EQ(defaults_forward[0], "ALTER TABLE defaults_test DROP COLUMN status;");
+  EXPECT_EQ(defaults_forward[1],
+            "ALTER TABLE defaults_test ADD COLUMN status TEXT NOT NULL DEFAULT 'active';");
+  ASSERT_EQ(defaults_rollback.size(), 2);
+  EXPECT_EQ(defaults_rollback[0], "ALTER TABLE defaults_test DROP COLUMN status;");
+  EXPECT_EQ(defaults_rollback[1], "ALTER TABLE defaults_test ADD COLUMN status TEXT NOT NULL;");
 
-  if (type_migration.size() > 0) {
-    std::cout << "✅ MODIFY_COLUMN (type changes): Detected operations" << std::endl;
-  } else {
-    std::cout << "❌ MODIFY_COLUMN (type changes): No operations generated" << std::endl;
-  }
-
-  if (constraint_migration.size() > 0) {
-    std::cout << "✅ ADD_CONSTRAINT: Detected operations" << std::endl;
-  } else {
-    std::cout << "❌ ADD_CONSTRAINT: No operations generated" << std::endl;
-  }
-
-  if (nullable_migration.size() > 0) {
-    std::cout << "✅ Nullability changes: Detected operations" << std::endl;
-  } else {
-    std::cout << "❌ Nullability changes: No operations generated" << std::endl;
-  }
-
-  if (defaults_migration.size() > 0) {
-    std::cout << "✅ Default value changes: Detected operations" << std::endl;
-  } else {
-    std::cout << "❌ Default value changes: No operations generated" << std::endl;
-  }
-
-  std::cout << "\n=== Missing Features ===" << std::endl;
-  std::cout << "❓ DROP_CONSTRAINT: Not explicitly tested" << std::endl;
-  std::cout << "❓ ADD_INDEX: Not explicitly tested" << std::endl;
-  std::cout << "❓ DROP_INDEX: Not explicitly tested" << std::endl;
-  std::cout << "❓ Column renaming: Not supported (would require additional metadata)" << std::endl;
-  std::cout << "❓ Table renaming: Not supported" << std::endl;
-  std::cout << "❓ Complex constraint modifications: Unknown" << std::endl;
-
-  // This test always passes - it's for analysis only
-  EXPECT_TRUE(true);
+  std::cout << "\n=== Not covered by the diff engine ===" << std::endl;
+  std::cout << "Column renaming: only via MigrationOptions::column_mappings" << std::endl;
+  std::cout << "Table renaming: not supported" << std::endl;
 }
 
 TEST(MigrationsTest, TestDropConstraintOperations) {
   std::cout << "\n=== Testing DROP_CONSTRAINT Operations ===" << std::endl;
-
-  TableWithConstraints table_with_constraints;
-  TableWithoutConstraints table_no_constraints;
 
   // Test dropping constraints (going from constraints to no constraints)
   auto drop_constraint_migration_result = migrations::generate_migration(table_with_constraints,
@@ -631,36 +589,138 @@ TEST(MigrationsTest, TestDropConstraintOperations) {
     std::cout << "Drop Rollback[" << i << "]: " << drop_rollback[i] << std::endl;
   }
 
-  if (drop_constraint_migration.size() > 0) {
-    std::cout << "✅ DROP_CONSTRAINT: Working" << std::endl;
+  // Test exact SQL for dropping constraints (deterministic: alphabetical by constraint name)
+  ASSERT_EQ(drop_forward.size(), 2);
+  EXPECT_EQ(drop_forward[0],
+            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_0;");
+  EXPECT_EQ(drop_forward[1],
+            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_1;");
 
-    // Test exact SQL for dropping constraints (deterministic: alphabetical by constraint name)
-    EXPECT_EQ(drop_forward.size(), 2);
-    EXPECT_EQ(drop_forward[0],
-              "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_0;");
-    EXPECT_EQ(drop_forward[1],
-              "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_1;");
+  // Test exact rollback SQL for adding constraints back
+  ASSERT_EQ(drop_rollback.size(), 2);
+  EXPECT_EQ(
+      drop_rollback[0],
+      "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_1 UNIQUE (username);");
+  EXPECT_EQ(drop_rollback[1],
+            "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_0 UNIQUE (email);");
+}
 
-    // Test exact rollback SQL for adding constraints back
-    EXPECT_EQ(drop_rollback.size(), 2);
-    EXPECT_EQ(drop_rollback[0], "ALTER TABLE constraint_test ADD UNIQUE (username);");
-    EXPECT_EQ(drop_rollback[1], "ALTER TABLE constraint_test ADD UNIQUE (email);");
-  } else {
-    std::cout << "❌ DROP_CONSTRAINT: No operations generated" << std::endl;
-    FAIL() << "Expected constraint drop operations but none were generated";
-  }
+// clang-format off
+
+struct [[=relx::table("inline_unique_test")]] InlineUniqueV1 {
+  int id;
+  std::string email;
+};
+
+struct [[=relx::table("inline_unique_test")]] InlineUniqueV2 {
+  int id;
+  [[=relx::ann::unique]] std::string email;
+};
+
+// clang-format on
+
+// Adding an inline [[=relx::ann::unique]] must diff as a constraint operation.
+// (It previously diffed as a changed column definition -> DROP COLUMN + ADD
+// COLUMN, silently destroying the column's data.)
+TEST(MigrationsTest, InlineUniqueDiffsAsConstraintNotColumnRebuild) {
+  auto migration_result = migrations::generate_migration(relx::t<InlineUniqueV1>,
+                                                         relx::t<InlineUniqueV2>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  auto forward = migration_result->forward_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  ASSERT_EQ(forward->size(), 1);
+  EXPECT_EQ(
+      (*forward)[0],
+      "ALTER TABLE inline_unique_test ADD CONSTRAINT inline_unique_test_unique_0 UNIQUE (email);");
+
+  auto rollback = migration_result->rollback_sql();
+  ASSERT_TRUE(rollback) << rollback.error().format();
+  ASSERT_EQ(rollback->size(), 1);
+  EXPECT_EQ((*rollback)[0],
+            "ALTER TABLE inline_unique_test DROP CONSTRAINT inline_unique_test_unique_0;");
+}
+
+// clang-format off
+
+struct [[=relx::table("hoist_ref")]] HoistRefTarget {
+  [[=relx::ann::pk]] int id;
+};
+
+struct [[=relx::table("hoist_test")]] HoistV1 {
+  [[=relx::ann::pk]] int id;
+  int user_id;
+  int quantity;
+};
+
+struct [[=relx::table("hoist_test")]] HoistV2 {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^HoistRefTarget::id>, =relx::on_delete<"CASCADE">{}]] int user_id;
+  [[=relx::schema::check<"quantity > 0">{}]] int quantity;
+};
+
+// clang-format on
+
+// Inline fk and check modifiers hoist into table-level constraints like unique does:
+// adding them diffs as ADD CONSTRAINT (with the differ's deterministic name), not as a
+// data-destroying column rebuild.
+TEST(MigrationsTest, InlineFkAndCheckDiffAsConstraintsNotColumnRebuild) {
+  auto migration_result = migrations::generate_migration(relx::t<HoistV1>, relx::t<HoistV2>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  auto forward = migration_result->forward_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  ASSERT_EQ(forward->size(), 2);
+  EXPECT_EQ((*forward)[0],
+            "ALTER TABLE hoist_test ADD CONSTRAINT hoist_test_check_1 CHECK (quantity > 0);");
+  EXPECT_EQ((*forward)[1], "ALTER TABLE hoist_test ADD CONSTRAINT hoist_test_fk_0 FOREIGN KEY "
+                           "(user_id) REFERENCES hoist_ref(id) ON DELETE CASCADE;");
+
+  auto rollback = migration_result->rollback_sql();
+  ASSERT_TRUE(rollback) << rollback.error().format();
+  ASSERT_EQ(rollback->size(), 2);
+  EXPECT_EQ((*rollback)[0], "ALTER TABLE hoist_test DROP CONSTRAINT hoist_test_fk_0;");
+  EXPECT_EQ((*rollback)[1], "ALTER TABLE hoist_test DROP CONSTRAINT hoist_test_check_1;");
+}
+
+// clang-format off
+
+struct [[=relx::table("named_check_test")]] NamedCheckV1 {
+  int amount;
+};
+
+struct [[=relx::table("named_check_test"),
+        =relx::ann::check("amount > 0").named("amount_positive")]] NamedCheckV2 {
+  int amount;
+};
+
+// clang-format on
+
+// A .named() table-level check must keep its explicit name in the diff metadata:
+// the DROP CONSTRAINT in the rollback has to target the name that was actually
+// created, not a generated positional one (named_check_test_check_0)
+TEST(MigrationsTest, NamedCheckConstraintKeepsItsNameInDiffs) {
+  auto migration_result = migrations::generate_migration(relx::t<NamedCheckV1>,
+                                                         relx::t<NamedCheckV2>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  auto forward = migration_result->forward_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  ASSERT_EQ(forward->size(), 1);
+  EXPECT_EQ((*forward)[0],
+            "ALTER TABLE named_check_test ADD CONSTRAINT amount_positive CHECK (amount > 0);");
+
+  auto rollback = migration_result->rollback_sql();
+  ASSERT_TRUE(rollback) << rollback.error().format();
+  ASSERT_EQ(rollback->size(), 1);
+  EXPECT_EQ((*rollback)[0], "ALTER TABLE named_check_test DROP CONSTRAINT amount_positive;");
 }
 
 TEST(MigrationsTest, TestIndexOperations) {
   std::cout << "\n=== Testing INDEX Operations ===" << std::endl;
 
-  // Note: Currently we don't have explicit index types in the schema,
-  // but let's test if any index-like constraints are detected
-
-  TableWithoutIndex table_no_index;
-  TableWithIndex table_with_index;
-
-  // Test adding index (via unique constraint)
+  // An index_on struct annotation is diffed as its own operation kind: CREATE INDEX
+  // rather than ALTER TABLE
   auto add_index_migration_result = migrations::generate_migration(table_no_index,
                                                                    table_with_index);
   ASSERT_TRUE(add_index_migration_result)
@@ -678,14 +738,11 @@ TEST(MigrationsTest, TestIndexOperations) {
   const auto& add_index_rollback = *add_index_rollback_result;
 
   std::cout << "Add index migration operations: " << add_index_migration.size() << std::endl;
-  std::cout << "Forward SQL count: " << add_index_forward.size() << std::endl;
-  std::cout << "Rollback SQL count: " << add_index_rollback.size() << std::endl;
-
   for (size_t i = 0; i < add_index_forward.size(); ++i) {
     std::cout << "Add Index Forward[" << i << "]: " << add_index_forward[i] << std::endl;
   }
 
-  // Test dropping index (via unique constraint)
+  // Test dropping the index
   auto drop_index_migration_result = migrations::generate_migration(table_with_index,
                                                                     table_no_index);
   ASSERT_TRUE(drop_index_migration_result) << "Failed to generate drop index migration: "
@@ -703,70 +760,55 @@ TEST(MigrationsTest, TestIndexOperations) {
   const auto& drop_index_rollback = *drop_index_rollback_result;
 
   std::cout << "Drop index migration operations: " << drop_index_migration.size() << std::endl;
-  std::cout << "Forward SQL count: " << drop_index_forward.size() << std::endl;
-  std::cout << "Rollback SQL count: " << drop_index_rollback.size() << std::endl;
-
   for (size_t i = 0; i < drop_index_forward.size(); ++i) {
     std::cout << "Drop Index Forward[" << i << "]: " << drop_index_forward[i] << std::endl;
   }
 
-  if (add_index_migration.size() > 0 && drop_index_migration.size() > 0) {
-    std::cout << "✅ ADD_INDEX/DROP_INDEX: Working (via constraints)" << std::endl;
+  ASSERT_EQ(add_index_forward.size(), 1);
+  EXPECT_EQ(add_index_forward[0], "CREATE INDEX index_test_email_idx ON index_test (email);");
 
-    // Test exact SQL for adding index (constraint)
-    EXPECT_EQ(add_index_forward.size(), 1);
-    EXPECT_EQ(add_index_forward[0], "ALTER TABLE index_test ADD UNIQUE (email);");
+  ASSERT_EQ(add_index_rollback.size(), 1);
+  EXPECT_EQ(add_index_rollback[0], "DROP INDEX IF EXISTS index_test_email_idx;");
 
-    // Test exact rollback SQL for adding index
-    EXPECT_EQ(add_index_rollback.size(), 1);
-    EXPECT_EQ(add_index_rollback[0], "ALTER TABLE index_test DROP CONSTRAINT index_test_unique_0;");
+  ASSERT_EQ(drop_index_forward.size(), 1);
+  EXPECT_EQ(drop_index_forward[0], "DROP INDEX IF EXISTS index_test_email_idx;");
 
-    // Test exact SQL for dropping index (constraint)
-    EXPECT_EQ(drop_index_forward.size(), 1);
-    EXPECT_EQ(drop_index_forward[0], "ALTER TABLE index_test DROP CONSTRAINT index_test_unique_0;");
-
-    // Test exact rollback SQL for dropping index
-    EXPECT_EQ(drop_index_rollback.size(), 1);
-    EXPECT_EQ(drop_index_rollback[0], "ALTER TABLE index_test ADD UNIQUE (email);");
-  } else {
-    std::cout
-        << "❓ ADD_INDEX/DROP_INDEX: No explicit index operations (using constraint-based indexes)"
-        << std::endl;
-    EXPECT_TRUE(true);  // This is expected for now since we don't have explicit index types
-  }
+  ASSERT_EQ(drop_index_rollback.size(), 1);
+  EXPECT_EQ(drop_index_rollback[0], "CREATE INDEX index_test_email_idx ON index_test (email);");
 }
 
 // Define table structures for column renaming tests
-struct OldEmployeeTable {
-  static constexpr auto table_name = "employees";
 
-  column<OldEmployeeTable, "id", int, primary_key> id;
-  column<OldEmployeeTable, "first_name", std::string> first_name;
-  column<OldEmployeeTable, "last_name", std::string> last_name;
-  column<OldEmployeeTable, "email_addr", std::string> email_addr;
-  column<OldEmployeeTable, "phone", std::optional<std::string>> phone;
+// clang-format off
+
+struct [[=relx::table("employees")]] OldEmployeeTable {
+  [[=relx::ann::pk]] int id;
+  std::string first_name;
+  std::string last_name;
+  std::string email_addr;
+  std::optional<std::string> phone;
 };
 
-struct NewEmployeeTable {
-  static constexpr auto table_name = "employees";
-
-  column<NewEmployeeTable, "id", int, primary_key> id;
-  column<NewEmployeeTable, "given_name", std::string> given_name;    // renamed from first_name
-  column<NewEmployeeTable, "family_name", std::string> family_name;  // renamed from last_name
-  column<NewEmployeeTable, "email", std::string> email;              // renamed from email_addr
-  column<NewEmployeeTable, "phone_number", std::optional<std::string>>
-      phone_number;  // renamed from phone
+struct [[=relx::table("employees")]] NewEmployeeTable {
+  [[=relx::ann::pk]] int id;
+  std::string given_name;                   // renamed from first_name
+  std::string family_name;                  // renamed from last_name
+  std::string email;                        // renamed from email_addr
+  std::optional<std::string> phone_number;  // renamed from phone
 };
+
+// clang-format on
+
+inline constexpr auto old_employees = relx::t<OldEmployeeTable>;
+inline constexpr auto new_employees = relx::t<NewEmployeeTable>;
 
 TEST(MigrationsTest, TestColumnRenaming) {
   std::cout << "\n=== Testing Column Renaming ===" << std::endl;
 
-  OldEmployeeTable old_table;
-  NewEmployeeTable new_table;
-
   // Test 1: Without mappings - should see drop/add operations (data loss)
   std::cout << "\n1. Migration WITHOUT column mappings (data loss):" << std::endl;
-  auto migration_without_mappings_result = migrations::generate_migration(old_table, new_table);
+  auto migration_without_mappings_result = migrations::generate_migration(old_employees,
+                                                                          new_employees);
   ASSERT_TRUE(migration_without_mappings_result)
       << "Failed to generate migration without mappings: "
       << migration_without_mappings_result.error().format();
@@ -781,6 +823,7 @@ TEST(MigrationsTest, TestColumnRenaming) {
   ASSERT_TRUE(rollback_no_mappings_result) << "Failed to generate rollback SQL without mappings: "
                                            << rollback_no_mappings_result.error().format();
   const auto& rollback_no_mappings = *rollback_no_mappings_result;
+  EXPECT_EQ(rollback_no_mappings.size(), 8);
 
   std::cout << "Operations without mappings: " << migration_without_mappings.size() << std::endl;
   for (size_t i = 0; i < forward_no_mappings.size(); ++i) {
@@ -798,7 +841,7 @@ TEST(MigrationsTest, TestColumnRenaming) {
                              {"email_addr", "email"},
                              {"phone", "phone_number"}};
 
-  auto migration_with_mappings_result = migrations::generate_migration(old_table, new_table,
+  auto migration_with_mappings_result = migrations::generate_migration(old_employees, new_employees,
                                                                        options);
   ASSERT_TRUE(migration_with_mappings_result) << "Failed to generate migration with mappings: "
                                               << migration_with_mappings_result.error().format();
@@ -823,7 +866,7 @@ TEST(MigrationsTest, TestColumnRenaming) {
   }
 
   // Should generate 4 rename operations
-  EXPECT_EQ(migration_with_mappings.size(), 4);
+  ASSERT_EQ(migration_with_mappings.size(), 4);
 
   // Test exact SQL for renames (deterministic: alphabetical by old column name)
   EXPECT_EQ(forward_with_mappings[0], "ALTER TABLE employees RENAME COLUMN email_addr TO email;");
@@ -841,36 +884,35 @@ TEST(MigrationsTest, TestColumnRenaming) {
   EXPECT_EQ(rollback_with_mappings[2],
             "ALTER TABLE employees RENAME COLUMN given_name TO first_name;");
   EXPECT_EQ(rollback_with_mappings[3], "ALTER TABLE employees RENAME COLUMN email TO email_addr;");
-
-  std::cout << "✅ Column renaming: Working with proper data preservation" << std::endl;
 }
 
 // Define table structures for column rename + type change tests
-struct OldProductTable {
-  static constexpr auto table_name = "products";
 
-  column<OldProductTable, "id", int, primary_key> id;
-  column<OldProductTable, "price_cents", int> price_cents;  // int price in cents
+// clang-format off
+
+struct [[=relx::table("products")]] OldProductTable {
+  [[=relx::ann::pk]] int id;
+  int price_cents;  // int price in cents
 };
 
-struct NewProductTable {
-  static constexpr auto table_name = "products";
-
-  column<NewProductTable, "id", int, primary_key> id;
-  column<NewProductTable, "price_dollars", std::string> price_dollars;  // string price in dollars
+struct [[=relx::table("products")]] NewProductTable {
+  [[=relx::ann::pk]] int id;
+  std::string price_dollars;  // string price in dollars
 };
+
+// clang-format on
+
+inline constexpr auto old_products = relx::t<OldProductTable>;
+inline constexpr auto new_products = relx::t<NewProductTable>;
 
 TEST(MigrationsTest, TestColumnRenameWithTypeChange) {
   std::cout << "\n=== Testing Column Rename + Type Change ===" << std::endl;
-
-  OldProductTable old_table;
-  NewProductTable new_table;
 
   // Test with mapping for rename + type change
   migrations::MigrationOptions options;
   options.column_mappings = {{"price_cents", "price_dollars"}};
 
-  auto migration_result = migrations::generate_migration(old_table, new_table, options);
+  auto migration_result = migrations::generate_migration(old_products, new_products, options);
   ASSERT_TRUE(migration_result) << "Failed to generate migration: "
                                 << migration_result.error().format();
   const auto& migration = *migration_result;
@@ -895,20 +937,15 @@ TEST(MigrationsTest, TestColumnRenameWithTypeChange) {
 
   // Should generate: 1 add + 1 drop (for rename + type change)
   // Note: This strategy preserves data by requiring manual UPDATE between ADD and DROP
-  EXPECT_EQ(migration.size(), 2);
+  ASSERT_EQ(migration.size(), 2);
 
   // Verify the operations
   EXPECT_EQ(forward_sql[0], "ALTER TABLE products ADD COLUMN price_dollars TEXT NOT NULL;");
   EXPECT_EQ(forward_sql[1], "ALTER TABLE products DROP COLUMN price_cents;");
-
-  std::cout << "✅ Column rename + type change: Working" << std::endl;
 }
 
 TEST(MigrationsTest, TestBidirectionalTransformations) {
   std::cout << "\n=== Testing Bidirectional Column Transformations ===" << std::endl;
-
-  OldProductTable old_table;
-  NewProductTable new_table;
 
   // Test with bidirectional transformations
   migrations::MigrationOptions options;
@@ -921,7 +958,7 @@ TEST(MigrationsTest, TestBidirectionalTransformations) {
                                                                         // -> cents
        }}};
 
-  auto migration_result = migrations::generate_migration(old_table, new_table, options);
+  auto migration_result = migrations::generate_migration(old_products, new_products, options);
   ASSERT_TRUE(migration_result) << "Failed to generate migration: "
                                 << migration_result.error().format();
   const auto& migration = *migration_result;
@@ -945,7 +982,7 @@ TEST(MigrationsTest, TestBidirectionalTransformations) {
   }
 
   // Should generate: 1 ADD + 1 UPDATE + 1 DROP (for rename + type change with transformation)
-  EXPECT_EQ(migration.size(), 3);
+  ASSERT_EQ(migration.size(), 3);
 
   // Verify forward migration SQL
   EXPECT_EQ(forward_sql[0], "ALTER TABLE products ADD COLUMN price_dollars TEXT NOT NULL;");
@@ -958,6 +995,6 @@ TEST(MigrationsTest, TestBidirectionalTransformations) {
   EXPECT_EQ(rollback_sql[1], "UPDATE products SET price_cents = CAST(REPLACE(price_dollars, ' "
                              "USD', '') AS DECIMAL) * 100;");
   EXPECT_EQ(rollback_sql[2], "ALTER TABLE products DROP COLUMN price_dollars;");
-
-  std::cout << "✅ Bidirectional transformations: Working correctly" << std::endl;
 }
+
+}  // namespace

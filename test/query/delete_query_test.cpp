@@ -8,27 +8,33 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <relx/schema.hpp>
 
 using namespace relx;
 
 // Define a simple User table for testing
-struct User {
-  static constexpr auto table_name = "users";
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  schema::column<User, "id", int> id;
-  schema::column<User, "name", std::string> name;
-  schema::column<User, "email", std::string> email;
-  schema::column<User, "active", bool> active;
-  schema::column<User, "login_count", int> login_count;
-  schema::column<User, "last_login", std::string> last_login;
-  schema::column<User, "status", std::string> status;
-  schema::column<User, "age", int> age;
+namespace {
+
+struct [[=relx::table("users")]] User {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
+  bool active;
+  int login_count;
+  std::string last_login;
+  std::string status;
+  int age;
 };
+constexpr auto users = relx::t<User>;
+
+}  // namespace
+
+// clang-format on
 
 // Test basic DELETE query without WHERE clause
 TEST(DeleteQueryTest, BasicDelete) {
-  User users;
-
   auto query = query::delete_from(users);
 
   EXPECT_EQ(query.to_sql(), "DELETE FROM users");
@@ -37,8 +43,6 @@ TEST(DeleteQueryTest, BasicDelete) {
 
 // Test DELETE query with WHERE clause
 TEST(DeleteQueryTest, DeleteWithWhere) {
-  User users;
-
   // Create column references for use in conditions
   auto id_ref = query::column_ref(users.id);
 
@@ -53,8 +57,6 @@ TEST(DeleteQueryTest, DeleteWithWhere) {
 
 // Test DELETE query with complex WHERE clause
 TEST(DeleteQueryTest, DeleteWithComplexWhere) {
-  User users;
-
   // Create column references for use in conditions
   auto id_ref = query::column_ref(users.id);
   auto active_ref = query::column_ref(users.active);
@@ -72,8 +74,6 @@ TEST(DeleteQueryTest, DeleteWithComplexWhere) {
 
 // Test direct column comparison with value
 TEST(DeleteQueryTest, DeleteWithDirectColumnComparison) {
-  User users;
-
   // Use direct column comparison with value
   auto query = query::delete_from(users).where(users.id == 1);
 
@@ -97,8 +97,6 @@ TEST(DeleteQueryTest, DeleteWithDirectColumnComparison) {
 
 // Test DELETE with IN condition in WHERE clause
 TEST(DeleteQueryTest, DeleteWithInCondition) {
-  User users;
-
   // Create a list of IDs to delete
   std::vector<std::string> ids = {"1", "3", "5", "7"};
 
@@ -116,8 +114,6 @@ TEST(DeleteQueryTest, DeleteWithInCondition) {
 
 // Test the convenience method for WHERE IN queries
 TEST(DeleteQueryTest, DeleteWithWhereInMethod) {
-  User users;
-
   // Create a list of IDs to delete
   std::vector<std::string> statuses = {"inactive", "banned", "deleted"};
 
@@ -134,8 +130,6 @@ TEST(DeleteQueryTest, DeleteWithWhereInMethod) {
 
 // Test DELETE with multiple condition types
 TEST(DeleteQueryTest, DeleteWithMultipleConditionTypes) {
-  User users;
-
   auto query = query::delete_from(users).where(
       query::column_ref(users.age) < query::val(18) ||
       query::like(query::column_ref(users.email), "%@test.com"));
@@ -150,8 +144,6 @@ TEST(DeleteQueryTest, DeleteWithMultipleConditionTypes) {
 
 // Test error handling scenarios - deleting without a WHERE clause is a common mistake
 TEST(DeleteQueryTest, DeleteWithoutWhereClauseSafety) {
-  User users;
-
   // In a real application, you might want to have a safety mechanism
   // to prevent accidental deletion of all records.
   // Here we're just testing that the SQL is correctly generated.

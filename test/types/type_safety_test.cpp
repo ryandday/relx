@@ -2,29 +2,35 @@
 #include <relx/query.hpp>
 #include <relx/schema.hpp>
 
-struct test_table {
-  static constexpr auto table_name = "test_table";
+namespace {
 
-  relx::schema::column<test_table, "id", int> id;
-  relx::schema::column<test_table, "price", double> price;
-  relx::schema::column<test_table, "name", std::string> name;
-  relx::schema::column<test_table, "is_active", bool> is_active;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  // Optional columns for testing
-  relx::schema::column<test_table, "optional_id", std::optional<int>> optional_id;
-  relx::schema::column<test_table, "optional_name", std::optional<std::string>> optional_name;
-  relx::schema::column<test_table, "optional_price", std::optional<double>> optional_price;
+struct [[=relx::table("test_table")]] test_table {
+  int id;
+  double price;
+  std::string name;
+  bool is_active;
+
+  // Optional (nullable) columns for testing
+  std::optional<int> optional_id;
+  std::optional<std::string> optional_name;
+  std::optional<double> optional_price;
 };
 
 // Table for testing column-to-column comparisons
-struct compatible_table {
-  static constexpr auto table_name = "compatible_table";
-  relx::schema::column<compatible_table, "id", int> id;
-  relx::schema::column<compatible_table, "name", std::string> name;
+struct [[=relx::table("compatible_table")]] compatible_table {
+  int id;
+  std::string name;
 };
 
+// clang-format on
+
+inline constexpr auto test_tbl = relx::t<test_table>;
+inline constexpr auto compatible_tbl = relx::t<compatible_table>;
+
 TEST(TypeSafetyTest, ValidComparisons) {
-  test_table t;
+  constexpr auto t = test_tbl;
 
   // These should all compile - valid comparisons
   auto query1 = relx::query::select(t.id).from(t).where(t.id == 42);  // int column with int value
@@ -53,7 +59,7 @@ TEST(TypeSafetyTest, ValidComparisons) {
 }
 
 TEST(TypeSafetyTest, OptionalTypeComparisons) {
-  test_table t;
+  constexpr auto t = test_tbl;
 
   // Optional column with underlying type - should compile
   auto query1 = relx::query::select(t.optional_id)
@@ -102,7 +108,7 @@ TEST(TypeSafetyTest, OptionalTypeComparisons) {
 }
 
 TEST(TypeSafetyTest, CrossTypeComparisons) {
-  test_table t;
+  constexpr auto t = test_tbl;
 
   // Test if the library allows potentially problematic cross-type comparisons
   // These might be allowed due to implicit conversions, but we want to understand the behavior
@@ -128,7 +134,7 @@ TEST(TypeSafetyTest, CrossTypeComparisons) {
 
 // Now test invalid comparisons - these should fail at compile time
 TEST(TypeSafetyTest, InvalidComparisons) {
-  test_table t;
+  constexpr auto t = test_tbl;
 
   // Test some valid ones first
   auto query1 = relx::query::select(t.id).from(t).where(t.id == 42);
@@ -165,7 +171,7 @@ TEST(TypeSafetyTest, InvalidComparisons) {
 }
 
 TEST(TypeSafetyTest, AggregateFunctionTypeChecking) {
-  test_table t;
+  constexpr auto t = test_tbl;
 
   // These should compile - valid aggregate uses
   auto valid_sum = relx::query::select_expr(relx::query::sum(t.id)).from(t);  // int column
@@ -196,7 +202,7 @@ TEST(TypeSafetyTest, AggregateFunctionTypeChecking) {
 }
 
 TEST(TypeSafetyTest, CaseExpressionTypeChecking) {
-  test_table t;
+  constexpr auto t = test_tbl;
 
   // This should compile - consistent string types
   auto valid_case = relx::query::case_()
@@ -221,8 +227,8 @@ TEST(TypeSafetyTest, CaseExpressionTypeChecking) {
 }
 
 TEST(TypeSafetyTest, ColumnToColumnComparison) {
-  test_table t1;
-  compatible_table t2;
+  constexpr auto t1 = test_tbl;
+  constexpr auto t2 = compatible_tbl;
 
   // This should compile - same types
   auto valid_join = relx::query::select(t1.id, t1.name)
@@ -239,7 +245,7 @@ TEST(TypeSafetyTest, ColumnToColumnComparison) {
 }
 
 TEST(TypeSafetyTest, ArithmeticOperationsTypeChecking) {
-  test_table t;
+  constexpr auto t = test_tbl;
 
   // These should compile - valid arithmetic with numeric columns
   auto valid_addition =
@@ -268,7 +274,7 @@ TEST(TypeSafetyTest, ArithmeticOperationsTypeChecking) {
 }
 
 TEST(TypeSafetyTest, UpdateAssignmentTypeChecking) {
-  test_table t;
+  constexpr auto t = test_tbl;
 
   // These should compile - valid assignments
   auto valid_update1 = relx::query::update(t)
@@ -295,7 +301,7 @@ TEST(TypeSafetyTest, UpdateAssignmentTypeChecking) {
 }
 
 TEST(TypeSafetyTest, OrderByTypeChecking) {
-  test_table t;
+  constexpr auto t = test_tbl;
 
   // These should compile - valid ORDER BY columns
   auto valid_order1 = relx::query::select(t.id, t.name).from(t).order_by(t.id);  // int column
@@ -313,3 +319,5 @@ TEST(TypeSafetyTest, OrderByTypeChecking) {
 
   EXPECT_TRUE(true);  // Test that valid cases compile
 }
+
+}  // namespace

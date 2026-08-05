@@ -6,7 +6,7 @@ using namespace test_tables;
 using namespace test_utils;
 
 TEST(BasicSelectTest, SimpleSelect) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name, u.email).from(u);
 
@@ -16,7 +16,7 @@ TEST(BasicSelectTest, SimpleSelect) {
 }
 
 TEST(BasicSelectTest, SelectAllColumns) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select(u.id, u.name, u.email, u.age, u.created_at, u.is_active, u.bio,
                                    u.login_count)
                    .from(u);
@@ -29,8 +29,8 @@ TEST(BasicSelectTest, SelectAllColumns) {
 }
 
 TEST(BasicSelectTest, SelectWithExplicitTableName) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
   auto query = relx::query::select(u.id, p.id).from(u).from(p);
 
   std::string expected_sql = "SELECT users.id, posts.id FROM users, posts";
@@ -39,7 +39,7 @@ TEST(BasicSelectTest, SelectWithExplicitTableName) {
 }
 
 TEST(BasicSelectTest, SelectWithColumnAliases) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(relx::query::as(u.id, "user_id"),
                                         relx::query::as(u.name, "user_name"),
@@ -53,7 +53,7 @@ TEST(BasicSelectTest, SelectWithColumnAliases) {
 }
 
 TEST(BasicSelectTest, SelectWithLiteral) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(u.id, relx::query::val(42),
                                         relx::query::val("constant string"))
@@ -69,7 +69,7 @@ TEST(BasicSelectTest, SelectWithLiteral) {
 }
 
 TEST(BasicSelectTest, SelectWithDistinct) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(relx::query::distinct(u.age)).from(u);
 
@@ -79,7 +79,7 @@ TEST(BasicSelectTest, SelectWithDistinct) {
 }
 
 TEST(BasicSelectTest, SelectWithLimit) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).limit(10);
 
@@ -92,7 +92,7 @@ TEST(BasicSelectTest, SelectWithLimit) {
 }
 
 TEST(BasicSelectTest, SelectWithLimitAndOffset) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).limit(10).offset(20);
 
@@ -106,7 +106,7 @@ TEST(BasicSelectTest, SelectWithLimitAndOffset) {
 }
 
 TEST(BasicSelectTest, SelectWithOrderByAsc) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).order_by(relx::query::asc(u.name));
 
@@ -116,7 +116,7 @@ TEST(BasicSelectTest, SelectWithOrderByAsc) {
 }
 
 TEST(BasicSelectTest, SelectWithOrderByDesc) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).order_by(relx::query::desc(u.age));
 
@@ -126,7 +126,7 @@ TEST(BasicSelectTest, SelectWithOrderByDesc) {
 }
 
 TEST(BasicSelectTest, SelectWithMultipleOrderBy) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name)
                    .from(u)
@@ -139,7 +139,7 @@ TEST(BasicSelectTest, SelectWithMultipleOrderBy) {
 }
 
 TEST(BasicSelectTest, SelectWithLimitNew) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select(u.id, u.name).from(u).limit(10);
 
   std::string expected_sql = "SELECT users.id, users.name FROM users LIMIT ?";
@@ -151,7 +151,7 @@ TEST(BasicSelectTest, SelectWithLimitNew) {
 }
 
 TEST(BasicSelectTest, SelectWithLimitAndOffsetNew) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select(u.id, u.name).from(u).limit(10).offset(20);
 
   std::string expected_sql = "SELECT users.id, users.name FROM users LIMIT ? OFFSET ?";
@@ -164,7 +164,7 @@ TEST(BasicSelectTest, SelectWithLimitAndOffsetNew) {
 }
 
 TEST(BasicSelectTest, SelectWithOrderByAscNew) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select(u.id, u.name).from(u).order_by(relx::query::asc(u.name));
 
   std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY users.name ASC";
@@ -173,7 +173,7 @@ TEST(BasicSelectTest, SelectWithOrderByAscNew) {
 }
 
 TEST(BasicSelectTest, SelectWithOrderByDescNew) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select(u.id, u.name).from(u).order_by(relx::query::desc(u.age));
 
   std::string expected_sql = "SELECT users.id, users.name FROM users ORDER BY users.age DESC";
@@ -182,7 +182,7 @@ TEST(BasicSelectTest, SelectWithOrderByDescNew) {
 }
 
 TEST(BasicSelectTest, SelectWithMultipleOrderByNew) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select(u.id, u.name)
                    .from(u)
                    .order_by(relx::query::desc(u.age), relx::query::asc(u.name));
@@ -194,7 +194,7 @@ TEST(BasicSelectTest, SelectWithMultipleOrderByNew) {
 }
 
 TEST(BasicSelectTest, SelectWithConditionNew) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select(u.id, u.name).from(u).where(u.age > 18);
 
   std::string expected_sql = "SELECT users.id, users.name FROM users WHERE (users.age > ?)";
@@ -206,7 +206,7 @@ TEST(BasicSelectTest, SelectWithConditionNew) {
 }
 
 TEST(BasicSelectTest, SelectWithMultipleConditionsNew) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select(u.id, u.name).from(u).where(u.age >= 18 && u.name != "");
 
   std::string expected_sql =
@@ -220,8 +220,8 @@ TEST(BasicSelectTest, SelectWithMultipleConditionsNew) {
 }
 
 TEST(BasicSelectTest, SelectWithJoinNew) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
   auto query =
       relx::query::select(u.name, p.title).from(u).join(p, relx::query::on(u.id == p.user_id));
 
@@ -232,7 +232,7 @@ TEST(BasicSelectTest, SelectWithJoinNew) {
 }
 
 TEST(BasicSelectTest, SelectFromHelper) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select(u.id, u.name, u.email).from(u);
 
   std::string expected_sql = "SELECT users.id, users.name, users.email FROM users";

@@ -8,32 +8,32 @@
 #include <relx/schema.hpp>
 
 // Define test tables
-struct users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<users, "id", int> id;
-  relx::schema::column<users, "name", std::string> name;
-  relx::schema::column<users, "email", std::string> email;
-  relx::schema::column<users, "age", int> age;
-  relx::schema::column<users, "bio", std::optional<std::string>> bio;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  relx::schema::table_primary_key<&users::id> pk;
-  relx::schema::unique_constraint<&users::email> unique_email;
+namespace {
+
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  [[=relx::ann::unique]] std::string email;
+  int age;
+  std::optional<std::string> bio;
 };
 
-struct posts {
-  static constexpr auto table_name = "posts";
-  relx::schema::column<posts, "id", int> id;
-  relx::schema::column<posts, "user_id", int> user_id;
-  relx::schema::column<posts, "title", std::string> title;
-  relx::schema::column<posts, "content", std::string> content;
-  relx::schema::column<posts, "created_at", std::string> created_at;
-
-  relx::schema::table_primary_key<&posts::id> pk;
-  relx::schema::foreign_key<&posts::user_id, &users::id> user_fk;
+struct [[=relx::table("posts")]] Posts {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^Users::id>]] int user_id;
+  std::string title;
+  std::string content;
+  std::string created_at;
 };
+
+}  // namespace
+
+// clang-format on
 
 TEST(QueryTest, SimpleSelect) {
-  users u;
+  constexpr auto u = relx::t<Users>;
 
   auto query = relx::query::select(u.id, u.name, u.email).from(u);
 
@@ -43,7 +43,7 @@ TEST(QueryTest, SimpleSelect) {
 }
 
 TEST(QueryTest, SelectWithCondition) {
-  users u;
+  constexpr auto u = relx::t<Users>;
 
   auto query = relx::query::select(u.id, u.name).from(u).where(u.age > 18);
 
@@ -56,8 +56,8 @@ TEST(QueryTest, SelectWithCondition) {
 }
 
 TEST(QueryTest, SelectWithJoin) {
-  users u;
-  posts p;
+  constexpr auto u = relx::t<Users>;
+  constexpr auto p = relx::t<Posts>;
 
   auto query =
       relx::query::select(u.name, p.title).from(u).join(p, relx::query::on(u.id == p.user_id));
@@ -69,7 +69,7 @@ TEST(QueryTest, SelectWithJoin) {
 }
 
 TEST(QueryTest, SelectWithMultipleConditions) {
-  users u;
+  constexpr auto u = relx::t<Users>;
 
   auto query = relx::query::select(u.id, u.name).from(u).where(u.age >= 18 && u.name != "");
 
@@ -84,7 +84,7 @@ TEST(QueryTest, SelectWithMultipleConditions) {
 }
 
 TEST(QueryTest, SelectWithOrderByAndLimit) {
-  users u;
+  constexpr auto u = relx::t<Users>;
 
   auto query =
       relx::query::select(u.id, u.name).from(u).order_by(relx::query::desc(u.name)).limit(10);
@@ -99,7 +99,7 @@ TEST(QueryTest, SelectWithOrderByAndLimit) {
 }
 
 TEST(QueryTest, SelectWithAggregateFunction) {
-  users u;
+  constexpr auto u = relx::t<Users>;
 
   auto query = relx::query::select_expr(relx::query::as(relx::query::count_all(), "user_count"),
                                         relx::query::as(relx::query::avg(u.age), "average_age"))
@@ -112,8 +112,8 @@ TEST(QueryTest, SelectWithAggregateFunction) {
 }
 
 TEST(QueryTest, SelectWithGroupByAndHaving) {
-  users u;
-  posts p;
+  constexpr auto u = relx::t<Users>;
+  constexpr auto p = relx::t<Posts>;
 
   auto query = relx::query::select_expr(u.id,
                                         relx::query::as(relx::query::count(p.id), "post_count"))
@@ -133,7 +133,7 @@ TEST(QueryTest, SelectWithGroupByAndHaving) {
 }
 
 TEST(QueryTest, SelectWithInCondition) {
-  users u;
+  constexpr auto u = relx::t<Users>;
 
   std::vector<std::string> names = {"Alice", "Bob", "Charlie"};
   auto query = relx::query::select(u.id, u.email).from(u).where(relx::query::in(u.name, names));
@@ -150,7 +150,7 @@ TEST(QueryTest, SelectWithInCondition) {
 }
 
 TEST(QueryTest, SelectWithLikeCondition) {
-  users u;
+  constexpr auto u = relx::t<Users>;
 
   auto query =
       relx::query::select(u.id, u.name).from(u).where(relx::query::like(u.email, "%@example.com"));
@@ -164,7 +164,7 @@ TEST(QueryTest, SelectWithLikeCondition) {
 }
 
 TEST(QueryTest, SelectWithCaseExpression) {
-  users u;
+  constexpr auto u = relx::t<Users>;
 
   auto case_expr = relx::query::case_()
                        .when(u.age < 18, "Minor")
@@ -194,7 +194,7 @@ TEST(QueryTest, SelectWithCaseExpression) {
 }
 
 TEST(QueryTest, SimpleCaseWithoutDuplicateParams) {
-  users u;
+  constexpr auto u = relx::t<Users>;
 
   // Create a simple value-only condition first
   auto value_query = relx::query::select_expr(relx::query::val(42));

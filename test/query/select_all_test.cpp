@@ -8,38 +8,38 @@
 #include <relx/schema.hpp>
 
 // Define test tables
-struct users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<users, "id", int> id;
-  relx::schema::column<users, "name", std::string> name;
-  relx::schema::column<users, "email", std::string> email;
-  relx::schema::column<users, "age", int> age;
-  relx::schema::column<users, "created_at", std::string> created_at;
-  relx::schema::column<users, "is_active", bool> is_active;
-  relx::schema::column<users, "bio", std::optional<std::string>> bio;
-  relx::schema::column<users, "login_count", int> login_count;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  relx::schema::table_primary_key<&users::id> pk;
-  relx::schema::unique_constraint<&users::email> unique_email;
+namespace {
+
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  [[=relx::ann::unique]] std::string email;
+  int age;
+  std::string created_at;
+  bool is_active;
+  std::optional<std::string> bio;
+  int login_count;
 };
+constexpr auto users = relx::t<Users>;
 
 // Define a second table
-struct posts {
-  static constexpr auto table_name = "posts";
-  relx::schema::column<posts, "id", int> id;
-  relx::schema::column<posts, "user_id", int> user_id;
-  relx::schema::column<posts, "title", std::string> title;
-  relx::schema::column<posts, "content", std::string> content;
-
-  relx::schema::table_primary_key<&posts::id> pk;
-  relx::schema::foreign_key<&posts::user_id, &users::id> user_fk;
+struct [[=relx::table("posts")]] Posts {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^Users::id>]] int user_id;
+  std::string title;
+  std::string content;
 };
+constexpr auto posts = relx::t<Posts>;
+
+}  // namespace
+
+// clang-format on
 
 TEST(SelectAllTest, BasicSelectAll) {
-  users u;
-
-  // Use select_all with a table instance
-  auto query = relx::query::select_all(u);
+  // Use select_all with a table object
+  auto query = relx::query::select_all(users);
 
   // The expected SQL should include all columns but not constraints
   std::string expected_sql = "SELECT users.id, users.name, users.email, users.age, "
@@ -51,7 +51,7 @@ TEST(SelectAllTest, BasicSelectAll) {
 
 TEST(SelectAllTest, SelectAllWithoutInstance) {
   // Use select_all with just the table type
-  auto query = relx::query::select_all<users>();
+  auto query = relx::query::select_all<Users>();
 
   // The expected SQL should include all columns but not constraints
   std::string expected_sql = "SELECT users.id, users.name, users.email, users.age, "
@@ -62,8 +62,7 @@ TEST(SelectAllTest, SelectAllWithoutInstance) {
 }
 
 TEST(SelectAllTest, SelectAllWithWhere) {
-  users u;
-  auto query = relx::query::select_all<users>().where(u.age > 18);
+  auto query = relx::query::select_all<Users>().where(users.age > 18);
 
   std::string expected_sql = "SELECT users.id, users.name, users.email, users.age, "
                              "users.created_at, users.is_active, users.bio, "
@@ -76,9 +75,8 @@ TEST(SelectAllTest, SelectAllWithWhere) {
 }
 
 TEST(SelectAllTest, SelectAllWithJoin) {
-  users u;
-  posts p;
-  auto query = relx::query::select_all<users>().join(p, relx::query::on(u.id == p.user_id));
+  auto query = relx::query::select_all<Users>().join(posts,
+                                                     relx::query::on(users.id == posts.user_id));
 
   std::string expected_sql =
       "SELECT users.id, users.name, users.email, users.age, "
@@ -89,14 +87,12 @@ TEST(SelectAllTest, SelectAllWithJoin) {
 }
 
 TEST(SelectAllTest, SelectAllWithAllClauses) {
-  users u;
-  posts p;
-  auto query = relx::query::select_all<users>()
-                   .join(p, relx::query::on(u.id == p.user_id))
-                   .where(u.age > 18)
-                   .group_by(u.id)
-                   .having(relx::query::count(p.id) > 5)
-                   .order_by(relx::query::desc(u.age))
+  auto query = relx::query::select_all<Users>()
+                   .join(posts, relx::query::on(users.id == posts.user_id))
+                   .where(users.age > 18)
+                   .group_by(users.id)
+                   .having(relx::query::count(posts.id) > 5)
+                   .order_by(relx::query::desc(users.age))
                    .limit(10)
                    .offset(20);
 
@@ -120,34 +116,17 @@ TEST(SelectAllTest, SelectAllWithAllClauses) {
   EXPECT_EQ(params[3], "20");
 }
 
-// Annotated tables: select_all over relx::t<T> expands the reflected members
-
-struct[[= relx::table("accounts")]] Accounts {
-  [[= relx::ann::pk]] int id;
-  std::string owner;
-  std::optional<std::string> note;
-};
-
-inline constexpr auto accounts = relx::t<Accounts>;
-
-TEST(SelectAllTest, AnnotatedTableExpandsColumns) {
-  auto query = relx::query::select_all(accounts);
-
-  std::string expected_sql = "SELECT accounts.id, accounts.owner, accounts.note FROM accounts";
-  EXPECT_EQ(query.to_sql(), expected_sql);
-  EXPECT_TRUE(query.bind_params().empty());
-}
-
 TEST(SelectAllTest, SynthesizesRowType) {
   // The whole point of expanding * to explicit columns: the select list is typed,
   // so the query synthesizes a row struct like any explicit select
-  auto query = relx::query::select_all(accounts);
+  auto query = relx::query::select_all(users);
   using Row = relx::query::row_type_for<decltype(query)>;
 
   Row row{};
   row.id = 7;
-  row.owner = "alice";
-  row.note = std::nullopt;
+  row.name = "alice";
+  row.bio = std::nullopt;
   EXPECT_EQ(row.id, 7);
-  EXPECT_EQ(row.owner, "alice");
+  EXPECT_EQ(row.name, "alice");
+  EXPECT_FALSE(row.bio.has_value());
 }

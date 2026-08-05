@@ -1,3 +1,5 @@
+#include "schema_definitions.hpp"
+
 #include <memory>
 #include <optional>
 #include <string>
@@ -7,123 +9,24 @@
 #include <relx/query.hpp>
 #include <relx/schema.hpp>
 
-// Schema for our integration tests
-namespace schema {
+namespace {
 
-// Categories table
-struct Category {
-  static constexpr auto table_name = "categories";
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  relx::schema::column<Category, "id", int> id;
-  relx::schema::column<Category, "name", std::string> name;
-  relx::schema::column<Category, "description", std::optional<std::string>> description;
-
-  // Primary key
-  relx::schema::pk<&Category::id> primary;
-
-  // Unique constraint
-  relx::schema::unique_constraint<&Category::name> unique_name;
+// Indexes are not part of CREATE TABLE - they come from relx::create_indexes_sql<T>()
+struct [[=relx::table("audit_log"),
+        =relx::ann::index_on("event_type", "created_at"),
+        =relx::ann::index_on("external_ref").unique()]] AuditLog {
+  [[=relx::ann::pk]] int id;
+  std::string event_type;
+  std::string external_ref;
+  std::string created_at;
 };
+inline constexpr auto audit_log = relx::t<AuditLog>;
 
-// Products table
-struct Product {
-  static constexpr auto table_name = "products";
+// clang-format on
 
-  relx::schema::column<Product, "id", int> id;
-  relx::schema::column<Product, "category_id", int> category_id;
-  relx::schema::column<Product, "name", std::string> name;
-  relx::schema::column<Product, "description", std::optional<std::string>> description;
-  relx::schema::column<Product, "price", double> price;
-  relx::schema::column<Product, "sku", std::string> sku;
-  relx::schema::column<Product, "is_active", bool, relx::schema::default_value<true>> is_active;
-  relx::schema::column<Product, "created_at", std::string,
-                       relx::schema::string_default<"CURRENT_TIMESTAMP">>
-      created_at;
-
-  // Primary key
-  relx::schema::pk<&Product::id> primary;
-
-  // Foreign key
-  relx::schema::foreign_key<&Product::category_id, &Category::id> category_fk;
-
-  // Unique constraint
-  relx::schema::unique_constraint<&Product::sku> unique_sku;
-
-  // Check constraint
-  relx::schema::table_check_constraint<"price > 0"> price_check;
-};
-
-// Customers table
-struct Customer {
-  static constexpr auto table_name = "customers";
-
-  relx::schema::column<Customer, "id", int> id;
-  relx::schema::column<Customer, "name", std::string> name;
-  relx::schema::column<Customer, "email", std::string> email;
-  relx::schema::column<Customer, "phone", std::optional<std::string>> phone;
-  relx::schema::column<Customer, "is_active", bool, relx::schema::default_value<true>> is_active;
-  relx::schema::column<Customer, "created_at", std::string,
-                       relx::schema::string_default<"CURRENT_TIMESTAMP">>
-      created_at;
-
-  // Primary key
-  relx::schema::pk<&Customer::id> primary;
-
-  // Unique constraint
-  relx::schema::unique_constraint<&Customer::email> unique_email;
-};
-
-// Orders table with composite foreign key
-struct Order {
-  static constexpr auto table_name = "orders";
-
-  relx::schema::column<Order, "id", int> id;
-  relx::schema::column<Order, "customer_id", int> customer_id;
-  relx::schema::column<Order, "product_id", int> product_id;
-  relx::schema::column<Order, "quantity", int> quantity;
-  relx::schema::column<Order, "total", double> total;
-  relx::schema::column<Order, "status", std::string, relx::schema::string_default<"pending">>
-      status;
-  relx::schema::column<Order, "created_at", std::string,
-                       relx::schema::string_default<"CURRENT_TIMESTAMP">>
-      created_at;
-
-  // Primary key
-  relx::schema::pk<&Order::id> primary;
-
-  // Foreign keys
-  relx::schema::foreign_key<&Order::customer_id, &Customer::id> customer_fk;
-  relx::schema::foreign_key<&Order::product_id, &Product::id> product_fk;
-
-  // Check constraint
-  relx::schema::table_check_constraint<"quantity > 0"> quantity_check;
-  relx::schema::table_check_constraint<
-      "status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled')">
-      status_check;
-};
-
-// Table with a composite primary key
-struct Inventory {
-  static constexpr auto table_name = "inventory";
-
-  relx::schema::column<Inventory, "product_id", int> product_id;
-  relx::schema::column<Inventory, "warehouse_code", std::string> warehouse_code;
-  relx::schema::column<Inventory, "quantity", int> quantity;
-  relx::schema::column<Inventory, "last_updated", std::string,
-                       relx::schema::string_default<"CURRENT_TIMESTAMP">>
-      last_updated;
-
-  // Composite primary key
-  relx::schema::pk<&Inventory::product_id, &Inventory::warehouse_code> primary;
-
-  // Foreign key
-  relx::schema::foreign_key<&Inventory::product_id, &Product::id> product_fk;
-
-  // Check constraint
-  relx::schema::table_check_constraint<"quantity >= 0"> quantity_check;
-};
-
-}  // namespace schema
+}  // namespace
 
 // Test fixture for schema integration tests
 class SchemaIntegrationTest : public ::testing::Test {
@@ -165,17 +68,20 @@ protected:
 
     result = conn->execute_raw("DROP TABLE IF EXISTS categories CASCADE");
     ASSERT_TRUE(result) << "Failed to drop categories table: " << result.error().message;
+
+    result = conn->execute_raw("DROP TABLE IF EXISTS audit_log CASCADE");
+    ASSERT_TRUE(result) << "Failed to drop audit_log table: " << result.error().message;
   }
 };
 
 // Test creating tables from schema
 TEST_F(SchemaIntegrationTest, CreateTables) {
   // Create instances of our table schemas
-  schema::Category category;
-  schema::Product product;
-  schema::Customer customer;
-  schema::Order order;
-  schema::Inventory inventory;
+  constexpr auto category = schema::categories;
+  constexpr auto product = schema::products;
+  constexpr auto customer = schema::customers;
+  constexpr auto order = schema::orders;
+  constexpr auto inventory = schema::inventory;
 
   // Generate and execute create table statements in the correct order
   // 1. Create categories table
@@ -226,11 +132,11 @@ TEST_F(SchemaIntegrationTest, CreateTables) {
 // Test constraints are properly created
 TEST_F(SchemaIntegrationTest, TableConstraints) {
   // Create instances of our table schemas
-  schema::Category category;
-  schema::Product product;
-  schema::Customer customer;
-  schema::Order order;
-  schema::Inventory inventory;
+  constexpr auto category = schema::categories;
+  constexpr auto product = schema::products;
+  constexpr auto customer = schema::customers;
+  constexpr auto order = schema::orders;
+  constexpr auto inventory = schema::inventory;
 
   // Create all tables first
   auto create_category_sql = relx::schema::create_table(category);
@@ -335,7 +241,7 @@ TEST_F(SchemaIntegrationTest, TableConstraints) {
 // Test default values are correctly applied
 TEST_F(SchemaIntegrationTest, DefaultValues) {
   // First create the categories table
-  schema::Category category;
+  constexpr auto category = schema::categories;
   auto create_category_sql = relx::schema::create_table(category);
   auto result = conn->execute(create_category_sql);
   ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
@@ -348,7 +254,7 @@ TEST_F(SchemaIntegrationTest, DefaultValues) {
   ASSERT_TRUE(result) << "Failed to insert category: " << result.error().message;
 
   // Create product table that references category table
-  schema::Product product;
+  constexpr auto product = schema::products;
   auto create_product_sql = relx::schema::create_table(product);
   result = conn->execute(create_product_sql);
   ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
@@ -386,13 +292,13 @@ TEST_F(SchemaIntegrationTest, DefaultValues) {
 // Test constraint violations are properly enforced
 TEST_F(SchemaIntegrationTest, ConstraintViolation) {
   // Create categories table
-  schema::Category category;
+  constexpr auto category = schema::categories;
   auto create_category_sql = relx::schema::create_table(category);
   auto result = conn->execute(create_category_sql);
   ASSERT_TRUE(result) << "Failed to create categories table: " << result.error().message;
 
   // Create product table
-  schema::Product product;
+  constexpr auto product = schema::products;
   auto create_product_sql = relx::schema::create_table(product);
   result = conn->execute(create_product_sql);
   ASSERT_TRUE(result) << "Failed to create products table: " << result.error().message;
@@ -442,8 +348,8 @@ TEST_F(SchemaIntegrationTest, ConstraintViolation) {
 // Test database creation using create_table helper
 TEST_F(SchemaIntegrationTest, CreateTableHelper) {
   // Create instances of our table schemas
-  schema::Category category;
-  schema::Product product;
+  constexpr auto category = schema::categories;
+  constexpr auto product = schema::products;
 
   // Use the helper function to create a category table
   auto create_category_sql = relx::schema::create_table(category);
@@ -501,4 +407,48 @@ TEST_F(SchemaIntegrationTest, CreateTableHelper) {
   auto product_exists = (*result)[0].get<bool>(0);
   ASSERT_TRUE(product_exists);
   EXPECT_FALSE(*product_exists) << "Product table should be dropped";
+}
+
+// Indexes are not part of CREATE TABLE: each ann::index_on becomes its own CREATE INDEX
+TEST_F(SchemaIntegrationTest, CreateIndexes) {
+  auto create_audit_log_sql = relx::schema::create_table(audit_log);
+  auto result = conn->execute(create_audit_log_sql);
+  ASSERT_TRUE(result) << "Failed to create audit_log table: " << result.error().message;
+
+  constexpr auto index_stmts = relx::create_indexes_sql<AuditLog>();
+  static_assert(index_stmts.size() == 2);
+  for (const auto stmt : index_stmts) {
+    result = conn->execute_raw(std::string(stmt));
+    ASSERT_TRUE(result) << "Failed to create index (" << stmt << "): " << result.error().message;
+  }
+
+  // Both indexes reached the catalog, named <table>_<columns>_idx
+  auto indexes = conn->execute_raw(
+      "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' "
+      "AND tablename = 'audit_log' AND indexname LIKE '%\\_idx' ORDER BY indexname");
+  ASSERT_TRUE(indexes) << "Failed to query indexes: " << indexes.error().message;
+  ASSERT_EQ(2, indexes->size()) << "Expected 2 indexes on audit_log";
+
+  auto first_name = (*indexes)[0].get<std::string>(0);
+  auto second_name = (*indexes)[1].get<std::string>(0);
+  ASSERT_TRUE(first_name && second_name);
+  EXPECT_EQ("audit_log_event_type_created_at_idx", *first_name);
+  EXPECT_EQ("audit_log_external_ref_idx", *second_name);
+
+  // The unique index is enforced by the database
+  using namespace relx::query;
+
+  auto insert_row = insert_into(audit_log)
+                        .columns(audit_log.id, audit_log.event_type, audit_log.external_ref,
+                                 audit_log.created_at)
+                        .values(1, "created", "REF-1", "2024-01-01");
+  result = conn->execute_raw(insert_row.to_sql(), insert_row.bind_params());
+  ASSERT_TRUE(result) << "Failed to insert audit row: " << result.error().message;
+
+  auto duplicate_ref = insert_into(audit_log)
+                           .columns(audit_log.id, audit_log.event_type, audit_log.external_ref,
+                                    audit_log.created_at)
+                           .values(2, "updated", "REF-1", "2024-01-02");
+  result = conn->execute_raw(duplicate_ref.to_sql(), duplicate_ref.bind_params());
+  EXPECT_FALSE(result) << "Should fail due to duplicate external_ref (unique index)";
 }

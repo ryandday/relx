@@ -9,17 +9,19 @@
 
 namespace {
 
-// Test table definition
-struct Users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<Users, "id", int, relx::identity<>> id;
-  relx::schema::column<Users, "name", std::string> name;
-  relx::schema::column<Users, "email", std::string> email;
-  relx::schema::column<Users, "age", int> age;
-  relx::schema::column<Users, "active", bool> active;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  relx::schema::table_primary_key<&Users::id> pk;
+// Test table definition
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk, =relx::ann::identity]] int id;
+  std::string name;
+  std::string email;
+  int age;
+  bool active;
 };
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
 
 class PostgresIntegrationTest : public ::testing::Test {
 protected:
@@ -42,8 +44,7 @@ protected:
     relx::PostgreSQLConnection conn(conn_string);
     auto connect_result = conn.connect();
     if (connect_result) {
-      Users u;
-      auto raw_sql = relx::drop_table(u).cascade();
+      auto raw_sql = relx::drop_table(users).cascade();
       auto result = conn.execute(raw_sql);
       ASSERT_TRUE(result) << "Failed to drop table: " << result.error().message;
       conn.disconnect();
@@ -52,8 +53,7 @@ protected:
 
   // Helper to create the test table
   void create_test_table(relx::Connection& conn) {
-    Users u;
-    auto create_query = relx::create_table(u);
+    auto create_query = relx::create_table(users);
 
     auto result = conn.execute(create_query);
     ASSERT_TRUE(result) << "Failed to create table: " << result.error().message;
@@ -61,25 +61,23 @@ protected:
 
   // Helper to insert test data
   void insert_test_data(relx::Connection& conn) {
-    Users u;
-
     // Insert Alice
-    auto insert1 = relx::query::insert_into(u)
-                       .columns(u.name, u.email, u.age, u.active)
+    auto insert1 = relx::query::insert_into(users)
+                       .columns(users.name, users.email, users.age, users.active)
                        .values("Alice", "alice@example.com", 30, true);
     auto result1 = conn.execute(insert1);
     ASSERT_TRUE(result1) << "Failed to insert test data: " << result1.error().message;
 
     // Insert Bob
-    auto insert2 = relx::query::insert_into(u)
-                       .columns(u.name, u.email, u.age, u.active)
+    auto insert2 = relx::query::insert_into(users)
+                       .columns(users.name, users.email, users.age, users.active)
                        .values("Bob", "bob@example.com", 25, false);
     auto result2 = conn.execute(insert2);
     ASSERT_TRUE(result2) << "Failed to insert test data 2: " << result2.error().message;
 
     // Insert Charlie
-    auto insert3 = relx::query::insert_into(u)
-                       .columns(u.name, u.email, u.age, u.active)
+    auto insert3 = relx::query::insert_into(users)
+                       .columns(users.name, users.email, users.age, users.active)
                        .values("Charlie", "charlie@example.com", 35, true);
     auto result3 = conn.execute(insert3);
     ASSERT_TRUE(result3) << "Failed to insert test data 3: " << result3.error().message;
@@ -123,11 +121,10 @@ TEST_F(PostgresIntegrationTest, TestQueryBuilderIntegration) {
   insert_test_data(conn);
 
   // Create query using the query builder
-  Users u;
-  auto query = relx::query::select(u.id, u.name, u.email, u.age, u.active)
-                   .from(u)
-                   .where(u.age > 25)
-                   .order_by(u.age);
+  auto query = relx::query::select(users.id, users.name, users.email, users.age, users.active)
+                   .from(users)
+                   .where(users.age > 25)
+                   .order_by(users.age);
 
   // Execute the query
   auto result = conn.execute(query);
@@ -138,21 +135,21 @@ TEST_F(PostgresIntegrationTest, TestQueryBuilderIntegration) {
 
   // Verify first row (should be Alice)
   const auto& first_row = (*result)[0];
-  auto name = first_row.get<std::string>(u.name);
+  auto name = first_row.get<std::string>(users.name);
   ASSERT_TRUE(name);
   EXPECT_EQ("Alice", *name);
 
-  auto age = first_row.get<int>(u.age);
+  auto age = first_row.get<int>(users.age);
   ASSERT_TRUE(age);
   EXPECT_EQ(30, *age);
 
   // Verify second row (should be Charlie)
   const auto& second_row = (*result)[1];
-  auto name2 = second_row.get<std::string>(u.name);
+  auto name2 = second_row.get<std::string>(users.name);
   ASSERT_TRUE(name2);
   EXPECT_EQ("Charlie", *name2);
 
-  auto age2 = second_row.get<int>(u.age);
+  auto age2 = second_row.get<int>(users.age);
   ASSERT_TRUE(age2);
   EXPECT_EQ(35, *age2);
 
@@ -171,9 +168,9 @@ TEST_F(PostgresIntegrationTest, TestParameterizedQueries) {
   insert_test_data(conn);
 
   // Create a parameterized query
-  Users u;
-  auto query =
-      relx::query::select(u.id, u.name, u.email).from(u).where(u.active == true && u.age > 30);
+  auto query = relx::query::select(users.id, users.name, users.email)
+                   .from(users)
+                   .where(users.active == true && users.age > 30);
 
   // Execute the query
   auto result = conn.execute(query);
@@ -184,15 +181,15 @@ TEST_F(PostgresIntegrationTest, TestParameterizedQueries) {
 
   // Verify that only Charlie is returned
   const auto& row = (*result)[0];
-  auto name = row.get<std::string>(u.name);
+  auto name = row.get<std::string>(users.name);
   ASSERT_TRUE(name);
   EXPECT_EQ("Charlie", *name);
 
   // Test a more complex query with multiple conditions
-  auto complex_query = relx::query::select(u.id, u.name)
-                           .from(u)
-                           .where(u.age > 20 && (u.active == true || u.name == "Bob"))
-                           .order_by(u.name);
+  auto complex_query = relx::query::select(users.id, users.name)
+                           .from(users)
+                           .where(users.age > 20 && (users.active == true || users.name == "Bob"))
+                           .order_by(users.name);
 
   auto complex_result = conn.execute(complex_query);
   ASSERT_TRUE(complex_result) << "Complex query failed: " << complex_result.error().message;
@@ -201,9 +198,9 @@ TEST_F(PostgresIntegrationTest, TestParameterizedQueries) {
   ASSERT_EQ(3, complex_result->size());
 
   // Verify order: Alice, Bob, Charlie
-  EXPECT_EQ("Alice", *(*complex_result)[0].get<std::string>(u.name));
-  EXPECT_EQ("Bob", *(*complex_result)[1].get<std::string>(u.name));
-  EXPECT_EQ("Charlie", *(*complex_result)[2].get<std::string>(u.name));
+  EXPECT_EQ("Alice", *(*complex_result)[0].get<std::string>(users.name));
+  EXPECT_EQ("Bob", *(*complex_result)[1].get<std::string>(users.name));
+  EXPECT_EQ("Charlie", *(*complex_result)[2].get<std::string>(users.name));
 
   // Disconnect
   conn.disconnect();

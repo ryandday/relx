@@ -7,8 +7,26 @@
 
 using namespace relx::schema;
 
+namespace {
+
 // Custom enum type with column traits specialization
 enum class UserRole { Admin, User, Guest };
+
+// Custom UUID-like type
+struct UUID {
+  std::array<uint8_t, 16> data;
+
+  bool operator==(const UUID& other) const { return data == other.data; }
+};
+
+// A custom timestamp type - using the built-in column traits from chrono_traits.hpp
+using Timestamp = std::chrono::time_point<std::chrono::system_clock>;
+
+}  // namespace
+
+// The trait specializations stay at global scope: an explicit specialization must be
+// declared in a namespace enclosing the primary template, and an anonymous namespace does
+// not enclose relx::schema. Internal-linkage types are fine as template arguments.
 
 // Specialization of column_traits for the UserRole enum
 template <>
@@ -44,13 +62,6 @@ struct relx::schema::column_traits<UserRole> {
   }
 };
 
-// Custom UUID-like type
-struct UUID {
-  std::array<uint8_t, 16> data;
-
-  bool operator==(const UUID& other) const { return data == other.data; }
-};
-
 // Specialization of column_traits for UUID
 template <>
 struct relx::schema::column_traits<UUID> {
@@ -77,24 +88,22 @@ struct relx::schema::column_traits<UUID> {
   }
 };
 
-// A custom timestamp type - using the built-in column traits from chrono_traits.hpp
-using Timestamp = std::chrono::time_point<std::chrono::system_clock>;
+namespace {
 
 // Test table with custom column types
-struct CustomTypesTable {
-  static constexpr auto table_name = "custom_types";
-
-  column<CustomTypesTable, "id", int> id;
-  column<CustomTypesTable, "role", UserRole> role;
-  column<CustomTypesTable, "uuid", UUID> uuid;
-  column<CustomTypesTable, "created_at", Timestamp> created_at;
-  column<CustomTypesTable, "updated_at", std::optional<Timestamp>> updated_at;
-
-  table_primary_key<&CustomTypesTable::id> pk;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+struct [[=relx::table("custom_types")]] CustomTypesTable {
+  [[=relx::ann::pk]] int id;
+  UserRole role;
+  UUID uuid;
+  Timestamp created_at;
+  std::optional<Timestamp> updated_at;
 };
+inline constexpr auto custom_types = relx::t<CustomTypesTable>;
+// clang-format on
 
 TEST(CustomColumnTypesTest, UserRoleType) {
-  column<CustomTypesTable, "role", UserRole> role_col;
+  const auto& role_col = custom_types.role;
 
   // Test SQL type
   EXPECT_EQ(std::string_view(role_col.sql_type), "TEXT");
@@ -117,7 +126,7 @@ TEST(CustomColumnTypesTest, UserRoleType) {
 }
 
 TEST(CustomColumnTypesTest, UUIDType) {
-  column<CustomTypesTable, "uuid", UUID> uuid_col;
+  const auto& uuid_col = custom_types.uuid;
 
   // Test SQL type
   EXPECT_EQ(std::string_view(uuid_col.sql_type), "BLOB");
@@ -141,7 +150,7 @@ TEST(CustomColumnTypesTest, UUIDType) {
 }
 
 TEST(CustomColumnTypesTest, TimestampType) {
-  column<CustomTypesTable, "created_at", Timestamp> timestamp_col;
+  const auto& timestamp_col = custom_types.created_at;
 
   // Test SQL type - now using TIMESTAMPTZ from chrono_traits.hpp
   EXPECT_EQ(std::string_view(timestamp_col.sql_type), "TIMESTAMPTZ");
@@ -164,18 +173,15 @@ TEST(CustomColumnTypesTest, TimestampType) {
 }
 
 TEST(CustomColumnTypesTest, TableWithCustomTypes) {
-  CustomTypesTable table;
-
   // Generate CREATE TABLE SQL
-  std::string sql = create_table(table).to_sql();
+  std::string sql = create_table(custom_types).to_sql();
 
   // Check that the custom column types are included
-  EXPECT_TRUE(sql.find("id INTEGER NOT NULL") != std::string::npos);
+  EXPECT_TRUE(sql.find("id INTEGER NOT NULL PRIMARY KEY") != std::string::npos);
   EXPECT_TRUE(sql.find("role TEXT NOT NULL") != std::string::npos);
   EXPECT_TRUE(sql.find("uuid BLOB NOT NULL") != std::string::npos);
   EXPECT_TRUE(sql.find("created_at TIMESTAMPTZ NOT NULL") != std::string::npos);
   EXPECT_TRUE(sql.find("updated_at TIMESTAMPTZ") != std::string::npos);
-
-  // Check primary key constraint
-  EXPECT_TRUE(sql.find("PRIMARY KEY (id)") != std::string::npos);
 }
+
+}  // namespace

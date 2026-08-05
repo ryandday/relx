@@ -2,6 +2,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -9,29 +10,35 @@
 #include <relx/results.hpp>
 #include <relx/schema.hpp>
 
+namespace {
+
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
 // Define a test table
-struct Users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<Users, "id", int> id;
-  relx::schema::column<Users, "name", std::string> name;
-  relx::schema::column<Users, "email", std::string> email;
-  relx::schema::column<Users, "age", int> age;
-  relx::schema::column<Users, "is_active", bool> is_active;
-  relx::schema::column<Users, "score", double> score;
+struct [[=relx::table("users")]] Users {
+  int id;
+  std::string name;
+  std::string email;
+  int age;
+  bool is_active;
+  double score;
 };
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
+
+// The synthesized table type; column member pointers for with_schema() name it
+using UsersTable = std::remove_cvref_t<decltype(users)>;
 
 // Test fixture for result processing tests
 class ResultTest : public ::testing::Test {
 protected:
-  Users users;
   std::string raw_results_;
 
   // Define the type of the query
-  using QueryType = decltype(relx::query::select(
-                                 std::declval<Users>().id, std::declval<Users>().name,
-                                 std::declval<Users>().email, std::declval<Users>().age,
-                                 std::declval<Users>().is_active, std::declval<Users>().score)
-                                 .from(std::declval<Users>()));
+  using QueryType = decltype(relx::query::select(users.id, users.name, users.email, users.age,
+                                                 users.is_active, users.score)
+                                 .from(users));
 
   // Initialize the query directly in the constructor
   QueryType query_ = relx::query::select(users.id, users.name, users.email, users.age,
@@ -162,16 +169,16 @@ TEST_F(ResultTest, AccessByMemberPtr) {
   const auto& first_row = results.at(0);
 
   // Access by member pointer
-  auto id = first_row.get<&Users::id>();
+  auto id = first_row.get<&UsersTable::id>();
   ASSERT_TRUE(id) << id.error().message;
   EXPECT_EQ(1, *id);
 
-  auto name = first_row.get<&Users::name>();
+  auto name = first_row.get<&UsersTable::name>();
   ASSERT_TRUE(name) << name.error().message;
   EXPECT_EQ("John Doe", *name);
 
   // Test optional access
-  auto active = first_row.get_optional<&Users::is_active>();
+  auto active = first_row.get_optional<&UsersTable::is_active>();
   ASSERT_TRUE(active) << active.error().message;
   EXPECT_TRUE(**active);
 }
@@ -350,7 +357,7 @@ TEST_F(ResultTest, StructuredBindingWithSchema) {
 
   // Option 1: Use with table type parameter and member pointers
   for (const auto& [id, name, age] :
-       results.with_schema<Users>(&Users::id, &Users::name, &Users::age)) {
+       results.with_schema<UsersTable>(&UsersTable::id, &UsersTable::name, &UsersTable::age)) {
     user_data.emplace_back(id, name, age);
   }
 
@@ -369,7 +376,7 @@ TEST_F(ResultTest, StructuredBindingWithSchema) {
   // Clear and test option 2: with table instance and member pointers
   user_data.clear();
   for (const auto& [id, name, age] :
-       results.with_schema(users, &Users::id, &Users::name, &Users::age)) {
+       results.with_schema(users, &UsersTable::id, &UsersTable::name, &UsersTable::age)) {
     user_data.emplace_back(id, name, age);
   }
 
@@ -378,3 +385,5 @@ TEST_F(ResultTest, StructuredBindingWithSchema) {
   EXPECT_EQ("John Doe", std::get<1>(user_data[0]));
   EXPECT_EQ(30, std::get<2>(user_data[0]));
 }
+
+}  // namespace

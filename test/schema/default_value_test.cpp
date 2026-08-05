@@ -1,22 +1,26 @@
+#include <optional>
 #include <string>
 
 #include <gtest/gtest.h>
-#include <relx/schema/column.hpp>
-#include <relx/schema/table.hpp>
+#include <relx/schema.hpp>
 
 using namespace relx::schema;
 
-// Test table with default value columns
-struct Product {
-  static constexpr auto table_name = "products";
+namespace {
 
-  column<Product, "id", int> id;
-  column<Product, "product_name", std::string> product_name;
-  column<Product, "price", double, default_value<0.0>> price;
-  column<Product, "stock", int, default_value<10>> stock;
-  column<Product, "active", bool, default_value<true>> active;
-  column<Product, "status", std::string, string_default<"active">> status;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
+// Test table with default value columns
+struct [[=relx::table("products")]] Product {
+  int id;
+  std::string product_name;
+  [[=relx::default_value<0.0>{}]] double price;
+  [[=relx::default_value<10>{}]] int stock;
+  [[=relx::default_value<true>{}]] bool active;
+  [[=relx::string_default<"active">{}]] std::string status;
 };
+
+// clang-format on
 
 TEST(DefaultValueTest, BasicDefaultValues) {
   // Test integer default value
@@ -74,10 +78,8 @@ TEST(DefaultValueTest, NullableColumnsWithDefaults) {
 }
 
 TEST(DefaultValueTest, TableWithDefaults) {
-  Product p;
-
   // Generate CREATE TABLE SQL with default values
-  std::string create_sql = create_table(p).to_sql();
+  std::string create_sql = create_table(relx::t<Product>).to_sql();
 
   // Validate SQL contains default values
   EXPECT_TRUE(create_sql.find("price DOUBLE PRECISION NOT NULL DEFAULT 0") != std::string::npos);
@@ -85,3 +87,5 @@ TEST(DefaultValueTest, TableWithDefaults) {
   EXPECT_TRUE(create_sql.find("active BOOLEAN NOT NULL DEFAULT true") != std::string::npos);
   EXPECT_TRUE(create_sql.find("status TEXT NOT NULL DEFAULT 'active'") != std::string::npos);
 }
+
+}  // namespace

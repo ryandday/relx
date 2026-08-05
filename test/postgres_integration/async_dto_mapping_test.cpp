@@ -25,28 +25,20 @@
 
 namespace {
 
-// Define a simple test table
-struct Users {
-  static constexpr auto table_name = "users_async";
-  relx::schema::column<Users, "id", int, relx::identity<>> id;
-  relx::schema::column<Users, "name", std::string> name;
-  relx::schema::column<Users, "email", std::string> email;
-  relx::schema::column<Users, "age", int> age;
-  relx::schema::column<Users, "active", bool> active;
-  relx::schema::column<Users, "score", double> score;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  relx::schema::table_primary_key<&Users::id> pk;
-};
-
-// Define a DTO to map rows to
-struct UserDTO {
-  int id;
+// The annotated table struct is also the DTO for whole-row results
+struct [[=relx::table("users_async")]] Users {
+  [[=relx::ann::pk, =relx::ann::identity]] int id;
   std::string name;
   std::string email;
   int age;
   bool active;
   double score;
 };
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
 
 // Define a partial DTO with fewer fields
 struct PartialUserDTO {
@@ -73,7 +65,6 @@ protected:
       "host=localhost port=5434 dbname=relx_test user=postgres password=postgres";
   boost::asio::io_context io_context;
   std::unique_ptr<relx::connection::PostgreSQLAsyncConnection> conn;
-  Users users;
 
   void SetUp() override {
     // Create a new connection with the io_context
@@ -204,7 +195,7 @@ TEST_F(AsyncPgIntegrationTest, SingleRowFetch) {
                        .where(users.id == 1);
 
       // Execute the query with DTO mapping
-      auto user_result = co_await conn->execute<UserDTO>(query);
+      auto user_result = co_await conn->execute<Users>(query);
       if (!user_result) {
         throw std::runtime_error("Query failed: " + user_result.error().message);
       }
@@ -235,7 +226,7 @@ TEST_F(AsyncPgIntegrationTest, MultipleRowFetch) {
                        .order_by(users.id);
 
       // Execute the query with DTO mapping for multiple rows
-      auto users_vec_result = co_await conn->execute_many<UserDTO>(query);
+      auto users_vec_result = co_await conn->execute_many<Users>(query);
       if (!users_vec_result) {
         throw std::runtime_error("Query failed: " + users_vec_result.error().message);
       }
@@ -321,7 +312,7 @@ TEST_F(AsyncPgIntegrationTest, ConcurrentQueries) {
         throw std::runtime_error("Failed to connect conn3: " + connect3.error().message);
 
       // Define tasks with their own connections
-      auto task1 = [conn1 = conn1.get(), this]() -> boost::asio::awaitable<bool> {
+      auto task1 = [conn1 = conn1.get()]() -> boost::asio::awaitable<bool> {
         try {
           auto query = relx::query::select(users.id, users.name).from(users).where(users.id == 1);
 
@@ -338,7 +329,7 @@ TEST_F(AsyncPgIntegrationTest, ConcurrentQueries) {
         }
       };
 
-      auto task2 = [conn2 = conn2.get(), this]() -> boost::asio::awaitable<bool> {
+      auto task2 = [conn2 = conn2.get()]() -> boost::asio::awaitable<bool> {
         try {
           auto query = relx::query::select(users.id, users.name).from(users).where(users.id == 2);
 
@@ -355,7 +346,7 @@ TEST_F(AsyncPgIntegrationTest, ConcurrentQueries) {
         }
       };
 
-      auto task3 = [conn3 = conn3.get(), this]() -> boost::asio::awaitable<bool> {
+      auto task3 = [conn3 = conn3.get()]() -> boost::asio::awaitable<bool> {
         try {
           auto query = relx::query::select(users.id, users.name).from(users).where(users.id == 3);
 

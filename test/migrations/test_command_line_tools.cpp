@@ -1,6 +1,8 @@
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <sstream>
+#include <string>
 
 #include <gtest/gtest.h>
 #include <relx/migrations.hpp>
@@ -9,26 +11,33 @@
 
 using namespace relx;
 
+namespace {
+
 // =============================================================================
 // Test Table Definitions
 // =============================================================================
 
-struct TestUsersV1 {
-  static constexpr auto table_name = "test_users";
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  column<TestUsersV1, "id", int, primary_key> id;
-  column<TestUsersV1, "name", std::string> name;
-  column<TestUsersV1, "email", std::string> email;
+struct [[=relx::table("test_users")]] TestUsersV1 {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
 };
 
-struct TestUsersV2 {
-  static constexpr auto table_name = "test_users";
-
-  column<TestUsersV2, "id", int, primary_key> id;
-  column<TestUsersV2, "full_name", std::string> full_name;  // renamed from name
-  column<TestUsersV2, "email", std::string> email;
-  column<TestUsersV2, "age", std::optional<int>> age;  // new column
+struct [[=relx::table("test_users")]] TestUsersV2 {
+  [[=relx::ann::pk]] int id;
+  std::string full_name;   // renamed from name
+  std::string email;
+  std::optional<int> age;  // new column
 };
+
+// clang-format on
+
+// The table objects live at namespace scope: create/drop migration operations hold a
+// reference to the table they were built from, which must outlive the migration
+inline constexpr auto test_users_v1 = relx::t<TestUsersV1>;
+inline constexpr auto test_users_v2 = relx::t<TestUsersV2>;
 
 // =============================================================================
 // Test Migration Functions
@@ -40,9 +49,7 @@ migrations::MigrationResult<migrations::Migration> test_generate_migration_betwe
     migrations::MigrationOptions options;
     options.column_mappings = {{"name", "full_name"}};
 
-    TestUsersV1 old_table;
-    TestUsersV2 new_table;
-    return migrations::generate_migration(old_table, new_table, options);
+    return migrations::generate_migration(test_users_v1, test_users_v2, options);
   } else {
     return std::unexpected(
         migrations::MigrationError::make(migrations::MigrationErrorType::UNSUPPORTED_OPERATION,
@@ -53,11 +60,9 @@ migrations::MigrationResult<migrations::Migration> test_generate_migration_betwe
 migrations::MigrationResult<migrations::Migration> test_generate_create_migration(
     const std::string& version) {
   if (version == "v1") {
-    TestUsersV1 table;
-    return migrations::generate_create_table_migration(table);
+    return migrations::generate_create_table_migration(test_users_v1);
   } else if (version == "v2") {
-    TestUsersV2 table;
-    return migrations::generate_create_table_migration(table);
+    return migrations::generate_create_table_migration(test_users_v2);
   } else {
     return std::unexpected(migrations::MigrationError::make(
         migrations::MigrationErrorType::UNSUPPORTED_OPERATION, "Unsupported version: " + version));
@@ -67,11 +72,9 @@ migrations::MigrationResult<migrations::Migration> test_generate_create_migratio
 migrations::MigrationResult<migrations::Migration> test_generate_drop_migration(
     const std::string& version) {
   if (version == "v1") {
-    TestUsersV1 table;
-    return migrations::generate_drop_table_migration(table);
+    return migrations::generate_drop_table_migration(test_users_v1);
   } else if (version == "v2") {
-    TestUsersV2 table;
-    return migrations::generate_drop_table_migration(table);
+    return migrations::generate_drop_table_migration(test_users_v2);
   } else {
     return std::unexpected(migrations::MigrationError::make(
         migrations::MigrationErrorType::UNSUPPORTED_OPERATION, "Unsupported version: " + version));
@@ -641,3 +644,5 @@ TEST_F(CommandLineToolsTest, EndToEndWorkflow) {
     EXPECT_TRUE(output.find("DROP TABLE") != std::string::npos);
   }
 }
+
+}  // namespace

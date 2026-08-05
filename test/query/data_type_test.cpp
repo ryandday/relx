@@ -13,7 +13,7 @@ using namespace test_utils;
 
 // Test for integer types
 TEST(DataTypeTest, IntegerTypes) {
-  users u;
+  constexpr auto u = users;
 
   // Test with different integer types
   auto query_int = relx::query::select(u.id, u.name).from(u).where(u.id == 42);
@@ -80,7 +80,7 @@ struct score_column {
 
 // Test for floating point types
 TEST(DataTypeTest, FloatingPointTypes) {
-  users u;
+  constexpr auto u = users;
 
   // Test with float column
   auto sc = score_column{};
@@ -109,7 +109,7 @@ TEST(DataTypeTest, FloatingPointTypes) {
 
 // Test for string types
 TEST(DataTypeTest, StringTypes) {
-  users u;
+  constexpr auto u = users;
 
   // Test with different string types
   std::string std_string = "Standard string";
@@ -145,7 +145,7 @@ TEST(DataTypeTest, StringTypes) {
 
 // Test for optional types
 TEST(DataTypeTest, OptionalTypes) {
-  users u;
+  constexpr auto u = users;
 
   // Test with std::optional values
   std::optional<std::string> present_value = "Optional string";
@@ -173,7 +173,7 @@ TEST(DataTypeTest, OptionalTypes) {
 
 // Test for container types
 TEST(DataTypeTest, ContainerTypes) {
-  users u;
+  constexpr auto u = users;
 
   // Test with different container types in IN clauses
   std::vector<std::string> str_vector = {"1", "2", "3", "4", "5"};
@@ -207,7 +207,7 @@ TEST(DataTypeTest, ContainerTypes) {
 
 // Test for boolean types
 TEST(DataTypeTest, BooleanTypes) {
-  users u;
+  constexpr auto u = users;
 
   // Test with boolean values in different contexts
   auto query_bool_equals = relx::query::select(u.id, u.name).from(u).where(u.is_active == true);
@@ -243,7 +243,7 @@ TEST(DataTypeTest, BooleanTypes) {
 
 // Test for NULL handling
 TEST(DataTypeTest, NullHandling) {
-  users u;
+  constexpr auto u = users;
 
   // Test IS NULL and IS NOT NULL
   auto query_is_null = relx::query::select(u.id, u.name).from(u).where(relx::query::is_null(u.bio));
@@ -269,7 +269,7 @@ TEST(DataTypeTest, NullHandling) {
 
 // Test for direct literal comparisons without using query::val()
 TEST(DataTypeTest, DirectLiteralComparisons) {
-  users u;
+  constexpr auto u = users;
 
   // Test numeric literals in different contexts
   auto query_int_literal = relx::query::select(u.id, u.name).from(u).where(u.id == 42);

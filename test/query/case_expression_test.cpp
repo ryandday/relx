@@ -6,7 +6,7 @@ using namespace test_tables;
 using namespace test_utils;
 
 TEST(CaseExpressionTest, SimpleCase) {
-  users u;
+  constexpr auto u = users;
 
   auto case_expr = relx::query::case_()
                        .when(u.age < 18, "Minor")
@@ -31,7 +31,7 @@ TEST(CaseExpressionTest, SimpleCase) {
 }
 
 TEST(CaseExpressionTest, CaseWithoutElse) {
-  users u;
+  constexpr auto u = users;
 
   auto case_expr = relx::query::case_()
                        .when(u.is_active == true, "Active")
@@ -54,7 +54,7 @@ TEST(CaseExpressionTest, CaseWithoutElse) {
 }
 
 TEST(CaseExpressionTest, CaseWithComplexConditions) {
-  users u;
+  constexpr auto u = users;
 
   auto case_expr = relx::query::case_()
                        .when((u.age < 18) && (u.login_count > 0), "Young Active User")
@@ -83,7 +83,7 @@ TEST(CaseExpressionTest, CaseWithComplexConditions) {
 }
 
 TEST(CaseExpressionTest, CaseWithColumnResults) {
-  users u;
+  constexpr auto u = users;
 
   auto case_expr = relx::query::case_()
                        .when(relx::query::is_null(u.bio), "No bio provided")
@@ -105,7 +105,7 @@ TEST(CaseExpressionTest, CaseWithColumnResults) {
 }
 
 TEST(CaseExpressionTest, CaseWithNumericResults) {
-  users u;
+  constexpr auto u = users;
 
   auto case_expr = relx::query::case_()
                        .when(u.login_count == 0, 0)
@@ -135,7 +135,7 @@ TEST(CaseExpressionTest, CaseWithNumericResults) {
 }
 
 TEST(CaseExpressionTest, NestedCaseExpression) {
-  users u;
+  constexpr auto u = users;
 
   // Inner CASE for active status
   auto active_case =
@@ -162,7 +162,7 @@ TEST(CaseExpressionTest, NestedCaseExpression) {
 }
 
 TEST(CaseExpressionTest, CaseInWhere) {
-  users u;
+  constexpr auto u = users;
 
   // Define a CASE expression
   auto case_expr = relx::query::case_().when(u.age < 18, "minor").else_("adult").build();
@@ -185,7 +185,7 @@ TEST(CaseExpressionTest, CaseInWhere) {
 }
 
 TEST(CaseExpressionTest, CaseInOrderBy) {
-  users u;
+  constexpr auto u = users;
 
   // Define a CASE expression for sorting
   auto case_expr = relx::query::case_().when(u.is_active == true, 1).else_(0).build();

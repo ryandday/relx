@@ -9,7 +9,7 @@ using namespace test_tables;
 using namespace test_utils;
 
 TEST(EdgeCaseTest, ExtremeLimits) {
-  users u;
+  constexpr auto u = users;
 
   // Test with very large LIMIT value
   auto query = relx::query::select(u.id, u.name).from(u).limit(std::numeric_limits<int>::max());
@@ -23,7 +23,7 @@ TEST(EdgeCaseTest, ExtremeLimits) {
 }
 
 TEST(EdgeCaseTest, ZeroValues) {
-  users u;
+  constexpr auto u = users;
 
   // Test with zero LIMIT (should be handled gracefully)
   auto query = relx::query::select(u.id, u.name).from(u).limit(0);
@@ -37,7 +37,7 @@ TEST(EdgeCaseTest, ZeroValues) {
 }
 
 TEST(EdgeCaseTest, EmptyStrings) {
-  users u;
+  constexpr auto u = users;
 
   // Test with empty string parameters
   auto query = relx::query::select(u.id, u.name).from(u).where(u.name == "");
@@ -51,7 +51,7 @@ TEST(EdgeCaseTest, EmptyStrings) {
 }
 
 TEST(EdgeCaseTest, SpecialCharactersInStrings) {
-  users u;
+  constexpr auto u = users;
 
   // Test with strings containing SQL special characters
   std::string special_chars = "Test'\"\\%;_$#@!";
@@ -66,7 +66,7 @@ TEST(EdgeCaseTest, SpecialCharactersInStrings) {
 }
 
 TEST(EdgeCaseTest, UnicodeStrings) {
-  users u;
+  constexpr auto u = users;
 
   // Test with Unicode strings
   std::string unicode_string = "测试Unicode字符串😀🔥";
@@ -81,7 +81,7 @@ TEST(EdgeCaseTest, UnicodeStrings) {
 }
 
 TEST(EdgeCaseTest, VeryLongStrings) {
-  users u;
+  constexpr auto u = users;
 
   // Create a very long string value
   std::string long_string(10000, 'a');
@@ -103,7 +103,7 @@ public:
 };
 
 TEST(EdgeCaseTest, BooleanValues) {
-  users u;
+  constexpr auto u = users;
 
   // Test with boolean values
   auto query_true = relx::query::select(u.id, u.name).from(u).where(u.is_active == true);
@@ -126,7 +126,7 @@ TEST(EdgeCaseTest, BooleanValues) {
 }
 
 TEST(EdgeCaseTest, ExtremeDateValues) {
-  posts p;
+  constexpr auto p = posts;
 
   // Test with extreme date strings
   std::string min_date = "0001-01-01 00:00:00";
@@ -150,8 +150,8 @@ TEST(EdgeCaseTest, ExtremeDateValues) {
 }
 
 TEST(EdgeCaseTest, ComplexExpressionsWithManyOperators) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
 
   // Create a complex WHERE condition with many operators
   auto query = relx::query::select(u.id, u.name, p.title)
@@ -177,7 +177,7 @@ TEST(EdgeCaseTest, ComplexExpressionsWithManyOperators) {
 }
 
 TEST(EdgeCaseTest, NestedLogicalOperators) {
-  users u;
+  constexpr auto u = users;
 
   // Create deeply nested logical operators
   auto query = relx::query::select(u.id, u.name)

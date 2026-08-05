@@ -6,8 +6,8 @@ using namespace test_tables;
 using namespace test_utils;
 
 TEST(JoinTest, InnerJoin) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
 
   auto query =
       relx::query::select(u.name, p.title).from(u).join(p, relx::query::on(u.id == p.user_id));
@@ -19,8 +19,8 @@ TEST(JoinTest, InnerJoin) {
 }
 
 TEST(JoinTest, LeftJoin) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
 
   auto query =
       relx::query::select(u.name, p.title).from(u).left_join(p, relx::query::on(u.id == p.user_id));
@@ -32,8 +32,8 @@ TEST(JoinTest, LeftJoin) {
 }
 
 TEST(JoinTest, RightJoin) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
 
   auto query = relx::query::select(u.name, p.title)
                    .from(u)
@@ -46,8 +46,8 @@ TEST(JoinTest, RightJoin) {
 }
 
 TEST(JoinTest, FullJoin) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
 
   auto query =
       relx::query::select(u.name, p.title).from(u).full_join(p, relx::query::on(u.id == p.user_id));
@@ -59,8 +59,8 @@ TEST(JoinTest, FullJoin) {
 }
 
 TEST(JoinTest, CrossJoin) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
 
   auto query = relx::query::select(u.name, p.title).from(u).cross_join(p);
 
@@ -70,9 +70,9 @@ TEST(JoinTest, CrossJoin) {
 }
 
 TEST(JoinTest, MultipleJoins) {
-  users u;
-  posts p;
-  comments c;
+  constexpr auto u = users;
+  constexpr auto p = posts;
+  constexpr auto c = comments;
 
   auto query = relx::query::select(u.name, p.title, c.content)
                    .from(u)
@@ -87,8 +87,8 @@ TEST(JoinTest, MultipleJoins) {
 }
 
 TEST(JoinTest, JoinWithComplexCondition) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
 
   auto query = relx::query::select(u.name, p.title)
                    .from(u)
@@ -105,9 +105,9 @@ TEST(JoinTest, JoinWithComplexCondition) {
 }
 
 TEST(JoinTest, ManyToManyJoin) {
-  posts p;
-  tags t;
-  post_tags pt;
+  constexpr auto p = posts;
+  constexpr auto t = tags;
+  constexpr auto pt = post_tags;
 
   auto query = relx::query::select(p.title, t.name)
                    .from(p)
@@ -121,8 +121,8 @@ TEST(JoinTest, ManyToManyJoin) {
 }
 
 TEST(JoinTest, OneToOneJoin) {
-  users u;
-  user_profiles up;
+  constexpr auto u = users;
+  constexpr auto up = user_profiles;
 
   auto query = relx::query::select(u.name, up.profile_image, up.location)
                    .from(u)
@@ -136,8 +136,8 @@ TEST(JoinTest, OneToOneJoin) {
 }
 
 TEST(JoinTest, JoinWithParamInCondition) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
 
   auto query = relx::query::select(u.name, p.title)
                    .from(u)
@@ -153,18 +153,5 @@ TEST(JoinTest, JoinWithParamInCondition) {
   EXPECT_EQ(params.size(), 1);
 }
 
-TEST(JoinTest, SelfJoin) {
-  users u1;
-  // Create a second instance of the same table for a self-join
-  users u2;
-
-  auto query = relx::query::select_expr(relx::query::as(u1.name, "user"),
-                                        relx::query::as(u2.name, "friend"))
-                   .from(u1)
-                   .join(u2, relx::query::on(u1.id != u2.id));
-
-  std::string expected_sql = "SELECT users.name AS user, users.name AS friend FROM users JOIN "
-                             "users ON (users.id != users.id)";
-  EXPECT_EQ(query.to_sql(), expected_sql);
-  EXPECT_TRUE(query.bind_params().empty());
-}
+// Self-joins are rejected at compile time (no table aliases yet) — see
+// test/compile_fail/self_join_without_alias.cpp

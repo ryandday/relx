@@ -8,46 +8,52 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <relx/schema.hpp>
 
 using namespace relx;
 
 // Define a simple User table for testing
-struct User {
-  static constexpr auto table_name = "users";
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  schema::column<User, "id", int> id;
-  schema::column<User, "name", std::string> name;
-  schema::column<User, "email", std::string> email;
-  schema::column<User, "active", bool> active;
-  schema::column<User, "login_count", int> login_count;
-  schema::column<User, "last_login", std::string> last_login;
-  schema::column<User, "status", std::string> status;
-  schema::column<User, "age", int> age;
+namespace {
+
+struct [[=relx::table("users")]] User {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
+  bool active;
+  int login_count;
+  std::string last_login;
+  std::string status;
+  int age;
 };
+constexpr auto users = relx::t<User>;
 
 // Define a Posts table for INSERT ... SELECT tests
-struct Post {
-  static constexpr auto table_name = "posts";
-  schema::column<Post, "id", int> id;
-  schema::column<Post, "user_id", int> user_id;
-  schema::column<Post, "title", std::string> title;
-  schema::column<Post, "content", std::string> content;
-  schema::column<Post, "created_at", std::string> created_at;
+struct [[=relx::table("posts")]] Post {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^User::id>]] int user_id;
+  std::string title;
+  std::string content;
+  std::string created_at;
 };
+constexpr auto posts = relx::t<Post>;
 
 // Test table struct
-struct InsertTestTable {
-  static constexpr auto table_name = "insert_test";
-  relx::schema::column<InsertTestTable, "id", int> id;
-  relx::schema::column<InsertTestTable, "name", std::string> name;
-  relx::schema::column<InsertTestTable, "age", int> age;
-  relx::schema::column<InsertTestTable, "active", bool> active;
+struct [[=relx::table("insert_test")]] InsertTestTable {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  int age;
+  bool active;
 };
+constexpr auto insert_test = relx::t<InsertTestTable>;
+
+}  // namespace
+
+// clang-format on
 
 // Test basic INSERT with explicit columns and values
 TEST(InsertQueryTest, BasicInsert) {
-  User users;
-
   auto query = query::insert_into(users)
                    .columns(users.name, users.email, users.active)
                    .values(query::val("John Doe"), query::val("john@example.com"),
@@ -64,8 +70,6 @@ TEST(InsertQueryTest, BasicInsert) {
 
 // Test INSERT with multiple rows
 TEST(InsertQueryTest, InsertMultipleRows) {
-  User users;
-
   auto query = query::insert_into(users)
                    .columns(users.name, users.email)
                    .values(query::val("John Doe"), query::val("john@example.com"))
@@ -83,8 +87,6 @@ TEST(InsertQueryTest, InsertMultipleRows) {
 
 // Test INSERT using expression instead of literal values
 TEST(InsertQueryTest, InsertWithExpressions) {
-  User users;
-
   // Use a function expression
   auto current_timestamp = query::NullaryFunctionExpr("CURRENT_TIMESTAMP");
 
@@ -104,9 +106,6 @@ TEST(InsertQueryTest, InsertWithExpressions) {
 
 // Test INSERT ... SELECT
 TEST(InsertQueryTest, InsertWithSelect) {
-  User users;
-  Post posts;
-
   auto select_query = query::select(users.id, users.name, query::val("default@example.com"))
                           .from(users)
                           .where(query::column_ref(users.active) == query::val(true));
@@ -126,8 +125,6 @@ TEST(InsertQueryTest, InsertWithSelect) {
 
 // Test INSERT with multiple rows of mixed literal and expression values
 TEST(InsertQueryTest, InsertMultipleRowsWithMixedValues) {
-  User users;
-
   // Use a function expression
   auto current_timestamp = query::NullaryFunctionExpr("CURRENT_TIMESTAMP");
 
@@ -153,8 +150,6 @@ TEST(InsertQueryTest, InsertMultipleRowsWithMixedValues) {
 
 // Test error handling: INSERT without specifying columns
 TEST(InsertQueryTest, InsertWithoutColumns) {
-  User users;
-
   // This is valid SQL but might not be what the user intends
   // The library should support it but we might want to warn about it in documentation
   auto query = query::insert_into(users).values(query::val(1), query::val("John Doe"),
@@ -170,11 +165,9 @@ TEST(InsertQueryTest, InsertWithoutColumns) {
 }
 
 TEST(InsertQueryTest, InsertWithRawValues) {
-  InsertTestTable table;
-
   // Test inserting with raw values (not wrapped in val())
-  auto query = relx::query::insert_into(table)
-                   .columns(table.name, table.age, table.active)
+  auto query = relx::query::insert_into(insert_test)
+                   .columns(insert_test.name, insert_test.age, insert_test.active)
                    .values("John Doe", 30, true);
 
   std::string expected_sql = "INSERT INTO insert_test (name, age, active) VALUES (?, ?, ?)";
@@ -187,8 +180,8 @@ TEST(InsertQueryTest, InsertWithRawValues) {
   EXPECT_EQ("true", params[2]);
 
   // Test with multiple rows of raw values
-  auto multi_query = relx::query::insert_into(table)
-                         .columns(table.name, table.age, table.active)
+  auto multi_query = relx::query::insert_into(insert_test)
+                         .columns(insert_test.name, insert_test.age, insert_test.active)
                          .values("John Doe", 30, true)
                          .values("Jane Smith", 25, false);
 
@@ -208,8 +201,6 @@ TEST(InsertQueryTest, InsertWithRawValues) {
 
 // Test INSERT with RETURNING clause
 TEST(InsertQueryTest, InsertWithReturning) {
-  User users;
-
   // Test basic returning with column references
   auto basic_query = query::insert_into(users)
                          .columns(users.name, users.email, users.active)

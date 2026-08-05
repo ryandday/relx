@@ -6,7 +6,7 @@ using namespace test_tables;
 using namespace test_utils;
 
 TEST(AggregateTest, CountAll) {
-  users u;
+  constexpr auto u = users;
 
   auto query =
       relx::query::select_expr(relx::query::as(relx::query::count_all(), "user_count")).from(u);
@@ -17,7 +17,7 @@ TEST(AggregateTest, CountAll) {
 }
 
 TEST(AggregateTest, CountColumn) {
-  users u;
+  constexpr auto u = users;
 
   auto query =
       relx::query::select_expr(relx::query::as(relx::query::count(u.id), "user_count")).from(u);
@@ -28,7 +28,7 @@ TEST(AggregateTest, CountColumn) {
 }
 
 TEST(AggregateTest, CountDistinct) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(
                    relx::query::as(relx::query::count_distinct(u.age), "unique_ages"))
@@ -40,7 +40,7 @@ TEST(AggregateTest, CountDistinct) {
 }
 
 TEST(AggregateTest, Sum) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(
                    relx::query::as(relx::query::sum(u.login_count), "total_logins"))
@@ -52,7 +52,7 @@ TEST(AggregateTest, Sum) {
 }
 
 TEST(AggregateTest, Average) {
-  users u;
+  constexpr auto u = users;
 
   auto query =
       relx::query::select_expr(relx::query::as(relx::query::avg(u.age), "average_age")).from(u);
@@ -63,7 +63,7 @@ TEST(AggregateTest, Average) {
 }
 
 TEST(AggregateTest, MinMax) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(relx::query::as(relx::query::min(u.age), "youngest"),
                                         relx::query::as(relx::query::max(u.age), "oldest"))
@@ -76,7 +76,7 @@ TEST(AggregateTest, MinMax) {
 }
 
 TEST(AggregateTest, MultipleAggregates) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(
                    relx::query::as(relx::query::count_all(), "total_users"),
@@ -91,7 +91,7 @@ TEST(AggregateTest, MultipleAggregates) {
 }
 
 TEST(AggregateTest, AggregatesWithWhere) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(relx::query::as(relx::query::count_all(), "active_users"),
                                         relx::query::as(relx::query::avg(u.age), "average_age"))
@@ -108,7 +108,7 @@ TEST(AggregateTest, AggregatesWithWhere) {
 }
 
 TEST(AggregateTest, SimpleGroupBy) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(u.age,
                                         relx::query::as(relx::query::count_all(), "user_count"))
@@ -122,7 +122,7 @@ TEST(AggregateTest, SimpleGroupBy) {
 }
 
 TEST(AggregateTest, GroupByMultipleColumns) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(u.age, u.is_active,
                                         relx::query::as(relx::query::count_all(), "user_count"))
@@ -136,7 +136,7 @@ TEST(AggregateTest, GroupByMultipleColumns) {
 }
 
 TEST(AggregateTest, GroupByWithHaving) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(u.age,
                                         relx::query::as(relx::query::count_all(), "user_count"))
@@ -154,7 +154,7 @@ TEST(AggregateTest, GroupByWithHaving) {
 }
 
 TEST(AggregateTest, GroupByWithHavingAndWhere) {
-  posts p;
+  constexpr auto p = posts;
 
   auto query = relx::query::select_expr(p.user_id,
                                         relx::query::as(relx::query::count_all(), "post_count"),
@@ -176,7 +176,7 @@ TEST(AggregateTest, GroupByWithHavingAndWhere) {
 }
 
 TEST(AggregateTest, GroupByWithOrderBy) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(u.age,
                                         relx::query::as(relx::query::count_all(), "user_count"))
@@ -191,8 +191,8 @@ TEST(AggregateTest, GroupByWithOrderBy) {
 }
 
 TEST(AggregateTest, JoinWithGroupBy) {
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
 
   auto query = relx::query::select_expr(u.id, u.name,
                                         relx::query::as(relx::query::count(p.id), "post_count"))

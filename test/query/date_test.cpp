@@ -1,6 +1,7 @@
 #include <chrono>
 #include <iostream>
 #include <optional>
+#include <string>
 
 #include <gtest/gtest.h>
 #include <relx/query.hpp>
@@ -9,38 +10,36 @@
 using namespace relx;
 using namespace relx::query;
 
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
+namespace {
+
 // Test table with date/time columns
-struct Employee {
-  static constexpr auto table_name = "employees";
-
-  schema::column<Employee, "id", int> id;
-  schema::column<Employee, "name", std::string> name;
-  schema::column<Employee, "hire_date", std::chrono::system_clock::time_point> hire_date;
-  schema::column<Employee, "birth_date", std::chrono::system_clock::time_point> birth_date;
-  schema::column<Employee, "last_review", std::optional<std::chrono::system_clock::time_point>>
-      last_review;
-  schema::column<Employee, "termination_date", std::optional<std::chrono::system_clock::time_point>>
-      termination_date;
-
-  schema::pk<&Employee::id> primary;
+struct [[=relx::table("employees")]] Employee {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::chrono::system_clock::time_point hire_date;
+  std::chrono::system_clock::time_point birth_date;
+  std::optional<std::chrono::system_clock::time_point> last_review;
+  std::optional<std::chrono::system_clock::time_point> termination_date;
 };
 
 // Test table without date columns for negative testing
-struct Product {
-  static constexpr auto table_name = "products";
-
-  schema::column<Product, "id", int> id;
-  schema::column<Product, "name", std::string> name;
-  schema::column<Product, "price", double> price;
-  schema::column<Product, "is_active", bool> is_active;
-
-  schema::pk<&Product::id> primary;
+struct [[=relx::table("products")]] Product {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  double price;
+  bool is_active;
 };
+
+}  // namespace
+
+// clang-format on
 
 class DateFunctionTest : public ::testing::Test {
 protected:
-  Employee emp;
-  Product prod;
+  static constexpr auto emp = relx::t<Employee>;
+  static constexpr auto prod = relx::t<Product>;
 };
 
 // Test 1: DATE_DIFF function with various units

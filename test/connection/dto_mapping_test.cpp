@@ -6,6 +6,9 @@
 #include <relx/connection/connection.hpp>
 #include <relx/query.hpp>
 #include <relx/results.hpp>
+#include <relx/schema.hpp>
+
+namespace {
 
 // Mock connection implementation for testing
 class MockConnection : public relx::Connection {
@@ -47,16 +50,20 @@ public:
   relx::result::ResultSet mock_result_set;
 };
 
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
 // Define a test table
-struct Users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<Users, "id", int> id;
-  relx::schema::column<Users, "name", std::string> name;
-  relx::schema::column<Users, "email", std::string> email;
-  relx::schema::column<Users, "age", int> age;
-  relx::schema::column<Users, "is_active", bool> is_active;
-  relx::schema::column<Users, "score", double> score;
+struct [[=relx::table("users")]] Users {
+  int id;
+  std::string name;
+  std::string email;
+  int age;
+  bool is_active;
+  double score;
 };
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
 
 // Define a DTO struct that matches some of the columns
 struct UserDTO {
@@ -65,8 +72,8 @@ struct UserDTO {
   int age;
 };
 
-// Define a DTO with different field order
-// Will not work until we have true reflection support in C++26
+// Define a DTO whose fields are declared in a different order than the select list.
+// Mapping is name-matched, so the values still land in the right fields.
 struct UserDTODifferentOrder {
   std::string name;
   int id;
@@ -92,7 +99,6 @@ struct CompleteUserDTO {
 class DtoMappingTest : public ::testing::Test {
 protected:
   MockConnection conn;
-  Users users;
 
   void SetUp() override {
     // Set up column names
@@ -130,7 +136,7 @@ protected:
   }
 };
 
-// Test basic struct mapping with Boost PFR
+// Test basic struct mapping
 TEST_F(DtoMappingTest, BasicStructMapping) {
   // Create a query that matches our sample data
   auto query = relx::query::select(users.id, users.name, users.age).from(users);
@@ -151,24 +157,21 @@ TEST_F(DtoMappingTest, BasicStructMapping) {
   EXPECT_EQ(query.to_sql(), conn.last_sql);
 }
 
-// Test mapping to a struct with different field order
-// This will not work until we have true reflection support
-// TEST_F(PfrMappingTest, DifferentFieldOrder) {
-//     auto query = relx::query::select(users.id, users.name, users.age).from(users);
+// Test mapping to a struct whose fields are declared in a different order than the
+// select list. Mapping is by column name, not position, so every field gets its own value.
+TEST_F(DtoMappingTest, DifferentFieldOrder) {
+  auto query = relx::query::select(users.id, users.name, users.age).from(users);
 
-//     // Execute with a differently ordered struct
-//     auto result = conn.execute<UserDTODifferentOrder>(query);
+  auto result = conn.execute<UserDTODifferentOrder>(query);
 
-//     // This should still work because we map by position, not name
-//     ASSERT_TRUE(result) << "Failed to execute query with different field order: " <<
-//     result.error().message;
+  ASSERT_TRUE(result) << "Failed to execute query with different field order: "
+                      << result.error().message;
 
-//     // In this case, the fields will be mapped incorrectly due to position mismatch
-//     UserDTODifferentOrder user = *result;
-//     EXPECT_EQ("1", user.name);        // Should get the ID value as a string
-//     EXPECT_EQ(1, user.id);            // Should get name value parsed as int (will fail)
-//     EXPECT_EQ(30, user.age);          // This one is correct by coincidence
-// }
+  UserDTODifferentOrder user = *result;
+  EXPECT_EQ("John Doe", user.name);
+  EXPECT_EQ(1, user.id);
+  EXPECT_EQ(30, user.age);
+}
 
 // Test mapping multiple rows
 TEST_F(DtoMappingTest, MultipleRows) {
@@ -298,3 +301,5 @@ TEST_F(DtoMappingTest, TypeConversionErrors) {
   ASSERT_FALSE(result);
   EXPECT_TRUE(result.error().message.find("Failed to convert") != std::string::npos);
 }
+
+}  // namespace

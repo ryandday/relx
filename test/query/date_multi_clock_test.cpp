@@ -1,5 +1,6 @@
 #include <chrono>
 #include <optional>
+#include <string>
 
 #include <gtest/gtest.h>
 #include <relx/query.hpp>
@@ -8,77 +9,55 @@
 using namespace relx;
 using namespace relx::query;
 
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
+
+namespace {
+
 // Test table using system_clock
-struct SystemClockTable {
-  static constexpr auto table_name = "system_clock_events";
-
-  schema::column<SystemClockTable, "id", int> id;
-  schema::column<SystemClockTable, "name", std::string> name;
-  schema::column<SystemClockTable, "timestamp", std::chrono::system_clock::time_point> timestamp;
-  schema::column<SystemClockTable, "optional_timestamp",
-                 std::optional<std::chrono::system_clock::time_point>>
-      optional_timestamp;
-
-  schema::pk<&SystemClockTable::id> primary;
+struct [[=relx::table("system_clock_events")]] SystemClockTable {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::chrono::system_clock::time_point timestamp;
+  std::optional<std::chrono::system_clock::time_point> optional_timestamp;
 };
 
 // Test table using steady_clock
-struct SteadyClockTable {
-  static constexpr auto table_name = "steady_clock_events";
-
-  schema::column<SteadyClockTable, "id", int> id;
-  schema::column<SteadyClockTable, "name", std::string> name;
-  schema::column<SteadyClockTable, "timestamp", std::chrono::steady_clock::time_point> timestamp;
-  schema::column<SteadyClockTable, "optional_timestamp",
-                 std::optional<std::chrono::steady_clock::time_point>>
-      optional_timestamp;
-
-  schema::pk<&SteadyClockTable::id> primary;
+struct [[=relx::table("steady_clock_events")]] SteadyClockTable {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::chrono::steady_clock::time_point timestamp;
+  std::optional<std::chrono::steady_clock::time_point> optional_timestamp;
 };
 
 // Test table using high_resolution_clock
-struct HighResClockTable {
-  static constexpr auto table_name = "high_res_clock_events";
-
-  schema::column<HighResClockTable, "id", int> id;
-  schema::column<HighResClockTable, "name", std::string> name;
-  schema::column<HighResClockTable, "timestamp", std::chrono::high_resolution_clock::time_point>
-      timestamp;
-  schema::column<HighResClockTable, "optional_timestamp",
-                 std::optional<std::chrono::high_resolution_clock::time_point>>
-      optional_timestamp;
-
-  schema::pk<&HighResClockTable::id> primary;
+struct [[=relx::table("high_res_clock_events")]] HighResClockTable {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::chrono::high_resolution_clock::time_point timestamp;
+  std::optional<std::chrono::high_resolution_clock::time_point> optional_timestamp;
 };
 
 // Test table mixing different clock types
-struct MixedClockTable {
-  static constexpr auto table_name = "mixed_clock_events";
-
-  schema::column<MixedClockTable, "id", int> id;
-  schema::column<MixedClockTable, "system_time", std::chrono::system_clock::time_point> system_time;
-  schema::column<MixedClockTable, "steady_time", std::chrono::steady_clock::time_point> steady_time;
-  schema::column<MixedClockTable, "high_res_time", std::chrono::high_resolution_clock::time_point>
-      high_res_time;
-  schema::column<MixedClockTable, "optional_system",
-                 std::optional<std::chrono::system_clock::time_point>>
-      optional_system;
-  schema::column<MixedClockTable, "optional_steady",
-                 std::optional<std::chrono::steady_clock::time_point>>
-      optional_steady;
-  schema::column<MixedClockTable, "optional_high_res",
-                 std::optional<std::chrono::high_resolution_clock::time_point>>
-      optional_high_res;
-
-  schema::pk<&MixedClockTable::id> primary;
+struct [[=relx::table("mixed_clock_events")]] MixedClockTable {
+  [[=relx::ann::pk]] int id;
+  std::chrono::system_clock::time_point system_time;
+  std::chrono::steady_clock::time_point steady_time;
+  std::chrono::high_resolution_clock::time_point high_res_time;
+  std::optional<std::chrono::system_clock::time_point> optional_system;
+  std::optional<std::chrono::steady_clock::time_point> optional_steady;
+  std::optional<std::chrono::high_resolution_clock::time_point> optional_high_res;
 };
+
+}  // namespace
+
+// clang-format on
 
 class MultiClockDateTest : public ::testing::Test {
 protected:
-  SystemClockTable system_table;
-  SteadyClockTable steady_table;
-  HighResClockTable high_res_table;
-  MixedClockTable mixed_table;
+  static constexpr auto system_table = relx::t<SystemClockTable>;
+  static constexpr auto steady_table = relx::t<SteadyClockTable>;
+  static constexpr auto high_res_table = relx::t<HighResClockTable>;
+  static constexpr auto mixed_table = relx::t<MixedClockTable>;
 };
 
 // Test 1: Basic date functions with system_clock (existing functionality)

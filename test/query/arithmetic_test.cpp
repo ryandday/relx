@@ -1,28 +1,35 @@
+#include <optional>
+#include <string>
+
 #include <gtest/gtest.h>
 #include <relx/query.hpp>
 #include <relx/schema.hpp>
 
-struct arithmetic_test_table {
-  static constexpr auto table_name = "test_table";
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  relx::schema::column<arithmetic_test_table, "id", int> id;
-  relx::schema::column<arithmetic_test_table, "price", double> price;
-  relx::schema::column<arithmetic_test_table, "quantity", int> quantity;
-  relx::schema::column<arithmetic_test_table, "discount", double> discount;
-  relx::schema::column<arithmetic_test_table, "name", std::string> name;
-  relx::schema::column<arithmetic_test_table, "is_active", bool> is_active;
+namespace {
+
+struct [[=relx::table("test_table")]] ArithmeticTestTable {
+  int id;
+  double price;
+  int quantity;
+  double discount;
+  std::string name;
+  bool is_active;
 
   // Optional columns for testing
-  relx::schema::column<arithmetic_test_table, "optional_id", std::optional<int>> optional_id;
-  relx::schema::column<arithmetic_test_table, "optional_price", std::optional<double>>
-      optional_price;
-  relx::schema::column<arithmetic_test_table, "optional_quantity", std::optional<int>>
-      optional_quantity;
+  std::optional<int> optional_id;
+  std::optional<double> optional_price;
+  std::optional<int> optional_quantity;
 };
+
+}  // namespace
+
+// clang-format on
 
 class ArithmeticTest : public ::testing::Test {
 protected:
-  arithmetic_test_table table;
+  static constexpr auto table = relx::t<ArithmeticTestTable>;
 };
 
 TEST_F(ArithmeticTest, BasicColumnAddition) {

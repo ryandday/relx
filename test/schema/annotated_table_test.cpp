@@ -68,6 +68,41 @@ TEST(AnnotatedTableTest, ForeignKeyAnnotation) {
   EXPECT_EQ(posts.user_id.sql_definition(), "user_id INTEGER NOT NULL REFERENCES users(id)");
 }
 
+// Referential actions are separate annotations on the same column, and modifiers render
+// in annotation order - so ON DELETE must be written before ON UPDATE. Either side can be
+// omitted by leaving its annotation off; there is no "no action" sentinel, so writing
+// on_update<"NO ACTION"> emits that clause literally rather than suppressing it.
+struct [[=relx::table("comments")]] Comments {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^Users::id>, =relx::on_delete<"CASCADE">{},
+    =relx::on_update<"SET NULL">{}]] int user_id;
+  [[=relx::ann::fk<^^Posts::id>, =relx::on_delete<"RESTRICT">{}]] int post_id;
+  [[=relx::ann::fk<^^Users::id>, =relx::on_update<"SET DEFAULT">{}]] std::optional<int> edited_by;
+  std::string body;
+};
+inline constexpr auto comments = relx::t<Comments>;
+
+TEST(AnnotatedTableTest, ForeignKeyActions) {
+  EXPECT_EQ(comments.user_id.sql_definition(),
+            "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE SET NULL");
+  EXPECT_EQ(comments.post_id.sql_definition(),
+            "post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE RESTRICT");
+  EXPECT_EQ(comments.edited_by.sql_definition(),
+            "edited_by INTEGER REFERENCES users(id) ON UPDATE SET DEFAULT");
+}
+
+// Several foreign keys on one table, each rendering inline on its own column
+TEST(AnnotatedTableTest, MultipleForeignKeysInCreateTable) {
+  EXPECT_EQ(relx::create_table(comments).to_sql(),
+            "CREATE TABLE comments (\n"
+            "id INTEGER NOT NULL PRIMARY KEY,\n"
+            "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE SET NULL,\n"
+            "post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE RESTRICT,\n"
+            "edited_by INTEGER REFERENCES users(id) ON UPDATE SET DEFAULT,\n"
+            "body TEXT NOT NULL\n"
+            ");");
+}
+
 TEST(AnnotatedTableTest, CreateTableSql) {
   auto sql = relx::create_table(users).to_sql();
   EXPECT_EQ(sql,
@@ -287,7 +322,8 @@ TEST(AnnotatedTableTest, MigrationDiffSeesAnnotationConstraints) {
   for (const auto& sql : *forward) {
     all_sql += sql + "\n";
   }
-  EXPECT_NE(all_sql.find("ALTER TABLE shipping_rates ADD UNIQUE (carrier, rate);"),
+  EXPECT_NE(all_sql.find("ALTER TABLE shipping_rates ADD CONSTRAINT shipping_rates_unique_1 "
+                         "UNIQUE (carrier, rate);"),
             std::string::npos)
       << all_sql;
   EXPECT_NE(all_sql.find("CREATE INDEX shipping_rates_carrier_idx ON shipping_rates (carrier);"),

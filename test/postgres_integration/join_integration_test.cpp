@@ -19,11 +19,11 @@ protected:
 
   std::unique_ptr<Connection> conn;
 
-  // Schema instances
-  schema::Category category;
-  schema::Product product;
-  schema::Customer customer;
-  schema::Order order;
+  // Table objects for the shared test schema
+  static constexpr auto category = schema::categories;
+  static constexpr auto product = schema::products;
+  static constexpr auto customer = schema::customers;
+  static constexpr auto order = schema::orders;
 
   void SetUp() override {
     // Connect to the database

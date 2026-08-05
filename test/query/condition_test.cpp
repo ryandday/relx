@@ -6,7 +6,7 @@ using namespace test_tables;
 using namespace test_utils;
 
 TEST(ConditionTest, SimpleEquality) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).where(u.id == 1);
 
@@ -19,7 +19,7 @@ TEST(ConditionTest, SimpleEquality) {
 }
 
 TEST(ConditionTest, SimpleInequality) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).where(u.age > 21);
 
@@ -32,7 +32,7 @@ TEST(ConditionTest, SimpleInequality) {
 }
 
 TEST(ConditionTest, LogicalAnd) {
-  users u;
+  constexpr auto u = users;
 
   auto query =
       relx::query::select(u.id, u.name).from(u).where((u.age >= 18) && (u.is_active == true));
@@ -48,7 +48,7 @@ TEST(ConditionTest, LogicalAnd) {
 }
 
 TEST(ConditionTest, LogicalOr) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).where((u.age < 18) || (u.age >= 65));
 
@@ -63,7 +63,7 @@ TEST(ConditionTest, LogicalOr) {
 }
 
 TEST(ConditionTest, LogicalNotValue) {
-  users u;
+  constexpr auto u = users;
 
   // Instead of negating the column directly, compare with false
   auto query = relx::query::select(u.id, u.name).from(u).where(u.is_active == false);
@@ -77,7 +77,7 @@ TEST(ConditionTest, LogicalNotValue) {
 }
 
 TEST(ConditionTest, ComplexLogicalExpression) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name)
                    .from(u)
@@ -96,7 +96,7 @@ TEST(ConditionTest, ComplexLogicalExpression) {
 }
 
 TEST(ConditionTest, StringLike) {
-  users u;
+  constexpr auto u = users;
 
   auto query =
       relx::query::select(u.id, u.name).from(u).where(relx::query::like(u.email, "%@example.com"));
@@ -110,7 +110,7 @@ TEST(ConditionTest, StringLike) {
 }
 
 TEST(ConditionTest, StringNotLike) {
-  users u;
+  constexpr auto u = users;
 
   // Use operator! directly to negate the condition
   auto query = relx::query::select(u.id, u.name)
@@ -127,7 +127,7 @@ TEST(ConditionTest, StringNotLike) {
 }
 
 TEST(ConditionTest, InList) {
-  users u;
+  constexpr auto u = users;
 
   std::vector<std::string> names = {"Alice", "Bob", "Charlie"};
   auto query = relx::query::select(u.id, u.email).from(u).where(relx::query::in(u.name, names));
@@ -144,7 +144,7 @@ TEST(ConditionTest, InList) {
 }
 
 TEST(ConditionTest, NotInList) {
-  users u;
+  constexpr auto u = users;
 
   // Convert integer values to strings for the 'in' operator
   std::vector<std::string> age_strings = {"18", "21", "25"};
@@ -165,7 +165,7 @@ TEST(ConditionTest, NotInList) {
 }
 
 TEST(ConditionTest, IsNull) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).where(relx::query::is_null(u.bio));
 
@@ -175,7 +175,7 @@ TEST(ConditionTest, IsNull) {
 }
 
 TEST(ConditionTest, IsNotNull) {
-  users u;
+  constexpr auto u = users;
 
   // Use is_not_null directly
   auto query = relx::query::select(u.id, u.name).from(u).where(relx::query::is_not_null(u.bio));
@@ -186,7 +186,7 @@ TEST(ConditionTest, IsNotNull) {
 }
 
 TEST(ConditionTest, Between) {
-  users u;
+  constexpr auto u = users;
 
   // Use string values for between
   auto query =
@@ -203,7 +203,7 @@ TEST(ConditionTest, Between) {
 }
 
 TEST(ConditionTest, NotBetween) {
-  users u;
+  constexpr auto u = users;
 
   // Use operator! directly to negate the condition
   auto query =

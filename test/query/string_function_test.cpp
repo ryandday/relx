@@ -6,7 +6,7 @@ using namespace test_tables;
 using namespace test_utils;
 
 TEST(StringFunctionTest, Lower) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(
                    u.id, relx::query::as(relx::query::lower(u.name), "lowercase_name"))
@@ -18,7 +18,7 @@ TEST(StringFunctionTest, Lower) {
 }
 
 TEST(StringFunctionTest, Upper) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(
                    u.id, relx::query::as(relx::query::upper(u.name), "uppercase_name"))
@@ -30,7 +30,7 @@ TEST(StringFunctionTest, Upper) {
 }
 
 TEST(StringFunctionTest, Length) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(u.name,
                                         relx::query::as(relx::query::length(u.name), "name_length"))
@@ -42,7 +42,7 @@ TEST(StringFunctionTest, Length) {
 }
 
 TEST(StringFunctionTest, Trim) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(u.id,
                                         relx::query::as(relx::query::trim(u.name), "trimmed_name"))
@@ -54,7 +54,7 @@ TEST(StringFunctionTest, Trim) {
 }
 
 TEST(StringFunctionTest, StringFunctionInWhere) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name)
                    .from(u)
@@ -70,7 +70,7 @@ TEST(StringFunctionTest, StringFunctionInWhere) {
 }
 
 TEST(StringFunctionTest, LengthInCondition) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).where(relx::query::length(u.name) > 5);
 
@@ -84,7 +84,7 @@ TEST(StringFunctionTest, LengthInCondition) {
 }
 
 TEST(StringFunctionTest, CombinedStringFunctions) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name)
                    .from(u)
@@ -100,7 +100,7 @@ TEST(StringFunctionTest, CombinedStringFunctions) {
 }
 
 TEST(StringFunctionTest, StringFunctionInOrderBy) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select(u.id, u.name).from(u).order_by(relx::query::length(u.name));
 
@@ -110,7 +110,7 @@ TEST(StringFunctionTest, StringFunctionInOrderBy) {
 }
 
 TEST(StringFunctionTest, StringFunctionInGroupBy) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(relx::query::upper(u.name),
                                         relx::query::as(relx::query::count_all(), "count"))
@@ -124,7 +124,7 @@ TEST(StringFunctionTest, StringFunctionInGroupBy) {
 }
 
 TEST(StringFunctionTest, Coalesce) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_expr(
                    u.id, relx::query::as(relx::query::coalesce(u.bio, "No biography"), "biography"))
@@ -166,7 +166,7 @@ TEST(StringFunctionTest, Coalesce) {
 // }
 
 TEST(StringFunctionTest, CoalesceInWhere) {
-  users u;
+  constexpr auto u = users;
 
   auto query =
       relx::query::select(u.id, u.name).from(u).where(relx::query::coalesce(u.bio, "") != "");

@@ -8,7 +8,7 @@ using namespace test_utils;
 /// Test cases for the SELECT DISTINCT functionality
 
 TEST(DistinctSelectTest, SimpleSelectDistinctLegacy) {
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_distinct(u.id, u.name, u.email).from(u);
 
@@ -17,7 +17,7 @@ TEST(DistinctSelectTest, SimpleSelectDistinctLegacy) {
 }
 
 TEST(DistinctSelectTest, SelectDistinctWithCondition) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select_distinct(u.id, u.name).from(u).where(u.age > 18);
 
   EXPECT_EQ(query.to_sql(),
@@ -30,8 +30,8 @@ TEST(DistinctSelectTest, SelectDistinctWithCondition) {
 
 TEST(DistinctSelectTest, SelectDistinctWithJoin) {
   // Test DISTINCT with JOIN
-  users u;
-  posts p;
+  constexpr auto u = users;
+  constexpr auto p = posts;
   auto query = relx::query::select_distinct(u.id, p.title)
                    .from(u)
                    .join(p, relx::query::on(u.id == p.user_id));
@@ -43,7 +43,7 @@ TEST(DistinctSelectTest, SelectDistinctWithJoin) {
 }
 
 TEST(DistinctSelectTest, SelectDistinctWithGroupBy) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select_distinct(u.name, u.age).from(u).group_by(u.age);
 
   EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.name, users.age FROM users GROUP BY users.age");
@@ -51,7 +51,7 @@ TEST(DistinctSelectTest, SelectDistinctWithGroupBy) {
 }
 
 TEST(DistinctSelectTest, SelectDistinctWithOrderBy) {
-  users u;
+  constexpr auto u = users;
   auto query =
       relx::query::select_distinct(u.name, u.age).from(u).order_by(relx::query::desc(u.age));
 
@@ -61,7 +61,7 @@ TEST(DistinctSelectTest, SelectDistinctWithOrderBy) {
 }
 
 TEST(DistinctSelectTest, SelectDistinctWithLimitOffset) {
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select_distinct(u.name, u.age).from(u).limit(10).offset(5);
 
   EXPECT_EQ(query.to_sql(), "SELECT DISTINCT users.name, users.age FROM users LIMIT ? OFFSET ?");
@@ -74,7 +74,7 @@ TEST(DistinctSelectTest, SelectDistinctWithLimitOffset) {
 
 TEST(DistinctSelectTest, SelectDistinctAllColumns) {
   // Test SELECT DISTINCT *
-  users u;
+  constexpr auto u = users;
   auto query = relx::query::select_distinct_all(u);
 
   EXPECT_EQ(query.to_sql(), "SELECT DISTINCT * FROM users");
@@ -83,7 +83,7 @@ TEST(DistinctSelectTest, SelectDistinctAllColumns) {
 
 TEST(DistinctSelectTest, SelectDistinctAllColumnsWithTemplateArg) {
   // Test SELECT DISTINCT * using template argument
-  auto query = relx::query::select_distinct_all<users>();
+  auto query = relx::query::select_distinct_all<Users>();
 
   EXPECT_EQ(query.to_sql(), "SELECT DISTINCT * FROM users");
   EXPECT_TRUE(query.bind_params().empty());
@@ -91,7 +91,7 @@ TEST(DistinctSelectTest, SelectDistinctAllColumnsWithTemplateArg) {
 
 TEST(DistinctSelectTest, SelectDistinctExpressions) {
   // Test SELECT DISTINCT with expressions
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_distinct_expr(relx::query::as(u.id, "user_id"),
                                                  relx::query::as(u.name, "user_name"))
@@ -104,7 +104,7 @@ TEST(DistinctSelectTest, SelectDistinctExpressions) {
 
 TEST(DistinctSelectTest, SelectDistinctWithMixedExpressions) {
   // Test SELECT DISTINCT with a mix of column references and expressions
-  users u;
+  constexpr auto u = users;
 
   auto query = relx::query::select_distinct(u.id, relx::query::val(42),
                                             relx::query::as(u.name, "user_name"))
@@ -119,7 +119,7 @@ TEST(DistinctSelectTest, SelectDistinctWithMixedExpressions) {
 
 TEST(DistinctSelectTest, ComparisonWithDistinctExpr) {
   // Compare using select_distinct with using distinct() function from before
-  users u;
+  constexpr auto u = users;
 
   // New API way
   auto query1 = relx::query::select_distinct(u.age).from(u);

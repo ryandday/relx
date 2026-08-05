@@ -6,17 +6,19 @@
 
 namespace {
 
-// Test table definition
-struct Users {
-  static constexpr auto table_name = "users";
-  relx::schema::column<Users, "id", int> id;
-  relx::schema::column<Users, "name", std::string> name;
-  relx::schema::column<Users, "email", std::string> email;
-  relx::schema::column<Users, "age", int> age;
-  relx::schema::column<Users, "active", bool> active;
+// clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-  relx::schema::table_primary_key<&Users::id> pk;
+// Test table definition
+struct [[=relx::table("users")]] Users {
+  [[=relx::ann::pk]] int id;
+  std::string name;
+  std::string email;
+  int age;
+  bool active;
 };
+inline constexpr auto users = relx::t<Users>;
+
+// clang-format on
 
 class PostgreSQLConnectionTest : public ::testing::Test {
 protected:
@@ -217,6 +219,36 @@ TEST_F(PostgreSQLConnectionTest, TestErrorHandling) {
   ASSERT_NE("", result.error().message);
 
   // Clean up
+  conn.disconnect();
+}
+
+TEST_F(PostgreSQLConnectionTest, TestSqlStateDiagnostics) {
+  relx::PostgreSQLConnection conn(conn_string);
+  ASSERT_TRUE(conn.connect());
+
+  auto create_result = conn.execute_raw(
+      "CREATE TABLE IF NOT EXISTS sqlstate_test (id INTEGER PRIMARY KEY, email TEXT, "
+      "CONSTRAINT sqlstate_test_email_unique UNIQUE (email))");
+  ASSERT_TRUE(create_result) << create_result.error().message;
+
+  ASSERT_TRUE(conn.execute_raw("INSERT INTO sqlstate_test (id, email) VALUES (1, 'a@b.c')"));
+
+  // Duplicate key: SQLSTATE 23505 with the violated constraint attached
+  auto dup = conn.execute_raw("INSERT INTO sqlstate_test (id, email) VALUES (2, 'a@b.c')");
+  ASSERT_FALSE(dup);
+  EXPECT_EQ("23505", dup.error().sql_state);
+  EXPECT_TRUE(dup.error().is_duplicate_key_error());
+  EXPECT_FALSE(dup.error().is_foreign_key_violation());
+  EXPECT_EQ("sqlstate_test_email_unique", dup.error().constraint_name);
+  EXPECT_FALSE(dup.error().detail.empty());
+
+  // Client-side errors carry no SQLSTATE
+  relx::PostgreSQLConnection disconnected(conn_string);
+  auto not_connected = disconnected.execute_raw("SELECT 1");
+  ASSERT_FALSE(not_connected);
+  EXPECT_EQ("", not_connected.error().sql_state);
+
+  ASSERT_TRUE(conn.execute_raw("DROP TABLE sqlstate_test"));
   conn.disconnect();
 }
 
@@ -448,7 +480,7 @@ TEST_F(PostgreSQLConnectionTest, TestDisconnectWithActiveTransaction) {
   ASSERT_TRUE(conn.in_transaction());
 
   // Insert some data
-  Users u;
+  constexpr auto u = users;
   auto insert_result = conn.execute(
       relx::query::insert_into(u)
           .columns(u.name, u.email, u.age, u.active)
