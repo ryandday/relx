@@ -16,6 +16,8 @@
 #include <type_traits>
 #include <vector>
 
+#include <boost/uuid/uuid.hpp>
+
 namespace relx {
 namespace connection {
 
@@ -78,7 +80,8 @@ consteval bool binary_decodable_value_type() {
            std::is_floating_point_v<Stripped> || std::is_same_v<Stripped, std::string> ||
            std::is_enum_v<Stripped> ||
            std::is_same_v<Stripped, std::chrono::system_clock::time_point> ||
-           std::is_same_v<Stripped, std::chrono::year_month_day>;
+           std::is_same_v<Stripped, std::chrono::year_month_day> ||
+           std::is_same_v<Stripped, boost::uuids::uuid>;
   }
 }
 

@@ -2,6 +2,7 @@
 
 #include "core.hpp"
 
+#include <algorithm>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -60,8 +61,9 @@ private:
   std::optional<T> value_;
 };
 
-/// @brief Specialization for boost::uuids::uuid values: bind the raw uuid text
-/// (the traits' to_sql_string is SQL-literal syntax and must not leak into binds)
+/// @brief Specialization for boost::uuids::uuid values: typed binary bind (OID 2950,
+/// the uuid's 16 bytes verbatim). The text form is the canonical string, not the
+/// traits' SQL-literal syntax, which must not leak into binds.
 template <>
 class Value<boost::uuids::uuid> : public SqlExpression {
 public:
@@ -71,7 +73,14 @@ public:
 
   std::string to_sql() const override { return "?"; }
 
-  std::vector<bind_param> bind_params() const override { return {boost::uuids::to_string(value_)}; }
+  std::vector<bind_param> bind_params() const override {
+    bind_param param;
+    param.value = boost::uuids::to_string(value_);
+    param.kind = relx::sql_kind::uuid;
+    param.binary_size = value_.size();  // 16: the wire format is the bytes verbatim
+    std::copy(value_.begin(), value_.end(), param.binary.begin());
+    return {param};
+  }
 
   const boost::uuids::uuid& value() const { return value_; }
 

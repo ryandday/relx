@@ -32,6 +32,7 @@ enum class sql_kind : std::uint32_t {
   float8 = 701,
   date = 1082,
   timestamptz = 1184,
+  uuid = 2950,
 };
 
 namespace detail {
@@ -47,7 +48,7 @@ inline constexpr std::chrono::sys_days pg_epoch_days{std::chrono::year{2000} / 1
 struct bind_param {
   std::string value;  ///< text form of the parameter
   sql_kind kind = sql_kind::unspecified;
-  std::array<unsigned char, 8> binary{};  ///< big-endian wire bytes when kind is set
+  std::array<unsigned char, 16> binary{};  ///< big-endian wire bytes when kind is set
   std::uint8_t binary_size = 0;
   bool is_null = false;  ///< SQL NULL: sent as a null value, kind may still carry the type
 

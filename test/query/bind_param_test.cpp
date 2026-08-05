@@ -1,6 +1,7 @@
 #include <optional>
 #include <string>
 
+#include <boost/uuid/string_generator.hpp>
 #include <gtest/gtest.h>
 #include <relx/bind_param.hpp>
 #include <relx/query.hpp>
@@ -124,6 +125,19 @@ TEST(BindParamTest, BareNulloptBindsUntypedNull) {
   ASSERT_EQ(params.size(), 1);
   EXPECT_TRUE(params[0].is_null);
   EXPECT_EQ(params[0].kind, sql_kind::unspecified);
+}
+
+TEST(BindParamTest, UuidBindsAsBinaryOid2950) {
+  boost::uuids::string_generator gen;
+  const auto id = gen("6fa1cb19-5a9a-4363-9a1b-aa1b3e2c8d51");
+  auto params = relx::query::val(id).bind_params();
+  ASSERT_EQ(params.size(), 1);
+  EXPECT_EQ(params[0], "6fa1cb19-5a9a-4363-9a1b-aa1b3e2c8d51");  // text form
+  EXPECT_EQ(params[0].kind, sql_kind::uuid);
+  ASSERT_EQ(params[0].binary_size, 16);
+  EXPECT_EQ(params[0].binary[0], 0x6F);  // bytes verbatim, no endian swizzle
+  EXPECT_EQ(params[0].binary[1], 0xA1);
+  EXPECT_EQ(params[0].binary[15], 0x51);
 }
 
 }  // namespace
