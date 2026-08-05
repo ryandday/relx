@@ -22,9 +22,10 @@
 ///
 /// Requirements: every table object referenced must be usable in a constant expression
 /// (relx::t<T> and constexpr classic table instances qualify), and the query must not
-/// contain runtime-only nodes (aliased columns hold a shared_ptr; IN-lists have a
-/// value-dependent placeholder count). Such queries simply fail to constant-evaluate -
-/// their runtime to_sql() is unaffected.
+/// contain runtime-only nodes (IN-lists have a value-dependent placeholder count; a
+/// runtime-string alias keeps its text out of the static shape - the NTTP
+/// relx::as<"name">(expr) form is the static-shaped spelling). Such queries simply
+/// fail to constant-evaluate - their runtime to_sql() is unaffected.
 namespace relx::query {
 
 /// @brief The query's SQL rendered at compile time, backed by static storage

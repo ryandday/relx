@@ -655,12 +655,32 @@ inline auto case_() {
   return TypedCaseBuilder<void>();
 }
 
+/// @brief AliasedColumn specialization for the move-only, type-erased CaseExpr:
+/// shared ownership keeps the aliased column copyable for the query builders.
+/// CaseExpr holds heap-allocated erased expressions, so unlike the by-value
+/// primary it could never constant-evaluate anyway.
+template <>
+class AliasedColumn<CaseExpr> : public ColumnExpression {
+public:
+  AliasedColumn(CaseExpr&& expr, std::string alias)
+      : expr_(std::make_shared<CaseExpr>(std::move(expr))), alias_(std::move(alias)) {}
+
+  std::string to_sql() const override { return expr_->to_sql() + " AS " + alias_; }
+
+  std::vector<bind_param> bind_params() const override { return expr_->bind_params(); }
+
+  std::string column_name() const override { return alias_; }
+
+  std::string table_name() const override { return ""; }
+
+private:
+  std::shared_ptr<CaseExpr> expr_;
+  std::string alias_;
+};
+
 // Specialized as function for CaseExpr
 inline auto as(CaseExpr&& expr, std::string alias) {
-  // Create a shared_ptr directly with an in-place construction
-  // This avoids the need to copy the CaseExpr
-  auto expr_ptr = std::make_unique<CaseExpr>(std::move(expr));
-  return AliasedColumn<CaseExpr>(std::shared_ptr<CaseExpr>(std::move(expr_ptr)), std::move(alias));
+  return AliasedColumn<CaseExpr>(std::move(expr), std::move(alias));
 }
 
 }  // namespace relx::query

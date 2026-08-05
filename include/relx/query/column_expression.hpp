@@ -41,6 +41,8 @@ public:
 
   constexpr explicit ColumnRef(const Column& col) : col_(col) {}
 
+  static_assert(std::is_empty_v<Column>, "columns are expected to be stateless");
+
   constexpr std::string to_sql() const override { return qualified_name(); }
 
   constexpr std::vector<bind_param> bind_params() const override { return {}; }
@@ -56,7 +58,9 @@ public:
   const Column& column() const { return col_; }
 
 private:
-  const Column& col_;
+  // Stored by value: column objects are stateless, and a reference would dangle
+  // when the column comes from a temporary table object
+  Column col_;
 };
 
 /// @brief Create a column reference expression
@@ -73,26 +77,22 @@ constexpr auto column_ref(const Column& col) {
 template <SqlExpr Expr>
 class AliasedColumn : public ColumnExpression {
 public:
-  AliasedColumn(const Expr& expr, std::string alias)
-      : expr_(std::make_shared<Expr>(expr)), alias_(std::move(alias)) {}
-
-  AliasedColumn(Expr&& expr, std::string alias)
-      : expr_(std::make_shared<Expr>(std::move(expr))), alias_(std::move(alias)) {}
-
-  // Special constructor for non-copyable types
-  AliasedColumn(std::shared_ptr<Expr> expr, std::string alias)
+  // By-value storage: expression objects are small, and a constexpr-constructible
+  // member lets runtime-aliased columns constant-evaluate in static_sql contexts.
+  // A move-only Expr (e.g. CaseExpr) makes the aliased column move-only too.
+  constexpr AliasedColumn(Expr expr, std::string alias)
       : expr_(std::move(expr)), alias_(std::move(alias)) {}
 
-  constexpr std::string to_sql() const override { return expr_->to_sql() + " AS " + alias_; }
+  constexpr std::string to_sql() const override { return expr_.to_sql() + " AS " + alias_; }
 
-  constexpr std::vector<bind_param> bind_params() const override { return expr_->bind_params(); }
+  constexpr std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 
-  std::string column_name() const override { return alias_; }
+  constexpr std::string column_name() const override { return alias_; }
 
-  std::string table_name() const override { return ""; }
+  constexpr std::string table_name() const override { return ""; }
 
 private:
-  std::shared_ptr<Expr> expr_;
+  Expr expr_;
   std::string alias_;
 };
 
@@ -102,8 +102,8 @@ private:
 /// @param alias The alias name
 /// @return An AliasedColumn expression
 template <SqlExpr Expr>
-auto as(const Expr& expr, std::string alias) {
-  return AliasedColumn<Expr>(expr, std::move(alias));
+constexpr auto as(Expr expr, std::string alias) {
+  return AliasedColumn<Expr>(std::move(expr), std::move(alias));
 }
 
 /// @brief Create an aliased column expression from a column reference
@@ -112,7 +112,7 @@ auto as(const Expr& expr, std::string alias) {
 /// @param alias The alias name
 /// @return An AliasedColumn expression
 template <ColumnType Column>
-auto as(const Column& column, std::string alias) {
+constexpr auto as(const Column& column, std::string alias) {
   return AliasedColumn<ColumnRef<Column>>(column_ref(column), std::move(alias));
 }
 

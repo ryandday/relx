@@ -251,8 +251,8 @@ public:
                  auto join_params = joins.condition.bind_params();
                  params.insert(params.end(), join_params.begin(), join_params.end());
                } catch (const std::exception& e) {
-                 // Log error and continue
-                 std::print("Error collecting join params: {}", e.what());
+                 // Missing parameters must not execute; rethrow with context
+                 throw std::runtime_error(std::string("Error collecting join params: ") + e.what());
                }
              })(),
              ...);
@@ -666,9 +666,8 @@ constexpr auto select_all(const Table& table) {
 /// @return A SelectQuery object with all columns from the table
 template <TableType Table>
 constexpr auto select_all() {
-  // Function-local static: the returned query's column refs point at this instance
-  static const Table table{};
-  return select_all(table);
+  // Column refs are stored by value, so a temporary table is fine here
+  return select_all(Table{});
 }
 
 /// @brief select_all over an annotated struct directly: select_all<Users>()

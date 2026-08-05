@@ -148,4 +148,13 @@ TEST(StaticShapeTest, OperatorAndJoinTypeAreInTheType) {
 
 // clang-format on
 
+TEST(StaticSqlTest, RuntimeAliasedColumnConstantEvaluates) {
+  // AliasedColumn stores its expression by value, so a runtime-string alias can
+  // still constant-evaluate when the whole query is built in a constant expression
+  static_assert(relx::static_sql(
+                    relx::query::select(relx::query::as(users.name, "display_name")).from(users)) ==
+                "SELECT users.name AS display_name FROM users");
+  SUCCEED();
+}
+
 }  // namespace
