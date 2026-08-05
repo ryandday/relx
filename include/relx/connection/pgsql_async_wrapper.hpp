@@ -476,7 +476,11 @@ public:
 
     for (const auto& param : params) {
       types.push_back(static_cast<Oid>(param.kind));
-      if (param.kind != relx::sql_kind::unspecified) {
+      if (param.is_null) {
+        values.push_back(nullptr);  // SQL NULL
+        lengths.push_back(0);
+        formats.push_back(0);
+      } else if (param.kind != relx::sql_kind::unspecified) {
         values.push_back(reinterpret_cast<const char*>(param.binary.data()));
         lengths.push_back(param.binary_size);
         formats.push_back(1);  // binary

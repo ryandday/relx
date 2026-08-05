@@ -2,6 +2,7 @@
 
 #include <array>
 #include <bit>
+#include <chrono>
 #include <cstdint>
 #include <ostream>
 #include <string>
@@ -29,7 +30,16 @@ enum class sql_kind : std::uint32_t {
   int4 = 23,
   float4 = 700,
   float8 = 701,
+  date = 1082,
+  timestamptz = 1184,
 };
+
+namespace detail {
+
+/// PostgreSQL's epoch (2000-01-01) as offsets from the Unix epoch
+inline constexpr std::chrono::sys_days pg_epoch_days{std::chrono::year{2000} / 1 / 1};
+
+}  // namespace detail
 
 /// @brief One query parameter: text form, optionally tagged with a SQL kind and the
 /// corresponding binary wire encoding. Implicitly convertible from strings and
@@ -39,6 +49,7 @@ struct bind_param {
   sql_kind kind = sql_kind::unspecified;
   std::array<unsigned char, 8> binary{};  ///< big-endian wire bytes when kind is set
   std::uint8_t binary_size = 0;
+  bool is_null = false;  ///< SQL NULL: sent as a null value, kind may still carry the type
 
   bind_param() = default;
   // NOLINTBEGIN(google-explicit-constructor): string call sites convert implicitly
@@ -55,7 +66,39 @@ struct bind_param {
   friend bool operator==(const bind_param& p, const char* text) { return p.value == text; }
 
   friend std::ostream& operator<<(std::ostream& os, const bind_param& p) { return os << p.value; }
+
+  /// @brief A SQL NULL parameter. The kind (when known) keeps the parameter typed for
+  /// the server; the text form "NULL" is only cosmetic (text-only paths cannot express
+  /// NULL parameters - see to_text_params).
+  static bind_param null(sql_kind kind = sql_kind::unspecified) {
+    bind_param param;
+    param.value = "NULL";
+    param.kind = kind;
+    param.is_null = true;
+    return param;
+  }
 };
+
+/// @brief The SQL kind a C++ type binds as: fixed-size wire-encodable types get their
+/// kind, everything else is unspecified (untyped text)
+template <typename T>
+consteval sql_kind sql_kind_for() {
+  if constexpr (std::is_same_v<T, bool>) {
+    return sql_kind::boolean;
+  } else if constexpr (std::is_integral_v<T>) {
+    return sizeof(T) <= 2 ? sql_kind::int2 : sizeof(T) <= 4 ? sql_kind::int4 : sql_kind::int8;
+  } else if constexpr (std::is_same_v<T, float>) {
+    return sql_kind::float4;
+  } else if constexpr (std::is_same_v<T, double>) {
+    return sql_kind::float8;
+  } else if constexpr (std::is_same_v<T, std::chrono::system_clock::time_point>) {
+    return sql_kind::timestamptz;
+  } else if constexpr (std::is_same_v<T, std::chrono::year_month_day>) {
+    return sql_kind::date;
+  } else {
+    return sql_kind::unspecified;
+  }
+}
 
 namespace detail {
 
@@ -96,6 +139,17 @@ bind_param make_bind_param(const T& val, std::string text) {
   } else if constexpr (std::is_same_v<T, double>) {
     param.kind = sql_kind::float8;
     detail::store_big_endian(param, std::bit_cast<std::uint64_t>(val), 8);
+  } else if constexpr (std::is_same_v<T, std::chrono::system_clock::time_point>) {
+    // TIMESTAMPTZ wire format: microseconds since 2000-01-01 UTC
+    param.kind = sql_kind::timestamptz;
+    const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(
+        val - std::chrono::sys_days{detail::pg_epoch_days});
+    detail::store_big_endian(param, static_cast<std::uint64_t>(micros.count()), 8);
+  } else if constexpr (std::is_same_v<T, std::chrono::year_month_day>) {
+    // DATE wire format: days since 2000-01-01
+    param.kind = sql_kind::date;
+    const auto days = (std::chrono::sys_days{val} - detail::pg_epoch_days).count();
+    detail::store_big_endian(param, static_cast<std::uint32_t>(static_cast<std::int32_t>(days)), 4);
   }
   return param;
 }

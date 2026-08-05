@@ -76,11 +76,6 @@ TEST(BindParamTest, EngagedOptionalIsTyped) {
   EXPECT_EQ(params[0].kind, sql_kind::int4);
 }
 
-TEST(BindParamTest, DisengagedOptionalBindsNothing) {
-  auto params = relx::query::val(std::optional<int>()).bind_params();
-  EXPECT_TRUE(params.empty());
-}
-
 struct users {
   static constexpr auto table_name = "users";
   relx::schema::column<users, "id", int> id;
@@ -112,6 +107,22 @@ TEST(BindParamTest, OptionalStringBindsRawText) {
   auto params = relx::query::val(std::optional<std::string>("it's raw")).bind_params();
   ASSERT_EQ(params.size(), 1);
   EXPECT_EQ(params[0], "it's raw");  // no SQL-literal quoting in bound text
+  EXPECT_EQ(params[0].kind, sql_kind::unspecified);
+}
+
+TEST(BindParamTest, DisengagedOptionalBindsTypedNull) {
+  auto v = relx::query::val(std::optional<int>());
+  EXPECT_EQ(v.to_sql(), "?");  // SQL shape is value-independent
+  auto params = v.bind_params();
+  ASSERT_EQ(params.size(), 1);
+  EXPECT_TRUE(params[0].is_null);
+  EXPECT_EQ(params[0].kind, sql_kind::int4);  // NULL still carries its type
+}
+
+TEST(BindParamTest, BareNulloptBindsUntypedNull) {
+  auto params = relx::query::val(std::nullopt).bind_params();
+  ASSERT_EQ(params.size(), 1);
+  EXPECT_TRUE(params[0].is_null);
   EXPECT_EQ(params[0].kind, sql_kind::unspecified);
 }
 
