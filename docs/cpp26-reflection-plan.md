@@ -156,8 +156,44 @@ Implementation gotcha: `type_of(annotation)` is cv-qualified (`const table`) —
   with strings, so string-typed call sites and tests work unchanged. Streaming sources
   and prepared statements still speak text (`relx::to_text_params` at the boundary).
 
+## Phase 5 — binary results, typed NULLs, constraint-aware migrations, native enums (done)
+
+- **Binary result parsing**: typed select queries whose select list maps entirely to
+  decodable types (bool, integers, floats, strings, enums, NUMERIC,
+  `system_clock::time_point`, `year_month_day`) request `resultFormat=1`;
+  `process_postgresql_result_binary` decodes cells OID-driven back into the canonical
+  text forms the rest of the stack expects (float formatting at wire precision,
+  base-10000 NUMERIC decode, timestamps as UTC). Unknown OIDs produce a clear error
+  naming the column; anything not gated (raw SQL, aggregates without `value_type`)
+  stays on the text protocol.
+- **Typed NULL binds**: disengaged `optional` values render `?` and bind a typed NULL
+  parameter (`bind_param::null(kind)`, `nullptr` to libpq) instead of splicing the
+  literal `NULL` — SQL text no longer depends on parameter values, a prerequisite for
+  prepared-statement reuse.
+- **Chrono binds**: `time_point` → TIMESTAMPTZ and `year_month_day` → DATE binary wire
+  encodings (microseconds/days since 2000-01-01).
+- **Migrations see table-level annotations**: `extract_table_metadata` walks struct
+  annotations of annotated tables, so composite keys/uniques/FKs, checks, and
+  `index_on` indexes participate in schema diffs (ADD/DROP CONSTRAINT, CREATE/DROP
+  INDEX).
+- **Native Postgres enums** (opt-in): `[[=relx::ann::native_enum]]` /
+  `column<..., E, native_enum>` stores the enum as a real `CREATE TYPE ... AS ENUM`
+  type (name = lowercased enum identifier, DDL via `relx::create_enum_type_sql<E>()`)
+  instead of TEXT + CHECK.
+- **composite_fk validation**: referenced columns must all belong to one table and form
+  its composite_pk / composite_unique / a pk- or unique-annotated column — a wrong FK
+  is now a compile error instead of a runtime DDL failure.
+- **Compile-fail tests**: `test/compile_fail/` + CTest (`WILL_FAIL`) covers the
+  consteval validation diagnostics, with a must-compile control against flag rot.
+
 ## Future ideas
 
-- Composite FK annotations validating target column count/types against the referenced
-  table's actual primary key.
-- Binary result parsing (results still arrive in text format).
+- Consteval `to_sql()` for whole typed queries. Assessment: the SQL text of typed
+  queries is now value-independent (NULL binds fixed that), so this is *possible*, but
+  every `to_sql()` in the query layer builds through `std::stringstream` (not
+  constexpr-usable) and would need rewriting to plain string concatenation; dynamic
+  constructs (`in_values` with runtime lists) must stay runtime. Mechanical but broad —
+  do it as a dedicated pass.
+- Prepared-statement caching keyed on query type (`PQprepare` once, `PQexecPrepared`
+  with the binary params after) — unblocked by the stable SQL shape.
+- Binary bind/result support for UUID and JSONB.
