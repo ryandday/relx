@@ -98,7 +98,7 @@ public:
       return false;
     }
     auto status = PQresultStatus(res_);
-    return status == PGRES_COMMAND_OK || status == PGRES_TUPLES_OK;
+    return status == PGRES_COMMAND_OK || status == PGRES_TUPLES_OK || status == PGRES_SINGLE_TUPLE;
   }
 
   ExecStatusType status() const { return res_ ? PQresultStatus(res_) : PGRES_FATAL_ERROR; }
@@ -141,14 +141,17 @@ class Connection;
 // Prepared statement class
 class PreparedStatement {
 private:
-  Connection& conn_;
+  // Rebinding pointer: when the owning Connection moves, it re-points every
+  // registered statement at the new object (a reference would silently keep
+  // targeting the moved-from Connection)
+  Connection* conn_;
   std::string name_;
   std::string query_;
   bool prepared_ = false;
 
 public:
   PreparedStatement(Connection& conn, std::string name, std::string query)
-      : conn_(conn), name_(std::move(name)), query_(std::move(query)) {}
+      : conn_(&conn), name_(std::move(name)), query_(std::move(query)) {}
 
   ~PreparedStatement() = default;
 
@@ -165,6 +168,7 @@ public:
 
   PreparedStatement& operator=(PreparedStatement&& other) noexcept {
     if (this != &other) {
+      conn_ = other.conn_;
       name_ = std::move(other.name_);
       query_ = std::move(other.query_);
       prepared_ = other.prepared_;
@@ -192,9 +196,19 @@ class Connection {
 private:
   boost::asio::io_context& io_;
   PGconn* conn_ = nullptr;
-  std::unique_ptr<boost::asio::ip::tcp::socket> socket_;
+  std::unique_ptr<boost::asio::posix::stream_descriptor> socket_;
   std::unordered_map<std::string, std::shared_ptr<PreparedStatement>> statements_;
   bool in_transaction_ = false;
+
+  /// @brief Point every registered prepared statement back at this Connection
+  /// (called after moves; statements hold a rebinding pointer)
+  void rebind_statements() {
+    for (auto& [name, stmt] : statements_) {
+      if (stmt) {
+        stmt->conn_ = this;
+      }
+    }
+  }
 
   PgResult<void> create_socket() {
     if (conn_ == nullptr) {
@@ -207,7 +221,9 @@ private:
       return std::unexpected(PgError{.message = "Invalid socket", .error_code = -1});
     }
 
-    socket_ = std::make_unique<boost::asio::ip::tcp::socket>(io_, boost::asio::ip::tcp::v4(), sock);
+    // A protocol-agnostic descriptor: libpq's fd may be IPv4, IPv6, or a unix
+    // socket, so never assume tcp::v4
+    socket_ = std::make_unique<boost::asio::posix::stream_descriptor>(io_, sock);
     return PgResult<void>{};
   }
 
@@ -244,7 +260,7 @@ private:
 
       boost::system::error_code ec;
       co_await (*socket_result)
-          ->async_wait(boost::asio::ip::tcp::socket::wait_write,
+          ->async_wait(boost::asio::posix::stream_descriptor::wait_write,
                        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
@@ -283,7 +299,7 @@ private:
 
       boost::system::error_code ec;
       co_await (*socket_result)
-          ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+          ->async_wait(boost::asio::posix::stream_descriptor::wait_read,
                        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
@@ -307,6 +323,7 @@ public:
         statements_(std::move(other.statements_)), in_transaction_(other.in_transaction_) {
     other.conn_ = nullptr;
     other.in_transaction_ = false;
+    rebind_statements();
   }
 
   Connection& operator=(Connection&& other) noexcept {
@@ -318,6 +335,7 @@ public:
       in_transaction_ = other.in_transaction_;
       other.conn_ = nullptr;
       other.in_transaction_ = false;
+      rebind_statements();
     }
     return *this;
   }
@@ -326,7 +344,10 @@ public:
     statements_.clear();
 
     if (socket_) {
-      socket_->close();
+      // libpq owns the fd: release the asio wrapper without closing, then let
+      // PQfinish close it. Closing here and again in PQfinish could kill an
+      // unrelated fd assigned in between.
+      socket_->release();
       socket_.reset();
     }
 
@@ -344,7 +365,7 @@ public:
 
   PGconn* native_handle() { return conn_; }
 
-  PgResult<boost::asio::ip::tcp::socket*> socket() {
+  PgResult<boost::asio::posix::stream_descriptor*> socket() {
     if (!socket_) {
       return std::unexpected(PgError{.message = "Socket not initialized", .error_code = -1});
     }
@@ -415,7 +436,7 @@ public:
 
         boost::system::error_code ec;
         co_await (*socket_result)
-            ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+            ->async_wait(boost::asio::posix::stream_descriptor::wait_read,
                          boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {
@@ -437,7 +458,7 @@ public:
 
         boost::system::error_code ec;
         co_await (*socket_result)
-            ->async_wait(boost::asio::ip::tcp::socket::wait_write,
+            ->async_wait(boost::asio::posix::stream_descriptor::wait_write,
                          boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {

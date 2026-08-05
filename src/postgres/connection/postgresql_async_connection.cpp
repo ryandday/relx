@@ -18,10 +18,13 @@ PostgreSQLAsyncConnection::PostgreSQLAsyncConnection(boost::asio::io_context& io
       async_conn_(std::make_unique<pgsql_async_wrapper::Connection>(io_context)) {}
 
 PostgreSQLAsyncConnection::~PostgreSQLAsyncConnection() {
-  // Automatically disconnect if still connected
-  if (is_connected()) {
-    [[maybe_unused]] auto _ = disconnect();
+  // A coroutine cannot be awaited here; close() tears the connection down
+  // synchronously (calling disconnect() would only create a lazy awaitable
+  // whose body never runs)
+  if (async_conn_) {
+    async_conn_->close();
   }
+  is_connected_ = false;
 }
 
 PostgreSQLAsyncConnection::PostgreSQLAsyncConnection(PostgreSQLAsyncConnection&& other) noexcept
@@ -33,9 +36,9 @@ PostgreSQLAsyncConnection::PostgreSQLAsyncConnection(PostgreSQLAsyncConnection&&
 PostgreSQLAsyncConnection& PostgreSQLAsyncConnection::operator=(
     PostgreSQLAsyncConnection&& other) noexcept {
   if (this != &other) {
-    // Disconnect first if connected
-    if (is_connected()) {
-      [[maybe_unused]] auto _ = disconnect();
+    // Synchronous teardown - see the destructor
+    if (async_conn_) {
+      async_conn_->close();
     }
 
     connection_string_ = std::move(other.connection_string_);
@@ -251,7 +254,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::reset_
 
         boost::system::error_code ec;
         co_await (*socket_result)
-            ->async_wait(boost::asio::ip::tcp::socket::wait_read,
+            ->async_wait(boost::asio::posix::stream_descriptor::wait_read,
                          boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec) {
@@ -281,37 +284,28 @@ bool PostgreSQLAsyncConnection::reset_connection_state_sync() {
     return true;
   }
 
+  // Non-blocking best-effort drain for destructor scenarios. Returns whether the
+  // connection actually came out clean - callers must not reuse it on false.
   try {
-    // Consume any remaining results from the connection to clean up the state
-    // This is a non-blocking version for use in destructors
     while (true) {
-      // Check if we can consume input without blocking
       if (PQconsumeInput(pg_conn) == 0) {
-        // Error consuming input - but continue to try to reset
-        break;
+        return false;  // input error; connection state unknown
       }
 
-      // Check if we can get a result without blocking
-      if (!PQisBusy(pg_conn)) {
-        PGresult* result = PQgetResult(pg_conn);
-        if (!result) {
-          // No more results - connection is clean
-          break;
-        }
-        PQclear(result);
-      } else {
-        // Still busy - in sync mode we can't wait, so just break
-        // The connection might still have pending results, but this is
-        // a best-effort cleanup for destructor scenarios
-        break;
+      if (PQisBusy(pg_conn)) {
+        // Results still pending and we cannot wait synchronously
+        return false;
       }
+
+      PGresult* result = PQgetResult(pg_conn);
+      if (!result) {
+        return true;  // fully drained
+      }
+      PQclear(result);
     }
   } catch (...) {
-    // Any exception during reset - just continue, return success anyway
-    // This is destructor-safe behavior
+    return false;
   }
-
-  return true;
 }
 
 std::string PostgreSQLAsyncConnection::convert_placeholders(const std::string& sql) {
@@ -347,7 +341,7 @@ ConnectionResult<result::ResultSet> PostgreSQLAsyncConnection::convert_result(
 
     for (int c = 0; c < col_count; ++c) {
       if (pg_result.is_null(r, c)) {
-        cells.emplace_back("NULL");
+        cells.push_back(result::Cell::null());
       } else {
         const char* value = pg_result.get_value(r, c);
         cells.emplace_back(value ? value : "");

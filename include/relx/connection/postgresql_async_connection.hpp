@@ -222,7 +222,6 @@ private:
   std::string connection_string_;
   std::unique_ptr<pgsql_async_wrapper::Connection> async_conn_;
   bool is_connected_ = false;
-  bool in_transaction_ = false;
 
   /// @brief Helper method to convert pgsql_async_wrapper::result to relx::result::ResultSet
   static ConnectionResult<result::ResultSet> convert_result(
