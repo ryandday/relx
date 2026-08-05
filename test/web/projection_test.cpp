@@ -55,10 +55,10 @@ TEST(ProjectionTest, DiagnosticNamesDriftedFields) {
     std::string titel;  // typo
     int title;          // wrong type
   };
-  struct [[=relx::web::projects<Event>]] Probe {};
+  struct[[= relx::web::projects<Event>]] Probe {};
   // Diagnose Bad against Event directly through the detail entry point
-  constexpr std::string_view diag =
-      std::define_static_string(relx::web::detail::projection_errors<Bad, Event>());
+  constexpr std::string_view diag = std::define_static_string(
+      relx::web::detail::projection_errors<Bad, Event>());
   EXPECT_NE(diag.find("titel"), std::string_view::npos);
   EXPECT_NE(diag.find("'title' type differs"), std::string_view::npos);
 }

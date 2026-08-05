@@ -6,12 +6,12 @@
 #include <relx/schema.hpp>
 #include <relx/web/projection.hpp>
 
-struct [[=relx::table("cf_events")]] Event {
-  [[=relx::ann::pk]] int id;
+struct[[= relx::table("cf_events")]] Event {
+  [[= relx::ann::pk]] int id;
   std::string title;
 };
 
-struct [[=relx::web::projects<Event>]] StaleDto {
+struct[[= relx::web::projects<Event>]] StaleDto {
   std::string renamed_title;  // drifted: no such column
 };
 

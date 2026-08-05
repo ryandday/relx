@@ -32,8 +32,7 @@ namespace detail {
 
 consteval std::meta::info unwrap_optional_info(std::meta::info type) {
   type = std::meta::dealias(type);
-  if (std::meta::has_template_arguments(type) &&
-      std::meta::template_of(type) == ^^std::optional) {
+  if (std::meta::has_template_arguments(type) && std::meta::template_of(type) == ^^std::optional) {
     return std::meta::dealias(std::meta::template_arguments_of(type)[0]);
   }
   return type;
@@ -44,8 +43,7 @@ template <typename Dto>
 consteval std::meta::info projected_table_of() {
   for (std::meta::info a : std::meta::annotations_of(^^Dto)) {
     std::meta::info type = std::meta::remove_cv(std::meta::type_of(a));
-    if (std::meta::has_template_arguments(type) &&
-        std::meta::template_of(type) == ^^projects_t) {
+    if (std::meta::has_template_arguments(type) && std::meta::template_of(type) == ^^projects_t) {
       return std::meta::template_arguments_of(type)[0];
     }
   }

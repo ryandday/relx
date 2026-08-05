@@ -28,8 +28,8 @@ inline asio::awaitable<void> session(beast::tcp_stream stream, const Router& rou
     stream.expires_after(std::chrono::seconds(30));
 
     Request req;
-    auto [read_ec, read_bytes] =
-        co_await http::async_read(stream, buffer, req, asio::as_tuple(asio::use_awaitable));
+    auto [read_ec, read_bytes] = co_await http::async_read(stream, buffer, req,
+                                                           asio::as_tuple(asio::use_awaitable));
     if (read_ec) {
       break;  // client closed, timeout, or malformed request
     }
@@ -43,8 +43,8 @@ inline asio::awaitable<void> session(beast::tcp_stream stream, const Router& rou
     res.keep_alive(req.keep_alive());
     res.prepare_payload();
 
-    auto [write_ec, write_bytes] =
-        co_await http::async_write(stream, res, asio::as_tuple(asio::use_awaitable));
+    auto [write_ec, write_bytes] = co_await http::async_write(stream, res,
+                                                              asio::as_tuple(asio::use_awaitable));
     if (write_ec || !res.keep_alive()) {
       break;
     }
@@ -62,8 +62,7 @@ inline asio::awaitable<void> listener(tcp::endpoint endpoint, const Router& rout
     if (ec) {
       continue;
     }
-    asio::co_spawn(executor, session(beast::tcp_stream(std::move(socket)), router),
-                   asio::detached);
+    asio::co_spawn(executor, session(beast::tcp_stream(std::move(socket)), router), asio::detached);
   }
 }
 
