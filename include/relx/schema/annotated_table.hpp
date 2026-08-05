@@ -282,6 +282,7 @@ template <std::meta::info... Targets>
   requires (sizeof...(Targets) > 0)
 struct composite_fk : detail::name_list {
   static constexpr bool relx_table_constraint = true;
+  static constexpr bool relx_is_composite_fk = true;
 
   template <typename... Names>
   consteval explicit composite_fk(Names... names) {
@@ -305,6 +306,63 @@ struct composite_fk : detail::name_list {
     }
     out += ")";
     return out;
+  }
+
+  /// @brief Problems with the referenced columns, empty when valid: all targets must
+  /// belong to one table, and they must form that table's primary key or a declared
+  /// unique set (the database enforces the same rule at CREATE time; catching it here
+  /// turns a runtime DDL failure into a compile error)
+  static consteval std::string target_diagnostics() {
+    std::string diag;
+    constexpr std::meta::info targets[] = {Targets...};
+    for (std::meta::info target : targets) {
+      if (std::meta::parent_of(target) != std::meta::parent_of(targets[0])) {
+        return "composite_fk target columns must all belong to one table; ";
+      }
+    }
+
+    // The referenced names, for order-insensitive comparison against key sets
+    constexpr std::size_t target_count = sizeof...(Targets);
+    std::string_view target_names[target_count] = {std::meta::identifier_of(Targets)...};
+    auto matches = [&](const name_list& names) {
+      if (names.count_ != target_count) {
+        return false;
+      }
+      for (std::string_view target_name : target_names) {
+        bool found = false;
+        for (std::size_t i = 0; i < names.count_; ++i) {
+          found = found || names.at(i) == target_name;
+        }
+        if (!found) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    // Query annotations via the parent's info directly: reflecting a local alias
+    // (^^Target after `using Target = ...`) designates the alias, whose annotation
+    // list is empty
+    bool covered = false;
+    for (std::meta::info a : std::meta::annotations_of(std::meta::parent_of(targets[0]))) {
+      const std::meta::info type = std::meta::remove_cv(std::meta::type_of(a));
+      if (type == ^^composite_pk) {
+        covered = covered || matches(std::meta::extract<composite_pk>(a));
+      } else if (type == ^^composite_unique) {
+        covered = covered || matches(std::meta::extract<composite_unique>(a));
+      }
+    }
+    if (target_count == 1) {
+      for (std::meta::info a : std::meta::annotations_of(targets[0])) {
+        const std::meta::info type = std::meta::remove_cv(std::meta::type_of(a));
+        covered = covered || type == ^^primary_key || type == ^^unique;
+      }
+    }
+    if (!covered) {
+      diag += "composite_fk must reference the target table's primary key or a declared "
+              "unique column set; ";
+    }
+    return diag;
   }
 };
 
@@ -402,6 +460,11 @@ concept IndexAnnotation = requires { requires A::relx_index_annotation; };
 template <typename A>
 concept NamedColumnList = std::derived_from<A, name_list>;
 
+/// @brief (Named concept rather than an inline requires-expression: GCC 16 evaluates an
+/// inline requires-expression inside a `template for` body once, not per iteration)
+template <typename A>
+concept CompositeFkAnnotation = requires { requires A::relx_is_composite_fk; };
+
 /// @brief Problems with T's table-level annotations, empty when they are valid.
 /// Collected as text so the static_assert message can name the offending columns.
 template <typename T>
@@ -434,6 +497,9 @@ consteval std::string constraint_diagnostics() {
     }
     if constexpr (std::same_as<A, composite_pk>) {
       ++composite_pk_count;
+    }
+    if constexpr (CompositeFkAnnotation<A>) {
+      diag += A::target_diagnostics();
     }
   }
 

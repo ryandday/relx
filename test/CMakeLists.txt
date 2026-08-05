@@ -103,4 +103,27 @@ add_test(NAME relx_tests COMMAND relx_tests)
 
 # Add static_assert tests executable
 add_executable(static_assert_tests static_assert_tests.cpp)
-target_link_libraries(static_assert_tests PRIVATE relx_postgresql) 
+target_link_libraries(static_assert_tests PRIVATE relx_postgresql)
+# Compile-failure tests: each source must FAIL to compile (consteval validation of
+# table-level annotations), checked with -fsyntax-only so no artifacts are produced.
+# control_must_compile.cpp guards against the suite passing for the wrong reason.
+set(RELX_COMPILE_FAIL_SOURCES
+    compile_fail/composite_pk_unknown_column.cpp
+    compile_fail/duplicate_composite_pk.cpp
+    compile_fail/composite_pk_conflicts_with_member_pk.cpp
+    compile_fail/composite_fk_targets_non_key.cpp
+    compile_fail/select_missing_row_field.cpp
+)
+foreach(compile_fail_src ${RELX_COMPILE_FAIL_SOURCES})
+  get_filename_component(compile_fail_name ${compile_fail_src} NAME_WE)
+  add_test(NAME compile_fail_${compile_fail_name}
+           COMMAND ${CMAKE_CXX_COMPILER} -std=gnu++26 -freflection -fsyntax-only
+                   -I${CMAKE_SOURCE_DIR}/include
+                   ${CMAKE_CURRENT_SOURCE_DIR}/${compile_fail_src})
+  set_tests_properties(compile_fail_${compile_fail_name} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
+add_test(NAME compile_fail_control_must_compile
+         COMMAND ${CMAKE_CXX_COMPILER} -std=gnu++26 -freflection -fsyntax-only
+                 -I${CMAKE_SOURCE_DIR}/include
+                 ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/control_must_compile.cpp)
