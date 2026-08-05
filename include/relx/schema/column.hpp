@@ -166,8 +166,8 @@ consteval std::string_view create_enum_type_sql() {
 template <typename E>
   requires std::is_enum_v<E>
 consteval std::string_view drop_enum_type_sql() {
-  return std::define_static_string("DROP TYPE IF EXISTS " +
-                                   std::string(pg_enum_type_name<E>()) + ";");
+  return std::define_static_string("DROP TYPE IF EXISTS " + std::string(pg_enum_type_name<E>()) +
+                                   ";");
 }
 
 /// @brief REFERENCES constraint for foreign keys
@@ -446,8 +446,8 @@ public:
   static constexpr auto name = Name;
 
   /// @brief Whether this column stores its enum as a native database enum type
-  static constexpr bool uses_native_enum =
-      (std::is_same_v<Modifiers, native_enum> || ...) && std::is_enum_v<T>;
+  static constexpr bool uses_native_enum = (std::is_same_v<Modifiers, native_enum> || ...) &&
+                                           std::is_enum_v<T>;
 
   static constexpr std::string_view sql_type = [] {
     if constexpr (uses_native_enum) {

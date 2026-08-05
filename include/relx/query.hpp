@@ -2,8 +2,6 @@
 
 // uuid.hpp first: its val()/Value overloads must be declared before the query
 // machinery that makes unqualified val(...) calls (boost types get no ADL here)
-#include "query/uuid.hpp"
-
 #include "query/arithmetic.hpp"
 #include "query/column_expression.hpp"
 #include "query/condition.hpp"
@@ -19,6 +17,7 @@
 #include "query/schema_adapter.hpp"
 #include "query/select.hpp"
 #include "query/update.hpp"
+#include "query/uuid.hpp"
 #include "query/value.hpp"
 
 /**

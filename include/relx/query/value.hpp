@@ -71,9 +71,7 @@ public:
 
   std::string to_sql() const override { return "?"; }
 
-  std::vector<bind_param> bind_params() const override {
-    return {boost::uuids::to_string(value_)};
-  }
+  std::vector<bind_param> bind_params() const override { return {boost::uuids::to_string(value_)}; }
 
   const boost::uuids::uuid& value() const { return value_; }
 
