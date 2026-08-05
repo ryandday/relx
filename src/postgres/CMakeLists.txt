@@ -4,7 +4,6 @@ find_package(PostgreSQL REQUIRED)
 add_library(relx_postgresql
     connection/postgresql_connection.cpp
     connection/postgresql_connection_pool.cpp
-    connection/postgresql_errors.cpp
     connection/postgresql_statement.cpp
     connection/pgsql_async_wrapper.cpp
     connection/postgresql_async_connection.cpp
@@ -26,7 +25,6 @@ target_link_libraries(relx_postgresql
         PostgreSQL::PostgreSQL
     PRIVATE
         Boost::system
-        Boost::thread
 )
 
 # Alias for easier usage

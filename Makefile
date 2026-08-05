@@ -1,24 +1,32 @@
 # Project configuration
-BUILD_DIR := build
+# Builds run inside the gcc:16 dev container (GCC 16 is the only compiler with
+# C++26 reflection; the host toolchain cannot build the library).
+BUILD_DIR := build-gcc16
 BUILD_TYPE ?= Debug
+DEV_IMAGE := relx-gcc16-dev
+DOCKER_RUN := docker run --rm -v $(CURDIR):/repo -w /repo $(DEV_IMAGE)
+# Tests reach the docker-compose postgres on host port 5434 through a socat forward
+DOCKER_RUN_DB := docker run --rm --add-host=host.docker.internal:host-gateway \
+	-v $(CURDIR):/repo -w /repo $(DEV_IMAGE)
 
 # Make commands persist their working directory within each target
 .ONESHELL:
 
+.PHONY: dev-image
+dev-image:
+	docker build -t $(DEV_IMAGE) docker-dev
+
 .PHONY: build
 build:
-	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON
-	cmake --build $(BUILD_DIR) -j
+	$(DOCKER_RUN) bash -c 'cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DRELX_DEV_MODE=ON && cmake --build $(BUILD_DIR) -j'
 
 .PHONY: build-release
-build-release: 
-	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
-	cmake --build $(BUILD_DIR) -j
+build-release:
+	$(DOCKER_RUN) bash -c 'cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build $(BUILD_DIR) -j'
 
 .PHONY: build-coverage
 build-coverage:
-	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DRELX_ENABLE_COVERAGE=ON
-	cmake --build $(BUILD_DIR) -j
+	$(DOCKER_RUN) bash -c 'cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON -DRELX_ENABLE_COVERAGE=ON && cmake --build $(BUILD_DIR) -j'
 
 .PHONY: clean
 clean:
@@ -26,23 +34,27 @@ clean:
 
 .PHONY: test
 test: build postgres-up
-	./$(BUILD_DIR)/test/relx_tests
+	$(DOCKER_RUN_DB) bash -c 'socat TCP-LISTEN:5434,fork,reuseaddr TCP:host.docker.internal:5434 & sleep 1; \
+		./$(BUILD_DIR)/test/relx_tests && \
+		cd $(BUILD_DIR) && ctest -R compile_fail --output-on-failure'
 
 .PHONY: coverage
 coverage: build-coverage postgres-up
-	cmake --build $(BUILD_DIR) --target coverage
+	$(DOCKER_RUN_DB) bash -c 'socat TCP-LISTEN:5434,fork,reuseaddr TCP:host.docker.internal:5434 & sleep 1; \
+		cmake --build $(BUILD_DIR) --target coverage'
 
 .PHONY: coverage-clean
 coverage-clean:
 	@if [ -d "$(BUILD_DIR)" ]; then \
-		cmake --build $(BUILD_DIR) --target coverage-clean; \
+		$(DOCKER_RUN) cmake --build $(BUILD_DIR) --target coverage-clean; \
 	else \
 		echo "Build directory does not exist. Run 'make build-coverage' first."; \
 	fi
 
 .PHONY: coverage-show
 coverage-show: build-coverage postgres-up
-	cmake --build $(BUILD_DIR) --target coverage-show
+	$(DOCKER_RUN_DB) bash -c 'socat TCP-LISTEN:5434,fork,reuseaddr TCP:host.docker.internal:5434 & sleep 1; \
+		cmake --build $(BUILD_DIR) --target coverage-show'
 
 .PHONY: coverage-open
 coverage-open: coverage
@@ -155,14 +167,15 @@ postgres-clean:
 help:
 	@echo "Available targets:"
 	@echo ""
-	@echo "Build targets:"
-	@echo "  build            - Build the project using system dependencies (default)"
+	@echo "Build targets (all run inside the relx-gcc16-dev container):"
+	@echo "  dev-image        - Build the gcc:16 dev container image (run once first)"
+	@echo "  build            - Build the project"
 	@echo "  build-release    - Build the project in release mode"
 	@echo "  build-coverage   - Build the project with code coverage instrumentation"
 	@echo ""
 	@echo "Build and test:"
 	@echo "  clean            - Remove build directory"
-	@echo "  test             - Build and run the tests with CTest (starts PostgreSQL)"
+	@echo "  test             - Build and run all tests incl. compile-fail suite (starts PostgreSQL)"
 	@echo ""
 	@echo "Code coverage:"
 	@echo "  coverage         - Generate code coverage report"

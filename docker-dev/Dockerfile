@@ -13,7 +13,6 @@ RUN apt-get update && apt-get install -y \
     ninja-build \
     libboost-dev \
     libboost-system-dev \
-    libboost-thread-dev \
     libpq-dev \
     postgresql-client \
     socat \

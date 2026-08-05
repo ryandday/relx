@@ -9,7 +9,9 @@ compile_commands.json
 CMakeCache.txt
 CMakeFiles/
 CMakeLists.txt.user
-Makefile
+# CMake-generated Makefiles in build trees (the tracked root Makefile is hand-written)
+build/Makefile
+!/Makefile
 cmake_install.cmake
 install_manifest.txt
 

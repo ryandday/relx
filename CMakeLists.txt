@@ -38,8 +38,8 @@ if(RELX_ENABLE_COVERAGE)
     coverage_info()
 endif()
 
-# Find dependencies (Conan or system provided)
-find_package(Boost REQUIRED COMPONENTS system thread)
+# Find dependencies (system provided)
+find_package(Boost REQUIRED COMPONENTS system)
 
 # Create header-only library target
 add_library(relx INTERFACE)
@@ -54,7 +54,6 @@ target_include_directories(relx INTERFACE
 
 target_link_libraries(relx INTERFACE
     Boost::system
-    Boost::thread
 )
 
 target_compile_features(relx INTERFACE cxx_std_26)

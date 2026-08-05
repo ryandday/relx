@@ -65,7 +65,6 @@ jobs:
           ninja-build \
           libboost-dev \
           libboost-system-dev \
-          libboost-thread-dev \
           libpq-dev \
           postgresql-client \
           lcov \
