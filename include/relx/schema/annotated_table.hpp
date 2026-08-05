@@ -3,11 +3,11 @@
 #include "../reflect.hpp"
 #include "column.hpp"
 #include "fixed_string.hpp"
-#include "index.hpp"
 #include "table.hpp"
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <meta>
 #include <string>
 #include <string_view>
@@ -413,7 +413,7 @@ struct annotated_check {
 struct index_on : detail::name_list {
   static constexpr bool relx_index_annotation = true;
 
-  index_type type_ = index_type::normal;
+  bool unique_ = false;
 
   template <typename... Names>
   consteval explicit index_on(Names... names) {
@@ -422,7 +422,7 @@ struct index_on : detail::name_list {
 
   consteval index_on unique() const {
     index_on copy = *this;
-    copy.type_ = index_type::unique;
+    copy.unique_ = true;
     return copy;
   }
 
@@ -439,7 +439,7 @@ struct index_on : detail::name_list {
   /// @brief The statement body after CREATE, e.g. "UNIQUE INDEX t_a_idx ON t (a)"
   /// (migrations store this form; AddConstraintOperation prepends CREATE)
   consteval std::string index_sql_body(std::string_view table) const {
-    std::string out{index_type_to_string(type_)};
+    std::string out = unique_ ? "UNIQUE " : "";
     out += "INDEX " + index_name(table) + " ON " + std::string(table) + " (" + joined() + ")";
     return out;
   }
@@ -752,6 +752,10 @@ namespace ann = schema::ann;
 /// `select(users.id).from(users).where(users.id == 42)`
 template <typename T>
 inline constexpr schema::table_ref<T> t{};
+
+/// @brief The synthesized table-object type of an annotated struct: the type of relx::t<T>
+template <typename T>
+using table_type = schema::table_ref<T>;
 
 /// @brief Standalone column reference: relx::c<^^Users::id>. Equivalent to
 /// relx::t<Users>.id; useful when a full table object is not wanted.

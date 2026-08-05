@@ -36,36 +36,25 @@
  * #include <relx/schema.hpp>
  *
  * // Define your old table version
- * struct UsersV1 {
- *     static constexpr auto table_name = "users";
- *
- *     relx::column<UsersV1, "id", int, relx::primary_key> id;
- *     relx::column<UsersV1, "name", std::string> name;
- *     relx::column<UsersV1, "email", std::string> email;
- *
- *     relx::unique_constraint<&UsersV1::email> unique_email;
+ * struct [[=relx::table("users")]] UsersV1 {
+ *     [[=relx::ann::pk]] int id;
+ *     std::string name;
+ *     [[=relx::ann::unique]] std::string email;
  * };
  *
  * // Define your new table version
- * struct UsersV2 {
- *     static constexpr auto table_name = "users";
- *
- *     relx::column<UsersV2, "id", int, relx::primary_key> id;
- *     relx::column<UsersV2, "name", std::string> name;
- *     relx::column<UsersV2, "email", std::string> email;
- *     relx::column<UsersV2, "age", std::optional<int>> age;  // New column
- *     relx::column<UsersV2, "created_at", std::string,
- *                  relx::string_default<"CURRENT_TIMESTAMP", true>> created_at;  // New column
- *
- *     relx::unique_constraint<&UsersV2::email> unique_email;
+ * struct [[=relx::table("users")]] UsersV2 {
+ *     [[=relx::ann::pk]] int id;
+ *     std::string name;
+ *     [[=relx::ann::unique]] std::string email;
+ *     std::optional<int> age;  // New column
+ *     [[=relx::string_default<"CURRENT_TIMESTAMP", true>{}]]
+ *     std::string created_at;  // New column
  * };
  *
  * int main() {
- *     UsersV1 old_users;
- *     UsersV2 new_users;
- *
  *     // Generate migration from V1 to V2
- *     auto migration = relx::migrations::generate_migration(old_users, new_users);
+ *     auto migration = relx::migrations::generate_migration(relx::t<UsersV1>, relx::t<UsersV2>);
  *
  *     // Get forward migration SQL
  *     auto forward_sqls = migration.forward_sql();
