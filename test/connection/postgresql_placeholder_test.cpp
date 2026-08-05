@@ -150,3 +150,33 @@ TEST_F(PostgreSQLPlaceholderTest, RealWorldExample) {
 }
 
 }  // namespace relx::connection
+namespace relx::connection {
+
+TEST_F(PostgreSQLPlaceholderTest, LineCommentsAreOpaque) {
+  EXPECT_EQ("SELECT $1 -- is this a param? no\n FROM t WHERE x = $2",
+            convert_placeholders("SELECT ? -- is this a param? no\n FROM t WHERE x = ?"));
+}
+
+TEST_F(PostgreSQLPlaceholderTest, BlockCommentsAreOpaqueAndNest) {
+  EXPECT_EQ("SELECT $1 /* what? /* nested? */ still comment? */ , $2",
+            convert_placeholders("SELECT ? /* what? /* nested? */ still comment? */ , ?"));
+}
+
+TEST_F(PostgreSQLPlaceholderTest, DollarQuotedBodiesAreOpaque) {
+  EXPECT_EQ("SELECT $$is this? no$$, $1", convert_placeholders("SELECT $$is this? no$$, ?"));
+  EXPECT_EQ("SELECT $fn$body? with $$ inside$fn$, $1",
+            convert_placeholders("SELECT $fn$body? with $$ inside$fn$, ?"));
+}
+
+TEST_F(PostgreSQLPlaceholderTest, EscapeStringsHonorBackslashes) {
+  // The \' does not close the E-string, so the ? inside stays literal
+  EXPECT_EQ("SELECT E'it\\'s?', $1", convert_placeholders("SELECT E'it\\'s?', ?"));
+}
+
+TEST_F(PostgreSQLPlaceholderTest, DoubledQuestionMarkIsLiteral) {
+  // ?? escapes a literal ? (the JSONB operator convention)
+  EXPECT_EQ("SELECT data ? 'key' FROM t WHERE id = $1",
+            convert_placeholders("SELECT data ?? 'key' FROM t WHERE id = ?"));
+}
+
+}  // namespace relx::connection

@@ -3,63 +3,165 @@
 #include "relx/results.hpp"
 
 #include <bit>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <format>
 #include <limits>
+#include <stdexcept>
 #include <utility>
 
 #include <libpq-fe.h>
 
 namespace relx::connection::sql_utils {
 
+namespace {
+
+/// A dollar-quote tag starting at sql[pos] ("$$" or "$tag$"), or empty if none
+std::string_view dollar_quote_tag(std::string_view sql, std::size_t pos) {
+  if (pos >= sql.size() || sql[pos] != '$') {
+    return {};
+  }
+  std::size_t end = pos + 1;
+  while (end < sql.size() &&
+         (sql[end] == '_' || (std::isalnum(static_cast<unsigned char>(sql[end])) != 0))) {
+    ++end;
+  }
+  if (end < sql.size() && sql[end] == '$') {
+    return sql.substr(pos, end - pos + 1);  // includes both '$'s
+  }
+  return {};
+}
+
+}  // namespace
+
 std::string convert_placeholders_to_postgresql(const std::string& sql) {
   std::string result;
   result.reserve(sql.size() + 32);  // Reserve some extra space for parameter numbers
 
   int placeholder_count = 1;
-  bool in_single_quotes = false;
-  bool in_double_quotes = false;
 
   for (size_t i = 0; i < sql.size(); ++i) {
     const char current = sql[i];
+    const char next = (i + 1 < sql.size()) ? sql[i + 1] : '\0';
 
-    // Handle single quotes (string literals)
-    if (current == '\'' && !in_double_quotes) {
-      // Check if this is an escaped quote (two single quotes in a row)
-      if (i + 1 < sql.size() && sql[i + 1] == '\'') {
-        // This is an escaped quote, add both characters and skip the next one
-        result += current;
-        result += sql[++i];
-        continue;
-      } else {
-        // This is a regular single quote, toggle the state
-        in_single_quotes = !in_single_quotes;
-      }
+    // Line comments: -- to end of line
+    if (current == '-' && next == '-') {
+      const std::size_t eol = sql.find('\n', i);
+      const std::size_t end = (eol == std::string::npos) ? sql.size() : eol + 1;
+      result.append(sql, i, end - i);
+      i = end - 1;
+      continue;
     }
-    // Handle double quotes (quoted identifiers)
-    else if (current == '"' && !in_single_quotes) {
-      // Check if this is an escaped quote (two double quotes in a row)
-      if (i + 1 < sql.size() && sql[i + 1] == '"') {
-        // This is an escaped quote, add both characters and skip the next one
-        result += current;
-        result += sql[++i];
-        continue;
-      } else {
-        // This is a regular double quote, toggle the state
-        in_double_quotes = !in_double_quotes;
+
+    // Block comments: /* ... */, which PostgreSQL nests
+    if (current == '/' && next == '*') {
+      int depth = 1;
+      std::size_t j = i + 2;
+      while (j < sql.size() && depth > 0) {
+        if (sql[j] == '/' && j + 1 < sql.size() && sql[j + 1] == '*') {
+          ++depth;
+          j += 2;
+        } else if (sql[j] == '*' && j + 1 < sql.size() && sql[j + 1] == '/') {
+          --depth;
+          j += 2;
+        } else {
+          ++j;
+        }
       }
+      result.append(sql, i, j - i);
+      i = j - 1;
+      continue;
     }
-    // Handle question marks (parameter placeholders)
-    else if (current == '?' && !in_single_quotes && !in_double_quotes) {
-      // This is a parameter placeholder outside of quotes, replace it
+
+    // E'...' strings: backslash escapes a quote inside
+    if ((current == 'E' || current == 'e') && next == '\'' &&
+        (i == 0 ||
+         (std::isalnum(static_cast<unsigned char>(sql[i - 1])) == 0 && sql[i - 1] != '_'))) {
+      std::size_t j = i + 2;
+      while (j < sql.size()) {
+        if (sql[j] == '\\' && j + 1 < sql.size()) {
+          j += 2;
+          continue;
+        }
+        if (sql[j] == '\'') {
+          if (j + 1 < sql.size() && sql[j + 1] == '\'') {
+            j += 2;  // doubled quote inside the string
+            continue;
+          }
+          ++j;  // closing quote
+          break;
+        }
+        ++j;
+      }
+      result.append(sql, i, j - i);
+      i = j - 1;
+      continue;
+    }
+
+    // Ordinary '...' strings: '' escapes a quote inside
+    if (current == '\'') {
+      std::size_t j = i + 1;
+      while (j < sql.size()) {
+        if (sql[j] == '\'') {
+          if (j + 1 < sql.size() && sql[j + 1] == '\'') {
+            j += 2;
+            continue;
+          }
+          ++j;
+          break;
+        }
+        ++j;
+      }
+      result.append(sql, i, j - i);
+      i = j - 1;
+      continue;
+    }
+
+    // "..." quoted identifiers: "" escapes a quote inside
+    if (current == '"') {
+      std::size_t j = i + 1;
+      while (j < sql.size()) {
+        if (sql[j] == '"') {
+          if (j + 1 < sql.size() && sql[j + 1] == '"') {
+            j += 2;
+            continue;
+          }
+          ++j;
+          break;
+        }
+        ++j;
+      }
+      result.append(sql, i, j - i);
+      i = j - 1;
+      continue;
+    }
+
+    // Dollar-quoted strings: $tag$ ... $tag$ (no escapes inside)
+    if (const std::string_view tag = dollar_quote_tag(sql, i); !tag.empty()) {
+      const std::size_t body = i + tag.size();
+      const std::size_t close = sql.find(std::string(tag), body);
+      const std::size_t end = (close == std::string::npos) ? sql.size() : close + tag.size();
+      result.append(sql, i, end - i);
+      i = end - 1;
+      continue;
+    }
+
+    // ?? is an escaped literal '?' (e.g. the JSONB ? operator); emit a single '?'
+    if (current == '?' && next == '?') {
+      result += '?';
+      ++i;
+      continue;
+    }
+
+    // A lone ? is a parameter placeholder
+    if (current == '?') {
       result += '$';
       result += std::to_string(placeholder_count++);
       continue;
     }
 
-    // For all other characters, just add them to the result
     result += current;
   }
 
@@ -81,32 +183,40 @@ std::string isolation_level_to_postgresql_string(int isolation_level) {
   }
 }
 
-// Helper function to convert PostgreSQL hex BYTEA format to binary
+// Helper function to convert PostgreSQL hex BYTEA format to binary.
+// Malformed hex throws std::invalid_argument - silently returning the hex text
+// as the value would corrupt the data.
 static std::string convert_pg_bytea_to_binary(const std::string& hex_value) {
   // Check if this is a PostgreSQL hex-encoded BYTEA value (starts with \x)
-  if (hex_value.size() >= 2 && hex_value.substr(0, 2) == "\\x") {
-    std::string binary_result;
-    binary_result.reserve((hex_value.size() - 2) / 2);
-
-    // Skip the \x prefix and process each hex byte
-    for (size_t i = 2; i < hex_value.size(); i += 2) {
-      if (i + 1 < hex_value.size()) {
-        try {
-          const std::string hex_byte = hex_value.substr(i, 2);
-          const char byte = static_cast<char>(std::stoi(hex_byte, nullptr, 16));
-          binary_result.push_back(byte);
-        } catch (const std::exception&) {
-          // If conversion fails, just return the original value
-          return hex_value;
-        }
-      }
-    }
-
-    return binary_result;
+  if (hex_value.size() < 2 || hex_value.substr(0, 2) != "\\x") {
+    // Not in hex format, return as is
+    return hex_value;
   }
 
-  // If not in hex format, return as is
-  return hex_value;
+  if (hex_value.size() % 2 != 0) {
+    throw std::invalid_argument("BYTEA hex value has odd length");
+  }
+
+  const auto hex_digit = [](char c) -> int {
+    if (c >= '0' && c <= '9') {
+      return c - '0';
+    }
+    if (c >= 'a' && c <= 'f') {
+      return c - 'a' + 10;
+    }
+    if (c >= 'A' && c <= 'F') {
+      return c - 'A' + 10;
+    }
+    throw std::invalid_argument(std::string("Invalid BYTEA hex digit: '") + c + "'");
+  };
+
+  std::string binary_result;
+  binary_result.reserve((hex_value.size() - 2) / 2);
+  for (size_t i = 2; i + 1 < hex_value.size(); i += 2) {
+    binary_result.push_back(
+        static_cast<char>((hex_digit(hex_value[i]) << 4) | hex_digit(hex_value[i + 1])));
+  }
+  return binary_result;
 }
 
 result::ResultSet process_postgresql_result(PGresult* pg_result, bool convert_bytea) {
@@ -140,7 +250,7 @@ result::ResultSet process_postgresql_result(PGresult* pg_result, bool convert_by
 
     for (int col_idx = 0; col_idx < column_count; col_idx++) {
       if (PQgetisnull(pg_result, row_idx, col_idx)) {
-        cells.emplace_back("NULL");
+        cells.push_back(result::Cell::null());
       } else {
         const char* value = PQgetvalue(pg_result, row_idx, col_idx);
         std::string cell_value = value ? value : "";
@@ -367,7 +477,7 @@ std::expected<result::ResultSet, std::string> process_postgresql_result_binary(
 
     for (int col_idx = 0; col_idx < column_count; col_idx++) {
       if (PQgetisnull(pg_result, row_idx, col_idx)) {
-        cells.emplace_back("NULL");
+        cells.push_back(result::Cell::null());
         continue;
       }
       auto decoded = decode_binary_cell(PQftype(pg_result, col_idx),
@@ -383,6 +493,11 @@ std::expected<result::ResultSet, std::string> process_postgresql_result_binary(
   }
 
   return result::ResultSet(std::move(rows), std::move(column_names));
+}
+
+std::expected<std::string, std::string> decode_binary_cell_for_testing(unsigned int type_oid,
+                                                                       const char* data, int len) {
+  return decode_binary_cell(static_cast<Oid>(type_oid), data, len);
 }
 
 }  // namespace relx::connection::sql_utils

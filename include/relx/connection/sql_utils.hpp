@@ -46,4 +46,13 @@ result::ResultSet process_postgresql_result(PGresult* pg_result, bool convert_by
 /// @return ResultSet, or an error message describing the undecodable column
 std::expected<result::ResultSet, std::string> process_postgresql_result_binary(PGresult* pg_result);
 
+/// @brief Decode one binary-format cell into canonical text (testing/fuzzing hook for
+/// the wire decoder behind process_postgresql_result_binary)
+/// @param type_oid The column's PostgreSQL type OID
+/// @param data The raw cell bytes
+/// @param len The cell length in bytes
+/// @return The text form, or an error message
+std::expected<std::string, std::string> decode_binary_cell_for_testing(unsigned int type_oid,
+                                                                       const char* data, int len);
+
 }  // namespace relx::connection::sql_utils
