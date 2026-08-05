@@ -25,6 +25,7 @@ add_executable(relx_tests
     schema/timezone_parsing_test.cpp
     schema/annotated_table_test.cpp
     schema/enum_column_test.cpp
+    schema/traits_strictness_test.cpp
     # Migration tests
     migrations/test_migrations.cpp
     migrations/test_command_line_tools.cpp
@@ -55,6 +56,7 @@ add_executable(relx_tests
     # Result processing tests
     result/result_test.cpp
     result/lazy_parsing_test.cpp
+    result/result_strictness_test.cpp
     # Type safety tests
     types/type_safety_test.cpp
     # Connection tests
@@ -69,6 +71,8 @@ add_executable(relx_tests
     connection/postgresql_async_wrapper_test.cpp
     connection/postgresql_streaming_test.cpp
     connection/postgresql_async_streaming_test.cpp
+    # Seeded property fuzzing for relx-owned parsers
+    fuzz/parser_fuzz_test.cpp
     # PostgreSQL Integration tests
     postgres_integration/basic_integration_test.cpp
     postgres_integration/schema_integration_test.cpp
@@ -78,6 +82,7 @@ add_executable(relx_tests
     postgres_integration/dto_mapping_integration_test.cpp
     postgres_integration/async_dto_mapping_test.cpp
     postgres_integration/date_time_integration_test.cpp
+    postgres_integration/pool_recovery_test.cpp
     postgres_integration/annotated_table_integration_test.cpp
     # Utility tests
     utility/throw_if_failed_test.cpp

@@ -103,6 +103,180 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
+  # Release-mode build and test: exercises NDEBUG codegen and optimizer-visible UB
+  # that the Debug build never sees
+  linux-gcc-release:
+    runs-on: ubuntu-24.04
+    needs: format-check
+    container: gcc:16
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: relx_test
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d relx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install build dependencies
+      run: |
+        apt-get update
+        apt-get install -y cmake ninja-build libboost-dev libboost-system-dev \
+          libpq-dev postgresql-client socat git
+
+    - name: Initialize test database
+      run: PGPASSWORD=postgres psql -h postgres -U postgres -f docker-init/01-create-database.sql
+
+    - name: Forward localhost:5434 to postgres service
+      run: |
+        socat TCP-LISTEN:5434,fork,reuseaddr TCP:postgres:5432 &
+        sleep 1
+
+    - name: Build (Release)
+      run: |
+        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DRELX_DEV_MODE=ON
+        cmake --build build -j
+
+    - name: Run tests
+      run: ./build/test/relx_tests
+
+  # ASan+UBSan over the full suite: the pool is multithreaded and the async path
+  # mixes coroutines with raw PGconn*, which is exactly where memory bugs live.
+  # The seeded parser-fuzz tests get their teeth from this job.
+  sanitize-asan-ubsan:
+    runs-on: ubuntu-24.04
+    needs: format-check
+    container: gcc:16
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: relx_test
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d relx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install build dependencies
+      run: |
+        apt-get update
+        apt-get install -y cmake ninja-build libboost-dev libboost-system-dev \
+          libpq-dev postgresql-client socat git
+
+    - name: Initialize test database
+      run: PGPASSWORD=postgres psql -h postgres -U postgres -f docker-init/01-create-database.sql
+
+    - name: Forward localhost:5434 to postgres service
+      run: |
+        socat TCP-LISTEN:5434,fork,reuseaddr TCP:postgres:5432 &
+        sleep 1
+
+    # The pointer-nullability checks (null, nonnull-attribute,
+    # returns-nonnull-attribute) are excluded: GCC 16's instrumentation for them
+    # breaks constant evaluation of the consteval SQL builders
+    - name: Build with ASan+UBSan
+      run: |
+        SAN="-fsanitize=address,undefined -fno-sanitize=null,nonnull-attribute,returns-nonnull-attribute"
+        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON \
+          -DCMAKE_CXX_FLAGS="$SAN -fno-sanitize-recover=all" \
+          -DCMAKE_EXE_LINKER_FLAGS="$SAN"
+        cmake --build build -j
+
+    - name: Run tests under ASan+UBSan
+      run: ASAN_OPTIONS=detect_leaks=1 ./build/test/relx_tests
+
+  # TSan over the connection-pool and streaming tests (the multithreaded surface)
+  sanitize-tsan:
+    runs-on: ubuntu-24.04
+    needs: format-check
+    container: gcc:16
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: relx_test
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d relx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install build dependencies
+      run: |
+        apt-get update
+        apt-get install -y cmake ninja-build libboost-dev libboost-system-dev \
+          libpq-dev postgresql-client socat git
+
+    - name: Initialize test database
+      run: PGPASSWORD=postgres psql -h postgres -U postgres -f docker-init/01-create-database.sql
+
+    - name: Forward localhost:5434 to postgres service
+      run: |
+        socat TCP-LISTEN:5434,fork,reuseaddr TCP:postgres:5432 &
+        sleep 1
+
+    - name: Build with TSan
+      run: |
+        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON \
+          -DCMAKE_CXX_FLAGS="-fsanitize=thread" \
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+        cmake --build build -j
+
+    - name: Run pool and streaming tests under TSan
+      run: ./build/test/relx_tests --gtest_filter='*Pool*:*Streaming*'
+
+  # GCC static analysis (-fanalyzer). clang-tidy cannot parse P2996 (see below);
+  # -fanalyzer is the analysis GCC can do today. Findings surface as warnings in
+  # the log; the job fails only on hard errors.
+  gcc-analyzer:
+    runs-on: ubuntu-24.04
+    needs: format-check
+    container: gcc:16
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install build dependencies
+      run: |
+        apt-get update
+        apt-get install -y cmake ninja-build libboost-dev libboost-system-dev libpq-dev git
+
+    - name: Build with -fanalyzer
+      run: |
+        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRELX_DEV_MODE=ON \
+          -DCMAKE_CXX_FLAGS="-fanalyzer"
+        cmake --build build -j 2>&1 | tee analyzer.log
+
+    - name: Summarize analyzer findings
+      run: |
+        grep -c "warning:.*\[-Wanalyzer" analyzer.log && \
+          grep "warning:.*\[-Wanalyzer" analyzer.log | sort | uniq -c | sort -rn | head -50 || \
+          echo "No analyzer findings"
+
   # clang-tidy disabled: clang-tidy 20 cannot parse C++26 reflection (P2996).
   # Re-enable once Clang ships reflection (expected Clang 24+, ~2027).
   # clang-tidy:
