@@ -322,7 +322,7 @@ TEST(AnnotatedTableTest, MigrationDiffSeesAnnotationConstraints) {
   for (const auto& sql : *forward) {
     all_sql += sql + "\n";
   }
-  EXPECT_NE(all_sql.find("ALTER TABLE shipping_rates ADD CONSTRAINT shipping_rates_unique_1 "
+  EXPECT_NE(all_sql.find("ALTER TABLE shipping_rates ADD CONSTRAINT shipping_rates_unique_carrier_rate "
                          "UNIQUE (carrier, rate);"),
             std::string::npos)
       << all_sql;

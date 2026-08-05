@@ -3,6 +3,7 @@
 #include "../schema/column.hpp"
 #include "../schema/core.hpp"
 #include "../schema/fixed_string.hpp"
+#include "../schema/identifier.hpp"
 #include "../schema/table.hpp"
 
 #include <expected>
@@ -162,7 +163,8 @@ public:
 
   MigrationResult<std::string> to_sql() const override {
     try {
-      return "ALTER TABLE " + table_name_ + " ADD COLUMN " + column_.sql_definition() + ";";
+      return "ALTER TABLE " + schema::quote_identifier(table_name_) + " ADD COLUMN " +
+             column_.sql_definition() + ";";
     } catch (const std::exception& e) {
       return std::unexpected(
           MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
@@ -173,7 +175,8 @@ public:
 
   MigrationResult<std::string> rollback_sql() const override {
     try {
-      return "ALTER TABLE " + table_name_ + " DROP COLUMN " + std::string(Column::name) + ";";
+      return "ALTER TABLE " + schema::quote_identifier(table_name_) + " DROP COLUMN " +
+             schema::quote_identifier(std::string_view(Column::name)) + ";";
     } catch (const std::exception& e) {
       return std::unexpected(
           MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
@@ -198,7 +201,8 @@ public:
 
   MigrationResult<std::string> to_sql() const override {
     try {
-      return "ALTER TABLE " + table_name_ + " DROP COLUMN " + std::string(Column::name) + ";";
+      return "ALTER TABLE " + schema::quote_identifier(table_name_) + " DROP COLUMN " +
+             schema::quote_identifier(std::string_view(Column::name)) + ";";
     } catch (const std::exception& e) {
       return std::unexpected(
           MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
@@ -209,7 +213,8 @@ public:
 
   MigrationResult<std::string> rollback_sql() const override {
     try {
-      return "ALTER TABLE " + table_name_ + " ADD COLUMN " + column_.sql_definition() + ";";
+      return "ALTER TABLE " + schema::quote_identifier(table_name_) + " ADD COLUMN " +
+             column_.sql_definition() + ";";
     } catch (const std::exception& e) {
       return std::unexpected(
           MigrationError::make(MigrationErrorType::SQL_GENERATION_FAILED,
@@ -239,7 +244,8 @@ public:
           MigrationErrorType::VALIDATION_FAILED, "Column names cannot be empty",
           table_name_ + "." + old_name_ + " -> " + new_name_));
     }
-    return "ALTER TABLE " + table_name_ + " RENAME COLUMN " + old_name_ + " TO " + new_name_ + ";";
+    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " RENAME COLUMN " +
+           schema::quote_identifier(old_name_) + " TO " + schema::quote_identifier(new_name_) + ";";
   }
 
   MigrationResult<std::string> rollback_sql() const override {
@@ -248,7 +254,8 @@ public:
           MigrationErrorType::VALIDATION_FAILED, "Column names cannot be empty",
           table_name_ + "." + new_name_ + " -> " + old_name_));
     }
-    return "ALTER TABLE " + table_name_ + " RENAME COLUMN " + new_name_ + " TO " + old_name_ + ";";
+    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " RENAME COLUMN " +
+           schema::quote_identifier(new_name_) + " TO " + schema::quote_identifier(old_name_) + ";";
   }
 
   OperationType type() const override { return OperationType::RENAME_COLUMN; }
@@ -272,8 +279,8 @@ public:
           MigrationErrorType::VALIDATION_FAILED, "Constraint names cannot be empty",
           table_name_ + " constraint: " + old_name_ + " -> " + new_name_));
     }
-    return "ALTER TABLE " + table_name_ + " RENAME CONSTRAINT " + old_name_ + " TO " + new_name_ +
-           ";";
+    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " RENAME CONSTRAINT " +
+           schema::quote_identifier(old_name_) + " TO " + schema::quote_identifier(new_name_) + ";";
   }
 
   MigrationResult<std::string> rollback_sql() const override {
@@ -282,8 +289,8 @@ public:
           MigrationErrorType::VALIDATION_FAILED, "Constraint names cannot be empty",
           table_name_ + " constraint: " + new_name_ + " -> " + old_name_));
     }
-    return "ALTER TABLE " + table_name_ + " RENAME CONSTRAINT " + new_name_ + " TO " + old_name_ +
-           ";";
+    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " RENAME CONSTRAINT " +
+           schema::quote_identifier(new_name_) + " TO " + schema::quote_identifier(old_name_) + ";";
   }
 
   OperationType type() const override { return OperationType::RENAME_CONSTRAINT; }
@@ -311,7 +318,8 @@ public:
                                                   "Forward transformation cannot be empty",
                                                   table_name_ + "." + target_column_));
     }
-    return "UPDATE " + table_name_ + " SET " + target_column_ + " = " + forward_transform_ + ";";
+    return "UPDATE " + schema::quote_identifier(table_name_) + " SET " +
+           schema::quote_identifier(target_column_) + " = " + forward_transform_ + ";";
   }
 
   MigrationResult<std::string> rollback_sql() const override {
@@ -320,7 +328,8 @@ public:
                                                   "Backward transformation cannot be empty",
                                                   table_name_ + "." + source_column_));
     }
-    return "UPDATE " + table_name_ + " SET " + source_column_ + " = " + backward_transform_ + ";";
+    return "UPDATE " + schema::quote_identifier(table_name_) + " SET " +
+           schema::quote_identifier(source_column_) + " = " + backward_transform_ + ";";
   }
 
   OperationType type() const override { return OperationType::UPDATE_DATA; }

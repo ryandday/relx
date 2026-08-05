@@ -87,8 +87,8 @@ TEST(MigrationsTest, ExtractTableMetadata) {
 
   // Check that the struct-level constraint is extracted
   ASSERT_EQ(metadata.constraints.size(), 1);
-  EXPECT_EQ(metadata.constraints.at("users_unique_0").type, "UNIQUE");
-  EXPECT_EQ(metadata.constraints.at("users_unique_0").sql_definition, "UNIQUE (email)");
+  EXPECT_EQ(metadata.constraints.at("users_unique_email").type, "UNIQUE");
+  EXPECT_EQ(metadata.constraints.at("users_unique_email").sql_definition, "UNIQUE (email)");
 }
 
 TEST(MigrationsTest, GenerateAddColumnMigration) {
@@ -339,8 +339,8 @@ struct [[=relx::table("constraint_test")]] TableWithoutConstraints {
   std::string username;
 };
 
-// Annotation order fixes the generated constraint names: email is constraint_test_unique_0,
-// username is constraint_test_unique_1
+// Constraint names derive from the constrained columns: constraint_test_unique_email
+// and constraint_test_unique_username
 struct [[=relx::table("constraint_test"),
         =relx::ann::composite_unique("email"),
         =relx::ann::composite_unique("username")]] TableWithConstraints {
@@ -426,13 +426,12 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     std::cout << "Rollback[" << i << "]: " << type_rollback[i] << std::endl;
   }
 
-  // A type change is expressed as drop-then-add of the column
-  ASSERT_EQ(type_forward.size(), 2);
-  EXPECT_EQ(type_forward[0], "ALTER TABLE test_table DROP COLUMN age;");
-  EXPECT_EQ(type_forward[1], "ALTER TABLE test_table ADD COLUMN age TEXT NOT NULL;");
-  ASSERT_EQ(type_rollback.size(), 2);
-  EXPECT_EQ(type_rollback[0], "ALTER TABLE test_table DROP COLUMN age;");
-  EXPECT_EQ(type_rollback[1], "ALTER TABLE test_table ADD COLUMN age INTEGER NOT NULL;");
+  // A type change is expressed in place, preserving the column's data
+  ASSERT_EQ(type_forward.size(), 1);
+  EXPECT_EQ(type_forward[0], "ALTER TABLE test_table ALTER COLUMN age TYPE TEXT USING age::TEXT;");
+  ASSERT_EQ(type_rollback.size(), 1);
+  EXPECT_EQ(type_rollback[0],
+            "ALTER TABLE test_table ALTER COLUMN age TYPE INTEGER USING age::INTEGER;");
 
   // Test 2: Constraint Changes
   std::cout << "\n2. Testing Constraint Changes..." << std::endl;
@@ -465,16 +464,16 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
   }
 
   ASSERT_EQ(constraint_forward.size(), 2);
-  EXPECT_EQ(constraint_forward[0],
-            "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_0 UNIQUE (email);");
   EXPECT_EQ(
-      constraint_forward[1],
-      "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_1 UNIQUE (username);");
+      constraint_forward[0],
+      "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_email UNIQUE (email);");
+  EXPECT_EQ(constraint_forward[1], "ALTER TABLE constraint_test ADD CONSTRAINT "
+                                   "constraint_test_unique_username UNIQUE (username);");
   ASSERT_EQ(constraint_rollback.size(), 2);
   EXPECT_EQ(constraint_rollback[0],
-            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_1;");
+            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_username;");
   EXPECT_EQ(constraint_rollback[1],
-            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_0;");
+            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_email;");
 
   // Test 3: Nullable to Non-Nullable Changes
   std::cout << "\n3. Testing Nullability Changes..." << std::endl;
@@ -506,13 +505,12 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     std::cout << "Nullable Rollback[" << i << "]: " << nullable_rollback[i] << std::endl;
   }
 
-  ASSERT_EQ(nullable_forward.size(), 2);
-  EXPECT_EQ(nullable_forward[0], "ALTER TABLE nullable_test DROP COLUMN optional_field;");
-  EXPECT_EQ(nullable_forward[1],
-            "ALTER TABLE nullable_test ADD COLUMN optional_field TEXT NOT NULL;");
-  ASSERT_EQ(nullable_rollback.size(), 2);
-  EXPECT_EQ(nullable_rollback[0], "ALTER TABLE nullable_test DROP COLUMN optional_field;");
-  EXPECT_EQ(nullable_rollback[1], "ALTER TABLE nullable_test ADD COLUMN optional_field TEXT;");
+  ASSERT_EQ(nullable_forward.size(), 1);
+  EXPECT_EQ(nullable_forward[0],
+            "ALTER TABLE nullable_test ALTER COLUMN optional_field SET NOT NULL;");
+  ASSERT_EQ(nullable_rollback.size(), 1);
+  EXPECT_EQ(nullable_rollback[0],
+            "ALTER TABLE nullable_test ALTER COLUMN optional_field DROP NOT NULL;");
 
   // Test 4: Default Value Changes
   std::cout << "\n4. Testing Default Value Changes..." << std::endl;
@@ -544,13 +542,11 @@ TEST(MigrationsTest, ComprehensiveCoverageAnalysis) {
     std::cout << "Defaults Rollback[" << i << "]: " << defaults_rollback[i] << std::endl;
   }
 
-  ASSERT_EQ(defaults_forward.size(), 2);
-  EXPECT_EQ(defaults_forward[0], "ALTER TABLE defaults_test DROP COLUMN status;");
-  EXPECT_EQ(defaults_forward[1],
-            "ALTER TABLE defaults_test ADD COLUMN status TEXT NOT NULL DEFAULT 'active';");
-  ASSERT_EQ(defaults_rollback.size(), 2);
-  EXPECT_EQ(defaults_rollback[0], "ALTER TABLE defaults_test DROP COLUMN status;");
-  EXPECT_EQ(defaults_rollback[1], "ALTER TABLE defaults_test ADD COLUMN status TEXT NOT NULL;");
+  ASSERT_EQ(defaults_forward.size(), 1);
+  EXPECT_EQ(defaults_forward[0],
+            "ALTER TABLE defaults_test ALTER COLUMN status SET DEFAULT 'active';");
+  ASSERT_EQ(defaults_rollback.size(), 1);
+  EXPECT_EQ(defaults_rollback[0], "ALTER TABLE defaults_test ALTER COLUMN status DROP DEFAULT;");
 
   std::cout << "\n=== Not covered by the diff engine ===" << std::endl;
   std::cout << "Column renaming: only via MigrationOptions::column_mappings" << std::endl;
@@ -592,17 +588,17 @@ TEST(MigrationsTest, TestDropConstraintOperations) {
   // Test exact SQL for dropping constraints (deterministic: alphabetical by constraint name)
   ASSERT_EQ(drop_forward.size(), 2);
   EXPECT_EQ(drop_forward[0],
-            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_0;");
+            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_email;");
   EXPECT_EQ(drop_forward[1],
-            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_1;");
+            "ALTER TABLE constraint_test DROP CONSTRAINT constraint_test_unique_username;");
 
   // Test exact rollback SQL for adding constraints back
   ASSERT_EQ(drop_rollback.size(), 2);
+  EXPECT_EQ(drop_rollback[0], "ALTER TABLE constraint_test ADD CONSTRAINT "
+                              "constraint_test_unique_username UNIQUE (username);");
   EXPECT_EQ(
-      drop_rollback[0],
-      "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_1 UNIQUE (username);");
-  EXPECT_EQ(drop_rollback[1],
-            "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_0 UNIQUE (email);");
+      drop_rollback[1],
+      "ALTER TABLE constraint_test ADD CONSTRAINT constraint_test_unique_email UNIQUE (email);");
 }
 
 // clang-format off
@@ -630,15 +626,14 @@ TEST(MigrationsTest, InlineUniqueDiffsAsConstraintNotColumnRebuild) {
   auto forward = migration_result->forward_sql();
   ASSERT_TRUE(forward) << forward.error().format();
   ASSERT_EQ(forward->size(), 1);
-  EXPECT_EQ(
-      (*forward)[0],
-      "ALTER TABLE inline_unique_test ADD CONSTRAINT inline_unique_test_unique_0 UNIQUE (email);");
+  EXPECT_EQ((*forward)[0], "ALTER TABLE inline_unique_test ADD CONSTRAINT "
+                           "inline_unique_test_unique_email UNIQUE (email);");
 
   auto rollback = migration_result->rollback_sql();
   ASSERT_TRUE(rollback) << rollback.error().format();
   ASSERT_EQ(rollback->size(), 1);
   EXPECT_EQ((*rollback)[0],
-            "ALTER TABLE inline_unique_test DROP CONSTRAINT inline_unique_test_unique_0;");
+            "ALTER TABLE inline_unique_test DROP CONSTRAINT inline_unique_test_unique_email;");
 }
 
 // clang-format off
@@ -671,16 +666,18 @@ TEST(MigrationsTest, InlineFkAndCheckDiffAsConstraintsNotColumnRebuild) {
   auto forward = migration_result->forward_sql();
   ASSERT_TRUE(forward) << forward.error().format();
   ASSERT_EQ(forward->size(), 2);
-  EXPECT_EQ((*forward)[0],
-            "ALTER TABLE hoist_test ADD CONSTRAINT hoist_test_check_1 CHECK (quantity > 0);");
-  EXPECT_EQ((*forward)[1], "ALTER TABLE hoist_test ADD CONSTRAINT hoist_test_fk_0 FOREIGN KEY "
-                           "(user_id) REFERENCES hoist_ref(id) ON DELETE CASCADE;");
+  EXPECT_EQ(
+      (*forward)[0],
+      "ALTER TABLE hoist_test ADD CONSTRAINT hoist_test_check_546ce9b2 CHECK (quantity > 0);");
+  EXPECT_EQ((*forward)[1],
+            "ALTER TABLE hoist_test ADD CONSTRAINT hoist_test_fk_user_id FOREIGN KEY "
+            "(user_id) REFERENCES hoist_ref(id) ON DELETE CASCADE;");
 
   auto rollback = migration_result->rollback_sql();
   ASSERT_TRUE(rollback) << rollback.error().format();
   ASSERT_EQ(rollback->size(), 2);
-  EXPECT_EQ((*rollback)[0], "ALTER TABLE hoist_test DROP CONSTRAINT hoist_test_fk_0;");
-  EXPECT_EQ((*rollback)[1], "ALTER TABLE hoist_test DROP CONSTRAINT hoist_test_check_1;");
+  EXPECT_EQ((*rollback)[0], "ALTER TABLE hoist_test DROP CONSTRAINT hoist_test_fk_user_id;");
+  EXPECT_EQ((*rollback)[1], "ALTER TABLE hoist_test DROP CONSTRAINT hoist_test_check_546ce9b2;");
 }
 
 // clang-format off

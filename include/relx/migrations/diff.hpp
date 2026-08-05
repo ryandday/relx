@@ -6,6 +6,7 @@
 #include "../schema/table.hpp"
 #include "core.hpp"
 
+#include <cstdint>
 #include <map>
 #include <meta>
 #include <string>
@@ -37,6 +38,30 @@ struct MigrationOptions {
   std::map<std::string, std::pair<std::string, std::string>> column_transformations;
 };
 
+namespace detail {
+
+/// @brief Collapse whitespace runs to single spaces and trim, so cosmetic formatting
+/// differences in generated DDL don't read as schema changes
+inline std::string normalize_whitespace(std::string_view sql) {
+  std::string out;
+  out.reserve(sql.size());
+  bool pending_space = false;
+  for (const char c : sql) {
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+      pending_space = !out.empty();
+      continue;
+    }
+    if (pending_space) {
+      out += ' ';
+      pending_space = false;
+    }
+    out += c;
+  }
+  return out;
+}
+
+}  // namespace detail
+
 /// @brief Metadata about a column extracted via reflection
 struct ColumnMetadata {
   std::string name;
@@ -45,7 +70,9 @@ struct ColumnMetadata {
   bool nullable;
 
   bool operator==(const ColumnMetadata& other) const {
-    return name == other.name && sql_definition == other.sql_definition;
+    return name == other.name && sql_type == other.sql_type && nullable == other.nullable &&
+           detail::normalize_whitespace(sql_definition) ==
+               detail::normalize_whitespace(other.sql_definition);
   }
 
   bool operator!=(const ColumnMetadata& other) const { return !(*this == other); }
@@ -74,37 +101,83 @@ struct TableMetadata {
 
 namespace detail {
 
-/// @brief Classify a constraint SQL definition and register it under a deterministic
-/// generated name
+/// @brief FNV-1a hash for content-derived constraint names (constraints with no
+/// column list, e.g. CHECK expressions)
+inline std::uint64_t fnv1a(std::string_view text) {
+  std::uint64_t hash = 1469598103934665603ull;
+  for (const char c : text) {
+    hash ^= static_cast<unsigned char>(c);
+    hash *= 1099511628211ull;
+  }
+  return hash;
+}
+
+inline std::string content_hash(std::string_view text) {
+  constexpr char digits[] = "0123456789abcdef";
+  std::uint64_t hash = fnv1a(normalize_whitespace(text));
+  hash ^= hash >> 32;
+  std::string out(8, '0');
+  for (std::size_t i = 0; i < 8; ++i) {
+    out[7 - i] = digits[hash & 0xF];
+    hash >>= 4;
+  }
+  return out;
+}
+
+/// @brief The local column list of a constraint definition ("UNIQUE (a, b)" -> "a_b"),
+/// sanitized for use in an identifier; empty when there is no parenthesized list
+inline std::string constrained_columns_slug(std::string_view sql) {
+  const std::size_t open = sql.find('(');
+  if (open == std::string_view::npos) {
+    return {};
+  }
+  const std::size_t close = sql.find(')', open);
+  if (close == std::string_view::npos) {
+    return {};
+  }
+  std::string slug;
+  for (const char c : sql.substr(open + 1, close - open - 1)) {
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
+      slug += c;
+    } else if (c == ',') {
+      slug += '_';
+    }
+  }
+  return slug;
+}
+
+/// @brief Classify a constraint SQL definition and register it under a deterministic,
+/// content-derived name. Names derive from the constrained columns (or a content hash),
+/// never from insertion position, so reordering struct fields cannot produce phantom
+/// drop/add pairs.
 inline void add_constraint_metadata(TableMetadata& metadata, std::string sql_def) {
   ConstraintMetadata constraint_meta;
   constraint_meta.sql_definition = std::move(sql_def);
 
   const std::string& sql = constraint_meta.sql_definition;
+  const auto content_name = [&sql](const std::string& prefix) {
+    const std::string slug = constrained_columns_slug(sql);
+    return slug.empty() ? prefix + content_hash(sql) : prefix + slug;
+  };
   if (sql.find("PRIMARY KEY") != std::string::npos) {
     constraint_meta.type = "PRIMARY_KEY";
     constraint_meta.name = metadata.table_name + "_pk";
   } else if (sql.find("FOREIGN KEY") != std::string::npos ||
              sql.find("REFERENCES") != std::string::npos) {
     constraint_meta.type = "FOREIGN_KEY";
-    constraint_meta.name = metadata.table_name + "_fk_" +
-                           std::to_string(metadata.constraints.size());
+    constraint_meta.name = content_name(metadata.table_name + "_fk_");
   } else if (sql.find("UNIQUE") != std::string::npos) {
     constraint_meta.type = "UNIQUE";
-    constraint_meta.name = metadata.table_name + "_unique_" +
-                           std::to_string(metadata.constraints.size());
+    constraint_meta.name = content_name(metadata.table_name + "_unique_");
   } else if (sql.find("CHECK") != std::string::npos) {
     constraint_meta.type = "CHECK";
-    constraint_meta.name = metadata.table_name + "_check_" +
-                           std::to_string(metadata.constraints.size());
+    constraint_meta.name = metadata.table_name + "_check_" + content_hash(sql);
   } else if (sql.find("INDEX") != std::string::npos) {
     constraint_meta.type = "INDEX";
-    constraint_meta.name = metadata.table_name + "_idx_" +
-                           std::to_string(metadata.constraints.size());
+    constraint_meta.name = content_name(metadata.table_name + "_idx_");
   } else {
     constraint_meta.type = "UNKNOWN";
-    constraint_meta.name = metadata.table_name + "_constraint_" +
-                           std::to_string(metadata.constraints.size());
+    constraint_meta.name = metadata.table_name + "_constraint_" + content_hash(sql);
   }
 
   // An explicit CONSTRAINT name overrides the generated positional name, so
@@ -307,7 +380,8 @@ public:
                                                   "Column SQL definition cannot be empty",
                                                   table_name_ + "." + column_.name));
     }
-    return "ALTER TABLE " + table_name_ + " ADD COLUMN " + column_.sql_definition + ";";
+    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " ADD COLUMN " +
+           column_.sql_definition + ";";
   }
 
   MigrationResult<std::string> rollback_sql() const override {
@@ -315,7 +389,8 @@ public:
       return std::unexpected(MigrationError::make(MigrationErrorType::VALIDATION_FAILED,
                                                   "Column name cannot be empty", table_name_));
     }
-    return "ALTER TABLE " + table_name_ + " DROP COLUMN " + column_.name + ";";
+    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " DROP COLUMN " +
+           schema::quote_identifier(column_.name) + ";";
   }
 
   OperationType type() const override { return OperationType::ADD_COLUMN; }
@@ -337,7 +412,8 @@ public:
       return std::unexpected(MigrationError::make(MigrationErrorType::VALIDATION_FAILED,
                                                   "Column name cannot be empty", table_name_));
     }
-    return "ALTER TABLE " + table_name_ + " DROP COLUMN " + column_.name + ";";
+    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " DROP COLUMN " +
+           schema::quote_identifier(column_.name) + ";";
   }
 
   MigrationResult<std::string> rollback_sql() const override {
@@ -346,7 +422,8 @@ public:
                                                   "Column SQL definition cannot be empty",
                                                   table_name_ + "." + column_.name));
     }
-    return "ALTER TABLE " + table_name_ + " ADD COLUMN " + column_.sql_definition + ";";
+    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " ADD COLUMN " +
+           column_.sql_definition + ";";
   }
 
   OperationType type() const override { return OperationType::DROP_COLUMN; }

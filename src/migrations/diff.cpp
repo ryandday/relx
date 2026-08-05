@@ -120,11 +120,20 @@ MigrationResult<Migration> diff_tables(const TableMetadata& old_metadata,
     if (processed_new_columns.find(col_name) == processed_new_columns.end()) {
       auto old_it = old_metadata.columns.find(col_name);
       if (old_it != old_metadata.columns.end() && old_it->second != new_col_meta) {
-        // Column was modified - for simplicity, we'll drop and recreate
-        migration.add_operation<DropColumnOperation<ColumnMetadata>>(old_metadata.table_name,
-                                                                     old_it->second);
-        migration.add_operation<AddColumnOperation<ColumnMetadata>>(new_metadata.table_name,
-                                                                    new_col_meta);
+        if (options.preserve_data &&
+            ModifyColumnOperation::can_express(old_it->second, new_col_meta)) {
+          // In-place ALTER COLUMN (TYPE ... USING / SET NOT NULL / SET DEFAULT)
+          // keeps the column's data
+          migration.add_operation<ModifyColumnOperation>(new_metadata.table_name, old_it->second,
+                                                         new_col_meta);
+        } else {
+          // Change is not expressible in place (or data preservation was waived):
+          // drop and recreate, losing the column's data
+          migration.add_operation<DropColumnOperation<ColumnMetadata>>(old_metadata.table_name,
+                                                                       old_it->second);
+          migration.add_operation<AddColumnOperation<ColumnMetadata>>(new_metadata.table_name,
+                                                                      new_col_meta);
+        }
       }
     }
   }
