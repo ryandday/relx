@@ -575,6 +575,10 @@ namespace ann {
 inline constexpr schema::primary_key pk{};
 inline constexpr schema::unique unique{};
 inline constexpr schema::autoincrement autoincrement{};
+
+/// @brief Store this enum column as a native database enum type (see
+/// relx::create_enum_type_sql<E>() for the required CREATE TYPE)
+inline constexpr schema::native_enum native_enum{};
 /// PostgreSQL auto-assigned ids: GENERATED ALWAYS AS IDENTITY with configurable options
 inline constexpr schema::identity<> identity{};
 

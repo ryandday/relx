@@ -59,4 +59,38 @@ TEST(EnumColumnTest, EnumTraitsRoundTrip) {
 
 // clang-format on
 
+// Native enum columns: opt-in via ann::native_enum, stored as a real database enum
+// type instead of TEXT + CHECK
+
+enum class TicketState { open, closed };
+
+struct[[= relx::table("tickets")]] Ticket {
+  [[= relx::ann::pk]] int id;
+  [[= relx::ann::native_enum]] TicketState state;
+  [[= relx::ann::native_enum]] std::optional<TicketState> previous_state;
+};
+inline constexpr auto tickets = relx::t<Ticket>;
+
+TEST(EnumColumnTest, NativeEnumColumnUsesEnumTypeName) {
+  EXPECT_EQ(tickets.state.sql_definition(), "state ticketstate NOT NULL");
+  EXPECT_EQ(tickets.previous_state.sql_definition(), "previous_state ticketstate");
+}
+
+TEST(EnumColumnTest, NativeEnumTypeDdl) {
+  static_assert(relx::create_enum_type_sql<TicketState>() ==
+                "CREATE TYPE ticketstate AS ENUM ('open', 'closed');");
+  static_assert(relx::drop_enum_type_sql<TicketState>() == "DROP TYPE IF EXISTS ticketstate;");
+  SUCCEED();
+}
+
+TEST(EnumColumnTest, NativeEnumInCreateTable) {
+  constexpr auto ddl = relx::create_table_sql<Ticket>().to_sql();
+  static_assert(ddl == "CREATE TABLE tickets (\n"
+                       "id INTEGER NOT NULL PRIMARY KEY,\n"
+                       "state ticketstate NOT NULL,\n"
+                       "previous_state ticketstate\n"
+                       ");");
+  SUCCEED();
+}
+
 }  // namespace

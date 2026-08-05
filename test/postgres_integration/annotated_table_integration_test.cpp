@@ -173,4 +173,44 @@ TEST_F(AnnotatedTableIntegrationTest, FetchWithSynthesizedRows) {
 
 // clang-format on
 
+// Native enum columns end-to-end: CREATE TYPE + CREATE TABLE, typed insert, and
+// select-back through the binary result path (enum OIDs are user-defined)
+
+enum class ShipState { pending, shipped, delivered };
+
+struct[[= relx::table("annotated_shipments")]] Shipment {
+  [[= relx::ann::pk]] int id;
+  [[= relx::ann::native_enum]] ShipState state;
+  [[= relx::ann::native_enum]] std::optional<ShipState> prior_state;
+};
+inline constexpr auto shipments = relx::t<Shipment>;
+
+TEST_F(AnnotatedTableIntegrationTest, NativeEnumRoundTrip) {
+  ASSERT_TRUE(conn->execute_raw("DROP TABLE IF EXISTS annotated_shipments;"));
+  ASSERT_TRUE(conn->execute_raw("DROP TYPE IF EXISTS shipstate;"));
+  ASSERT_TRUE(conn->execute_raw(std::string(relx::create_enum_type_sql<ShipState>())));
+  ASSERT_TRUE(conn->execute(relx::create_table(shipments)));
+
+  auto insert = relx::query::insert_into(shipments)
+                    .columns(shipments.id, shipments.state, shipments.prior_state)
+                    .values(1, ShipState::shipped, std::optional<ShipState>(ShipState::pending))
+                    .values(2, ShipState::pending, std::optional<ShipState>());
+  ASSERT_TRUE(conn->execute(insert)) << conn->execute(insert).error().message;
+
+  auto rows = conn->fetch_all(
+      relx::query::select(shipments.id, shipments.state, shipments.prior_state)
+          .from(shipments)
+          .order_by(shipments.id));
+  ASSERT_TRUE(rows) << rows.error().message;
+  ASSERT_EQ(rows->size(), 2);
+  EXPECT_EQ((*rows)[0].state, ShipState::shipped);
+  ASSERT_TRUE((*rows)[0].prior_state.has_value());
+  EXPECT_EQ(*(*rows)[0].prior_state, ShipState::pending);
+  EXPECT_EQ((*rows)[1].state, ShipState::pending);
+  EXPECT_FALSE((*rows)[1].prior_state.has_value());
+
+  ASSERT_TRUE(conn->execute_raw("DROP TABLE annotated_shipments;"));
+  ASSERT_TRUE(conn->execute_raw("DROP TYPE shipstate;"));
+}
+
 }  // namespace
