@@ -25,6 +25,7 @@ add_executable(relx_tests
     schema/timezone_parsing_test.cpp
     schema/annotated_table_test.cpp
     schema/enum_column_test.cpp
+    schema/jsonb_test.cpp
     schema/traits_strictness_test.cpp
     # Migration tests
     migrations/test_migrations.cpp
@@ -90,6 +91,7 @@ add_executable(relx_tests
     postgres_integration/struct_writes_integration_test.cpp
     postgres_integration/nested_row_integration_test.cpp
     postgres_integration/schema_verify_integration_test.cpp
+    postgres_integration/jsonb_integration_test.cpp
     # Utility tests
     utility/throw_if_failed_test.cpp
     utility/refl_types_test.cpp

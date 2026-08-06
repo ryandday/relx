@@ -1,5 +1,6 @@
 #pragma once
 
+#include "json.hpp"
 #include "query/operators.hpp"
 #include "refl_types.hpp"
 #include "schema/annotated_table.hpp"
