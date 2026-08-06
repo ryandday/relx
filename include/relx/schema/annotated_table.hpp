@@ -132,20 +132,28 @@ consteval auto table_name_fs() {
 }  // namespace detail
 
 /// @brief Adapter giving an annotated struct the static interface the query builder
-/// expects from a table (TableConcept). Use via relx::t<Users>.
-template <typename T>
+/// expects from a table (TableConcept). Use via relx::t<Users>, or relx::t<Users, "u">
+/// for an aliased reference. When aliased, table_name IS the alias - every column
+/// qualification and nested-row member name uses it - while base_table_name keeps the
+/// real table for FROM/JOIN rendering ("users AS u").
+template <typename T, fixed_string Alias = "">
 struct table_t {
   using annotated_type = T;
-  static constexpr std::string_view table_name = table_name_of<T>();
+  static constexpr std::string_view base_table_name = table_name_of<T>();
+  static constexpr std::string_view alias_name = std::string_view(Alias);
+  static constexpr bool is_aliased = !alias_name.empty();
+  static constexpr std::string_view table_name = is_aliased ? alias_name : base_table_name;
 };
 
 namespace detail {
 
-/// @brief Build the schema::column specialization for annotated member M
-template <std::meta::info M>
+/// @brief Build the schema::column specialization for annotated member M, bound to
+/// table_t<Parent, Alias> so aliased references qualify columns with the alias
+template <std::meta::info M, fixed_string Alias>
 consteval std::meta::info make_column_type() {
   std::vector<std::meta::info> args;
-  args.push_back(^^table_t<typename [:std::meta::parent_of(M):]>);
+  args.push_back(std::meta::substitute(
+      ^^table_t, {std::meta::parent_of(M), std::meta::reflect_constant(Alias)}));
   args.push_back(std::meta::reflect_constant(member_name_fs<M>()));
   args.push_back(std::meta::type_of(M));
   for (std::meta::info a : std::meta::annotations_of(M)) {
@@ -160,14 +168,16 @@ consteval std::meta::info make_column_type() {
 }  // namespace detail
 
 /// @brief The schema::column type derived from annotated member M
-template <std::meta::info M>
-using column_for = typename [:detail::make_column_type<M>():];
+template <std::meta::info M, fixed_string Alias = "">
+using column_for = typename [:detail::make_column_type<M, Alias>():];
 
 namespace detail {
 
 /// @brief Synthesizes (via define_aggregate) a struct whose members are column_for<M>
-/// instances named after T's members, so relx::t<Users>.id is a real column object
-template <typename T>
+/// instances named after T's members, so relx::t<Users>.id is a real column object.
+/// Each alias gets its own synthesized type - two aliases of one table are distinct
+/// types, which is what makes self-joins expressible.
+template <typename T, fixed_string Alias>
 struct columns_holder {
   struct type;
   consteval {
@@ -175,7 +185,8 @@ struct columns_holder {
     for (std::meta::info m : std::meta::nonstatic_data_members_of(
              ^^T, std::meta::access_context::unchecked())) {
       specs.push_back(std::meta::data_member_spec(
-          std::meta::substitute(^^column_for, {std::meta::reflect_constant(m)}),
+          std::meta::substitute(^^column_for, {std::meta::reflect_constant(m),
+                                               std::meta::reflect_constant(Alias)}),
           {.name = std::meta::identifier_of(m)}));
     }
     std::meta::define_aggregate(^^type, specs);
@@ -185,16 +196,24 @@ struct columns_holder {
 }  // namespace detail
 
 /// @brief Table object for an annotated struct: one column member per field of T
-/// (same names), plus the static interface the query builder expects. Use via relx::t<Users>:
+/// (same names), plus the static interface the query builder expects. Use via
+/// relx::t<Users>, or relx::t<Users, "u"> for an aliased reference (self-joins need
+/// two distinct aliases):
 ///
 /// ```cpp
 /// constexpr auto users = relx::t<Users>;
-/// auto q = relx::select(users.id, users.username).from(users).where(users.id == 42);
+/// constexpr auto managers = relx::t<Users, "m">;
+/// auto q = relx::select(users.id, managers.username)
+///              .from(users)
+///              .join(managers, on(users.manager_id == managers.id));
 /// ```
-template <typename T>
-struct table_ref : detail::columns_holder<T>::type {
+template <typename T, fixed_string Alias = "">
+struct table_ref : detail::columns_holder<T, Alias>::type {
   using annotated_type = T;
-  static constexpr std::string_view table_name = table_name_of<T>();
+  static constexpr std::string_view base_table_name = table_name_of<T>();
+  static constexpr std::string_view alias_name = std::string_view(Alias);
+  static constexpr bool is_aliased = !alias_name.empty();
+  static constexpr std::string_view table_name = is_aliased ? alias_name : base_table_name;
 };
 
 namespace detail {
@@ -751,9 +770,11 @@ using schema::table_t;
 namespace ann = schema::ann;
 
 /// @brief Table object for queries: `constexpr auto users = relx::t<Users>;` then
-/// `select(users.id).from(users).where(users.id == 42)`
-template <typename T>
-inline constexpr schema::table_ref<T> t{};
+/// `select(users.id).from(users).where(users.id == 42)`. An alias makes a distinct
+/// table reference (`relx::t<Users, "m">`), rendering `users AS m` in FROM/JOIN and
+/// qualifying its columns with `m.` - the way to express self-joins.
+template <typename T, schema::fixed_string Alias = "">
+inline constexpr schema::table_ref<T, Alias> t{};
 
 /// @brief The synthesized table-object type of an annotated struct: the type of relx::t<T>
 template <typename T>

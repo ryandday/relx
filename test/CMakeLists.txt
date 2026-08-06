@@ -45,6 +45,7 @@ add_executable(relx_tests
     query/delete_query_test.cpp
     query/insert_query_test.cpp
     query/struct_writes_test.cpp
+    query/table_alias_test.cpp
     query/example_filter_test.cpp
     query/select_all_test.cpp
     query/subquery_test.cpp
@@ -93,6 +94,7 @@ add_executable(relx_tests
     postgres_integration/schema_verify_integration_test.cpp
     postgres_integration/jsonb_integration_test.cpp
     postgres_integration/prepared_cache_integration_test.cpp
+    postgres_integration/table_alias_integration_test.cpp
     # Utility tests
     utility/throw_if_failed_test.cpp
     utility/refl_types_test.cpp

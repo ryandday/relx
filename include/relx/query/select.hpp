@@ -65,6 +65,18 @@ template <typename T, typename... Rest>
 inline constexpr bool all_distinct_v<T, Rest...> = (!std::is_same_v<T, Rest> && ...) &&
                                                    all_distinct_v<Rest...>;
 
+/// @brief FROM/JOIN spelling of a table reference: aliased tables render
+/// "base AS alias", everything else just the table name
+template <typename Table>
+constexpr std::string table_from_sql() {
+  if constexpr (requires { requires Table::is_aliased; }) {
+    return schema::quote_identifier(std::string_view(Table::base_table_name)) + " AS " +
+           schema::quote_identifier(std::string_view(Table::table_name));
+  } else {
+    return schema::quote_identifier(std::string_view(Table::table_name));
+  }
+}
+
 }  // namespace detail
 
 /// @brief Create a join condition with the ON clause
@@ -146,7 +158,7 @@ public:
       std::apply(
           [&](const auto&... tables) {
             ((out += (i++ > 0 ? ", " : ""),
-              out += schema::quote_identifier(std::string_view(tables.table_name))),
+              out += detail::table_from_sql<std::remove_cvref_t<decltype(tables)>>()),
              ...);
           },
           tables_);
@@ -174,7 +186,8 @@ public:
               out += "CROSS JOIN ";
               break;
             }
-            out += schema::quote_identifier(std::string_view(join.table.table_name));
+            out += detail::table_from_sql<
+                std::remove_cvref_t<decltype(join.table)>>();
 
             if (join.type != JoinType::Cross) {
               out += " ON ";
@@ -357,8 +370,9 @@ public:
   constexpr auto join(const Table& table, const Condition& cond) const {
     static_assert(!detail::tuple_contains_table_v<Table, Tables> &&
                       !detail::joins_contain_table_v<Table, Joins>,
-                  "self-join is not supported: relx has no table aliases, and PostgreSQL rejects "
-                  "the same table name appearing twice without an alias");
+                  "joining a table reference already in the query: PostgreSQL rejects the same "
+                  "table name appearing twice without an alias. For a self-join, give one side "
+                  "an alias: relx::t<Users, \"m\">");
     using Spec = JoinSpec<Table, Condition, Type>;
     using new_joins_type = decltype(std::tuple_cat(joins_, std::tuple<Spec>{Spec{table, cond}}));
 
