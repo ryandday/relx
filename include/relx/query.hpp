@@ -8,6 +8,7 @@
 #include "query/core.hpp"
 #include "query/date.hpp"
 #include "query/delete.hpp"
+#include "query/example_filter.hpp"
 #include "query/function.hpp"
 #include "query/insert.hpp"
 #include "query/literals.hpp"
@@ -134,6 +135,7 @@ using query::select_expr;
 using query::sum;
 using query::update;
 using query::val;
+using query::where_equals;
 
 // Date/time functions
 using query::abs;
