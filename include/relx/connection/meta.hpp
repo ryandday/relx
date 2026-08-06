@@ -19,6 +19,23 @@ template <typename T>
 inline constexpr bool is_optional_v = false;
 template <typename U>
 inline constexpr bool is_optional_v<std::optional<U>> = true;
+
+/// @brief Structural detection of whole-table select elements (query::TableColumns),
+/// avoiding a dependency on the query headers
+template <typename E>
+concept TableSelectElement = requires {
+  typename E::table_type;
+  requires E::is_table_columns;
+};
+
+template <typename E>
+consteval std::size_t element_column_count() {
+  if constexpr (TableSelectElement<E>) {
+    return E::column_count;
+  } else {
+    return 1;
+  }
+}
 }  // namespace detail
 
 /// @brief Convert a string value to the target type and assign it
@@ -186,5 +203,148 @@ std::expected<T, std::string> map_row_to_struct(const result::Row& row) {
   }
   return obj;
 }
+
+/// @brief Map a run of consecutive cells onto an aggregate struct, in field order.
+/// Used for whole-table select groups, where result column names repeat across tables
+/// and positional mapping is the only correct option.
+template <typename G>
+std::expected<G, std::string> map_cells_to_group(const result::Row& row, std::size_t first_column) {
+  G group{};
+  std::string error;
+  std::size_t column_index = first_column;
+
+  refl::for_each_named_field(group, [&](auto& field, std::string_view name) {
+    if (!error.empty()) {
+      return;
+    }
+    auto cell_result = row.get_cell(column_index++);
+    if (!cell_result) {
+      error = "Failed to get cell for field '" + std::string(name) +
+              "': " + cell_result.error().message;
+      return;
+    }
+    const auto& cell = **cell_result;
+
+    using FieldType = std::remove_cvref_t<decltype(field)>;
+    if (cell.is_null()) {
+      if constexpr (detail::is_optional_v<FieldType>) {
+        field = std::nullopt;
+      } else {
+        error = "NULL value for non-optional field '" + std::string(name) + "'";
+      }
+      return;
+    }
+    if (auto converted = convert_and_assign(field, cell.raw_value()); !converted) {
+      error = "Failed to convert value for field '" + std::string(name) + "': " + converted.error();
+    }
+  });
+
+  if (!error.empty()) {
+    return std::unexpected(error);
+  }
+  return group;
+}
+
+/// @brief Positional row mapper for queries whose select list contains whole-table
+/// elements. Members of T correspond 1:1 with select-list elements: a whole-table
+/// element consumes that table's column count and maps into a nested struct member
+/// (std::optional member: an all-NULL group - a non-matching LEFT JOIN - becomes
+/// nullopt); any other element consumes one column.
+template <typename T, typename Columns>
+struct grouped_row_mapper;
+
+template <typename T, typename... Es>
+struct grouped_row_mapper<T, std::tuple<Es...>> {
+  static constexpr std::size_t expected_columns = (detail::element_column_count<Es>() + ... + 0);
+
+  static std::expected<T, std::string> map(const result::Row& row) {
+    static_assert(sizeof...(Es) == refl::field_count<T>(),
+                  "result struct must have exactly one field per select-list element");
+
+    if (row.size() != expected_columns) {
+      return std::unexpected("result has " + std::to_string(row.size()) +
+                             " columns but the select list expands to " +
+                             std::to_string(expected_columns));
+    }
+
+    T obj{};
+    std::string error;
+    std::size_t column_index = 0;
+
+    [&]<std::size_t... I>(std::index_sequence<I...>) {
+      (map_member<Es>(obj.[:refl::member_array<T>()[I]:], row, column_index, error), ...);
+    }(std::index_sequence_for<Es...>{});
+
+    if (!error.empty()) {
+      return std::unexpected(error);
+    }
+    return obj;
+  }
+
+private:
+  template <typename E, typename Field>
+  static void map_member(Field& field, const result::Row& row, std::size_t& column_index,
+                         std::string& error) {
+    if (!error.empty()) {
+      return;
+    }
+
+    if constexpr (detail::TableSelectElement<E>) {
+      if constexpr (detail::is_optional_v<Field>) {
+        using Group = typename Field::value_type;
+        static_assert(refl::field_count<Group>() == E::column_count,
+                      "nested row member must have one field per column of its table");
+        bool all_null = true;
+        for (std::size_t i = 0; i < E::column_count && all_null; ++i) {
+          auto cell_result = row.get_cell(column_index + i);
+          if (!cell_result) {
+            error = "Failed to get cell: " + cell_result.error().message;
+            return;
+          }
+          all_null = (*cell_result)->is_null();
+        }
+        if (all_null) {
+          field = std::nullopt;
+        } else {
+          auto mapped = map_cells_to_group<Group>(row, column_index);
+          if (!mapped) {
+            error = std::move(mapped.error());
+            return;
+          }
+          field = std::move(*mapped);
+        }
+      } else {
+        static_assert(refl::field_count<Field>() == E::column_count,
+                      "nested row member must have one field per column of its table");
+        auto mapped = map_cells_to_group<Field>(row, column_index);
+        if (!mapped) {
+          error = std::move(mapped.error());
+          return;
+        }
+        field = std::move(*mapped);
+      }
+      column_index += E::column_count;
+    } else {
+      auto cell_result = row.get_cell(column_index++);
+      if (!cell_result) {
+        error = "Failed to get cell: " + cell_result.error().message;
+        return;
+      }
+      const auto& cell = **cell_result;
+
+      if (cell.is_null()) {
+        if constexpr (detail::is_optional_v<Field>) {
+          field = std::nullopt;
+        } else {
+          error = "NULL value for non-optional row member";
+        }
+        return;
+      }
+      if (auto converted = convert_and_assign(field, cell.raw_value()); !converted) {
+        error = "Failed to convert row member: " + converted.error();
+      }
+    }
+  }
+};
 
 }  // namespace relx::connection

@@ -536,9 +536,44 @@ private:
 /// @brief Create a column reference from a member pointer without requiring a table instance
 /// @tparam MemberPtr Pointer to a column member in a table class
 
-/// @brief Create a SELECT query with the specified columns or expressions
-/// @tparam Args The column or expression types
-/// @param args The columns or expressions to select
+// clang-format off
+
+/// @brief Select-list element standing for every column of a table, expanded to an
+/// explicit qualified column list via reflection. Produced by passing a whole table
+/// object to select(): `select(users, posts)`. Queries selecting whole tables
+/// synthesize nested rows - one member per table, named after it (see row_type.hpp).
+template <TableType Table>
+class TableColumns : public SqlExpression {
+public:
+  using table_type = Table;
+  static constexpr bool is_table_columns = true;
+
+  /// @brief Number of columns this element expands to in the result set
+  static constexpr std::size_t column_count = detail::select_all_columns<Table>().size();
+
+  constexpr std::string to_sql() const override {
+    std::string out;
+    template for (constexpr std::meta::info m : detail::select_all_columns<Table>()) {
+      if (!out.empty()) {
+        out += ", ";
+      }
+      using C = typename [:std::meta::type_of(m):];
+      out += schema::quote_identifier(std::string_view(Table::table_name)) + "." +
+             schema::quote_identifier(std::string_view(C::name));
+    }
+    return out;
+  }
+
+  constexpr std::vector<bind_param> bind_params() const override { return {}; }
+};
+
+// clang-format on
+
+/// @brief Create a SELECT query with the specified columns or expressions. A whole
+/// table object selects every column of that table and groups them into a nested row
+/// member (see TableColumns).
+/// @tparam Args The column, table, or expression types
+/// @param args The columns, tables, or expressions to select
 /// @return A SelectQuery object
 template <typename... Args>
 constexpr auto select(const Args&... args) {
@@ -552,11 +587,14 @@ constexpr auto select(const Args&... args) {
     // All arguments are expressions
     return SelectQuery(std::tuple<Args...>(args...));
   } else {
-    // Mixed columns and expressions
-    // Use a helper function to convert columns to ColumnRef and leave expressions as is
+    // Mixed columns, tables, and expressions
     auto transform_arg = []<typename T>(const T& arg) {
       if constexpr (ColumnType<T>) {
         return ColumnRef<T>(arg);
+      } else if constexpr (TableType<T>) {
+        static_assert(detail::select_all_columns<T>().size() > 0,
+                      "selecting a whole table requires it to have at least one column");
+        return TableColumns<T>{};
       } else {
         return arg;
       }

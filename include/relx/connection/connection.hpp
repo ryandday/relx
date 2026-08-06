@@ -54,15 +54,32 @@ using ConnectionResult = std::expected<T, ConnectionError>;
 
 namespace detail {
 
-/// @brief Compile-time name of a select-list element, when it has one
+/// @brief Compile-time name of a select-list element, when it has one. A whole-table
+/// element is named after its table (the synthesized nested row member's name).
 template <typename E>
 consteval std::optional<std::string_view> select_element_name() {
-  if constexpr (requires { typename E::column_type; }) {
+  if constexpr (TableSelectElement<E>) {
+    return std::string_view(E::table_type::table_name);
+  } else if constexpr (requires { typename E::column_type; }) {
     return std::string_view(E::column_type::name);
   } else if constexpr (requires { std::string_view(E::alias_name); }) {
     return std::string_view(E::alias_name);
   } else {
     return std::nullopt;
+  }
+}
+
+/// @brief Whether the query's result columns include a whole-table element, which
+/// switches result mapping to the positional grouped mapper
+template <typename Query>
+consteval bool query_selects_whole_tables() {
+  using Columns = query::result_columns_t<Query>;
+  if constexpr (std::is_void_v<Columns>) {
+    return false;
+  } else {
+    return []<typename... Es>(std::type_identity<std::tuple<Es...>>) {
+      return (TableSelectElement<Es> || ...);
+    }(std::type_identity<Columns>{});
   }
 }
 
@@ -115,31 +132,33 @@ consteval bool binary_decodable_element() {
   }
 }
 
-/// @brief Whether every element of the query's compile-time select list maps to a
-/// binary-decodable type. Queries without a select list (raw SQL, inserts) or with
-/// elements of unknown type (e.g. aggregates without value_type) use the text protocol.
+/// @brief Whether every element of the query's compile-time result columns (select
+/// list, or RETURNING list for DML) maps to a binary-decodable type. Queries without
+/// result columns (raw SQL) or with elements of unknown type (e.g. aggregates without
+/// value_type, whole-table elements) use the text protocol.
 template <typename Query>
 consteval bool query_supports_binary_results() {
-  using Q = std::remove_cvref_t<Query>;
-  if constexpr (!requires { typename Q::columns_type; }) {
+  using Columns = query::result_columns_t<Query>;
+  if constexpr (std::is_void_v<Columns>) {
     return false;
   } else {
     return []<typename... Es>(std::type_identity<std::tuple<Es...>>) {
       return (binary_decodable_element<Es>() && ...);
-    }(std::type_identity<typename Q::columns_type>{});
+    }(std::type_identity<Columns>{});
   }
 }
 
 }  // namespace detail
 
-/// @brief Compile-time coverage check for typed queries: every selected column must have
-/// a matching field in the result struct. The struct may have additional fields - they
-/// are left default-initialized, since selecting a subset expresses that the other
-/// columns are not wanted. No-op for queries without a compile-time select list.
+/// @brief Compile-time coverage check for typed queries: every result column (selected
+/// or RETURNING) must have a matching field in the result struct. The struct may have
+/// additional fields - they are left default-initialized, since selecting a subset
+/// expresses that the other columns are not wanted. No-op for queries without
+/// compile-time result columns.
 template <typename T, typename Query>
 consteval void assert_struct_covers_select_list() {
-  if constexpr (requires { typename std::remove_cvref_t<Query>::columns_type; }) {
-    using Columns = typename std::remove_cvref_t<Query>::columns_type;
+  if constexpr (!std::is_void_v<query::result_columns_t<Query>>) {
+    using Columns = query::result_columns_t<Query>;
     using Struct = std::remove_cvref_t<T>;
     static_assert(detail::uncovered_columns<Struct, Columns>::get().empty(),
                   std::string("query selects column(s) ") +
@@ -312,19 +331,30 @@ public:
       return std::unexpected(ConnectionError{.message = "No results found"});
     }
 
-    if (auto consumed = verify_result_columns_consumed<T>(result_set.column_names(),
-                                                          result_set.column_count());
-        !consumed) {
-      return std::unexpected(ConnectionError{.message = consumed.error(), .error_code = -1});
-    }
+    if constexpr (detail::query_selects_whole_tables<Query>()) {
+      // Whole-table selects map positionally: result column names repeat across the
+      // joined tables, so name-based mapping cannot apply
+      auto mapped = grouped_row_mapper<T, query::result_columns_t<Query>>::map(result_set.at(0));
+      if (!mapped) {
+        return std::unexpected(ConnectionError{
+            .message = "Failed to convert result to struct: " + mapped.error(), .error_code = -1});
+      }
+      return *mapped;
+    } else {
+      if (auto consumed = verify_result_columns_consumed<T>(result_set.column_names(),
+                                                            result_set.column_count());
+          !consumed) {
+        return std::unexpected(ConnectionError{.message = consumed.error(), .error_code = -1});
+      }
 
-    auto mapped = map_row_to_struct<T>(result_set.at(0));
-    if (!mapped) {
-      return std::unexpected(ConnectionError{
-          .message = "Failed to convert result to struct: " + mapped.error(), .error_code = -1});
-    }
+      auto mapped = map_row_to_struct<T>(result_set.at(0));
+      if (!mapped) {
+        return std::unexpected(ConnectionError{
+            .message = "Failed to convert result to struct: " + mapped.error(), .error_code = -1});
+      }
 
-    return *mapped;
+      return *mapped;
+    }
   }
 
   /// @brief Execute a query and map results to a vector of user-defined types
@@ -350,23 +380,40 @@ public:
       return objects;  // Return empty vector
     }
 
-    if (auto consumed = verify_result_columns_consumed<T>(result_set.column_names(),
-                                                          result_set.column_count());
-        !consumed) {
-      return std::unexpected(ConnectionError{.message = consumed.error(), .error_code = -1});
-    }
-
-    // Process each row
-    for (size_t row_idx = 0; row_idx < result_set.size(); ++row_idx) {
-      auto mapped = map_row_to_struct<T>(result_set.at(row_idx));
-      if (!mapped) {
-        return std::unexpected(ConnectionError{
-            .message = "Failed to convert result to struct: " + mapped.error(), .error_code = -1});
+    if constexpr (detail::query_selects_whole_tables<Query>()) {
+      // Whole-table selects map positionally: result column names repeat across the
+      // joined tables, so name-based mapping cannot apply
+      for (size_t row_idx = 0; row_idx < result_set.size(); ++row_idx) {
+        auto mapped = grouped_row_mapper<T, query::result_columns_t<Query>>::map(
+            result_set.at(row_idx));
+        if (!mapped) {
+          return std::unexpected(
+              ConnectionError{.message = "Failed to convert result to struct: " + mapped.error(),
+                              .error_code = -1});
+        }
+        objects.push_back(std::move(*mapped));
       }
-      objects.push_back(std::move(*mapped));
-    }
+      return objects;
+    } else {
+      if (auto consumed = verify_result_columns_consumed<T>(result_set.column_names(),
+                                                            result_set.column_count());
+          !consumed) {
+        return std::unexpected(ConnectionError{.message = consumed.error(), .error_code = -1});
+      }
 
-    return objects;
+      // Process each row
+      for (size_t row_idx = 0; row_idx < result_set.size(); ++row_idx) {
+        auto mapped = map_row_to_struct<T>(result_set.at(row_idx));
+        if (!mapped) {
+          return std::unexpected(
+              ConnectionError{.message = "Failed to convert result to struct: " + mapped.error(),
+                              .error_code = -1});
+        }
+        objects.push_back(std::move(*mapped));
+      }
+
+      return objects;
+    }
   }
 
   /// @brief Execute a select query and map rows onto its synthesized row type

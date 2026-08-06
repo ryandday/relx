@@ -54,6 +54,7 @@ add_executable(relx_tests
     query/data_type_test.cpp
     query/advanced_query_test.cpp
     query/row_type_test.cpp
+    query/nested_row_test.cpp
     # Result processing tests
     result/result_test.cpp
     result/lazy_parsing_test.cpp
@@ -86,6 +87,7 @@ add_executable(relx_tests
     postgres_integration/pool_recovery_test.cpp
     postgres_integration/annotated_table_integration_test.cpp
     postgres_integration/struct_writes_integration_test.cpp
+    postgres_integration/nested_row_integration_test.cpp
     # Utility tests
     utility/throw_if_failed_test.cpp
 )
@@ -118,6 +120,7 @@ set(RELX_COMPILE_FAIL_SOURCES
     compile_fail/upsert_pk_not_inserted.cpp
     compile_fail/set_from_non_optional_field.cpp
     compile_fail/set_from_unknown_column.cpp
+    compile_fail/nested_row_right_join.cpp
 )
 foreach(compile_fail_src ${RELX_COMPILE_FAIL_SOURCES})
   get_filename_component(compile_fail_name ${compile_fail_src} NAME_WE)

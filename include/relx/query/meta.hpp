@@ -44,6 +44,33 @@ static constexpr bool is_empty_tuple() {
   return std::tuple_size_v<Tuple> == 0;
 }
 
+namespace detail {
+
+template <typename Q>
+consteval auto result_columns_id() {
+  if constexpr (requires {
+                  typename Q::returning_columns_type;
+                  requires !std::is_same_v<typename Q::returning_columns_type, std::tuple<>>;
+                }) {
+    // DML with RETURNING: the result set is the RETURNING list
+    return std::type_identity<typename Q::returning_columns_type>{};
+  } else if constexpr (requires { typename Q::columns_type; }) {
+    return std::type_identity<typename Q::columns_type>{};
+  } else {
+    return std::type_identity<void>{};
+  }
+}
+
+}  // namespace detail
+
+/// @brief The tuple of select-list elements a query's result set consists of: the
+/// RETURNING list for DML queries that have one, the select list otherwise, void for
+/// queries that produce no describable result set (raw SQL, DML without RETURNING
+/// beyond its insert column list). Row synthesis and result-mapping checks key on this.
+template <typename Query>
+using result_columns_t =
+    typename decltype(detail::result_columns_id<std::remove_cvref_t<Query>>())::type;
+
 /// @brief Helper to convert a tuple of expressions to SQL
 template <typename Tuple>
 constexpr std::string tuple_to_sql(const Tuple& tuple, const char* separator) {
