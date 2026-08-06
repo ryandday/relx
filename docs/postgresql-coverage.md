@@ -15,7 +15,7 @@ The escape hatch for anything ❌ is `Connection::execute_raw(sql, params)` — 
 | `DISTINCT` | ✅ | `select_distinct`, `count_distinct`, `distinct(expr)` |
 | `DISTINCT ON (...)` | ❌ | |
 | Multi-table `FROM` | ✅ | Chained/variadic `from()` |
-| Table aliases (`FROM users u`) | ❌ | Planned — reflection plan Phase 15. Until then self-joins and duplicate FROM tables are compile errors |
+| Table aliases (`FROM users AS u`) | ✅ | `relx::t<Users, "u">` — alias in the type; self-joins via two aliases |
 | Subquery in `FROM` | ❌ | `from()` only accepts schema tables |
 | `LATERAL` | ❌ | |
 | `JOIN` (inner/left/right/full/cross) | ✅ | `ON` conditions with bound params; multiple joins |
@@ -52,7 +52,7 @@ The escape hatch for anything ❌ is `Connection::execute_raw(sql, params)` — 
 | `INSERT` single/multi-row | ✅ | With or without explicit column list |
 | `INSERT ... SELECT` | ✅ | |
 | `DEFAULT VALUES` / per-column `DEFAULT` | ❌ | `DEFAULT` exists only at DDL level |
-| `ON CONFLICT` (upsert) | ❌ | Planned — reflection plan Phase 8 derives the conflict target from the pk annotation |
+| `ON CONFLICT` (upsert) | ✅ | `.upsert()` derives the conflict target from the pk annotation; DO UPDATE from EXCLUDED, DO NOTHING when only key columns are inserted |
 | `RETURNING` | ✅ | On insert/update/delete; `returning_all()` reflection-expanded |
 | `UPDATE ... SET` expressions | ✅ | Literals, arithmetic, functions, CASE; repeated `where()` replaces (combine with `&&`) |
 | `UPDATE ... FROM` | ❌ | |
@@ -81,7 +81,7 @@ Mapping is `schema::column_traits<T>`; users can specialize it for anything miss
 | `DATE` | ✅ | `std::chrono::year_month_day`, binary bind |
 | `UUID` | ✅ | `boost::uuids::uuid`, binary bind/decode (OID 2950) |
 | `BYTEA` | 🟡 | Hex decode on results; no column type, no binary bind |
-| `JSON` / `JSONB` | ❌ | Planned — reflection plan Phase 12 (struct-typed JSONB columns) |
+| `JSON` / `JSONB` | ✅ | Struct-typed JSONB columns via `[[=relx::ann::jsonb]]`; reflection-derived strict encode/decode |
 | Array columns | 🟡 | No column type; array *bind params* fully supported (bool/int2/int4/int8/float4/float8/text) |
 | Identity | ✅ | `ann::autoincrement` → `GENERATED ALWAYS AS IDENTITY`; `identity<...>` options. `BY DEFAULT` form ❌; `SERIAL` ⛔ |
 | `MONEY`, `INET`/`CIDR`/`MACADDR`, geometric, `TSVECTOR`, ranges, composites, domains | ❌ | |
@@ -181,9 +181,7 @@ Struct-vs-struct diffing only — never against a live database. Every operation
 
 ## Biggest gaps by impact
 
-1. **Upsert (`ON CONFLICT`)** — the most common real-world DML relx can't express; already planned (Phase 8).
-2. **Window functions, CTEs, set operations** — whole query classes missing; no clause slots exist yet.
-3. **Table aliases** — blocks self-joins (rejected at compile time) and is a prerequisite for subqueries-in-FROM and `UPDATE ... FROM`. Planned as Phase 15.
-4. **Casts and a raw-expression escape hatch** — today the only fallback is a whole raw statement; a `raw_expr("...")` node would cover most one-off function gaps cheaply.
-5. **JSONB and arrays as column types** — planned (Phase 12); param binding is already ahead of the schema layer here.
-6. **SQLSTATE-aware errors** — the type exists, unwired; duplicate-key detection is the payoff.
+1. **Window functions, CTEs, set operations** — whole query classes missing; no clause slots exist yet.
+2. **Casts and a raw-expression escape hatch** — today the only fallback is a whole raw statement; a `raw_expr("...")` node would cover most one-off function gaps cheaply.
+3. **Arrays as column types** — param binding is already ahead of the schema layer here (JSONB landed as Phase 12).
+4. **SQLSTATE-aware errors** — the type exists, unwired; duplicate-key detection is the payoff.

@@ -206,37 +206,89 @@ Implementation gotcha: `type_of(annotation)` is cv-qualified (`const table`) —
 - UUID values bind as binary OID 2950 (16 bytes verbatim) and decode from binary
   results to canonical 8-4-4-4-12 text.
 
-## Roadmap — Phases 7+ (agreed 2026-08-04)
-
-Ordered by ergonomic payoff per effort; each phase is a dedicated pass.
+## Phases 7–15 (agreed 2026-08-04; landed 2026-08-05)
 
 - ~~**Phase 7 — FK-derived joins**~~: dropped (2026-08-05) — join conditions stay
   explicit; FK annotations serve DDL/migrations/validation only.
-- **Phase 8 — struct-based writes**: `insert(users).values_from(obj)` expands fields via
-  reflection, skipping serial pk / defaulted columns; `.upsert()` derives the ON CONFLICT
-  target from the pk annotation and SET list from non-pk fields; patch update from a
-  struct of optionals (engaged fields only — inherently runtime SQL).
-- **Phase 9 — nested row synthesis for joins**: `fetch_all` on a multi-table select
-  groups columns by originating table into nested structs
-  (`struct { Users user; Posts post; }`); left-joined side becomes `std::optional`.
-- **Phase 10 — schema-drift verification**: `relx::verify_schema<Users, Posts>(conn)`
-  diffs reflected metadata (reusing `migrations/diff.hpp` extraction) against
-  `information_schema` and returns a structured error — boot-time drift check, no
-  migration emitted.
-- **Phase 11 — reflection utility types**: promote pick/omit/partial (prototyped in
-  `crud-server/proto_utility_types.cpp` on the relx-web branch) into `relx::refl`;
-  `where_equals(table, partialObj)` filter-by-example on top of `partial<T>`.
-- **Phase 12 — struct-typed JSONB columns**: `column<..., Metadata, jsonb>` with
-  reflection-driven encode/decode; includes binary bind/result support for JSONB.
-- **Phase 13 — prepared-statement caching**: keyed on query type (`PQprepare` once,
-  `PQexecPrepared` with binary params after); `static_pg_sql` supplies the statement
-  text with zero runtime cost.
-- **Phase 14 — small items**: `relx::debug::dump(row)` pretty-printer via
-  `for_each_named_field`; consteval `$n` placeholder-count check for raw SQL literals.
-- **Phase 15 — table aliases**: `relx::t<Users, "u">` puts the alias in the table_ref
-  type, so two aliases of one table are distinct types, column refs emit `u.col`, and
-  consteval SQL / static-shape memoization keep working. Unblocks self-joins (today a
-  compile error — `tuple_contains_table_v` guards in select.hpp relax to same-table
-  *and* same-alias), and is the prerequisite for subqueries in FROM, `UPDATE ... FROM`,
-  and LATERAL. Phase 7's FK-derived joins need it for self-referential FKs
-  (`manager_id → Users`).
+
+## Phase 8 — struct-based writes (done)
+
+`insert_into(t).values_from(obj, ...)` expands the table's insertable columns via
+reflection (identity/autoincrement columns skipped — the database assigns them), one
+VALUES row per object; disengaged optionals bind typed NULLs. Columns with DEFAULTs
+are *not* skipped — that would make SQL text value-dependent and break
+prepared-statement reuse; DB defaults stay reachable via explicit
+`columns()/values()`. `.upsert()` appends `ON CONFLICT (pk...) DO UPDATE SET col =
+EXCLUDED.col` for non-key inserted columns (DO NOTHING when only key columns are
+inserted); pk comes from the pk modifier or `composite_pk`, must be covered by the
+inserted columns. `update(t).set_from(patch)` SETs the engaged fields of an
+all-optional patch struct (runtime SQL by nature); `has_engaged_fields()` guards the
+all-disengaged case, which the server rejects. Mapping mismatches are compile errors
+naming the offending columns (five compile-fail tests).
+
+## Phase 9 — nested row synthesis for joins (done)
+
+Whole-table selects, explicit at the query site: `select(users, posts)` expands each
+table to a qualified column list and synthesizes one nested row member per table,
+named after it — `row.users` / `row.posts`, `std::optional` for the LEFT-joined side
+(all-NULL group → nullopt). RIGHT/FULL joins are a compile error for whole-table
+selects (they can NULL the FROM side). Classic tables get a synthesized value struct.
+Mapping is positional (result column names repeat across joined tables). Also fixed:
+row synthesis / coverage asserts / binary gating key on `result_columns_t<Query>` —
+the RETURNING list for DML — so `fetch_all(insert...returning(id))` maps correctly.
+
+## Phase 10 — schema-drift verification (done)
+
+`relx::verify_schema<Users, Posts>(conn)` → `std::expected<void, SchemaDriftError>`:
+per table checks existence, column presence both directions, SQL type (normalized to
+information_schema spelling; native enums via udt_name), nullability, and pk column
+set in key order. Structured drift report distinct from introspection failures;
+`message()` renders one human-readable line. Compares normalized facts, not
+regenerated DDL strings.
+
+## Phase 11 — reflection utility types (done)
+
+`relx::refl::omit<T, ^^T::a, ...>`, `pick<T, ...>`, `partial<T>` (no
+`optional<optional<>>`) in `relx/refl_types.hpp`; results are plain aggregates usable
+as DTOs, `values_from` sources, and `set_from` patches. `where_equals(table,
+example)` builds ANDed equality filters from engaged fields; an empty example renders
+TRUE (match-all — the filter-by-example semantic). NULL matching is deliberately not
+expressible by example; use explicit `is_null()`.
+
+## Phase 12 — struct-typed JSONB columns (done)
+
+`[[=relx::ann::jsonb]]` on a plain aggregate makes it a column type: JSONB
+`sql_type`, reflection-derived encode/decode (`relx/json.hpp`, no external JSON
+dependency). Field types: bool, integers, floats, string, optional (null), vector
+(arrays), nested aggregates. Decode is strict (unknown keys, missing required keys,
+nulls into non-optionals, trailing input → errors) and key-order independent (JSONB
+normalizes order server-side). Binds travel as untyped text (server casts); binary
+jsonb wire format (OID 3802) is a possible follow-up.
+
+## Phase 13 — prepared-statement caching (done)
+
+Opt-in per connection: `conn.enable_statement_cache()`. Static-shaped typed queries
+route through a `Connection::execute_static_statement` hook keyed by `typeid(Query)`;
+the PostgreSQL override PQprepares once per query type (with the type-derived
+parameter OIDs) and PQexecPrepareds afterwards, same binary param/result handling as
+the unprepared path. Cache cleared on disconnect; runtime-shaped queries (dynamic
+IN-lists, `set_from`) bypass it. Deliberately not automatic: prepared statements are
+session state with real failure modes.
+
+## Phase 14 — small items (done)
+
+`relx::debug::dump(row)` renders any aggregate recursively (diagnostic format, not
+stable API). `relx::checked_sql<"... $1 ...", N>()` / `placeholder_count<Sql>()`
+validate raw SQL literals at compile time: `$n` dense, count matching, quote- and
+comment-aware scanning.
+
+## Phase 15 — table aliases (done)
+
+`relx::t<Users, "u">`: the alias lives in the `table_ref`/`table_t` type, so two
+aliases of one table are distinct types and self-joins compose naturally (the
+same-type join guard's message now points to aliases). Aliased references render
+`users AS u` in FROM/JOIN and qualify columns as `u.col`; `table_name` *is* the alias
+(base_table_name keeps the real name), so column qualification, whole-table selects,
+and nested-row member naming (`row.m`) follow automatically, and consteval SQL /
+static-shape memoization keep working. Still open (now unblocked): subqueries in
+FROM, `UPDATE ... FROM`, LATERAL.
