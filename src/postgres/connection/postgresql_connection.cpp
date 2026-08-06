@@ -543,8 +543,7 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_static_stateme
 
     const PGResultWrapper prepared(PQprepare(pg_conn_, name.c_str(), pg_sql.c_str(),
                                              static_cast<int>(params.size()),
-                                             param_types.empty() ? nullptr
-                                                                 : param_types.data()));
+                                             param_types.empty() ? nullptr : param_types.data()));
     if (auto status_ok = handle_pg_result(prepared.get(), PGRES_COMMAND_OK); !status_ok) {
       return std::unexpected(status_ok.error());
     }
@@ -576,10 +575,9 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_static_stateme
     }
   }
 
-  const PGResultWrapper pg_result(
-      PQexecPrepared(pg_conn_, it->second.c_str(), static_cast<int>(params.size()),
-                     param_values.data(), param_lengths.data(), param_formats.data(),
-                     binary_results ? 1 : 0));
+  const PGResultWrapper pg_result(PQexecPrepared(
+      pg_conn_, it->second.c_str(), static_cast<int>(params.size()), param_values.data(),
+      param_lengths.data(), param_formats.data(), binary_results ? 1 : 0));
 
   if (!pg_result.get()) {
     return std::unexpected(

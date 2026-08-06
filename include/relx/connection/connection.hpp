@@ -474,7 +474,6 @@ protected:
   }
 
 private:
-
 public:
   /// @brief Begin a new transaction
   /// @param isolation_level The isolation level for the transaction
