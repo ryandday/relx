@@ -96,6 +96,8 @@ add_executable(relx_tests
     # Utility tests
     utility/throw_if_failed_test.cpp
     utility/refl_types_test.cpp
+    utility/debug_dump_test.cpp
+    utility/sql_literal_test.cpp
 )
 
 # Link against both gtest and gtest_main libraries
@@ -127,6 +129,8 @@ set(RELX_COMPILE_FAIL_SOURCES
     compile_fail/set_from_non_optional_field.cpp
     compile_fail/set_from_unknown_column.cpp
     compile_fail/nested_row_right_join.cpp
+    compile_fail/sql_literal_gap.cpp
+    compile_fail/sql_literal_count_mismatch.cpp
 )
 foreach(compile_fail_src ${RELX_COMPILE_FAIL_SOURCES})
   get_filename_component(compile_fail_name ${compile_fail_src} NAME_WE)
