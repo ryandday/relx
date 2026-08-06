@@ -122,6 +122,7 @@ ConnectionResult<void> PostgreSQLConnection::disconnect() {
     is_connected_ = false;
     in_transaction_ = false;
     pg_conn_ = nullptr;
+    cached_statements_.clear();
     return {};  // Already disconnected
   }
 
@@ -138,6 +139,7 @@ ConnectionResult<void> PostgreSQLConnection::disconnect() {
   is_connected_ = false;
   in_transaction_ = false;
   pg_conn_ = nullptr;
+  cached_statements_.clear();  // server-side prepared statements died with the session
   return {};
 }
 
@@ -509,6 +511,93 @@ ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_prepared(
     return std::unexpected(status_ok.error());
   }
 
+  return sql_utils::process_postgresql_result(pg_result.get(), false);
+}
+
+ConnectionResult<result::ResultSet> PostgreSQLConnection::execute_static_statement(
+    const std::string& sql, const std::vector<bind_param>& params, bool binary_results,
+    const std::type_info& query_key) {
+  if (!statement_cache_enabled_) {
+    return execute_params_internal(sql, params, binary_results);
+  }
+
+  if (!is_connected_ || !pg_conn_) {
+    return std::unexpected(
+        ConnectionError{.message = "Not connected to database", .error_code = -1});
+  }
+
+  const std::type_index key(query_key);
+  auto it = cached_statements_.find(key);
+  if (it == cached_statements_.end()) {
+    // First execution of this query type on this connection: prepare it, with the
+    // parameter type OIDs the query binds (kinds are derived from the bound value
+    // types, so they are identical for every execution of the same query type)
+    std::string name = "relx_ps_" + std::to_string(cached_statements_.size());
+    const std::string pg_sql = convert_placeholders(sql);
+
+    std::vector<Oid> param_types;
+    param_types.reserve(params.size());
+    for (const auto& param : params) {
+      param_types.push_back(static_cast<Oid>(param.kind));
+    }
+
+    const PGResultWrapper prepared(PQprepare(pg_conn_, name.c_str(), pg_sql.c_str(),
+                                             static_cast<int>(params.size()),
+                                             param_types.empty() ? nullptr
+                                                                 : param_types.data()));
+    if (auto status_ok = handle_pg_result(prepared.get(), PGRES_COMMAND_OK); !status_ok) {
+      return std::unexpected(status_ok.error());
+    }
+    it = cached_statements_.emplace(key, std::move(name)).first;
+  }
+
+  // Same parameter marshalling as execute_params_internal: typed params travel as
+  // binary with their prepared OIDs, untyped ones as text
+  std::vector<const char*> param_values;
+  std::vector<int> param_lengths;
+  std::vector<int> param_formats;
+  param_values.reserve(params.size());
+  param_lengths.reserve(params.size());
+  param_formats.reserve(params.size());
+
+  for (const auto& param : params) {
+    if (param.is_null) {
+      param_values.push_back(nullptr);  // SQL NULL
+      param_lengths.push_back(0);
+      param_formats.push_back(0);
+    } else if (param.kind != sql_kind::unspecified) {
+      param_values.push_back(reinterpret_cast<const char*>(param.binary.data()));
+      param_lengths.push_back(static_cast<int>(param.binary.size()));
+      param_formats.push_back(1);  // binary
+    } else {
+      param_values.push_back(param.value.c_str());
+      param_lengths.push_back(static_cast<int>(param.value.size()));
+      param_formats.push_back(0);  // text
+    }
+  }
+
+  const PGResultWrapper pg_result(
+      PQexecPrepared(pg_conn_, it->second.c_str(), static_cast<int>(params.size()),
+                     param_values.data(), param_lengths.data(), param_formats.data(),
+                     binary_results ? 1 : 0));
+
+  if (!pg_result.get()) {
+    return std::unexpected(
+        ConnectionError{.message = "Failed to execute prepared statement", .error_code = -1});
+  }
+
+  if (auto status_ok = validate_exec_status(pg_result.get()); !status_ok) {
+    return std::unexpected(status_ok.error());
+  }
+
+  if (binary_results) {
+    auto decoded = sql_utils::process_postgresql_result_binary(pg_result.get());
+    if (!decoded) {
+      return std::unexpected(ConnectionError{
+          .message = "Failed to decode binary result: " + decoded.error(), .error_code = -1});
+    }
+    return *decoded;
+  }
   return sql_utils::process_postgresql_result(pg_result.get(), false);
 }
 

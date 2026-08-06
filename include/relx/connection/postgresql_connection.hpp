@@ -2,12 +2,14 @@
 
 #include "connection.hpp"
 
+#include <map>
 #include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <typeindex>
 #include <vector>
 
 // Forward declarations to avoid including libpq headers in our public API
@@ -154,6 +156,17 @@ public:
   ConnectionResult<result::ResultSet> execute_prepared(
       const std::string& statement_name, const std::vector<std::optional<std::string>>& params);
 
+  /// @brief Opt into server-side prepared-statement caching for static-shaped typed
+  /// queries: the first execution of each query type runs PQprepare (with the
+  /// parameter type OIDs the query binds), subsequent executions run PQexecPrepared.
+  /// The cache is per connection and cleared on disconnect (server-side statements
+  /// die with the session). Off by default - prepared statements are session state,
+  /// and enabling them is an explicit choice.
+  void enable_statement_cache(bool enabled = true) { statement_cache_enabled_ = enabled; }
+
+  /// @brief Number of query types currently prepared on this connection
+  std::size_t cached_statement_count() const { return cached_statements_.size(); }
+
   /// @brief Get direct access to the PostgreSQL connection
   /// @return The PGconn pointer
   PGconn* get_pg_conn() { return pg_conn_; }
@@ -163,11 +176,21 @@ public:
   /// @return Converted SQL with $1, $2, etc. placeholders
   static std::string convert_placeholders(const std::string& sql);
 
+protected:
+  /// @brief Static-shaped query execution: prepared-and-cached per query type when
+  /// the statement cache is enabled, plain execution otherwise
+  ConnectionResult<result::ResultSet> execute_static_statement(
+      const std::string& sql, const std::vector<bind_param>& params, bool binary_results,
+      const std::type_info& query_key) override;
+
 private:
   std::string connection_string_;
   PGconn* pg_conn_ = nullptr;
   bool is_connected_ = false;
   bool in_transaction_ = false;
+  bool statement_cache_enabled_ = false;
+  /// Prepared-statement names on this connection, keyed by query type
+  std::map<std::type_index, std::string> cached_statements_;
 
   /// @brief Helper method to handle PGresult and convert to ConnectionResult
   /// @param result PGresult pointer to process

@@ -92,6 +92,7 @@ add_executable(relx_tests
     postgres_integration/nested_row_integration_test.cpp
     postgres_integration/schema_verify_integration_test.cpp
     postgres_integration/jsonb_integration_test.cpp
+    postgres_integration/prepared_cache_integration_test.cpp
     # Utility tests
     utility/throw_if_failed_test.cpp
     utility/refl_types_test.cpp

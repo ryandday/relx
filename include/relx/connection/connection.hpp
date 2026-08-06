@@ -15,6 +15,7 @@
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <typeinfo>
 #include <vector>
 
 #include <boost/uuid/uuid.hpp>
@@ -446,12 +447,33 @@ private:
   template <query::SqlExpr Query>
   ConnectionResult<result::ResultSet> execute_with_sql(const std::string& sql, const Query& query) {
     std::vector<bind_param> params = query.bind_params();
-    if constexpr (detail::query_supports_binary_results<Query>()) {
+    constexpr bool binary_results = detail::query_supports_binary_results<Query>();
+    if constexpr (query::has_static_shape_v<std::remove_cvref_t<Query>>) {
+      // Static-shaped queries (SQL text fixed per type) can be server-side prepared
+      // and reused; the hook decides whether a cache is active
+      return execute_static_statement(sql, params, binary_results, typeid(Query));
+    } else if constexpr (binary_results) {
       return execute_raw_binary_result(sql, params);
     } else {
       return execute_raw(sql, params);
     }
   }
+
+protected:
+  /// @brief Hook for executing a static-shaped typed query, keyed by its query type.
+  /// The default executes unprepared; connections with a prepared-statement cache
+  /// (see PostgreSQLConnection::enable_statement_cache) override this to PQprepare
+  /// once per query type and PQexecPrepared afterwards.
+  virtual ConnectionResult<result::ResultSet> execute_static_statement(
+      const std::string& sql, const std::vector<bind_param>& params, bool binary_results,
+      const std::type_info& /*query_key*/) {
+    if (binary_results) {
+      return execute_raw_binary_result(sql, params);
+    }
+    return execute_raw(sql, params);
+  }
+
+private:
 
 public:
   /// @brief Begin a new transaction
