@@ -186,8 +186,7 @@ public:
               out += "CROSS JOIN ";
               break;
             }
-            out += detail::table_from_sql<
-                std::remove_cvref_t<decltype(join.table)>>();
+            out += detail::table_from_sql<std::remove_cvref_t<decltype(join.table)>>();
 
             if (join.type != JoinType::Cross) {
               out += " ON ";
