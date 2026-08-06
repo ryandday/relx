@@ -88,6 +88,7 @@ add_executable(relx_tests
     postgres_integration/annotated_table_integration_test.cpp
     postgres_integration/struct_writes_integration_test.cpp
     postgres_integration/nested_row_integration_test.cpp
+    postgres_integration/schema_verify_integration_test.cpp
     # Utility tests
     utility/throw_if_failed_test.cpp
 )

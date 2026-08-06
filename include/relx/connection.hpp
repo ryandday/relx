@@ -4,6 +4,7 @@
 #include "connection/postgresql_async_connection.hpp"
 #include "connection/postgresql_connection.hpp"
 #include "connection/postgresql_connection_pool.hpp"
+#include "connection/schema_verify.hpp"
 #include "connection/transaction_guard.hpp"
 #include "utils/error_handling.hpp"
 /**
