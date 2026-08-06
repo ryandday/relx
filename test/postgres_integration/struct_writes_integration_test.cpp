@@ -238,3 +238,35 @@ TEST_F(StructWritesIntegrationTest, SetFromEmptyPatchIsRejectedByServer) {
       relx::update(accounts).set_from(patch).where(accounts.email == "e@example.com"));
   EXPECT_FALSE(result);  // documented behavior: invalid SQL, honest server error
 }
+
+TEST_F(StructWritesIntegrationTest, OmitDerivedStructAsInsertSource) {
+  // A utility-type-derived DTO (id omitted) satisfies values_from: the insertable
+  // columns skip the identity pk, and every remaining column has a same-named field
+  using CreateAccount = relx::refl::omit<Account, ^^Account::id>;
+  const CreateAccount create{.email = "derived@example.com",
+                             .name = "Derived",
+                             .active = true,
+                             .tier = Tier::premium,
+                             .note = std::nullopt};
+  ASSERT_TRUE(conn->execute(relx::insert_into(accounts).values_from(create)));
+
+  auto fetched = conn->execute<Account>(
+      relx::query::select_all(accounts).where(accounts.email == "derived@example.com"));
+  ASSERT_TRUE(fetched) << fetched.error().message;
+  EXPECT_GT(fetched->id, 0);
+  EXPECT_EQ(fetched->tier, Tier::premium);
+}
+
+TEST_F(StructWritesIntegrationTest, CheckedSqlLiteralExecutesWithParams) {
+  ASSERT_TRUE(
+      conn->execute(relx::insert_into(accounts).values_from(make_account("raw@example.com", "R"))));
+
+  auto result = conn->execute_raw(
+      std::string(relx::checked_sql<"SELECT name FROM sw_accounts WHERE email = $1", 1>()),
+      {relx::bind_param("raw@example.com")});
+  ASSERT_TRUE(result) << result.error().message;
+  ASSERT_EQ(result->size(), 1);
+  auto name = result->at(0).get<std::string>(0);
+  ASSERT_TRUE(name);
+  EXPECT_EQ(*name, "R");
+}
