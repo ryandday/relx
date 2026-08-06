@@ -4,9 +4,11 @@
 #include "core.hpp"
 #include "value.hpp"
 
-#include <iostream>
-#include <memory>
+#include <concepts>
 #include <string>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace relx::query {
@@ -446,38 +448,64 @@ auto coalesce(const T1& column1, const T2& column2, const char* str) {
   return coalesce(to_expr(column1), to_expr(column2), val(str));
 }
 
-// First define CaseExpr class fully
-class CaseExpr : public ColumnExpression {
+/// @brief One WHEN ... THEN ... arm of a CASE expression, stored by value
+template <ConditionExpr Cond, SqlExpr Then>
+struct WhenThen {
+  Cond cond;
+  Then then;
+};
+
+/// @brief Tag type for a CASE expression without an ELSE branch
+struct NoElse {};
+
+namespace detail {
+
+/// @brief Exposes value_type when the branch expression declares one, so an aliased
+/// CASE can name a member of a synthesized row type (see row_type.hpp)
+template <typename T>
+struct case_result_type {};
+
+template <typename T>
+  requires requires { typename T::value_type; }
+struct case_result_type<T> {
+  using value_type = typename T::value_type;
+};
+
+template <typename... WhenThens>
+struct first_then {
+  using type = void;
+};
+
+template <ConditionExpr Cond, SqlExpr Then, typename... Rest>
+struct first_then<WhenThen<Cond, Then>, Rest...> {
+  using type = Then;
+};
+
+}  // namespace detail
+
+/// @brief CASE expression with every arm stored by value in the type: copyable,
+/// heap-free, and able to constant-evaluate in static_sql contexts
+template <typename ElseT, typename... WhenThens>
+class CaseExpr : public ColumnExpression,
+                 public detail::case_result_type<typename detail::first_then<WhenThens...>::type> {
 public:
-  using WhenThenPair = std::pair<std::unique_ptr<SqlExpression>, std::unique_ptr<SqlExpression>>;
+  static_assert(sizeof...(WhenThens) > 0, "CASE requires at least one WHEN arm");
 
-  explicit CaseExpr(std::vector<WhenThenPair>&& when_thens,
-                    std::unique_ptr<SqlExpression> else_expr)
+  constexpr CaseExpr(std::tuple<WhenThens...> when_thens, ElseT else_expr)
       : when_thens_(std::move(when_thens)), else_expr_(std::move(else_expr)) {}
-
-  // Allow move operations
-  CaseExpr(CaseExpr&&) = default;
-  CaseExpr& operator=(CaseExpr&&) = default;
-
-  // Disable copy operations (due to unique_ptr)
-  CaseExpr(const CaseExpr&) = delete;
-  CaseExpr& operator=(const CaseExpr&) = delete;
 
   constexpr std::string to_sql() const override {
     std::string sql = "CASE";
 
-    for (const auto& [when_cond, then_val] : when_thens_) {
-      sql += " WHEN (";
-      std::string cond = when_cond->to_sql();
-      // Remove any existing outer parentheses to avoid double parentheses
-      if (cond.size() >= 2 && cond.front() == '(' && cond.back() == ')') {
-        cond = cond.substr(1, cond.size() - 2);
-      }
-      sql += cond + ") THEN " + then_val->to_sql();
-    }
+    std::apply(
+        [&](const auto&... arms) {
+          ((sql += " WHEN (" + unwrapped(arms.cond.to_sql()) + ") THEN " + arms.then.to_sql()),
+           ...);
+        },
+        when_thens_);
 
-    if (else_expr_) {
-      sql += " ELSE " + else_expr_->to_sql();
+    if constexpr (!std::same_as<ElseT, NoElse>) {
+      sql += " ELSE " + else_expr_.to_sql();
     }
 
     sql += " END";
@@ -486,201 +514,154 @@ public:
 
   constexpr std::vector<bind_param> bind_params() const override {
     std::vector<bind_param> params;
+    const auto append = [&params](const auto& expr) {
+      auto expr_params = expr.bind_params();
+      params.insert(params.end(), expr_params.begin(), expr_params.end());
+    };
 
     // Interleave condition and value parameters in the expected order
-    for (const auto& [when_cond, then_val] : when_thens_) {
-      // First condition parameters
-      auto when_params = when_cond->bind_params();
-      params.insert(params.end(), when_params.begin(), when_params.end());
+    std::apply([&](const auto&... arms) { ((append(arms.cond), append(arms.then)), ...); },
+               when_thens_);
 
-      // Then the value parameters
-      auto then_params = then_val->bind_params();
-      params.insert(params.end(), then_params.begin(), then_params.end());
-    }
-
-    // Finally collect ELSE parameters if present
-    if (else_expr_) {
-      auto else_params = else_expr_->bind_params();
-      params.insert(params.end(), else_params.begin(), else_params.end());
+    if constexpr (!std::same_as<ElseT, NoElse>) {
+      append(else_expr_);
     }
 
     return params;
   }
 
-  std::string column_name() const override { return "CASE"; }
+  constexpr std::string column_name() const override { return "CASE"; }
 
-  std::string table_name() const override { return ""; }
-
-private:
-  std::vector<WhenThenPair> when_thens_;
-  std::unique_ptr<SqlExpression> else_expr_;
-};
-
-// Then define CaseBuilder that uses CaseExpr with type checking
-template <typename ResultType = void>
-class TypedCaseBuilder {
-public:
-  using WhenThenPair = std::pair<std::unique_ptr<SqlExpression>, std::unique_ptr<SqlExpression>>;
+  constexpr std::string table_name() const override { return ""; }
 
 private:
-  std::vector<WhenThenPair> when_thens_;
-  std::unique_ptr<SqlExpression> else_expr_;
-
-public:
-  TypedCaseBuilder() : when_thens_(), else_expr_(nullptr) {}
-
-  // Move constructor
-  TypedCaseBuilder(TypedCaseBuilder&& other) noexcept
-      : when_thens_(std::move(other.when_thens_)), else_expr_(std::move(other.else_expr_)) {}
-
-  // Move assignment
-  TypedCaseBuilder& operator=(TypedCaseBuilder&& other) noexcept {
-    if (this != &other) {
-      when_thens_ = std::move(other.when_thens_);
-      else_expr_ = std::move(other.else_expr_);
+  // Conditions render with their own outer parentheses; CASE supplies the WHEN pair
+  static constexpr std::string unwrapped(std::string cond) {
+    if (cond.size() >= 2 && cond.front() == '(' && cond.back() == ')') {
+      return cond.substr(1, cond.size() - 2);
     }
-    return *this;
+    return cond;
   }
 
-  // Delete copy constructor and assignment to prevent accidental copies
-  TypedCaseBuilder(const TypedCaseBuilder&) = delete;
-  TypedCaseBuilder& operator=(const TypedCaseBuilder&) = delete;
+  std::tuple<WhenThens...> when_thens_;
+  [[no_unique_address]] ElseT else_expr_;
+};
 
-  // Template constructor for converting between different result types
-  template <typename OtherType>
-  explicit TypedCaseBuilder(TypedCaseBuilder<OtherType>&& other)
-      : when_thens_(std::move(other.when_thens_)), else_expr_(std::move(other.else_expr_)) {}
+/// @brief Builder for CASE expressions. Each when()/else_() threads the arm into the
+/// builder's type; ResultType pins the branch result type so mixed branches fail to
+/// compile.
+template <typename ResultType, typename ElseT, typename... WhenThens>
+class TypedCaseBuilder {
+public:
+  constexpr TypedCaseBuilder()
+    requires(sizeof...(WhenThens) == 0 && std::same_as<ElseT, NoElse>)
+  = default;
 
-  template <SqlExpr Then>
-  auto when(const ConditionExpr auto& when_cond, const Then& then) {
-    if constexpr (std::same_as<ResultType, void>) {
-      // First WHEN clause - establish the result type
-      when_thens_.emplace_back(
-          std::make_unique<std::remove_cvref_t<decltype(when_cond)>>(when_cond),
-          std::make_unique<Then>(then));
-      return TypedCaseBuilder<Then>(std::move(*this));
-    } else {
-      // Subsequent WHEN clauses - ensure type compatibility
+  template <ConditionExpr Cond, SqlExpr Then>
+  constexpr auto when(Cond when_cond, Then then) {
+    if constexpr (!std::same_as<ResultType, void>) {
       static_assert(std::same_as<std::remove_cvref_t<Then>, std::remove_cvref_t<ResultType>>,
                     "All WHEN/THEN branches in CASE expressions must return the same type. "
                     "Mixed types in CASE branches can lead to runtime type errors.");
-
-      when_thens_.emplace_back(
-          std::make_unique<std::remove_cvref_t<decltype(when_cond)>>(when_cond),
-          std::make_unique<Then>(then));
-      return std::move(*this);
     }
+    // The first WHEN establishes the result type for the checks above
+    using Result = std::conditional_t<std::same_as<ResultType, void>, Then, ResultType>;
+    return TypedCaseBuilder<Result, ElseT, WhenThens..., WhenThen<Cond, Then>>(
+        std::tuple_cat(std::move(when_thens_), std::make_tuple(WhenThen<Cond, Then>{
+                                                   std::move(when_cond), std::move(then)})),
+        std::move(else_expr_));
   }
 
   // Specific overloads for common literal types to avoid template conflicts
-  auto when(const ConditionExpr auto& when_cond, const char* then) {
+  constexpr auto when(const ConditionExpr auto& when_cond, const char* then) {
     return this->when(when_cond, query::val(then));
   }
 
-  auto when(const ConditionExpr auto& when_cond, const std::string& then) {
+  constexpr auto when(const ConditionExpr auto& when_cond, const std::string& then) {
     return this->when(when_cond, query::val(then));
   }
 
-  auto when(const ConditionExpr auto& when_cond, int then) {
+  constexpr auto when(const ConditionExpr auto& when_cond, int then) {
     return this->when(when_cond, query::val(then));
   }
 
-  auto when(const ConditionExpr auto& when_cond, long then) {
+  constexpr auto when(const ConditionExpr auto& when_cond, long then) {
     return this->when(when_cond, query::val(then));
   }
 
-  auto when(const ConditionExpr auto& when_cond, double then) {
+  constexpr auto when(const ConditionExpr auto& when_cond, double then) {
     return this->when(when_cond, query::val(then));
   }
 
-  auto when(const ConditionExpr auto& when_cond, float then) {
+  constexpr auto when(const ConditionExpr auto& when_cond, float then) {
     return this->when(when_cond, query::val(then));
   }
 
-  auto when(const ConditionExpr auto& when_cond, bool then) {
+  constexpr auto when(const ConditionExpr auto& when_cond, bool then) {
     return this->when(when_cond, query::val(then));
   }
 
   template <SqlExpr Else>
   // NOLINTNEXTLINE(readability-identifier-naming)
-  auto else_(const Else& else_expr) {
+  constexpr auto else_(Else else_expr) {
     if constexpr (!std::same_as<ResultType, void>) {
       static_assert(std::same_as<std::remove_cvref_t<Else>, std::remove_cvref_t<ResultType>>,
                     "ELSE clause type must match the WHEN/THEN branch types in CASE expressions.");
     }
 
-    else_expr_ = std::make_unique<Else>(else_expr);
-    return std::move(*this);
+    return TypedCaseBuilder<ResultType, Else, WhenThens...>(std::move(when_thens_),
+                                                            std::move(else_expr));
   }
 
   // Specific overloads for common literal types in else clause
   // Have to use underscore to avoid conflict with else keyword
   // but this is not allowed by clang-tidy.
   // NOLINTNEXTLINE(readability-identifier-naming)
-  auto else_(const char* else_value) { return this->else_(query::val(else_value)); }
+  constexpr auto else_(const char* else_value) { return this->else_(query::val(else_value)); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  auto else_(const std::string& else_value) { return this->else_(query::val(else_value)); }
+  constexpr auto else_(const std::string& else_value) {
+    return this->else_(query::val(else_value));
+  }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  auto else_(int else_value) { return this->else_(query::val(else_value)); }
+  constexpr auto else_(int else_value) { return this->else_(query::val(else_value)); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  auto else_(long else_value) { return this->else_(query::val(else_value)); }
+  constexpr auto else_(long else_value) { return this->else_(query::val(else_value)); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  auto else_(double else_value) { return this->else_(query::val(else_value)); }
+  constexpr auto else_(double else_value) { return this->else_(query::val(else_value)); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  auto else_(float else_value) { return this->else_(query::val(else_value)); }
+  constexpr auto else_(float else_value) { return this->else_(query::val(else_value)); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  auto else_(bool else_value) { return this->else_(query::val(else_value)); }
+  constexpr auto else_(bool else_value) { return this->else_(query::val(else_value)); }
 
   // Build the final CaseExpr
-  auto build() { return CaseExpr(std::move(when_thens_), std::move(else_expr_)); }
+  constexpr auto build() {
+    static_assert(sizeof...(WhenThens) > 0, "CASE requires at least one WHEN arm");
+    return CaseExpr<ElseT, WhenThens...>(std::move(when_thens_), std::move(else_expr_));
+  }
 
-  // Friend access for template constructor
-  template <typename>
+private:
+  constexpr TypedCaseBuilder(std::tuple<WhenThens...> when_thens, ElseT else_expr)
+      : when_thens_(std::move(when_thens)), else_expr_(std::move(else_expr)) {}
+
+  // Builders of every arm/result shape construct each other as arms accumulate
+  template <typename, typename, typename...>
   friend class TypedCaseBuilder;
-};
 
-// Keep the old CaseBuilder as an alias for backward compatibility
-using CaseBuilder = TypedCaseBuilder<void>;
+  std::tuple<WhenThens...> when_thens_;
+  [[no_unique_address]] ElseT else_expr_;
+};
 
 /// @brief Create a CASE expression with type checking
 /// @return A TypedCaseBuilder
 // NOLINTNEXTLINE(readability-identifier-naming)
-inline auto case_() {
-  return TypedCaseBuilder<void>();
-}
-
-/// @brief AliasedColumn specialization for the move-only, type-erased CaseExpr:
-/// shared ownership keeps the aliased column copyable for the query builders.
-/// CaseExpr holds heap-allocated erased expressions, so unlike the by-value
-/// primary it could never constant-evaluate anyway.
-template <>
-class AliasedColumn<CaseExpr> : public ColumnExpression {
-public:
-  AliasedColumn(CaseExpr&& expr, std::string alias)
-      : expr_(std::make_shared<CaseExpr>(std::move(expr))), alias_(std::move(alias)) {}
-
-  std::string to_sql() const override { return expr_->to_sql() + " AS " + alias_; }
-
-  std::vector<bind_param> bind_params() const override { return expr_->bind_params(); }
-
-  std::string column_name() const override { return alias_; }
-
-  std::string table_name() const override { return ""; }
-
-private:
-  std::shared_ptr<CaseExpr> expr_;
-  std::string alias_;
-};
-
-// Specialized as function for CaseExpr
-inline auto as(CaseExpr&& expr, std::string alias) {
-  return AliasedColumn<CaseExpr>(std::move(expr), std::move(alias));
+inline constexpr auto case_() {
+  return TypedCaseBuilder<void, NoElse>();
 }
 
 }  // namespace relx::query

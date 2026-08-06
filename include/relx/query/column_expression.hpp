@@ -12,9 +12,6 @@
 
 namespace relx::query {
 
-// Forward declarations
-class CaseExpr;
-
 /// @brief Base class for column expressions
 class ColumnExpression : public SqlExpression {
 public:
@@ -79,7 +76,6 @@ class AliasedColumn : public ColumnExpression {
 public:
   // By-value storage: expression objects are small, and a constexpr-constructible
   // member lets runtime-aliased columns constant-evaluate in static_sql contexts.
-  // A move-only Expr (e.g. CaseExpr) makes the aliased column move-only too.
   constexpr AliasedColumn(Expr expr, std::string alias)
       : expr_(std::move(expr)), alias_(std::move(alias)) {}
 

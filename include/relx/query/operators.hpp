@@ -675,7 +675,8 @@ auto else_(const schema::column<TableT, Name, T, Modifiers...>& result) {
 // Column support for select expressions
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename... Args>
-auto select_expr(const schema::column<TableT, Name, T, Modifiers...>& col, Args&&... args) {
+constexpr auto select_expr(const schema::column<TableT, Name, T, Modifiers...>& col,
+                           Args&&... args) {
   auto col_expr = to_expr(col);
   return select_expr(col_expr, std::forward<Args>(args)...);
 }

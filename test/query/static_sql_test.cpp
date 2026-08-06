@@ -81,6 +81,41 @@ TEST(StaticSqlTest, PostgresPlaceholders) {
   SUCCEED();
 }
 
+TEST(StaticSqlTest, CaseExpressionConstantEvaluates) {
+  // Typed CASE stores its arms by value, so the whole builder chain runs at compile time
+  static_assert(relx::static_sql(relx::query::select_expr(
+                                     users.name,
+                                     relx::as<"age_group">(relx::query::case_()
+                                                               .when(users.age < 18, "Minor")
+                                                               .when(users.age < 65, "Adult")
+                                                               .else_("Senior")
+                                                               .build()))
+                                     .from(users)) ==
+                "SELECT users.name, "
+                "CASE WHEN (users.age < ?) THEN ? WHEN (users.age < ?) THEN ? ELSE ? END "
+                "AS age_group FROM users");
+  SUCCEED();
+}
+
+TEST(StaticShapeTest, CaseExpressionIsStaticShaped) {
+  // CASE arms are type-encoded (conditions + placeholders), so a CASE under an NTTP
+  // alias keeps the query eligible for type-keyed SQL memoization
+  auto q = relx::query::select_expr(users.name,
+                                    relx::as<"age_group">(relx::query::case_()
+                                                              .when(users.age < 18, "Minor")
+                                                              .else_("Adult")
+                                                              .build()))
+               .from(users);
+  static_assert(relx::has_static_shape_v<decltype(q)>);
+
+  // A runtime-string alias still takes the CASE out of the static shape
+  auto q2 = relx::query::select_expr(
+                relx::query::as(relx::query::case_().when(users.age < 18, "Minor").build(), "x"))
+                .from(users);
+  static_assert(!relx::has_static_shape_v<decltype(q2)>);
+  SUCCEED();
+}
+
 TEST(StaticSqlTest, RuntimeToSqlUnchanged) {
   auto query = relx::query::select(users.id).from(users).where(users.id == 7);
   EXPECT_EQ(query.to_sql(), "SELECT users.id FROM users WHERE (users.id = ?)");

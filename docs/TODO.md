@@ -7,7 +7,13 @@
   by-value `Expr` with constexpr ctors/`to_sql`, and a runtime-aliased column now
   constant-evaluates in `static_sql` contexts (covered by
   `StaticSqlTest.RuntimeAliasedColumnConstantEvaluates`). The `shared_ptr` constructor
-  is gone; its one caller was `as(CaseExpr&&)`, which now uses an explicit
-  `AliasedColumn<CaseExpr>` specialization with shared ownership (CaseExpr is move-only
-  and type-erased on the heap, so it could never constant-evaluate regardless). The
-  NTTP `relx::as<"name">(expr)` form remains the static-shaped spelling.
+  is gone. The NTTP `relx::as<"name">(expr)` form remains the static-shaped spelling.
+
+- ~~**De-erase CaseExpr.**~~ Done 2026-08-05: `CaseExpr<ElseT, WhenThens...>` stores
+  its arms by value in a tuple (no `unique_ptr<SqlExpression>`, no heap), making it
+  copyable, static-shaped, and constant-evaluable — the `AliasedColumn<CaseExpr>`
+  shared-ownership specialization is deleted. A CASE under an NTTP alias now
+  participates in `static_sql` and type-keyed SQL memoization
+  (`StaticSqlTest.CaseExpressionConstantEvaluates`,
+  `StaticShapeTest.CaseExpressionIsStaticShaped`), and exposes `value_type` from its
+  branches so `relx::as<"name">(case_()...)` can name a synthesized-row member.

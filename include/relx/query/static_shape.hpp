@@ -4,6 +4,7 @@
 #include "condition.hpp"
 #include "core.hpp"
 #include "delete.hpp"
+#include "function.hpp"
 #include "insert.hpp"
 #include "row_type.hpp"
 #include "schema_adapter.hpp"
@@ -90,6 +91,17 @@ inline constexpr bool has_static_shape_v<DescendingExpr<E>> = has_static_shape_v
 
 template <schema::fixed_string Name, typename T, SqlExpr E>
 inline constexpr bool has_static_shape_v<TypedAlias<Name, T, E>> = has_static_shape_v<E>;
+
+template <>
+inline constexpr bool has_static_shape_v<NoElse> = true;
+
+template <ConditionExpr Cond, SqlExpr Then>
+inline constexpr bool has_static_shape_v<WhenThen<Cond, Then>> = has_static_shape_v<Cond> &&
+                                                                 has_static_shape_v<Then>;
+
+template <typename ElseT, typename... WhenThens>
+inline constexpr bool has_static_shape_v<CaseExpr<ElseT, WhenThens...>> =
+    has_static_shape_v<ElseT> && (has_static_shape_v<WhenThens> && ...);
 
 template <TableType Table, ConditionExpr Condition, JoinType Type>
 inline constexpr bool has_static_shape_v<JoinSpec<Table, Condition, Type>> =
