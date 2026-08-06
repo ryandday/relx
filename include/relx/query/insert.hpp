@@ -6,6 +6,7 @@
 #include "meta.hpp"
 #include "select.hpp"
 #include "value.hpp"
+#include "write_meta.hpp"
 
 #include <iostream>
 #include <memory>
@@ -43,8 +44,11 @@ struct InsertItem {
 /// @tparam Values Tuple of value tuples for multi-row inserts, or empty for other insertion types
 /// @tparam SelectQuery Optional SELECT query for INSERT ... SELECT statements
 /// @tparam ReturningColumns Tuple of column expressions to return after insertion
+/// @tparam Upsert Whether to append an ON CONFLICT clause derived from the table's
+/// primary key (see upsert())
 template <TableType Table, typename Columns = std::tuple<>, typename Values = std::tuple<>,
-          typename SelectStmt = std::nullopt_t, typename ReturningColumns = std::tuple<>>
+          typename SelectStmt = std::nullopt_t, typename ReturningColumns = std::tuple<>,
+          bool Upsert = false>
 class InsertQuery {
 private:
   Table table_;
@@ -122,6 +126,52 @@ private:
     return params;
   }
 
+  // Helper to build the ON CONFLICT clause for upsert queries. The conflict target is
+  // the table's primary key; every other inserted column is overwritten from EXCLUDED.
+  // When the insert list contains only key columns there is nothing to update, so the
+  // clause degrades to DO NOTHING.
+  constexpr std::string upsert_to_sql() const {
+    constexpr auto pk_names = detail::pk_column_names<Table>();
+    std::string out = " ON CONFLICT (";
+    bool first = true;
+    for (const std::string_view pk : pk_names) {
+      if (!first) {
+        out += ", ";
+      }
+      first = false;
+      out += schema::quote_identifier(pk);
+    }
+    out += ")";
+
+    std::string set_sql;
+    std::apply(
+        [&](const auto&... cols) {
+          auto add = [&](const auto& col) {
+            const std::string name = col.column_name();
+            bool is_pk = false;
+            for (const std::string_view pk : pk_names) {
+              is_pk = is_pk || pk == name;
+            }
+            if (!is_pk) {
+              if (!set_sql.empty()) {
+                set_sql += ", ";
+              }
+              set_sql += schema::quote_identifier(name) + " = EXCLUDED." +
+                         schema::quote_identifier(name);
+            }
+          };
+          (add(cols), ...);
+        },
+        columns_);
+
+    if (set_sql.empty()) {
+      out += " DO NOTHING";
+    } else {
+      out += " DO UPDATE SET " + set_sql;
+    }
+    return out;
+  }
+
   // Helper to convert the RETURNING clause to SQL
   constexpr std::string returning_to_sql() const {
     if constexpr (is_empty_tuple<ReturningColumns>()) {
@@ -194,6 +244,10 @@ public:
       }
     }
 
+    if constexpr (Upsert) {
+      out += upsert_to_sql();
+    }
+
     // Add RETURNING clause if specified
     out += returning_to_sql();
 
@@ -234,7 +288,7 @@ public:
     using NewColumns = std::tuple<ColumnRef<Cols>...>;
     auto column_refs = std::make_tuple(ColumnRef<Cols>(cols)...);
 
-    return InsertQuery<Table, NewColumns, Values, SelectStmt, ReturningColumns>(
+    return InsertQuery<Table, NewColumns, Values, SelectStmt, ReturningColumns, Upsert>(
         table_, std::move(column_refs), values_, select_, returning_columns_);
   }
 
@@ -260,17 +314,69 @@ public:
     if constexpr (!is_empty_tuple<Values>()) {
       auto new_values = std::tuple_cat(values_, std::make_tuple(value_tuple));
 
-      return InsertQuery<Table, Columns, decltype(new_values), SelectStmt, ReturningColumns>(
-          table_, columns_, std::move(new_values), select_, returning_columns_);
+      return InsertQuery<Table, Columns, decltype(new_values), SelectStmt, ReturningColumns,
+                         Upsert>(table_, columns_, std::move(new_values), select_,
+                                 returning_columns_);
     }
     // If this is the first value tuple, create a new tuple
     else {
       using NewValues = std::tuple<ValueTuple>;
       auto new_values = std::make_tuple(value_tuple);
 
-      return InsertQuery<Table, Columns, NewValues, SelectStmt, ReturningColumns>(
+      return InsertQuery<Table, Columns, NewValues, SelectStmt, ReturningColumns, Upsert>(
           table_, columns_, std::move(new_values), select_, returning_columns_);
     }
+  }
+
+  /// @brief Insert a row per object, expanding the table's columns via reflection.
+  /// Every insertable column must have a same-named field on the object (a missing or
+  /// type-incompatible field is a compile error naming the column). Auto-generated
+  /// identity columns are skipped — the database assigns them. Disengaged
+  /// std::optional fields bind a typed NULL parameter.
+  ///
+  /// ```cpp
+  /// Users u{.id = 0 /* identity, skipped */, .username = "a", .email = "a@x"};
+  /// auto q = insert_into(users).values_from(u).returning(users.id);
+  /// ```
+  template <typename Obj, typename... Rest>
+    requires(!SqlExpr<Obj> && !ColumnType<Obj>)
+  constexpr auto values_from(const Obj& obj, const Rest&... rest) const {
+    static_assert(is_empty_tuple<Columns>() && is_empty_tuple<Values>(),
+                  "values_from() derives the column list itself; call it on a fresh "
+                  "insert_into(table) instead of combining it with columns()/values()");
+    static_assert(detail::insertable_columns<Table>().size() > 0,
+                  "the table has no insertable columns");
+    static_assert(detail::values_from_diagnostics<Table, Obj>().empty(),
+                  std::string("values_from(): object does not match the table's columns: ") +
+                      detail::values_from_diagnostics<Table, Obj>());
+
+    auto with_columns = [this]<std::size_t... I>(std::index_sequence<I...>) {
+      return columns(table_.[:detail::insertable_columns<Table>()[I]:]...);
+    }(std::make_index_sequence<detail::insertable_columns<Table>().size()>{});
+
+    return add_rows_from(with_columns, obj, rest...);
+  }
+
+  /// @brief PostgreSQL upsert: appends ON CONFLICT on the table's primary key, updating
+  /// every non-key inserted column from EXCLUDED (DO NOTHING when only key columns are
+  /// inserted). The primary key comes from the pk annotation/modifier or composite_pk;
+  /// it must be part of the inserted columns.
+  ///
+  /// ```cpp
+  /// auto q = insert_into(users).values_from(u).upsert();
+  /// // INSERT ... ON CONFLICT ("id") DO UPDATE SET "username" = EXCLUDED."username", ...
+  /// ```
+  constexpr auto upsert() const {
+    static_assert(!is_empty_tuple<Columns>(),
+                  "upsert() derives its SET list from the inserted columns; use it after "
+                  "values_from() or columns()");
+    static_assert(detail::pk_column_count<Table>() > 0,
+                  "upsert() requires the table to declare a primary key");
+    static_assert(detail::pk_covered_by_insert_columns<Table, Columns>(),
+                  "upsert() requires every primary-key column to be part of the inserted "
+                  "columns, otherwise the ON CONFLICT target can never be hit");
+    return InsertQuery<Table, Columns, Values, SelectStmt, ReturningColumns, true>(
+        table_, columns_, values_, select_, returning_columns_);
   }
 
   /// @brief Set a SELECT query to use for INSERT ... SELECT statements
@@ -280,7 +386,7 @@ public:
   template <typename Select>
     requires SqlExpr<Select>
   constexpr auto select(const Select& select) const {
-    return InsertQuery<Table, Columns, Values, std::optional<Select>, ReturningColumns>(
+    return InsertQuery<Table, Columns, Values, std::optional<Select>, ReturningColumns, Upsert>(
         table_, columns_, values_, std::optional<Select>(select), returning_columns_);
   }
 
@@ -308,7 +414,7 @@ public:
     using ReturningTuple = std::tuple<decltype(to_expr(std::declval<Args>()))...>;
     auto returning_tuple = std::make_tuple(to_expr(args)...);
 
-    return InsertQuery<Table, Columns, Values, SelectStmt, ReturningTuple>(
+    return InsertQuery<Table, Columns, Values, SelectStmt, ReturningTuple, Upsert>(
         table_, columns_, values_, select_, std::move(returning_tuple));
   }
 
@@ -318,6 +424,35 @@ public:
       return returning(table_.[:detail::select_all_columns<Table>()[I]:]...);
     }(std::make_index_sequence<detail::select_all_columns<Table>().size()>{});
   }
+
+private:
+  template <typename F>
+  static constexpr auto wrap_field_value(const F& field) {
+    return Value<F>(field);
+  }
+
+  // clang-format off
+
+  /// Appends one VALUES row per object, mapping the table's insertable columns onto
+  /// same-named object fields
+  template <typename Query, typename Obj, typename... Rest>
+  static constexpr auto add_rows_from(const Query& query, const Obj& obj, const Rest&... rest) {
+    static_assert(detail::values_from_diagnostics<Table, Obj>().empty(),
+                  std::string("values_from(): object does not match the table's columns: ") +
+                      detail::values_from_diagnostics<Table, Obj>());
+    auto with_row = [&]<std::size_t... I>(std::index_sequence<I...>) {
+      return query.values(wrap_field_value(
+          obj.[:detail::obj_field_for_column<Obj, detail::insertable_columns<Table>()[I]>():])...);
+    }(std::make_index_sequence<detail::insertable_columns<Table>().size()>{});
+
+    if constexpr (sizeof...(Rest) == 0) {
+      return with_row;
+    } else {
+      return add_rows_from(with_row, rest...);
+    }
+  }
+
+  // clang-format on
 };
 
 /// @brief Create an INSERT query for the specified table

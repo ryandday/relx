@@ -119,6 +119,7 @@ using query::delete_from;
 using query::desc;
 using query::distinct;
 using query::exists;
+using query::has_engaged_fields;
 using query::in;
 using query::in_any;
 using query::insert_into;

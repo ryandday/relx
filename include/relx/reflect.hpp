@@ -92,6 +92,19 @@ consteval bool has_field_named(std::string_view name) {
   return false;
 }
 
+/// @brief The member info of T's field with the given identifier. Callers must check
+/// has_field_named<T>(name) first; an unknown name returns the null reflection, and
+/// splicing it is a compile error.
+template <typename T>
+consteval std::meta::info field_named(std::string_view name) {
+  for (std::meta::info m : member_array<T>()) {
+    if (std::meta::identifier_of(m) == name) {
+      return m;
+    }
+  }
+  return {};
+}
+
 /// @brief Human-readable name of a type, backed by static storage
 template <typename T>
 consteval std::string_view type_name() {

@@ -8,6 +8,7 @@
 #include "meta.hpp"
 #include "operators.hpp"
 #include "value.hpp"
+#include "write_meta.hpp"
 
 #include <iostream>
 #include <memory>
@@ -36,6 +37,49 @@ struct SetItem {
 
   constexpr std::vector<bind_param> bind_params() const { return value.bind_params(); }
 };
+
+/// @brief SET clause built at runtime from the engaged fields of a patch struct
+/// (see UpdateQuery::set_from). The assignment list depends on which optionals are
+/// engaged, so unlike SetItem the SQL text is inherently runtime.
+class DynamicSetList {
+public:
+  struct Assignment {
+    std::string quoted_column;
+    bind_param param;
+  };
+
+  std::vector<Assignment> assignments;
+
+  std::string to_sql() const {
+    std::string out;
+    for (const Assignment& assignment : assignments) {
+      if (!out.empty()) {
+        out += ", ";
+      }
+      out += assignment.quoted_column + " = ?";
+    }
+    return out;
+  }
+
+  std::vector<bind_param> bind_params() const {
+    std::vector<bind_param> params;
+    params.reserve(assignments.size());
+    for (const Assignment& assignment : assignments) {
+      params.push_back(assignment.param);
+    }
+    return params;
+  }
+};
+
+/// @brief Whether any field of a patch struct (all std::optional) is engaged. Guard
+/// set_from() with this: a patch with no engaged fields produces an UPDATE without a
+/// SET list, which the database rejects.
+template <typename Patch>
+constexpr bool has_engaged_fields(const Patch& patch) {
+  bool any = false;
+  refl::for_each_field(patch, [&](const auto& field) { any = any || field.has_value(); });
+  return any;
+}
 
 /// @brief Base UPDATE query builder
 /// @tparam Table Table to update
@@ -186,6 +230,42 @@ public:
     // Wrap the raw value in a Value expression
     auto value_expr = value(std::forward<T>(val));
     return set(column, std::move(value_expr));
+  }
+
+  /// @brief SET the engaged fields of a patch struct (a struct whose fields are all
+  /// std::optional, named after columns of this table). Disengaged fields are left
+  /// untouched — this is a partial ("patch") update, and the SQL text depends on
+  /// which fields are engaged.
+  ///
+  /// A patch with no engaged fields produces an UPDATE without a SET list, which the
+  /// database rejects; guard with relx::query::has_engaged_fields(patch) when the
+  /// patch can be empty.
+  ///
+  /// ```cpp
+  /// struct UserPatch { std::optional<std::string> email; std::optional<bool> active; };
+  /// auto q = update(users).set_from(patch).where(users.id == 42);
+  /// ```
+  template <typename Patch>
+    requires(!SqlExpr<Patch> && !ColumnType<Patch>)
+  auto set_from(const Patch& patch) const {
+    static_assert(refl::field_count<Patch>() > 0,
+                  "set_from() requires a patch struct with at least one field");
+    static_assert(detail::set_from_diagnostics<Table, Patch>().empty(),
+                  std::string("set_from(): patch does not match the table's columns: ") +
+                      detail::set_from_diagnostics<Table, Patch>());
+
+    DynamicSetList list;
+    refl::for_each_named_field(patch, [&](const auto& field, std::string_view name) {
+      if (field.has_value()) {
+        using FieldValue = std::remove_cvref_t<decltype(*field)>;
+        auto params = Value<FieldValue>(*field).bind_params();
+        list.assignments.push_back({schema::quote_identifier(name), std::move(params.front())});
+      }
+    });
+
+    auto new_sets = std::tuple_cat(sets_, std::make_tuple(std::move(list)));
+    return UpdateQuery<Table, decltype(new_sets), Where, ReturningColumns>(
+        table_, std::move(new_sets), where_, returning_columns_);
   }
 
   /// @brief Add a WHERE clause to the query
