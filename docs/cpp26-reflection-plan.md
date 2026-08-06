@@ -210,9 +210,8 @@ Implementation gotcha: `type_of(annotation)` is cv-qualified (`const table`) —
 
 Ordered by ergonomic payoff per effort; each phase is a dedicated pass.
 
-- **Phase 7 — FK-derived joins**: `.join(posts)` synthesizes the ON clause from the
-  `fk<^^Users::id>` / `composite_fk` annotation between the two tables. Two candidate
-  FKs between the pair → static_assert directing to explicit `on()`.
+- ~~**Phase 7 — FK-derived joins**~~: dropped (2026-08-05) — join conditions stay
+  explicit; FK annotations serve DDL/migrations/validation only.
 - **Phase 8 — struct-based writes**: `insert(users).values_from(obj)` expands fields via
   reflection, skipping serial pk / defaulted columns; `.upsert()` derives the ON CONFLICT
   target from the pk annotation and SET list from non-pk fields; patch update from a
