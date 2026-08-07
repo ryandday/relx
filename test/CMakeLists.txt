@@ -27,6 +27,7 @@ add_executable(relx_tests
     schema/enum_column_test.cpp
     schema/jsonb_test.cpp
     schema/traits_strictness_test.cpp
+    schema/uuid_traits_test.cpp
     # Migration tests
     migrations/test_migrations.cpp
     migrations/test_command_line_tools.cpp
@@ -53,6 +54,7 @@ add_executable(relx_tests
     query/static_sql_test.cpp
     query/web_core_gaps_test.cpp
     query/distinct_select_test.cpp
+    query/quoting_and_guards_test.cpp
     query/edge_case_test.cpp
     query/data_type_test.cpp
     query/advanced_query_test.cpp
@@ -62,9 +64,11 @@ add_executable(relx_tests
     result/result_test.cpp
     result/lazy_parsing_test.cpp
     result/result_strictness_test.cpp
+    result/pipe_format_roundtrip_test.cpp
     # Type safety tests
     types/type_safety_test.cpp
     # Connection tests
+    connection/transaction_guard_test.cpp
     connection/postgresql_connection_test.cpp
     connection/postgresql_api_test.cpp
     connection/postgresql_typed_params_test.cpp
@@ -79,6 +83,7 @@ add_executable(relx_tests
     # Seeded property fuzzing for relx-owned parsers
     fuzz/parser_fuzz_test.cpp
     # PostgreSQL Integration tests
+    postgres_integration/postgresql_integration_test.cpp
     postgres_integration/basic_integration_test.cpp
     postgres_integration/schema_integration_test.cpp
     postgres_integration/join_integration_test.cpp
@@ -113,9 +118,13 @@ target_link_libraries(relx_tests PRIVATE
 # Register test
 add_test(NAME relx_tests COMMAND relx_tests)
 
-# Compile-failure tests: each source must FAIL to compile (consteval validation of
-# table-level annotations), checked with -fsyntax-only so no artifacts are produced.
+# Compile-failure tests: each source must FAIL to compile with the diagnostic it
+# declares (a "// expect-error: <regex>" line in the file), checked with
+# -fsyntax-only so no artifacts are produced. Matching the intended diagnostic -
+# rather than accepting any failure - prevents false passes from unrelated breakage
+# (a missing include path once made every case "fail" on libpq-fe.h and score green).
 # control_must_compile.cpp guards against the suite passing for the wrong reason.
+find_package(PostgreSQL REQUIRED)
 set(RELX_COMPILE_FAIL_SOURCES
     compile_fail/composite_pk_unknown_column.cpp
     compile_fail/duplicate_composite_pk.cpp
@@ -133,17 +142,40 @@ set(RELX_COMPILE_FAIL_SOURCES
     compile_fail/nested_row_right_join.cpp
     compile_fail/sql_literal_gap.cpp
     compile_fail/sql_literal_count_mismatch.cpp
+    compile_fail/type_mismatch_comparison.cpp
+    compile_fail/arithmetic_on_string.cpp
+    compile_fail/arithmetic_on_bool.cpp
+    compile_fail/string_view_dto_field.cpp
+    compile_fail/char_dto_field.cpp
+    compile_fail/select_zero_columns.cpp
+    compile_fail/update_set_duplicate_column.cpp
+    compile_fail/insert_values_arity_mismatch.cpp
+    compile_fail/table_annotation_on_member.cpp
+    compile_fail/column_annotation_on_struct.cpp
 )
 foreach(compile_fail_src ${RELX_COMPILE_FAIL_SOURCES})
   get_filename_component(compile_fail_name ${compile_fail_src} NAME_WE)
   add_test(NAME compile_fail_${compile_fail_name}
            COMMAND ${CMAKE_CXX_COMPILER} -std=gnu++26 -freflection -fsyntax-only
                    -I${CMAKE_SOURCE_DIR}/include
+                   -isystem ${PostgreSQL_INCLUDE_DIRS}
                    ${CMAKE_CURRENT_SOURCE_DIR}/${compile_fail_src})
-  set_tests_properties(compile_fail_${compile_fail_name} PROPERTIES WILL_FAIL TRUE)
+  file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/${compile_fail_src} expect_error_line
+       REGEX "// expect-error: ")
+  if(expect_error_line)
+    string(REGEX REPLACE ".*// expect-error: " "" expect_error "${expect_error_line}")
+    # PASS_REGULAR_EXPRESSION: the test passes iff the compiler output contains the
+    # declared diagnostic (exit code is irrelevant - success without the diagnostic
+    # and failure for a different reason both fail the test)
+    set_tests_properties(compile_fail_${compile_fail_name}
+                         PROPERTIES PASS_REGULAR_EXPRESSION "${expect_error}")
+  else()
+    message(FATAL_ERROR "${compile_fail_src} lacks a '// expect-error:' annotation")
+  endif()
 endforeach()
 
 add_test(NAME compile_fail_control_must_compile
          COMMAND ${CMAKE_CXX_COMPILER} -std=gnu++26 -freflection -fsyntax-only
                  -I${CMAKE_SOURCE_DIR}/include
+                 -isystem ${PostgreSQL_INCLUDE_DIRS}
                  ${CMAKE_CURRENT_SOURCE_DIR}/compile_fail/control_must_compile.cpp)

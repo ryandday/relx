@@ -1,4 +1,5 @@
 // Must NOT compile: values_from object lacks a field for an insertable column
+// expect-error: object does not match the table
 #include <string>
 
 #include <relx/query.hpp>

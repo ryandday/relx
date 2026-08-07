@@ -1,5 +1,6 @@
 // Must NOT compile: without table aliases a self-join emits the same table name
 // twice, which PostgreSQL rejects
+// expect-error: joining a table reference already in the query
 #include <string>
 
 #include <relx/query.hpp>

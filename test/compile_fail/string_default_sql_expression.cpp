@@ -1,6 +1,7 @@
 // Must NOT compile: string_default<"CURRENT_TIMESTAMP"> would emit the quoted
 // *string* 'CURRENT_TIMESTAMP', not the SQL expression - the static_assert directs
 // to relx::default_sql instead.
+// expect-error: string_default quotes its value
 #include <relx/schema.hpp>
 
 // clang-format off: annotation syntax is not yet understood by clang-format 20

@@ -1,4 +1,5 @@
 // Must NOT compile: set_from patch fields must all be std::optional
+// expect-error: must be a std::optional
 #include <string>
 
 #include <relx/query.hpp>

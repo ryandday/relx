@@ -1,5 +1,9 @@
 // Control: a valid annotated table MUST compile - if this fails, the compile-fail
-// tests are failing for the wrong reason (flag rot, header breakage)
+// tests are failing for the wrong reason (flag rot, header breakage). Includes the
+// same umbrella headers the fail cases use, so a broken include path (e.g. missing
+// libpq-fe.h) surfaces here instead of masquerading as the expected failures.
+#include <relx/connection.hpp>
+#include <relx/query.hpp>
 #include <relx/schema.hpp>
 
 struct[[= relx::table("parent"), = relx::ann::composite_pk("a", "b")]] Parent {

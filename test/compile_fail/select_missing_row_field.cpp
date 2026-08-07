@@ -1,4 +1,5 @@
 // Must NOT compile: the result struct does not cover the select list
+// expect-error: has no field
 #include <relx/connection.hpp>
 #include <relx/query.hpp>
 #include <relx/schema.hpp>

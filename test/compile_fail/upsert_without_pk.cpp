@@ -1,4 +1,5 @@
 // Must NOT compile: upsert() on a table with no declared primary key
+// expect-error: requires the table to declare a primary key
 #include <string>
 
 #include <relx/query.hpp>

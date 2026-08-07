@@ -1,5 +1,6 @@
 // Must NOT compile: composite_fk must reference the target's primary key or a
 // declared unique set
+// expect-error: composite_fk must reference the target table
 #include <relx/schema.hpp>
 
 struct[[= relx::table("parent"), = relx::ann::composite_pk("a", "b")]] Parent {

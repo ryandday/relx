@@ -1,4 +1,5 @@
 // Must NOT compile: set_from patch field names a column the table does not have
+// expect-error: is not a column of this table
 #include <optional>
 #include <string>
 

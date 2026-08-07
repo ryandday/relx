@@ -1,5 +1,6 @@
 // Must NOT compile: whole-table selects cannot synthesize rows for RIGHT joins
 // (they can NULL out the FROM side, which nested synthesis does not model)
+// expect-error: cannot synthesize rows for RIGHT or FULL joins
 #include <string>
 
 #include <relx/query.hpp>

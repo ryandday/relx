@@ -1,5 +1,6 @@
 // Must NOT compile: a SELECT used as a select-list expression would be emitted
 // without parentheses (SELECT SELECT ...)
+// expect-error: scalar subqueries in a select list are not supported
 #include <string>
 
 #include <relx/query.hpp>

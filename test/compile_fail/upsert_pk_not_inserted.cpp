@@ -1,5 +1,6 @@
 // Must NOT compile: upsert() when the inserted columns do not cover the primary key
 // (here the pk is an identity column that values_from skips)
+// expect-error: primary-key column to be part of the inserted columns
 #include <string>
 
 #include <relx/query.hpp>

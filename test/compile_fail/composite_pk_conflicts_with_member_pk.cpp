@@ -1,4 +1,5 @@
 // Must NOT compile: composite_pk conflicts with a column-level pk annotation
+// expect-error: composite_pk conflicts with a column-level pk
 #include <relx/schema.hpp>
 
 struct[[= relx::table("t"), = relx::ann::composite_pk("a", "b")]] T {
