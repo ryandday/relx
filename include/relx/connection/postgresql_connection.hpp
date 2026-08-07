@@ -2,6 +2,7 @@
 
 #include "connection.hpp"
 
+#include <format>
 #include <map>
 #include <memory>
 #include <optional>
@@ -102,8 +103,9 @@ public:
         // String types
         params.emplace_back(std::string(param));
       } else if constexpr (std::is_arithmetic_v<ParamType>) {
-        // Numeric/boolean types: typed, sent over the binary protocol
-        params.push_back(relx::make_bind_param(param, std::to_string(param)));
+        // Numeric/boolean types: typed, sent over the binary protocol; the text
+        // fallback uses std::format for shortest-round-trip floats
+        params.push_back(relx::make_bind_param(param, std::format("{}", param)));
       } else {
         // Other types, try to use stream conversion
         std::ostringstream ss;
@@ -184,6 +186,8 @@ protected:
       const std::type_info& query_key) override;
 
 private:
+  friend class PostgreSQLStatement;
+
   std::string connection_string_;
   PGconn* pg_conn_ = nullptr;
   bool is_connected_ = false;
@@ -191,6 +195,16 @@ private:
   bool statement_cache_enabled_ = false;
   /// Prepared-statement names on this connection, keyed by query type
   std::map<std::type_index, std::string> cached_statements_;
+  /// Live PostgreSQLStatement objects bound to this connection. Statements hold a
+  /// rebinding pointer: connection moves re-point them here, and disconnect/destroy
+  /// invalidates them so a statement outliving the connection errors instead of
+  /// dereferencing a dead object.
+  std::vector<PostgreSQLStatement*> registered_statements_;
+
+  void register_statement(PostgreSQLStatement* stmt) { registered_statements_.push_back(stmt); }
+  void deregister_statement(PostgreSQLStatement* stmt) { std::erase(registered_statements_, stmt); }
+  void rebind_statements() noexcept;
+  void invalidate_statements() noexcept;
 
   /// @brief Helper method to handle PGresult and convert to ConnectionResult
   /// @param result PGresult pointer to process

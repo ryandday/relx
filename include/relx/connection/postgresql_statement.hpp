@@ -2,6 +2,7 @@
 
 #include "postgresql_connection.hpp"
 
+#include <format>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -63,7 +64,9 @@ public:
       } else if constexpr (std::is_same_v<ParamType, bool>) {
         params.emplace_back(param ? "t" : "f");
       } else if constexpr (std::is_arithmetic_v<ParamType>) {
-        params.emplace_back(std::to_string(param));
+        // std::format gives shortest round-trip form; std::to_string would truncate
+        // floating point to 6 digits and follow the locale
+        params.emplace_back(std::format("{}", param));
       } else {
         // Other types, try to use stream conversion
         std::ostringstream ss;
@@ -96,7 +99,11 @@ public:
   bool is_valid() const { return is_valid_; }
 
 private:
-  PostgreSQLConnection* connection_;  // pointer so move-assignment can rebind
+  // The owning connection rebinds this pointer when it moves and nulls it when it
+  // disconnects or dies (see PostgreSQLConnection::registered_statements_)
+  friend class PostgreSQLConnection;
+
+  PostgreSQLConnection* connection_;
   std::string name_;
   std::string sql_;
   int param_count_;

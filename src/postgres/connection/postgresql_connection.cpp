@@ -74,10 +74,13 @@ PostgreSQLConnection::~PostgreSQLConnection() {
 
 PostgreSQLConnection::PostgreSQLConnection(PostgreSQLConnection&& other) noexcept
     : connection_string_(std::move(other.connection_string_)), pg_conn_(other.pg_conn_),
-      is_connected_(other.is_connected_), in_transaction_(other.in_transaction_) {
+      is_connected_(other.is_connected_), in_transaction_(other.in_transaction_),
+      registered_statements_(std::move(other.registered_statements_)) {
   other.pg_conn_ = nullptr;
   other.is_connected_ = false;
   other.in_transaction_ = false;
+  other.registered_statements_.clear();
+  rebind_statements();
 }
 
 PostgreSQLConnection& PostgreSQLConnection::operator=(PostgreSQLConnection&& other) noexcept {
@@ -87,11 +90,30 @@ PostgreSQLConnection& PostgreSQLConnection::operator=(PostgreSQLConnection&& oth
     pg_conn_ = other.pg_conn_;
     is_connected_ = other.is_connected_;
     in_transaction_ = other.in_transaction_;
+    registered_statements_ = std::move(other.registered_statements_);
     other.pg_conn_ = nullptr;
     other.is_connected_ = false;
     other.in_transaction_ = false;
+    other.registered_statements_.clear();
+    rebind_statements();
   }
   return *this;
+}
+
+void PostgreSQLConnection::rebind_statements() noexcept {
+  for (auto* stmt : registered_statements_) {
+    stmt->connection_ = this;
+  }
+}
+
+void PostgreSQLConnection::invalidate_statements() noexcept {
+  // Server-side statements die with the session; a C++ statement object that
+  // outlives the connection must error, not dereference a dead connection
+  for (auto* stmt : registered_statements_) {
+    stmt->connection_ = nullptr;
+    stmt->is_valid_ = false;
+  }
+  registered_statements_.clear();
 }
 
 ConnectionResult<void> PostgreSQLConnection::connect() {
@@ -118,6 +140,7 @@ ConnectionResult<void> PostgreSQLConnection::connect() {
 }
 
 ConnectionResult<void> PostgreSQLConnection::disconnect() {
+  invalidate_statements();
   if (!is_connected_ || !pg_conn_) {
     is_connected_ = false;
     in_transaction_ = false;

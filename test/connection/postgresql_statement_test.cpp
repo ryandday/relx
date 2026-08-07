@@ -418,4 +418,48 @@ TEST_F(PostgreSQLStatementTest, TestInvalidConnection) {
   conn2.disconnect();
 }
 
+// Regression: a statement outliving its connection dereferenced the dead connection
+// in its destructor (use-after-free); now disconnect invalidates it
+TEST_F(PostgreSQLStatementTest, StatementOutlivesConnectionSafely) {
+  std::unique_ptr<relx::connection::PostgreSQLStatement> escaped;
+
+  {
+    relx::connection::PostgreSQLConnection conn(conn_string);
+    ASSERT_TRUE(conn.connect());
+    create_test_table(conn);
+
+    auto stmt_result = conn.prepare_statement("outlives_test",
+                                              "SELECT * FROM prepared_test WHERE id = $1", 1);
+    ASSERT_TRUE(stmt_result) << stmt_result.error().message;
+    escaped = std::move(*stmt_result);
+  }  // connection destroyed while the statement lives on
+
+  // Executing must return an error, not crash
+  auto result = escaped->execute({"1"});
+  ASSERT_FALSE(result);
+  EXPECT_NE(result.error().message.find("disconnected or destroyed"), std::string::npos);
+
+  escaped.reset();  // destructor must not touch the dead connection
+}
+
+// Regression: moving a connection orphaned its statements' back-pointers
+TEST_F(PostgreSQLStatementTest, ConnectionMoveRebindsStatements) {
+  relx::connection::PostgreSQLConnection conn(conn_string);
+  ASSERT_TRUE(conn.connect());
+  create_test_table(conn);
+
+  auto stmt_result = conn.prepare_statement("move_rebind_test",
+                                            "SELECT COUNT(*) FROM prepared_test", 0);
+  ASSERT_TRUE(stmt_result) << stmt_result.error().message;
+  auto stmt = std::move(*stmt_result);
+
+  // Move the connection; the statement must follow to the new object
+  relx::connection::PostgreSQLConnection moved = std::move(conn);
+  auto result = stmt->execute({});
+  ASSERT_TRUE(result) << result.error().message;
+
+  stmt.reset();
+  moved.disconnect();
+}
+
 }  // namespace
