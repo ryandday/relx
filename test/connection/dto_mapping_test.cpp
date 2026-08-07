@@ -279,6 +279,40 @@ TEST_F(DtoMappingTest, UnconsumedResultColumnIsError) {
       << result.error().message;
 }
 
+TEST_F(DtoMappingTest, DuplicateResultColumnIsError) {
+  // SELECT u.id, p.id ... both result columns are named "id"; first-match-wins would
+  // silently drop the second value, so the mapping must refuse
+  std::vector<std::string> column_names = {"id", "id", "name"};
+
+  std::vector<relx::result::Row> rows;
+  std::vector<relx::result::Cell> cells;
+  cells.emplace_back("1");
+  cells.emplace_back("2");
+  cells.emplace_back("John Doe");
+  rows.emplace_back(std::move(cells), column_names);
+
+  auto dup_result = relx::result::ResultSet(std::move(rows), std::move(column_names));
+  conn.set_mock_result_set(std::move(dup_result));
+
+  auto result = conn.execute<UserDTO>(RawQuery{});
+  ASSERT_FALSE(result);
+  EXPECT_TRUE(result.error().message.find("duplicate result column 'id'") != std::string::npos)
+      << result.error().message;
+}
+
+TEST(ConvertAndAssignBoolGrammar, OneGrammarEverywhere) {
+  bool target = false;
+  // The unified grammar: case-insensitive t/true/f/false only
+  EXPECT_TRUE(relx::connection::convert_and_assign(target, std::string("t")).has_value());
+  EXPECT_TRUE(target);
+  EXPECT_TRUE(relx::connection::convert_and_assign(target, std::string("FALSE")).has_value());
+  EXPECT_FALSE(target);
+
+  // "1"/"yes" are not booleans in the struct-mapping path
+  EXPECT_FALSE(relx::connection::convert_and_assign(target, std::string("1")).has_value());
+  EXPECT_FALSE(relx::connection::convert_and_assign(target, std::string("yes")).has_value());
+}
+
 // Test type conversion errors
 TEST_F(DtoMappingTest, TypeConversionErrors) {
   // Set up result with invalid data

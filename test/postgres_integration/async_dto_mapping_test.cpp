@@ -72,8 +72,12 @@ protected:
 
     // Setup test environment
     run_test([this]() -> boost::asio::awaitable<void> {
-      // Connect to the database
-      co_await conn->connect();
+      // Connect to the database; a discarded failure here would let every test in
+      // the fixture "pass" vacuously without a database
+      auto connect_result = co_await conn->connect();
+      if (!connect_result) {
+        throw std::runtime_error("Failed to connect: " + connect_result.error().message);
+      }
 
       // First drop any existing table
       auto drop_sql = relx::drop_table(users).if_exists().cascade();

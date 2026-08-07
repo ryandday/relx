@@ -57,21 +57,21 @@ std::expected<void, std::string> convert_and_assign(T& target, const std::string
                   "std::string_view struct fields are rejected: the view would dangle once the "
                   "result set is destroyed. Use std::string instead.");
     return {};
-  } else if constexpr (std::is_same_v<T, std::string> || std::is_same_v<T, char> ||
-                       std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>) {
+  } else if constexpr (std::is_same_v<T, char> || std::is_same_v<T, char8_t> ||
+                       std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t> ||
+                       std::is_same_v<T, wchar_t>) {
+    static_assert(std::is_same_v<T, std::string>,
+                  "char-like struct fields are rejected: a database text cell does not "
+                  "map to a single character ('5' vs 5 is ambiguous). Use std::string.");
+    return {};
+  } else if constexpr (std::is_same_v<T, std::string>) {
     target = value;
     return {};
   } else if constexpr (std::is_same_v<T, bool>) {
-    // Handle PostgreSQL-style boolean values ('t', 'f', etc.). Unrecognized text is
-    // an error - mapping it to false would silently corrupt data.
-    if (value == "1" || value == "true" || value == "TRUE" || value == "True" || value == "t" ||
-        value == "T" || value == "yes" || value == "YES" || value == "Y") {
-      target = true;
-      return {};
-    }
-    if (value == "0" || value == "false" || value == "FALSE" || value == "False" || value == "f" ||
-        value == "F" || value == "no" || value == "NO" || value == "N") {
-      target = false;
+    // The one boolean grammar (schema::detail::parse_bool). Unrecognized text is an
+    // error - mapping it to false would silently corrupt data.
+    if (const auto parsed = schema::detail::parse_bool(value)) {
+      target = *parsed;
       return {};
     }
     return std::unexpected("'" + value + "' is not a valid boolean");
@@ -123,6 +123,17 @@ std::expected<void, std::string> verify_result_columns_consumed(
         return std::unexpected("result column '" + column + "' has no matching field in struct '" +
                                std::string(refl::type_name<T>()) +
                                "'; add the field or drop the column from the select");
+      }
+    }
+    // Duplicate names (e.g. SELECT u.id, p.id) are ambiguous: both columns would
+    // land in the same field, silently dropping one value
+    for (std::size_t i = 0; i < column_names.size(); ++i) {
+      for (std::size_t j = 0; j < i; ++j) {
+        if (column_names[i] == column_names[j]) {
+          return std::unexpected("duplicate result column '" + column_names[i] +
+                                 "': only one value could land in the struct field; alias one "
+                                 "of the columns");
+        }
       }
     }
   } else if (column_count > field_names.size()) {
