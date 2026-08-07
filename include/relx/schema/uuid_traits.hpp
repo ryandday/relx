@@ -4,6 +4,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 #include <boost/uuid/string_generator.hpp>
 #include <boost/uuid/uuid.hpp>
@@ -24,7 +25,16 @@ struct column_traits<boost::uuids::uuid> {
   }
 
   static boost::uuids::uuid from_sql_string(const std::string& value) {
-    return boost::uuids::string_generator{}(value);
+    std::string_view sv = value;
+    if (sv.size() >= 2 && sv.front() == '\'' && sv.back() == '\'') {
+      sv = sv.substr(1, sv.size() - 2);  // SQL-literal round-trip form
+    }
+    try {
+      return boost::uuids::string_generator{}(std::string(sv));
+    } catch (const std::exception&) {
+      // std::invalid_argument like every other trait (boost throws runtime_error)
+      throw std::invalid_argument("'" + value + "' is not a valid UUID");
+    }
   }
 };
 

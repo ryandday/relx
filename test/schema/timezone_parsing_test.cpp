@@ -191,7 +191,9 @@ TEST_F(TimezoneParsingTest, InvalidTimezoneFormats) {
   TestTimezoneConversionThrows("2023-12-25T10:30:45+25:00", "Invalid hour offset");
   TestTimezoneConversionThrows("2023-12-25T10:30:45+05:60", "Invalid minute offset");
   TestTimezoneConversionThrows("2023-12-25T10:30:45+ABC", "Non-numeric offset");
-  TestTimezoneConversionThrows("2023-12-25T10:30:45+5:5:5", "Too many colons");
+  // "+5:5:5" is now a valid H:M:S offset (second-granularity offsets exist for
+  // pre-1900 local-mean-time zones); four fields is still malformed
+  TestTimezoneConversionThrows("2023-12-25T10:30:45+5:5:5:5", "Too many colons");
   TestTimezoneConversionThrows("2023-12-25T10:30:45+123", "Three digit offset");
   TestTimezoneConversionThrows("2023-12-25T10:30:45+12345", "Five digit offset");
 }
@@ -235,4 +237,42 @@ TEST_F(TimezoneParsingTest, RoundTripConversion) {
   auto parsed_time_t = std::chrono::system_clock::to_time_t(parsed_back);
 
   EXPECT_EQ(original_time_t, parsed_time_t) << "Round-trip conversion failed";
+}
+TEST_F(TimezoneParsingTest, NegativeTimeFieldsRejected) {
+  using tp_traits = column_traits<std::chrono::system_clock::time_point>;
+
+  // "10:-5:45" once parsed as 09:55:45 (upper-bound checks only)
+  EXPECT_THROW(tp_traits::from_sql_string("2023-06-15 10:-5:45"), std::invalid_argument);
+  EXPECT_THROW(tp_traits::from_sql_string("2023-06-15 -1:30:00"), std::invalid_argument);
+  // A negatived offset minute ("+-5:00") once applied the offset backwards
+  EXPECT_THROW(tp_traits::from_sql_string("2023-06-15 10:30:00+-5:00"), std::invalid_argument);
+}
+
+TEST_F(TimezoneParsingTest, SecondGranularityOffsetsParse) {
+  using tp_traits = column_traits<std::chrono::system_clock::time_point>;
+
+  // Pre-1900 local-mean-time zones carry second-granularity offsets
+  auto with_seconds = tp_traits::from_sql_string("1880-01-01 12:00:00+00:53:28");
+  auto utc = tp_traits::from_sql_string("1880-01-01 12:00:00Z");
+  EXPECT_EQ(std::chrono::duration_cast<std::chrono::seconds>(utc - with_seconds).count(),
+            53 * 60 + 28);
+}
+
+TEST_F(TimezoneParsingTest, WideYearsRoundTrip) {
+  using tp_traits = column_traits<std::chrono::system_clock::time_point>;
+
+  // PostgreSQL formats year 10000+ without padding; those values must parse
+  auto wide = tp_traits::from_sql_string("10000-01-01 00:00:00Z");
+  auto y9999 = tp_traits::from_sql_string("9999-12-31 00:00:00Z");
+  EXPECT_GT(wide, y9999);
+}
+
+TEST_F(TimezoneParsingTest, DateYearZeroPadsInSqlForm) {
+  using ymd_traits = column_traits<std::chrono::year_month_day>;
+  using namespace std::chrono;
+
+  const year_month_day early{year{32}, month{1}, day{5}};
+  // '32-01-05' would fail the ISO parser; the padded form round-trips
+  EXPECT_EQ(ymd_traits::to_sql_string(early), "'0032-01-05'");
+  EXPECT_EQ(ymd_traits::from_sql_string(ymd_traits::to_sql_string(early)), early);
 }

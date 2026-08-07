@@ -13,27 +13,31 @@ namespace relx::schema {
 
 namespace detail {
 
-/// @brief Strict integer parse of a fixed slice; throws on any non-digit content
+/// @brief Strict integer parse of a fixed slice; throws on any non-digit content.
+/// Negative values are rejected: a sign inside a time field ("10:-5:45") is
+/// malformed input, and upper-bound checks alone would silently accept it.
 inline int parse_time_field(std::string_view text, const char* what) {
   int out = 0;
   const char* begin = text.data();
   const char* end = begin + text.size();
   auto [ptr, ec] = std::from_chars(begin, end, out);
-  if (ec != std::errc{} || ptr != end || text.empty()) {
+  if (ec != std::errc{} || ptr != end || text.empty() || out < 0) {
     throw std::invalid_argument("Invalid " + std::string(what) + ": '" + std::string(text) + "'");
   }
   return out;
 }
 
-/// @brief Parse "YYYY-MM-DD" (with strict separators) into a validated ymd
+/// @brief Parse "YYYY-MM-DD" (with strict separators) into a validated ymd.
+/// Years wider than 4 digits are accepted (PostgreSQL formats year 10000+ without
+/// padding, and those values must round-trip).
 inline std::chrono::year_month_day parse_iso_date(std::string_view text,
                                                   const std::string& original) {
-  if (text.size() != 10 || text[4] != '-' || text[7] != '-') {
+  if (text.size() < 10 || text[text.size() - 6] != '-' || text[text.size() - 3] != '-') {
     throw std::invalid_argument("Failed to parse date: " + original);
   }
-  const int year = parse_time_field(text.substr(0, 4), "year");
-  const int month = parse_time_field(text.substr(5, 2), "month");
-  const int day = parse_time_field(text.substr(8, 2), "day");
+  const int year = parse_time_field(text.substr(0, text.size() - 6), "year");
+  const int month = parse_time_field(text.substr(text.size() - 5, 2), "month");
+  const int day = parse_time_field(text.substr(text.size() - 2, 2), "day");
   const std::chrono::year_month_day ymd{std::chrono::year{year},
                                         std::chrono::month{static_cast<unsigned>(month)},
                                         std::chrono::day{static_cast<unsigned>(day)}};
@@ -77,19 +81,25 @@ struct column_traits<std::chrono::system_clock::time_point> {
       sv = sv.substr(1, sv.size() - 2);  // SQL-literal round-trip form
     }
 
-    if (sv.size() < 19 || (sv[10] != 'T' && sv[10] != ' ') || sv[13] != ':' || sv[16] != ':') {
+    // The date part runs to the 'T'/' ' separator (years may be wider than 4 digits)
+    const std::size_t sep = sv.find_first_of("T ");
+    if (sep == std::string_view::npos || sv.size() < sep + 9) {
+      throw std::invalid_argument("Failed to parse timestamp: " + value);
+    }
+    const std::size_t time_start = sep + 1;
+    if (sv[time_start + 2] != ':' || sv[time_start + 5] != ':') {
       throw std::invalid_argument("Failed to parse timestamp: " + value);
     }
 
-    const year_month_day ymd = detail::parse_iso_date(sv.substr(0, 10), value);
-    const int hour = detail::parse_time_field(sv.substr(11, 2), "hour");
-    const int minute = detail::parse_time_field(sv.substr(14, 2), "minute");
-    const int second = detail::parse_time_field(sv.substr(17, 2), "second");
+    const year_month_day ymd = detail::parse_iso_date(sv.substr(0, sep), value);
+    const int hour = detail::parse_time_field(sv.substr(time_start, 2), "hour");
+    const int minute = detail::parse_time_field(sv.substr(time_start + 3, 2), "minute");
+    const int second = detail::parse_time_field(sv.substr(time_start + 6, 2), "second");
     if (hour > 23 || minute > 59 || second > 60) {
       throw std::invalid_argument("Invalid time of day: " + value);
     }
 
-    std::size_t pos = 19;
+    std::size_t pos = time_start + 8;
 
     // Fractional seconds, padded/truncated to microseconds
     microseconds fractional{0};
@@ -111,8 +121,9 @@ struct column_traits<std::chrono::system_clock::time_point> {
       pos = digits_end;
     }
 
-    // Timezone suffix
-    minutes tz_offset{0};
+    // Timezone suffix. Second-granularity offsets ("+00:53:28") appear for pre-1900
+    // local-mean-time zones and must parse, not throw.
+    seconds tz_offset{0};
     if (pos < sv.size()) {
       const char tz_char = sv[pos];
       if (tz_char == 'Z' && pos == sv.size() - 1) {
@@ -121,9 +132,16 @@ struct column_traits<std::chrono::system_clock::time_point> {
         std::string_view offset = sv.substr(pos + 1);
         int hours = 0;
         int mins = 0;
+        int secs = 0;
         if (const std::size_t colon = offset.find(':'); colon != std::string_view::npos) {
           hours = detail::parse_time_field(offset.substr(0, colon), "timezone hour");
-          mins = detail::parse_time_field(offset.substr(colon + 1), "timezone minute");
+          std::string_view rest = offset.substr(colon + 1);
+          if (const std::size_t colon2 = rest.find(':'); colon2 != std::string_view::npos) {
+            mins = detail::parse_time_field(rest.substr(0, colon2), "timezone minute");
+            secs = detail::parse_time_field(rest.substr(colon2 + 1), "timezone second");
+          } else {
+            mins = detail::parse_time_field(rest, "timezone minute");
+          }
         } else if (offset.size() == 4) {
           hours = detail::parse_time_field(offset.substr(0, 2), "timezone hour");
           mins = detail::parse_time_field(offset.substr(2, 2), "timezone minute");
@@ -132,11 +150,11 @@ struct column_traits<std::chrono::system_clock::time_point> {
         } else {
           throw std::invalid_argument("Invalid timezone format: " + std::string(sv.substr(pos)));
         }
-        if (hours > 14 || mins > 59) {
+        if (hours > 15 || mins > 59 || secs > 59) {
           throw std::invalid_argument("Timezone offset out of range: " +
                                       std::string(sv.substr(pos)));
         }
-        tz_offset = minutes{hours * 60 + mins};
+        tz_offset = seconds{hours * 3600 + mins * 60 + secs};
         if (tz_char == '-') {
           tz_offset = -tz_offset;
         }
@@ -159,7 +177,9 @@ struct column_traits<std::chrono::year_month_day> {
   static constexpr bool nullable = false;
 
   static std::string to_sql_string(const std::chrono::year_month_day& value) {
-    return std::format("'{}-{:02}-{:02}'", static_cast<int>(value.year()),
+    // Zero-padded year: '32-01-01' fails the ISO parser and binds wrong text for
+    // pre-1000 dates; '0032-01-01' round-trips
+    return std::format("'{:04}-{:02}-{:02}'", static_cast<int>(value.year()),
                        static_cast<unsigned>(value.month()), static_cast<unsigned>(value.day()));
   }
 

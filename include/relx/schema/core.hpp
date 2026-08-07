@@ -3,6 +3,8 @@
 #include "../reflect.hpp"
 #include "fixed_string.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <format>
 #include <optional>
@@ -25,6 +27,26 @@ template <typename T>
 struct column_traits;
 
 namespace detail {
+
+/// @brief The one boolean text grammar: case-insensitive t/true/f/false. PostgreSQL
+/// emits only 't'/'f'; anything else (including "1"/"0") is unrecognized here -
+/// numeric booleans are an explicit opt-in at the Cell layer, never a silent default.
+/// @return The parsed value, or nullopt for unrecognized text
+inline std::optional<bool> parse_bool(std::string_view value) {
+  const auto eq_ci = [](std::string_view text, std::string_view lower) {
+    return text.size() == lower.size() &&
+           std::equal(text.begin(), text.end(), lower.begin(), [](char a, char b) {
+             return std::tolower(static_cast<unsigned char>(a)) == b;
+           });
+  };
+  if (eq_ci(value, "t") || eq_ci(value, "true")) {
+    return true;
+  }
+  if (eq_ci(value, "f") || eq_ci(value, "false")) {
+    return false;
+  }
+  return std::nullopt;
+}
 
 /// @brief Strict numeric parse: the whole string must be consumed
 template <typename T>
@@ -101,14 +123,10 @@ struct column_traits<bool> {
   static std::string to_sql_string(const bool& value) { return value ? "true" : "false"; }
 
   static bool from_sql_string(const std::string& value) {
-    // PostgreSQL emits 't'/'f'; also accept the spellings it accepts as input.
     // Anything unrecognized is an error - mapping it to false would silently
-    // corrupt data.
-    if (value == "t" || value == "true" || value == "TRUE" || value == "1") {
-      return true;
-    }
-    if (value == "f" || value == "false" || value == "FALSE" || value == "0") {
-      return false;
+    // corrupt data
+    if (const auto parsed = detail::parse_bool(value)) {
+      return *parsed;
     }
     throw std::invalid_argument("'" + value + "' is not a valid BOOLEAN");
   }
