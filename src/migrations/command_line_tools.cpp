@@ -46,6 +46,48 @@ void print_usage(const char* program_name, const std::vector<std::string>& suppo
   }
 }
 
+namespace {
+
+/// @brief Write text with EVERY line comment-prefixed. A multi-statement operation
+/// (e.g. the several ALTER COLUMN statements of a column modify) spans lines;
+/// prefixing only the first would leave live rollback SQL inside the forward file.
+void write_commented(std::ofstream& file, const std::string& text) {
+  std::size_t start = 0;
+  while (start <= text.size()) {
+    const std::size_t end = text.find('\n', start);
+    const std::size_t line_end = end == std::string::npos ? text.size() : end;
+    file << "-- " << text.substr(start, line_end - start) << "\n";
+    if (end == std::string::npos) {
+      break;
+    }
+    start = end + 1;
+  }
+}
+
+/// @brief Parse the trailing [--output FILE] options strictly: any unknown argument
+/// (e.g. a typo like --ouput) is an error, not a silent fall-through to stdout
+bool parse_output_option(const std::vector<std::string>& args, std::size_t start,
+                         CommandLineArgs& result) {
+  for (std::size_t i = start; i < args.size(); ++i) {
+    if (args[i] == "--output" || args[i] == "-o") {
+      if (i + 1 >= args.size()) {
+        result.command = CommandLineArgs::Command::INVALID;
+        result.error_message = "--output requires filename";
+        return false;
+      }
+      result.output_file = args[i + 1];
+      ++i;
+    } else {
+      result.command = CommandLineArgs::Command::INVALID;
+      result.error_message = "Unknown argument: " + args[i];
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
+
 void write_migration_to_file(const Migration& migration, const std::string& filename,
                              bool include_rollback) {
   std::ofstream file(filename);
@@ -55,6 +97,13 @@ void write_migration_to_file(const Migration& migration, const std::string& file
 
   file << "-- Migration: " << migration.name() << "\n";
   file << "-- Generated at: " << std::chrono::system_clock::now() << "\n\n";
+
+  for (const auto& warning : migration.warnings()) {
+    file << "-- WARNING: " << warning << "\n";
+  }
+  if (!migration.warnings().empty()) {
+    file << "\n";
+  }
 
   file << "-- === FORWARD MIGRATION ===\n";
   auto forward_result = migration.forward_sql();
@@ -81,14 +130,25 @@ void write_migration_to_file(const Migration& migration, const std::string& file
     const auto& rollback_sqls = *rollback_result;
     for (size_t i = 0; i < rollback_sqls.size(); ++i) {
       file << "-- Rollback Operation " << (i + 1) << "\n";
-      file << "-- " << rollback_sqls[i] << "\n\n";
+      write_commented(file, rollback_sqls[i]);
+      file << "\n";
     }
+  }
+
+  // A full disk or closed pipe must not produce a truncated file and exit 0
+  file.flush();
+  if (!file) {
+    throw std::runtime_error("Failed while writing migration file: " + filename);
   }
 }
 
 void print_migration(const Migration& migration) {
   std::cout << "Migration: " << migration.name() << "\n";
-  std::cout << "Operations: " << migration.size() << "\n\n";
+  std::cout << "Operations: " << migration.size() << "\n";
+  for (const auto& warning : migration.warnings()) {
+    std::cout << "WARNING: " << warning << "\n";
+  }
+  std::cout << "\n";
 
   std::cout << "Forward Migration SQL:\n";
   auto forward_result = migration.forward_sql();
@@ -136,16 +196,8 @@ CommandLineArgs parse_args(const std::vector<std::string>& args) {
     result.from_version = args[1];
     result.to_version = args[2];
 
-    // Check for --output option
-    for (size_t i = 3; i < args.size(); ++i) {
-      if ((args[i] == "--output" || args[i] == "-o") && i + 1 < args.size()) {
-        result.output_file = args[i + 1];
-        break;
-      } else if (args[i] == "--output" || args[i] == "-o") {
-        result.command = CommandLineArgs::Command::INVALID;
-        result.error_message = "--output requires filename";
-        return result;
-      }
+    if (!parse_output_option(args, 3, result)) {
+      return result;
     }
   } else if (args[0] == "--create") {
     if (args.size() < 2) {
@@ -156,16 +208,8 @@ CommandLineArgs parse_args(const std::vector<std::string>& args) {
     result.command = CommandLineArgs::Command::CREATE;
     result.version = args[1];
 
-    // Check for --output option
-    for (size_t i = 2; i < args.size(); ++i) {
-      if ((args[i] == "--output" || args[i] == "-o") && i + 1 < args.size()) {
-        result.output_file = args[i + 1];
-        break;
-      } else if (args[i] == "--output" || args[i] == "-o") {
-        result.command = CommandLineArgs::Command::INVALID;
-        result.error_message = "--output requires filename";
-        return result;
-      }
+    if (!parse_output_option(args, 2, result)) {
+      return result;
     }
   } else if (args[0] == "--drop") {
     if (args.size() < 2) {
@@ -176,16 +220,8 @@ CommandLineArgs parse_args(const std::vector<std::string>& args) {
     result.command = CommandLineArgs::Command::DROP;
     result.version = args[1];
 
-    // Check for --output option
-    for (size_t i = 2; i < args.size(); ++i) {
-      if ((args[i] == "--output" || args[i] == "-o") && i + 1 < args.size()) {
-        result.output_file = args[i + 1];
-        break;
-      } else if (args[i] == "--output" || args[i] == "-o") {
-        result.command = CommandLineArgs::Command::INVALID;
-        result.error_message = "--output requires filename";
-        return result;
-      }
+    if (!parse_output_option(args, 2, result)) {
+      return result;
     }
   } else {
     result.command = CommandLineArgs::Command::INVALID;
@@ -212,107 +248,114 @@ int run_migration_tool(int argc, char* argv[], const std::vector<std::string>& s
   bool create_available = create_generator.has_value();
   bool drop_available = drop_generator.has_value();
 
-  switch (parsed_args.command) {
-  case CommandLineArgs::Command::HELP:
-    print_usage(argv[0], supported_versions, create_available, drop_available);
-    return 0;
+  // File-writing failures throw; an exit-code API must not leak exceptions
+  try {
+    switch (parsed_args.command) {
+    case CommandLineArgs::Command::HELP:
+      print_usage(argv[0], supported_versions, create_available, drop_available);
+      return 0;
 
-  case CommandLineArgs::Command::GENERATE: {
-    // Validate supported versions
-    bool from_supported = std::find(supported_versions.begin(), supported_versions.end(),
-                                    parsed_args.from_version) != supported_versions.end();
-    bool to_supported = std::find(supported_versions.begin(), supported_versions.end(),
-                                  parsed_args.to_version) != supported_versions.end();
+    case CommandLineArgs::Command::GENERATE: {
+      // Validate supported versions
+      bool from_supported = std::find(supported_versions.begin(), supported_versions.end(),
+                                      parsed_args.from_version) != supported_versions.end();
+      bool to_supported = std::find(supported_versions.begin(), supported_versions.end(),
+                                    parsed_args.to_version) != supported_versions.end();
 
-    if (!from_supported) {
-      std::cerr << "Error: Unsupported version '" << parsed_args.from_version << "'\n";
+      if (!from_supported) {
+        std::cerr << "Error: Unsupported version '" << parsed_args.from_version << "'\n";
+        return 1;
+      }
+      if (!to_supported) {
+        std::cerr << "Error: Unsupported version '" << parsed_args.to_version << "'\n";
+        return 1;
+      }
+
+      auto migration_result = migration_generator(parsed_args.from_version, parsed_args.to_version);
+      if (!migration_result) {
+        std::cerr << "Error generating migration: " << migration_result.error().format() << "\n";
+        return 1;
+      }
+
+      const auto& migration = *migration_result;
+      if (!parsed_args.output_file.empty()) {
+        write_migration_to_file(migration, parsed_args.output_file);
+        std::cout << "Migration written to: " << parsed_args.output_file << "\n";
+      } else {
+        print_migration(migration);
+      }
+      return 0;
+    }
+
+    case CommandLineArgs::Command::CREATE: {
+      if (!create_generator.has_value()) {
+        std::cerr << "Error: CREATE table functionality is not available\n";
+        return 1;
+      }
+
+      // Validate supported version
+      bool version_supported = std::find(supported_versions.begin(), supported_versions.end(),
+                                         parsed_args.version) != supported_versions.end();
+      if (!version_supported) {
+        std::cerr << "Error: Unsupported version '" << parsed_args.version << "'\n";
+        return 1;
+      }
+
+      auto migration_result = (*create_generator)(parsed_args.version);
+      if (!migration_result) {
+        std::cerr << "Error generating create migration: " << migration_result.error().format()
+                  << "\n";
+        return 1;
+      }
+
+      const auto& migration = *migration_result;
+      if (!parsed_args.output_file.empty()) {
+        write_migration_to_file(migration, parsed_args.output_file);
+        std::cout << "Migration written to: " << parsed_args.output_file << "\n";
+      } else {
+        print_migration(migration);
+      }
+      return 0;
+    }
+
+    case CommandLineArgs::Command::DROP: {
+      if (!drop_generator.has_value()) {
+        std::cerr << "Error: DROP table functionality is not available\n";
+        return 1;
+      }
+
+      // Validate supported version
+      bool version_supported = std::find(supported_versions.begin(), supported_versions.end(),
+                                         parsed_args.version) != supported_versions.end();
+      if (!version_supported) {
+        std::cerr << "Error: Unsupported version '" << parsed_args.version << "'\n";
+        return 1;
+      }
+
+      auto migration_result = (*drop_generator)(parsed_args.version);
+      if (!migration_result) {
+        std::cerr << "Error generating drop migration: " << migration_result.error().format()
+                  << "\n";
+        return 1;
+      }
+
+      const auto& migration = *migration_result;
+      if (!parsed_args.output_file.empty()) {
+        write_migration_to_file(migration, parsed_args.output_file);
+        std::cout << "Migration written to: " << parsed_args.output_file << "\n";
+      } else {
+        print_migration(migration);
+      }
+      return 0;
+    }
+
+    case CommandLineArgs::Command::INVALID:
+      std::cerr << "Error: " << parsed_args.error_message << "\n";
+      print_usage(argv[0], supported_versions, create_available, drop_available);
       return 1;
     }
-    if (!to_supported) {
-      std::cerr << "Error: Unsupported version '" << parsed_args.to_version << "'\n";
-      return 1;
-    }
-
-    auto migration_result = migration_generator(parsed_args.from_version, parsed_args.to_version);
-    if (!migration_result) {
-      std::cerr << "Error generating migration: " << migration_result.error().format() << "\n";
-      return 1;
-    }
-
-    const auto& migration = *migration_result;
-    if (!parsed_args.output_file.empty()) {
-      write_migration_to_file(migration, parsed_args.output_file);
-      std::cout << "Migration written to: " << parsed_args.output_file << "\n";
-    } else {
-      print_migration(migration);
-    }
-    return 0;
-  }
-
-  case CommandLineArgs::Command::CREATE: {
-    if (!create_generator.has_value()) {
-      std::cerr << "Error: CREATE table functionality is not available\n";
-      return 1;
-    }
-
-    // Validate supported version
-    bool version_supported = std::find(supported_versions.begin(), supported_versions.end(),
-                                       parsed_args.version) != supported_versions.end();
-    if (!version_supported) {
-      std::cerr << "Error: Unsupported version '" << parsed_args.version << "'\n";
-      return 1;
-    }
-
-    auto migration_result = (*create_generator)(parsed_args.version);
-    if (!migration_result) {
-      std::cerr << "Error generating create migration: " << migration_result.error().format()
-                << "\n";
-      return 1;
-    }
-
-    const auto& migration = *migration_result;
-    if (!parsed_args.output_file.empty()) {
-      write_migration_to_file(migration, parsed_args.output_file);
-      std::cout << "Migration written to: " << parsed_args.output_file << "\n";
-    } else {
-      print_migration(migration);
-    }
-    return 0;
-  }
-
-  case CommandLineArgs::Command::DROP: {
-    if (!drop_generator.has_value()) {
-      std::cerr << "Error: DROP table functionality is not available\n";
-      return 1;
-    }
-
-    // Validate supported version
-    bool version_supported = std::find(supported_versions.begin(), supported_versions.end(),
-                                       parsed_args.version) != supported_versions.end();
-    if (!version_supported) {
-      std::cerr << "Error: Unsupported version '" << parsed_args.version << "'\n";
-      return 1;
-    }
-
-    auto migration_result = (*drop_generator)(parsed_args.version);
-    if (!migration_result) {
-      std::cerr << "Error generating drop migration: " << migration_result.error().format() << "\n";
-      return 1;
-    }
-
-    const auto& migration = *migration_result;
-    if (!parsed_args.output_file.empty()) {
-      write_migration_to_file(migration, parsed_args.output_file);
-      std::cout << "Migration written to: " << parsed_args.output_file << "\n";
-    } else {
-      print_migration(migration);
-    }
-    return 0;
-  }
-
-  case CommandLineArgs::Command::INVALID:
-    std::cerr << "Error: " << parsed_args.error_message << "\n";
-    print_usage(argv[0], supported_versions, create_available, drop_available);
+  } catch (const std::exception& e) {
+    std::cerr << "Error: " << e.what() << "\n";
     return 1;
   }
 
