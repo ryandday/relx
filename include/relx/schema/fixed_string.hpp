@@ -61,11 +61,12 @@ std::ostream& operator<<(std::ostream& os, const fixed_string<N>& str) {
 }
 }  // namespace schema
 namespace literals {
-// Standard C++11 user-defined literal syntax
-template <char... Chars>
+// String literal operator template (class-type NTTP form): "users"_fs.
+// The char-pack form (template <char...>) only ever matches numeric literals, so
+// this operator could never be invoked with a string literal.
+template <schema::fixed_string Str>
 constexpr auto operator""_fs() {
-  constexpr char str[] = {Chars..., '\0'};
-  return schema::fixed_string<sizeof...(Chars) + 1>(str);
+  return Str;
 }
 }  // namespace literals
 

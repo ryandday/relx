@@ -91,6 +91,7 @@ inline constexpr std::string_view reserved_keywords[] = {
     "right",
     "select",
     "session_user",
+    "system_user",
     "similar",
     "some",
     "symmetric",

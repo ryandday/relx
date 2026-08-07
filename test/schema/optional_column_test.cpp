@@ -63,8 +63,10 @@ TEST(OptionalColumnTest, ValueConversion) {
   std::optional<std::string> null_email;
   EXPECT_EQ(email_col.to_sql_string(null_email), "NULL");
 
+  // NULL is out-of-band: the text "NULL" is real data, not SQL NULL
   auto parsed_null = email_col.from_sql_string("NULL");
-  EXPECT_FALSE(parsed_null.has_value());
+  ASSERT_TRUE(parsed_null.has_value());
+  EXPECT_EQ(*parsed_null, "NULL");
 }
 
 TEST(OptionalColumnTest, TableWithOptionalColumns) {

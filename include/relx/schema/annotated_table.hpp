@@ -148,12 +148,15 @@ struct table_t {
 namespace detail {
 
 /// @brief Build the schema::column specialization for annotated member M, bound to
-/// table_t<Parent, Alias> so aliased references qualify columns with the alias
-template <std::meta::info M, fixed_string Alias>
+/// table_t<Owner, Alias> so aliased references qualify columns with the alias.
+/// Owner is passed explicitly rather than derived from parent_of(M): for inherited
+/// members that would be the base class, and the column would qualify with the base's
+/// table name instead of the derived table's.
+template <std::meta::info M, fixed_string Alias, std::meta::info Owner>
 consteval std::meta::info make_column_type() {
   std::vector<std::meta::info> args;
-  args.push_back(std::meta::substitute(
-      ^^table_t, {std::meta::parent_of(M), std::meta::reflect_constant(Alias)}));
+  args.push_back(
+      std::meta::substitute(^^table_t, {Owner, std::meta::reflect_constant(Alias)}));
   args.push_back(std::meta::reflect_constant(member_name_fs<M>()));
   args.push_back(std::meta::type_of(M));
   for (std::meta::info a : std::meta::annotations_of(M)) {
@@ -169,7 +172,12 @@ consteval std::meta::info make_column_type() {
 
 /// @brief The schema::column type derived from annotated member M
 template <std::meta::info M, fixed_string Alias = "">
-using column_for = typename [:detail::make_column_type<M, Alias>():];
+using column_for = typename [:detail::make_column_type<M, Alias, std::meta::parent_of(M)>():];
+
+/// @brief column_for with the owning table type made explicit (needed for members
+/// inherited from a base class)
+template <std::meta::info M, fixed_string Alias, std::meta::info Owner>
+using owned_column_for = typename [:detail::make_column_type<M, Alias, Owner>():];
 
 namespace detail {
 
@@ -182,11 +190,15 @@ struct columns_holder {
   struct type;
   consteval {
     std::vector<std::meta::info> specs;
-    for (std::meta::info m : std::meta::nonstatic_data_members_of(
-             ^^T, std::meta::access_context::unchecked())) {
+    // Base-walking member_array, like every other reflection path: a table struct
+    // with a base class must expose the inherited columns too, or the table object
+    // and the generated DDL disagree
+    for (std::meta::info m : refl::member_array<T>()) {
       specs.push_back(std::meta::data_member_spec(
-          std::meta::substitute(^^column_for, {std::meta::reflect_constant(m),
-                                               std::meta::reflect_constant(Alias)}),
+          std::meta::substitute(^^owned_column_for,
+                                {std::meta::reflect_constant(m),
+                                 std::meta::reflect_constant(Alias),
+                                 std::meta::reflect_constant(^^T)}),
           {.name = std::meta::identifier_of(m)}));
     }
     std::meta::define_aggregate(^^type, specs);
@@ -420,7 +432,9 @@ struct annotated_check {
   consteval std::string constraint_sql() const {
     std::string out;
     if (name_len_ > 0) {
-      out += "CONSTRAINT " + std::string(std::string_view(name_, name_len_)) + " ";
+      // Quoted like every other identifier: an unquoted mixed-case name would be
+      // folded by PostgreSQL and never match the differ's DROP CONSTRAINT
+      out += "CONSTRAINT " + quote_identifier(std::string_view(name_, name_len_)) + " ";
     }
     out += "CHECK (" + std::string(std::string_view(cond_, cond_len_)) + ")";
     return out;
@@ -495,8 +509,17 @@ consteval std::string constraint_diagnostics() {
   bool member_level_pk = false;
   for (std::meta::info m : refl::member_array<T>()) {
     for (std::meta::info a : std::meta::annotations_of(m)) {
-      if (std::meta::remove_cv(std::meta::type_of(a)) == ^^primary_key) {
+      const std::meta::info annotation_type = std::meta::remove_cv(std::meta::type_of(a));
+      if (annotation_type == ^^primary_key) {
         member_level_pk = true;
+      }
+      // Every member annotation must be a column modifier; a table-level annotation
+      // (check/index_on/composite_*) on a member would compile and silently never
+      // reach the database
+      if (!is_modifier_type(annotation_type)) {
+        diag += "annotation on member '" + std::string(std::meta::identifier_of(m)) +
+                "' is not a column modifier (table-level annotations like check/index_on "
+                "belong on the struct); ";
       }
     }
   }
@@ -521,6 +544,12 @@ consteval std::string constraint_diagnostics() {
     }
     if constexpr (CompositeFkAnnotation<A>) {
       diag += A::target_diagnostics();
+    }
+    // A column modifier (pk/unique/...) at struct level would compile and silently
+    // apply to nothing
+    if constexpr (ColumnModifier<A>) {
+      diag += "column-level annotation at struct level is ignored - annotate the member "
+              "instead; ";
     }
   }
 
@@ -688,7 +717,9 @@ struct create_table_sql_builder {
     if (if_not_exists_) {
       sql += "IF NOT EXISTS ";
     }
-    sql += table_name_of<T>();
+    // Quoted like the runtime builders: an unquoted mixed-case name (unannotated
+    // struct Users) would create a folded "users" that no query ever matches
+    sql += quote_identifier(table_name_of<T>());
     sql += " (\n";
 
     bool first = true;
@@ -738,7 +769,7 @@ struct drop_table_sql_builder {
     if (if_exists_) {
       sql += "IF EXISTS ";
     }
-    sql += table_name_of<T>();
+    sql += quote_identifier(table_name_of<T>());
     if (cascade_) {
       sql += " CASCADE";
     }

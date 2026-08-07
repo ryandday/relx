@@ -333,4 +333,33 @@ TEST(AnnotatedTableTest, MigrationDiffSeesAnnotationConstraints) {
 
 // clang-format on
 
+// clang-format off
+
+struct TimestampedBase {
+  int id;
+  std::string created_at;
+};
+
+struct [[=relx::table("derived_docs")]] DerivedDocs : TimestampedBase {
+  std::string title;
+};
+
+// clang-format on
+
+// Tables with base classes: the table object must expose inherited columns just
+// like the DDL does (columns_holder once enumerated only the derived members,
+// making the table object and the generated DDL disagree)
+TEST(AnnotatedTableTest, BaseClassColumnsAppearInTableObjectAndDdl) {
+  constexpr auto docs = relx::t<DerivedDocs>;
+
+  auto query = relx::query::select(docs.id, docs.created_at, docs.title).from(docs);
+  EXPECT_EQ(query.to_sql(), "SELECT derived_docs.id, derived_docs.created_at, "
+                            "derived_docs.title FROM derived_docs");
+
+  const std::string ddl(relx::create_table_sql<DerivedDocs>().to_sql());
+  EXPECT_NE(ddl.find("id INTEGER NOT NULL"), std::string::npos) << ddl;
+  EXPECT_NE(ddl.find("created_at TEXT NOT NULL"), std::string::npos) << ddl;
+  EXPECT_NE(ddl.find("title TEXT NOT NULL"), std::string::npos) << ddl;
+}
+
 }  // namespace

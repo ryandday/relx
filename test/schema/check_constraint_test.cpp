@@ -57,10 +57,12 @@ struct [[=relx::table("named_items"),
 };
 
 TEST(CheckConstraintTest, NamedConstraints) {
+  // Names quote like every other identifier: premium_price_$ needs quoting, or
+  // PostgreSQL would reject/fold it and DROP CONSTRAINT would target the wrong name
   EXPECT_EQ(relx::schema::table_constraints_sql<NamedItem>(),
             "CONSTRAINT positive_price CHECK (price > 0),\n"
             "CONSTRAINT min_order_value CHECK (quantity * price >= 1000),\n"
-            "CONSTRAINT premium_price_$ CHECK (price > 100)");
+            "CONSTRAINT \"premium_price_$\" CHECK (price > 100)");
 }
 
 // clang-format on

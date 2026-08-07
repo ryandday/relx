@@ -4,6 +4,7 @@
 #include "fixed_string.hpp"
 #include "identifier.hpp"
 
+#include <format>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -131,7 +132,10 @@ struct unwrap_optional<std::optional<T>> {
 }  // namespace detail
 
 /// @brief The database type name used for a native enum column: the enum's identifier,
-/// lowercased (PostgreSQL folds unquoted identifiers to lowercase)
+/// lowercased (PostgreSQL folds unquoted identifiers) and quoted when the result is a
+/// reserved word (enum class Order). Deliberately NOT namespace-qualified: versioned
+/// schema types (v1::Status vs v2::Status) must map to the same database type, so
+/// same-named enums in different namespaces are the caller's to disambiguate.
 template <typename E>
   requires std::is_enum_v<E>
 consteval std::string_view pg_enum_type_name() {
@@ -141,7 +145,7 @@ consteval std::string_view pg_enum_type_name() {
       c = static_cast<char>(c - 'A' + 'a');
     }
   }
-  return std::define_static_string(name);
+  return std::define_static_string(quote_identifier(name));
 }
 
 /// @brief Marker modifier: store the enum column as a native database enum type
@@ -223,11 +227,12 @@ struct default_value {
       return " DEFAULT " + detail::int_to_string(value);
     } else if constexpr (std::is_floating_point_v<value_type>) {
       // Runtime-only: constexpr floating-point formatting is not available;
-      // tables with floating DEFAULTs cannot use consteval DDL
-      return " DEFAULT " + std::to_string(value);
+      // tables with floating DEFAULTs cannot use consteval DDL. std::format gives
+      // the shortest round-trip form (std::to_string truncates to 6 digits).
+      return " DEFAULT " + std::format("{}", value);
     } else {
       // Fall back to generic string conversion
-      return " DEFAULT " + std::to_string(value);
+      return " DEFAULT " + std::format("{}", value);
     }
   }
 };
@@ -266,8 +271,16 @@ struct string_default {
       // SQL function or literal that should not be quoted
       return " DEFAULT " + std::string(std::string_view(value));
     } else {
-      // Normal string that should be quoted
-      return " DEFAULT '" + std::string(std::string_view(value)) + "'";
+      // Normal string, quoted with embedded quotes doubled (O'Brien -> 'O''Brien'),
+      // matching column_traits<std::string>::to_sql_string
+      std::string escaped;
+      for (const char c : std::string_view(value)) {
+        if (c == '\'') {
+          escaped += '\'';
+        }
+        escaped += c;
+      }
+      return " DEFAULT '" + escaped + "'";
     }
   }
 };
@@ -281,14 +294,6 @@ struct null_default {
 /// default_sql<"gen_random_uuid()">
 template <fixed_string Expr>
 using default_sql = string_default<Expr, /*IsLiteral=*/true>;
-
-/// @brief Helper to apply all column modifiers to a SQL definition
-template <typename... Modifiers>
-constexpr std::string apply_modifiers() {
-  std::string result;
-  [[maybe_unused]] auto _ = (result += ... += Modifiers::to_sql());  // supress unused warning
-  return result;
-}
 
 // Modifier-kind traits for the constraint modifiers the migration differ hoists
 // into table-level constraints (so their changes diff as ADD/DROP CONSTRAINT
@@ -315,6 +320,40 @@ struct is_hoisted_constraint_modifier
     : std::bool_constant<std::is_same_v<M, unique> || is_check_modifier<M>::value ||
                          is_references_modifier<M>::value || is_fk_action_modifier<M>::value> {};
 
+/// @brief Helper to apply all column modifiers to a SQL definition. FK action
+/// modifiers (ON DELETE / ON UPDATE) always render immediately after the REFERENCES
+/// clause, regardless of where they appear in the modifier list - concatenating in
+/// listing order would emit invalid SQL (or silently drop the action) when an action
+/// is written before references.
+template <typename... Modifiers>
+constexpr std::string apply_modifiers() {
+  std::string fk_actions;
+  auto collect = [&fk_actions]<typename Mod>() {
+    if constexpr (is_fk_action_modifier<Mod>::value) {
+      fk_actions += Mod::to_sql();
+    }
+  };
+  (collect.template operator()<Modifiers>(), ...);
+
+  std::string result;
+  auto add = [&]<typename Mod>() {
+    if constexpr (is_fk_action_modifier<Mod>::value) {
+      // rendered right after REFERENCES below
+    } else if constexpr (is_references_modifier<Mod>::value) {
+      result += Mod::to_sql();
+      result += fk_actions;
+    } else {
+      result += Mod::to_sql();
+    }
+  };
+  (add.template operator()<Modifiers>(), ...);
+
+  if constexpr (!(is_references_modifier<Modifiers>::value || ...)) {
+    result += fk_actions;  // degenerate: actions without a references clause
+  }
+  return result;
+}
+
 /// @brief Apply the column modifiers, skipping those the migration differ hoists
 /// into table-level constraints
 template <typename... Modifiers>
@@ -335,6 +374,18 @@ constexpr std::string apply_modifiers_sans_hoisted() {
 template <fixed_string Name, typename... Modifiers>
 std::vector<std::string> hoisted_constraint_defs() {
   std::vector<std::string> defs;
+
+  // FK actions are collected up front so an ON DELETE/ON UPDATE listed before the
+  // references<> modifier still attaches to the FOREIGN KEY clause instead of being
+  // overwritten by it
+  std::string fk_actions;
+  auto collect = [&fk_actions]<typename Mod>() {
+    if constexpr (is_fk_action_modifier<Mod>::value) {
+      fk_actions += Mod::to_sql();
+    }
+  };
+  (collect.template operator()<Modifiers>(), ...);
+
   std::string fk;
   auto add = [&]<typename Mod>() {
     if constexpr (std::is_same_v<Mod, unique>) {
@@ -342,9 +393,8 @@ std::vector<std::string> hoisted_constraint_defs() {
     } else if constexpr (is_check_modifier<Mod>::value) {
       defs.push_back("CHECK (" + std::string(std::string_view(Mod::expr)) + ")");
     } else if constexpr (is_references_modifier<Mod>::value) {
-      fk = "FOREIGN KEY (" + quote_identifier(std::string_view(Name)) + ")" + Mod::to_sql();
-    } else if constexpr (is_fk_action_modifier<Mod>::value) {
-      fk += Mod::to_sql();
+      fk = "FOREIGN KEY (" + quote_identifier(std::string_view(Name)) + ")" + Mod::to_sql() +
+           fk_actions;
     }
   };
   (add.template operator()<Modifiers>(), ...);
@@ -404,10 +454,18 @@ public:
   /// @brief Flag indicating if the column can be NULL
   static constexpr bool nullable = column_traits<T>::nullable;
 
+  /// @brief Whether the type itself supplies a value-set CHECK (e.g. TEXT-backed
+  /// enums). Hoisted with the modifier constraints: kept inline, adding an enumerator
+  /// would diff as a column change and destroy the column's data via DROP + ADD.
+  static constexpr bool has_type_check = !uses_native_enum && requires {
+    column_traits<T>::check_constraint_sql(std::string_view{});
+  };
+
   /// @brief Whether the column carries inline constraint modifiers the migration
-  /// differ hoists into table-level constraints (unique/check/references + actions)
+  /// differ hoists into table-level constraints (unique/check/references + actions,
+  /// plus the type-supplied CHECK)
   static constexpr bool has_hoisted_constraints =
-      (is_hoisted_constraint_modifier<Modifiers>::value || ...);
+      (is_hoisted_constraint_modifier<Modifiers>::value || ...) || has_type_check;
 
   /// @brief Get the SQL definition of this column
   /// @return A string containing the SQL column definition
@@ -420,7 +478,16 @@ public:
 
   /// @brief The hoisted constraint modifiers as table-level constraint definitions
   static std::vector<std::string> hoisted_constraint_definitions() {
-    return hoisted_constraint_defs<Name, Modifiers...>();
+    auto defs = hoisted_constraint_defs<Name, Modifiers...>();
+    if constexpr (has_type_check) {
+      std::string check = column_traits<T>::check_constraint_sql(
+          quote_identifier(std::string_view(Name)));
+      while (!check.empty() && check.front() == ' ') {
+        check.erase(check.begin());
+      }
+      defs.push_back(std::move(check));
+    }
+    return defs;
   }
 
 private:
@@ -442,9 +509,8 @@ private:
     }
 
     // Value-set constraint supplied by the type itself (e.g. enums generate
-    // CHECK(col IN ('a', 'b', ...)))
-    if constexpr (!uses_native_enum &&
-                  requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
+    // CHECK(col IN ('a', 'b', ...))); hoisted for migrations like the modifiers above
+    if constexpr (!SkipHoisted && has_type_check) {
       result += column_traits<T>::check_constraint_sql(quote_identifier(std::string_view(name)));
     }
 
@@ -574,10 +640,16 @@ public:
 
   static constexpr bool nullable = true;
 
+  /// @brief Whether the underlying type supplies a value-set CHECK (see the primary
+  /// template); NULL passes a SQL CHECK so optionality changes nothing here
+  static constexpr bool has_type_check = !uses_native_enum && requires {
+    column_traits<T>::check_constraint_sql(std::string_view{});
+  };
+
   /// @brief Whether the column carries inline constraint modifiers the migration
   /// differ hoists into table-level constraints (see the primary template)
   static constexpr bool has_hoisted_constraints =
-      (is_hoisted_constraint_modifier<Modifiers>::value || ...);
+      (is_hoisted_constraint_modifier<Modifiers>::value || ...) || has_type_check;
 
   constexpr std::string sql_definition() const { return definition_impl<false>(); }
 
@@ -586,7 +658,16 @@ public:
 
   /// @brief The hoisted constraint modifiers as table-level constraint definitions
   static std::vector<std::string> hoisted_constraint_definitions() {
-    return hoisted_constraint_defs<Name, Modifiers...>();
+    auto defs = hoisted_constraint_defs<Name, Modifiers...>();
+    if constexpr (has_type_check) {
+      std::string check = column_traits<T>::check_constraint_sql(
+          quote_identifier(std::string_view(Name)));
+      while (!check.empty() && check.front() == ' ') {
+        check.erase(check.begin());
+      }
+      defs.push_back(std::move(check));
+    }
+    return defs;
   }
 
 private:
@@ -604,9 +685,9 @@ private:
       result += apply_modifiers<Modifiers...>();
     }
 
-    // Value-set constraint from the underlying type (NULL passes a SQL CHECK)
-    if constexpr (!uses_native_enum &&
-                  requires { column_traits<T>::check_constraint_sql(std::string_view{}); }) {
+    // Value-set constraint from the underlying type (NULL passes a SQL CHECK);
+    // hoisted for migrations like the modifiers above
+    if constexpr (!SkipHoisted && has_type_check) {
       result += column_traits<T>::check_constraint_sql(quote_identifier(std::string_view(name)));
     }
 
@@ -621,10 +702,9 @@ public:
     return "NULL";
   }
 
+  // NULL is out-of-band (a null cell never reaches this parser); the text "NULL"
+  // is real data for the inner type
   static std::optional<T> from_sql_string(const std::string& sql_str) {
-    if (sql_str == "NULL") {
-      return std::nullopt;
-    }
     return column_traits<T>::from_sql_string(sql_str);
   }
 

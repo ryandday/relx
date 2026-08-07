@@ -77,16 +77,19 @@ TEST(ColumnTest, BooleanConversion) {
   EXPECT_EQ(active_col.to_sql_string(true), "true");
   EXPECT_EQ(active_col.to_sql_string(false), "false");
 
-  // Test converting SQL string to bool
-  EXPECT_TRUE(active_col.from_sql_string("1"));
+  // Test converting SQL string to bool: the one grammar is case-insensitive
+  // t/true/f/false (what PostgreSQL emits)
+  EXPECT_TRUE(active_col.from_sql_string("t"));
   EXPECT_TRUE(active_col.from_sql_string("true"));
   EXPECT_TRUE(active_col.from_sql_string("TRUE"));
-  EXPECT_FALSE(active_col.from_sql_string("0"));
+  EXPECT_FALSE(active_col.from_sql_string("f"));
   EXPECT_FALSE(active_col.from_sql_string("false"));
   EXPECT_FALSE(active_col.from_sql_string("FALSE"));
 
-  // Unrecognized text is an error, not false
+  // Unrecognized text is an error, not false; numeric bools are a Cell-layer opt-in
   EXPECT_THROW(active_col.from_sql_string("other"), std::invalid_argument);
+  EXPECT_THROW(active_col.from_sql_string("1"), std::invalid_argument);
+  EXPECT_THROW(active_col.from_sql_string("0"), std::invalid_argument);
 }
 
 TEST(ColumnTest, ColumnWithLongName) {
