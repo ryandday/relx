@@ -1,3 +1,5 @@
+#include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -43,6 +45,63 @@ TEST(BindParamTest, LongLongIsTaggedInt8) {
   EXPECT_EQ(params[0].kind, sql_kind::int8);
   EXPECT_EQ(params[0].binary.size(), 8);
   EXPECT_EQ(params[0].binary[2], 0x01);  // bit 40, big-endian
+}
+
+// Regression: unsigned values once bound as the SAME-width signed OID, so
+// uint32_t{4'000'000'000} arrived as -294967296. Unsigned types bind the next
+// wider signed wire type; 64-bit unsigned stays untyped text.
+TEST(BindParamTest, UnsignedBindsNextWiderSignedType) {
+  const auto u16 = relx::make_bind_param(std::uint16_t{40000}, "40000");
+  EXPECT_EQ(u16.kind, sql_kind::int4);
+  ASSERT_EQ(u16.binary.size(), 4);
+  EXPECT_EQ(u16.binary[0], 0x00);
+  EXPECT_EQ(u16.binary[1], 0x00);
+  EXPECT_EQ(u16.binary[2], 0x9C);
+  EXPECT_EQ(u16.binary[3], 0x40);
+
+  const auto u32 = relx::make_bind_param(std::uint32_t{4'000'000'000U}, "4000000000");
+  EXPECT_EQ(u32.kind, sql_kind::int8);
+  ASSERT_EQ(u32.binary.size(), 8);
+  // 4'000'000'000 = 0x00000000EE6B2800 big-endian: positive int8, not negative int4
+  EXPECT_EQ(u32.binary[0], 0x00);
+  EXPECT_EQ(u32.binary[4], 0xEE);
+  EXPECT_EQ(u32.binary[7], 0x00);
+
+  const auto u8 = relx::make_bind_param(std::uint8_t{200}, "200");
+  EXPECT_EQ(u8.kind, sql_kind::int2);
+  ASSERT_EQ(u8.binary.size(), 2);
+  EXPECT_EQ(u8.binary[0], 0x00);
+  EXPECT_EQ(u8.binary[1], 0xC8);
+}
+
+TEST(BindParamTest, Unsigned64StaysUntypedText) {
+  // No signed wire type can hold the full uint64_t range; the text form lets the
+  // server parse it in context instead of corrupting the top bit
+  const auto u64 = relx::make_bind_param(std::uint64_t{18'000'000'000'000'000'000ULL},
+                                         "18000000000000000000");
+  EXPECT_EQ(u64.kind, sql_kind::unspecified);
+  EXPECT_TRUE(u64.binary.empty());
+  EXPECT_EQ(u64.value, "18000000000000000000");
+}
+
+TEST(BindParamTest, TimePointAndDateBindTypedWithBinaryPayload) {
+  using namespace std::chrono;
+
+  // Value<time_point>/<year_month_day> once bound bare text, leaving the binary
+  // timestamptz/date encoders unreached
+  const auto tp = sys_days{2024y / 1 / 15} + hours{12};
+  auto tp_params = relx::query::val(tp).bind_params();
+  ASSERT_EQ(tp_params.size(), 1);
+  EXPECT_EQ(tp_params[0].kind, sql_kind::timestamptz);
+  EXPECT_EQ(tp_params[0].binary.size(), 8);
+  EXPECT_EQ(tp_params[0].value, "2024-01-15T12:00:00Z");
+
+  const year_month_day ymd = 2024y / 1 / 15;
+  auto ymd_params = relx::query::val(ymd).bind_params();
+  ASSERT_EQ(ymd_params.size(), 1);
+  EXPECT_EQ(ymd_params[0].kind, sql_kind::date);
+  EXPECT_EQ(ymd_params[0].binary.size(), 4);
+  EXPECT_EQ(ymd_params[0].value, "2024-01-15");
 }
 
 TEST(BindParamTest, BoolIsTaggedBoolean) {

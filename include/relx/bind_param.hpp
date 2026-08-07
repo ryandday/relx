@@ -4,6 +4,7 @@
 #include <bit>
 #include <chrono>
 #include <cstdint>
+#include <format>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -94,8 +95,17 @@ template <typename T>
 consteval sql_kind sql_kind_for() {
   if constexpr (std::is_same_v<T, bool>) {
     return sql_kind::boolean;
-  } else if constexpr (std::is_integral_v<T>) {
+  } else if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) {
     return sizeof(T) <= 2 ? sql_kind::int2 : sizeof(T) <= 4 ? sql_kind::int4 : sql_kind::int8;
+  } else if constexpr (std::is_integral_v<T>) {
+    // Unsigned values do not fit the same-width signed wire type (uint32_t
+    // 4'000'000'000 would arrive as a negative int4); bind the next wider signed
+    // type. 64-bit unsigned has no lossless fixed-size encoding - untyped text
+    // lets the server parse the full range.
+    return sizeof(T) <= 1   ? sql_kind::int2
+           : sizeof(T) <= 2 ? sql_kind::int4
+           : sizeof(T) <= 4 ? sql_kind::int8
+                            : sql_kind::unspecified;
   } else if constexpr (std::is_same_v<T, float>) {
     return sql_kind::float4;
   } else if constexpr (std::is_same_v<T, double>) {
@@ -136,14 +146,17 @@ bind_param make_bind_param(const T& val, std::string text) {
     param.kind = sql_kind::boolean;
     detail::store_big_endian(param, val ? 1 : 0, 1);
   } else if constexpr (std::is_integral_v<T>) {
+    // The wire type comes from sql_kind_for: signed types bind same-width, unsigned
+    // types bind the next wider signed type, and 64-bit unsigned stays untyped text
+    constexpr sql_kind wire_kind = sql_kind_for<T>();
     const auto wide = static_cast<std::int64_t>(val);
-    if constexpr (sizeof(T) <= 2) {
+    if constexpr (wire_kind == sql_kind::int2) {
       param.kind = sql_kind::int2;
       detail::store_big_endian(param, static_cast<std::uint16_t>(wide), 2);
-    } else if constexpr (sizeof(T) <= 4) {
+    } else if constexpr (wire_kind == sql_kind::int4) {
       param.kind = sql_kind::int4;
       detail::store_big_endian(param, static_cast<std::uint32_t>(wide), 4);
-    } else {
+    } else if constexpr (wire_kind == sql_kind::int8) {
       param.kind = sql_kind::int8;
       detail::store_big_endian(param, static_cast<std::uint64_t>(wide), 8);
     }
@@ -221,7 +234,8 @@ bind_param make_array_bind_param(const std::vector<T>& values) {
     } else if constexpr (std::is_same_v<T, bool>) {
       param.value += values[i] ? "t" : "f";
     } else {
-      param.value += std::to_string(values[i]);
+      // Shortest round-trip form; std::to_string truncates floats to 6 digits
+      param.value += std::format("{}", values[i]);
     }
   }
   param.value += "}";
