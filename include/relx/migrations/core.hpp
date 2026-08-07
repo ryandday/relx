@@ -62,7 +62,6 @@ enum class OperationType {
   UPDATE_DATA,
   ADD_CONSTRAINT,
   DROP_CONSTRAINT,
-  RENAME_CONSTRAINT,
   ADD_INDEX,
   DROP_INDEX
 };
@@ -86,7 +85,9 @@ public:
 template <schema::TableConcept Table>
 class CreateTableOperation : public MigrationOperation {
 private:
-  const Table& table_;
+  // By value: tables are stateless; a reference member would dangle when the
+  // migration outlives the caller's table object
+  Table table_;
 
 public:
   explicit CreateTableOperation(const Table& table) : table_(table) {}
@@ -120,7 +121,8 @@ public:
 template <schema::TableConcept Table>
 class DropTableOperation : public MigrationOperation {
 private:
-  const Table& table_;
+  // By value: see CreateTableOperation
+  Table table_;
 
 public:
   explicit DropTableOperation(const Table& table) : table_(table) {}
@@ -261,39 +263,22 @@ public:
   OperationType type() const override { return OperationType::RENAME_COLUMN; }
 };
 
-/// @brief RENAME CONSTRAINT migration operation
-class RenameConstraintOperation : public MigrationOperation {
+/// @brief A fixed pair of forward/rollback SQL statements. Used for statements that
+/// accompany table creation (native enum CREATE TYPE, CREATE INDEX) where the SQL is
+/// fully determined up front.
+class RawSqlOperation : public MigrationOperation {
 private:
-  std::string table_name_;
-  std::string old_name_;
-  std::string new_name_;
+  std::string forward_;
+  std::string backward_;
+  OperationType type_;
 
 public:
-  RenameConstraintOperation(std::string table_name, std::string old_name, std::string new_name)
-      : table_name_(std::move(table_name)), old_name_(std::move(old_name)),
-        new_name_(std::move(new_name)) {}
+  RawSqlOperation(std::string forward, std::string backward, OperationType type)
+      : forward_(std::move(forward)), backward_(std::move(backward)), type_(type) {}
 
-  MigrationResult<std::string> to_sql() const override {
-    if (old_name_.empty() || new_name_.empty()) {
-      return std::unexpected(MigrationError::make(
-          MigrationErrorType::VALIDATION_FAILED, "Constraint names cannot be empty",
-          table_name_ + " constraint: " + old_name_ + " -> " + new_name_));
-    }
-    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " RENAME CONSTRAINT " +
-           schema::quote_identifier(old_name_) + " TO " + schema::quote_identifier(new_name_) + ";";
-  }
-
-  MigrationResult<std::string> rollback_sql() const override {
-    if (old_name_.empty() || new_name_.empty()) {
-      return std::unexpected(MigrationError::make(
-          MigrationErrorType::VALIDATION_FAILED, "Constraint names cannot be empty",
-          table_name_ + " constraint: " + new_name_ + " -> " + old_name_));
-    }
-    return "ALTER TABLE " + schema::quote_identifier(table_name_) + " RENAME CONSTRAINT " +
-           schema::quote_identifier(new_name_) + " TO " + schema::quote_identifier(old_name_) + ";";
-  }
-
-  OperationType type() const override { return OperationType::RENAME_CONSTRAINT; }
+  MigrationResult<std::string> to_sql() const override { return forward_; }
+  MigrationResult<std::string> rollback_sql() const override { return backward_; }
+  OperationType type() const override { return type_; }
 };
 
 /// @brief UPDATE DATA migration operation for column transformations
@@ -339,6 +324,7 @@ public:
 class Migration {
 private:
   std::vector<std::unique_ptr<MigrationOperation>> operations_;
+  std::vector<std::string> warnings_;
   std::string name_;
 
 public:
@@ -349,6 +335,13 @@ public:
   void add_operation(Args&&... args) {
     operations_.push_back(std::make_unique<Op>(std::forward<Args>(args)...));
   }
+
+  /// @brief Record a warning about a hazard the generated SQL carries (e.g. an ADD
+  /// COLUMN ... NOT NULL without a default fails on populated tables)
+  void add_warning(std::string warning) { warnings_.push_back(std::move(warning)); }
+
+  /// @brief Warnings recorded during generation; surface these to the operator
+  const std::vector<std::string>& warnings() const { return warnings_; }
 
   /// @brief Generate forward migration SQL
   MigrationResult<std::vector<std::string>> forward_sql() const {

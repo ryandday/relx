@@ -25,9 +25,6 @@ struct MigrationOptions {
   /// @brief Map of old column name to new column name for renames
   std::map<std::string, std::string> column_mappings;
 
-  /// @brief Map of old constraint name to new constraint name for renames
-  std::map<std::string, std::string> constraint_mappings;
-
   /// @brief Whether to preserve data during column type changes (default: true)
   bool preserve_data = true;
 
@@ -68,6 +65,12 @@ struct ColumnMetadata {
   std::string sql_definition;
   std::string sql_type;
   bool nullable;
+
+  /// Native-enum columns carry their type name and enumerator list so the differ can
+  /// emit ALTER TYPE ... ADD VALUE instead of silently diffing to nothing. Excluded
+  /// from operator== - enum value changes are type changes, not column changes.
+  std::string enum_type_name;
+  std::vector<std::string> enum_values;
 
   bool operator==(const ColumnMetadata& other) const {
     return name == other.name && sql_type == other.sql_type && nullable == other.nullable &&
@@ -149,45 +152,76 @@ inline std::string constrained_columns_slug(std::string_view sql) {
 /// @brief Classify a constraint SQL definition and register it under a deterministic,
 /// content-derived name. Names derive from the constrained columns (or a content hash),
 /// never from insertion position, so reordering struct fields cannot produce phantom
-/// drop/add pairs.
+/// drop/add pairs. An explicit `CONSTRAINT name` prefix overrides the generated name
+/// and is stripped from the stored definition, so ADD/DROP always build the clause
+/// with consistent identifier quoting.
 inline void add_constraint_metadata(TableMetadata& metadata, std::string sql_def) {
   ConstraintMetadata constraint_meta;
+
+  // Split off an explicit "CONSTRAINT <name> " prefix (name possibly quoted)
+  std::string explicit_name;
+  constexpr std::string_view name_prefix = "CONSTRAINT ";
+  if (sql_def.starts_with(name_prefix)) {
+    std::size_t name_start = name_prefix.size();
+    std::size_t name_end = std::string::npos;
+    if (name_start < sql_def.size() && sql_def[name_start] == '"') {
+      const std::size_t close = sql_def.find('"', name_start + 1);
+      if (close != std::string::npos) {
+        explicit_name = sql_def.substr(name_start + 1, close - name_start - 1);
+        name_end = close + 1;
+      }
+    } else {
+      name_end = sql_def.find(' ', name_start);
+      if (name_end != std::string::npos) {
+        explicit_name = sql_def.substr(name_start, name_end - name_start);
+      }
+    }
+    if (!explicit_name.empty() && name_end != std::string::npos) {
+      std::size_t body_start = name_end;
+      while (body_start < sql_def.size() && sql_def[body_start] == ' ') {
+        ++body_start;
+      }
+      sql_def = sql_def.substr(body_start);
+    } else {
+      explicit_name.clear();
+    }
+  }
+
   constraint_meta.sql_definition = std::move(sql_def);
 
+  // Classification is structural (what the definition STARTS with), never substring
+  // matching: a CHECK whose expression mentions "UNIQUE" is still a CHECK
   const std::string& sql = constraint_meta.sql_definition;
   const auto content_name = [&sql](const std::string& prefix) {
     const std::string slug = constrained_columns_slug(sql);
     return slug.empty() ? prefix + content_hash(sql) : prefix + slug;
   };
-  if (sql.find("PRIMARY KEY") != std::string::npos) {
+  if (sql.starts_with("PRIMARY KEY")) {
     constraint_meta.type = "PRIMARY_KEY";
     constraint_meta.name = metadata.table_name + "_pk";
-  } else if (sql.find("FOREIGN KEY") != std::string::npos ||
-             sql.find("REFERENCES") != std::string::npos) {
+  } else if (sql.starts_with("FOREIGN KEY") || sql.starts_with("REFERENCES")) {
     constraint_meta.type = "FOREIGN_KEY";
     constraint_meta.name = content_name(metadata.table_name + "_fk_");
-  } else if (sql.find("UNIQUE") != std::string::npos) {
-    constraint_meta.type = "UNIQUE";
-    constraint_meta.name = content_name(metadata.table_name + "_unique_");
-  } else if (sql.find("CHECK") != std::string::npos) {
-    constraint_meta.type = "CHECK";
-    constraint_meta.name = metadata.table_name + "_check_" + content_hash(sql);
-  } else if (sql.find("INDEX") != std::string::npos) {
+  } else if (sql.starts_with("UNIQUE INDEX") || sql.starts_with("INDEX")) {
     constraint_meta.type = "INDEX";
     constraint_meta.name = content_name(metadata.table_name + "_idx_");
+  } else if (sql.starts_with("UNIQUE")) {
+    constraint_meta.type = "UNIQUE";
+    constraint_meta.name = content_name(metadata.table_name + "_unique_");
+  } else if (sql.starts_with("CHECK")) {
+    constraint_meta.type = "CHECK";
+    constraint_meta.name = metadata.table_name + "_check_" + content_hash(sql);
   } else {
     constraint_meta.type = "UNKNOWN";
     constraint_meta.name = metadata.table_name + "_constraint_" + content_hash(sql);
   }
 
-  // An explicit CONSTRAINT name overrides the generated positional name, so
-  // ADD/DROP CONSTRAINT operations target the name that actually exists in the DB
-  constexpr std::string_view name_prefix = "CONSTRAINT ";
-  if (sql.starts_with(name_prefix)) {
-    const std::size_t name_end = sql.find(' ', name_prefix.size());
-    if (name_end != std::string::npos) {
-      constraint_meta.name = sql.substr(name_prefix.size(), name_end - name_prefix.size());
-    }
+  if (!explicit_name.empty()) {
+    constraint_meta.name = std::move(explicit_name);
+  } else if (metadata.constraints.contains(constraint_meta.name)) {
+    // Two constraints of the same shape on the same columns (e.g. two FKs from one
+    // column to different targets) must not silently overwrite each other
+    constraint_meta.name += "_" + content_hash(sql);
   }
 
   metadata.constraints[constraint_meta.name] = std::move(constraint_meta);
@@ -282,6 +316,13 @@ MigrationResult<TableMetadata> extract_table_metadata(const Table& table_instanc
         col_meta.sql_type = std::string(field_type::sql_type);
         col_meta.nullable = field_type::nullable;
 
+        if constexpr (field_type::uses_native_enum) {
+          using enum_type =
+              typename schema::detail::unwrap_optional<typename field_type::value_type>::type;
+          col_meta.enum_type_name = std::string(schema::pg_enum_type_name<enum_type>());
+          col_meta.enum_values = refl::enum_values<enum_type>();
+        }
+
         metadata.columns[col_meta.name] = std::move(col_meta);
       }
     });
@@ -341,16 +382,76 @@ MigrationResult<Migration> generate_migration(const OldTable& old_table, const N
   return diff_tables(*old_metadata_result, *new_metadata_result, options);
 }
 
-/// @brief Generate migration to create a new table
+// clang-format off
+
+namespace detail {
+
+/// @brief Append CREATE INDEX / DROP INDEX operations for T's index_on annotations.
+/// A separate template so `template for` expands over annotations_of(^^T) with T as a
+/// direct template parameter - expanding over a dependent nested alias (^^A inside an
+/// if-constexpr branch) silently iterates zero times on GCC 16.
+template <typename T>
+void add_index_operations(Migration& migration) {
+  template for (constexpr std::meta::info a :
+                std::define_static_array(std::meta::annotations_of(^^T))) {
+    using Ann = typename [:std::meta::remove_cv(std::meta::type_of(a)):];
+    if constexpr (schema::detail::IndexAnnotation<Ann>) {
+      constexpr Ann index_annotation = std::meta::extract<Ann>(a);
+      constexpr std::string_view create_sql = std::define_static_string(
+          index_annotation.index_sql(schema::table_name_of<T>()));
+      constexpr std::string_view index_name = std::define_static_string(
+          index_annotation.index_name(schema::table_name_of<T>()));
+      migration.add_operation<RawSqlOperation>(
+          std::string(create_sql) + ";",
+          "DROP INDEX IF EXISTS " + std::string(index_name) + ";", OperationType::ADD_INDEX);
+    }
+  }
+}
+
+}  // namespace detail
+
+/// @brief Generate migration to create a new table, including everything the table
+/// needs that CREATE TABLE alone does not produce: native enum CREATE TYPE statements
+/// (before the table) and CREATE INDEX statements (after it). Omitting these made the
+/// same schema differ depending on whether it was reached via create or via
+/// incremental diff, and native-enum tables failed outright on fresh databases.
 /// @tparam Table The table type
 /// @param table Instance of the table to create
 /// @return Migration to create the table
 template <schema::TableConcept Table>
 MigrationResult<Migration> generate_create_table_migration(const Table& table) {
   Migration migration("create_" + std::string(Table::table_name));
+
+  // Native enum types must exist before the table that uses them (deduplicated:
+  // two columns sharing an enum need one CREATE TYPE)
+  std::unordered_set<std::string> seen_enum_types;
+  refl::for_each_field(table, [&](const auto& field) {
+    using field_type = std::remove_cvref_t<decltype(field)>;
+    if constexpr (schema::is_column<field_type>) {
+      if constexpr (field_type::uses_native_enum) {
+        using enum_type = typename schema::detail::unwrap_optional<
+            typename field_type::value_type>::type;
+        std::string type_name(schema::pg_enum_type_name<enum_type>());
+        if (seen_enum_types.insert(type_name).second) {
+          migration.add_operation<RawSqlOperation>(
+              std::string(schema::create_enum_type_sql<enum_type>()),
+              "DROP TYPE IF EXISTS " + type_name + ";", OperationType::CREATE_TABLE);
+        }
+      }
+    }
+  });
+
   migration.add_operation<CreateTableOperation<Table>>(table);
+
+  // Indexes are separate statements after the table exists
+  if constexpr (requires { typename Table::annotated_type; }) {
+    detail::add_index_operations<typename Table::annotated_type>(migration);
+  }
+
   return migration;
 }
+
+// clang-format on
 
 /// @brief Generate migration to drop a table
 /// @tparam Table The table type

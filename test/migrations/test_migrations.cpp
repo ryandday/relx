@@ -902,43 +902,17 @@ struct [[=relx::table("products")]] NewProductTable {
 inline constexpr auto old_products = relx::t<OldProductTable>;
 inline constexpr auto new_products = relx::t<NewProductTable>;
 
-TEST(MigrationsTest, TestColumnRenameWithTypeChange) {
-  std::cout << "\n=== Testing Column Rename + Type Change ===" << std::endl;
-
-  // Test with mapping for rename + type change
+TEST(MigrationsTest, TestColumnRenameWithTypeChangeRequiresTransformation) {
+  // Rename + type change without a data transformation would emit ADD + DROP with no
+  // data copy - every row's value silently lost. The differ must refuse.
   migrations::MigrationOptions options;
   options.column_mappings = {{"price_cents", "price_dollars"}};
 
   auto migration_result = migrations::generate_migration(old_products, new_products, options);
-  ASSERT_TRUE(migration_result) << "Failed to generate migration: "
-                                << migration_result.error().format();
-  const auto& migration = *migration_result;
-
-  auto forward_sql_result = migration.forward_sql();
-  ASSERT_TRUE(forward_sql_result) << "Failed to generate forward SQL: "
-                                  << forward_sql_result.error().format();
-  const auto& forward_sql = *forward_sql_result;
-
-  auto rollback_sql_result = migration.rollback_sql();
-  ASSERT_TRUE(rollback_sql_result)
-      << "Failed to generate rollback SQL: " << rollback_sql_result.error().format();
-  const auto& rollback_sql = *rollback_sql_result;
-
-  std::cout << "Rename + type change operations: " << migration.size() << std::endl;
-  for (size_t i = 0; i < forward_sql.size(); ++i) {
-    std::cout << "Forward[" << i << "]: " << forward_sql[i] << std::endl;
-  }
-  for (size_t i = 0; i < rollback_sql.size(); ++i) {
-    std::cout << "Rollback[" << i << "]: " << rollback_sql[i] << std::endl;
-  }
-
-  // Should generate: 1 add + 1 drop (for rename + type change)
-  // Note: This strategy preserves data by requiring manual UPDATE between ADD and DROP
-  ASSERT_EQ(migration.size(), 2);
-
-  // Verify the operations
-  EXPECT_EQ(forward_sql[0], "ALTER TABLE products ADD COLUMN price_dollars TEXT NOT NULL;");
-  EXPECT_EQ(forward_sql[1], "ALTER TABLE products DROP COLUMN price_cents;");
+  ASSERT_FALSE(migration_result);
+  EXPECT_EQ(migration_result.error().type, migrations::MigrationErrorType::VALIDATION_FAILED);
+  EXPECT_NE(migration_result.error().message.find("column_transformations"), std::string::npos)
+      << migration_result.error().message;
 }
 
 TEST(MigrationsTest, TestBidirectionalTransformations) {
@@ -992,6 +966,305 @@ TEST(MigrationsTest, TestBidirectionalTransformations) {
   EXPECT_EQ(rollback_sql[1], "UPDATE products SET price_cents = CAST(REPLACE(price_dollars, ' "
                              "USD', '') AS DECIMAL) * 100;");
   EXPECT_EQ(rollback_sql[2], "ALTER TABLE products DROP COLUMN price_dollars;");
+}
+
+// clang-format off
+
+struct [[=relx::table("phase_target")]] PhaseTarget {
+  [[=relx::ann::pk]] int id;
+};
+
+struct [[=relx::table("phase_test")]] PhaseV1 {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::fk<^^PhaseTarget::id>]] int target_id;
+};
+
+struct [[=relx::table("phase_test")]] PhaseV2 {
+  [[=relx::ann::pk]] int id;
+};
+
+// clang-format on
+
+// Dropping an FK-bearing column: the constraint must drop BEFORE the column
+// (PostgreSQL cascades it away with the column, so a later DROP CONSTRAINT would
+// target a ghost), and the reversed rollback must re-add the column before the
+// constraint.
+TEST(MigrationsTest, ConstraintDropsPrecedeColumnDrops) {
+  auto migration_result = migrations::generate_migration(relx::t<PhaseV1>, relx::t<PhaseV2>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  auto forward = migration_result->forward_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  ASSERT_EQ(forward->size(), 2);
+  EXPECT_NE((*forward)[0].find("DROP CONSTRAINT"), std::string::npos) << (*forward)[0];
+  EXPECT_NE((*forward)[1].find("DROP COLUMN"), std::string::npos) << (*forward)[1];
+
+  auto rollback = migration_result->rollback_sql();
+  ASSERT_TRUE(rollback) << rollback.error().format();
+  ASSERT_EQ(rollback->size(), 2);
+  EXPECT_NE((*rollback)[0].find("ADD COLUMN"), std::string::npos) << (*rollback)[0];
+  EXPECT_NE((*rollback)[1].find("ADD CONSTRAINT"), std::string::npos) << (*rollback)[1];
+}
+
+// clang-format off
+
+enum class MigStatus { active, inactive };
+namespace enum_mig_v2 {
+enum class MigStatus { active, inactive, archived };
+}
+
+struct [[=relx::table("enum_mig_test")]] EnumMigV1 {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::native_enum]] MigStatus status;
+};
+
+struct [[=relx::table("enum_mig_test")]] EnumMigV2 {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::native_enum]] enum_mig_v2::MigStatus status;
+};
+
+// clang-format on
+
+// Adding an enumerator to a native enum must diff to ALTER TYPE ... ADD VALUE -
+// previously it diffed to nothing and the schema change silently never happened
+TEST(MigrationsTest, NativeEnumValueAdditionDiffsToAlterType) {
+  auto migration_result = migrations::generate_migration(relx::t<EnumMigV1>, relx::t<EnumMigV2>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  auto forward = migration_result->forward_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  ASSERT_EQ(forward->size(), 1);
+  EXPECT_EQ((*forward)[0], "ALTER TYPE migstatus ADD VALUE 'archived';");
+}
+
+TEST(MigrationsTest, NativeEnumValueRemovalIsAnError) {
+  // PostgreSQL cannot remove a value from an enum type; the differ must refuse
+  // instead of silently diffing to nothing
+  auto migration_result = migrations::generate_migration(relx::t<EnumMigV2>, relx::t<EnumMigV1>);
+  ASSERT_FALSE(migration_result);
+  EXPECT_EQ(migration_result.error().type, migrations::MigrationErrorType::UNSUPPORTED_OPERATION);
+  EXPECT_NE(migration_result.error().message.find("archived"), std::string::npos);
+}
+
+// clang-format off
+
+enum class TextGrade { fresh, stale };
+namespace text_enum_v2 {
+enum class TextGrade { fresh, stale, expired };
+}
+
+struct [[=relx::table("text_enum_test")]] TextEnumV1 {
+  [[=relx::ann::pk]] int id;
+  TextGrade grade;
+};
+
+struct [[=relx::table("text_enum_test")]] TextEnumV2 {
+  [[=relx::ann::pk]] int id;
+  text_enum_v2::TextGrade grade;
+};
+
+// clang-format on
+
+// A TEXT-backed enum's value-set CHECK is hoisted like the modifier constraints:
+// adding an enumerator diffs as DROP + ADD CONSTRAINT, never as a data-destroying
+// DROP COLUMN + ADD COLUMN
+TEST(MigrationsTest, TextEnumValueAdditionDiffsAsCheckConstraintChange) {
+  auto migration_result = migrations::generate_migration(relx::t<TextEnumV1>, relx::t<TextEnumV2>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  auto forward = migration_result->forward_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  ASSERT_EQ(forward->size(), 2);
+  EXPECT_NE((*forward)[0].find("DROP CONSTRAINT"), std::string::npos) << (*forward)[0];
+  EXPECT_NE((*forward)[1].find("ADD CONSTRAINT"), std::string::npos) << (*forward)[1];
+  EXPECT_NE((*forward)[1].find("'expired'"), std::string::npos) << (*forward)[1];
+  for (const auto& sql : *forward) {
+    EXPECT_EQ(sql.find("DROP COLUMN"), std::string::npos) << sql;
+  }
+}
+
+TEST(MigrationsTest, ModifyColumnDropsDefaultBeforeTypeChange) {
+  // An existing DEFAULT may not auto-cast to the new type: DROP DEFAULT must come
+  // before ALTER COLUMN TYPE, and the default is re-established afterwards
+  migrations::ColumnMetadata old_col{.name = "score",
+                                     .sql_definition = "score INTEGER NOT NULL DEFAULT 10",
+                                     .sql_type = "INTEGER",
+                                     .nullable = false};
+  migrations::ColumnMetadata new_col{.name = "score",
+                                     .sql_definition = "score TEXT NOT NULL DEFAULT 'ten'",
+                                     .sql_type = "TEXT",
+                                     .nullable = false};
+  migrations::ModifyColumnOperation op("default_order_test", old_col, new_col);
+
+  auto sql = op.to_sql();
+  ASSERT_TRUE(sql) << sql.error().format();
+  EXPECT_EQ(*sql, "ALTER TABLE default_order_test ALTER COLUMN score DROP DEFAULT;\n"
+                  "ALTER TABLE default_order_test ALTER COLUMN score TYPE TEXT USING score::TEXT;\n"
+                  "ALTER TABLE default_order_test ALTER COLUMN score SET DEFAULT 'ten';");
+}
+
+TEST(MigrationsTest, ModifyColumnUsesProvidedUsingExpressions) {
+  migrations::ColumnMetadata old_col{.name = "score",
+                                     .sql_definition = "score INTEGER NOT NULL",
+                                     .sql_type = "INTEGER",
+                                     .nullable = false};
+  migrations::ColumnMetadata new_col{.name = "score",
+                                     .sql_definition = "score TEXT NOT NULL",
+                                     .sql_type = "TEXT",
+                                     .nullable = false};
+  migrations::ModifyColumnOperation op("using_test", old_col, new_col, "score::text || ' pts'",
+                                       "split_part(score, ' ', 1)::integer");
+
+  auto forward = op.to_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  EXPECT_NE(forward->find("USING score::text || ' pts'"), std::string::npos) << *forward;
+
+  auto rollback = op.rollback_sql();
+  ASSERT_TRUE(rollback) << rollback.error().format();
+  EXPECT_NE(rollback->find("USING split_part(score, ' ', 1)::integer"), std::string::npos)
+      << *rollback;
+}
+
+TEST(MigrationsTest, DefaultExpressionIgnoresKeywordsInsideLiterals) {
+  // DEFAULT 'no CHECK needed' once truncated at the CHECK keyword inside the literal
+  migrations::ColumnMetadata old_col{.name = "note",
+                                     .sql_definition = "note TEXT NOT NULL",
+                                     .sql_type = "TEXT",
+                                     .nullable = false};
+  migrations::ColumnMetadata new_col{
+      .name = "note",
+      .sql_definition = "note TEXT NOT NULL DEFAULT 'no CHECK needed'",
+      .sql_type = "TEXT",
+      .nullable = false};
+  migrations::ModifyColumnOperation op("literal_test", old_col, new_col);
+
+  auto sql = op.to_sql();
+  ASSERT_TRUE(sql) << sql.error().format();
+  EXPECT_EQ(*sql, "ALTER TABLE literal_test ALTER COLUMN note SET DEFAULT 'no CHECK needed';");
+}
+
+// clang-format off
+
+struct [[=relx::table("classify_test")]] ClassifyV1 {
+  [[=relx::ann::pk]] int id;
+  std::string note;
+};
+
+struct [[=relx::table("classify_test"),
+        =relx::ann::check("note <> 'UNIQUE'")]] ClassifyV2 {
+  [[=relx::ann::pk]] int id;
+  std::string note;
+};
+
+// clang-format on
+
+// Classification is structural: a CHECK whose expression contains the word UNIQUE is
+// still a CHECK (substring matching once classified it as a unique constraint)
+TEST(MigrationsTest, CheckContainingUniqueKeywordClassifiesAsCheck) {
+  auto migration_result = migrations::generate_migration(relx::t<ClassifyV1>, relx::t<ClassifyV2>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  auto forward = migration_result->forward_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  ASSERT_EQ(forward->size(), 1);
+  EXPECT_NE((*forward)[0].find("classify_test_check_"), std::string::npos) << (*forward)[0];
+  EXPECT_EQ((*forward)[0].find("classify_test_unique_"), std::string::npos) << (*forward)[0];
+}
+
+// clang-format off
+
+struct [[=relx::table("mixed_name_test")]] MixedNameV1 {
+  int amount;
+};
+
+struct [[=relx::table("mixed_name_test"),
+        =relx::ann::check("amount > 0").named("AmountPositive")]] MixedNameV2 {
+  int amount;
+};
+
+// clang-format on
+
+// A mixed-case .named() constraint must ADD and DROP under the SAME quoted
+// identifier; unquoted it would be created folded-lowercase and the DROP would miss
+TEST(MigrationsTest, MixedCaseNamedConstraintQuotedConsistently) {
+  auto migration_result = migrations::generate_migration(relx::t<MixedNameV1>,
+                                                         relx::t<MixedNameV2>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  auto forward = migration_result->forward_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  ASSERT_EQ(forward->size(), 1);
+  EXPECT_EQ((*forward)[0],
+            "ALTER TABLE mixed_name_test ADD CONSTRAINT \"AmountPositive\" CHECK (amount > 0);");
+
+  auto rollback = migration_result->rollback_sql();
+  ASSERT_TRUE(rollback) << rollback.error().format();
+  ASSERT_EQ(rollback->size(), 1);
+  EXPECT_EQ((*rollback)[0], "ALTER TABLE mixed_name_test DROP CONSTRAINT \"AmountPositive\";");
+}
+
+// clang-format off
+
+enum class DocKind { report, invoice };
+
+struct [[=relx::table("create_full_test"),
+        =relx::ann::index_on("title")]] CreateFullTable {
+  [[=relx::ann::pk]] int id;
+  [[=relx::ann::native_enum]] DocKind kind;
+  std::string title;
+};
+
+// clang-format on
+
+// A create-table migration must produce everything the table needs: the native enum
+// type before the table, and the indexes after it - omitting them made native-enum
+// tables fail on fresh databases and create/diff paths disagree
+TEST(MigrationsTest, CreateTableMigrationIncludesEnumTypesAndIndexes) {
+  auto migration_result = migrations::generate_create_table_migration(relx::t<CreateFullTable>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  auto forward = migration_result->forward_sql();
+  ASSERT_TRUE(forward) << forward.error().format();
+  ASSERT_EQ(forward->size(), 3);
+  EXPECT_NE((*forward)[0].find("CREATE TYPE dockind AS ENUM"), std::string::npos) << (*forward)[0];
+  EXPECT_NE((*forward)[1].find("CREATE TABLE"), std::string::npos) << (*forward)[1];
+  EXPECT_NE((*forward)[2].find("CREATE INDEX"), std::string::npos) << (*forward)[2];
+
+  auto rollback = migration_result->rollback_sql();
+  ASSERT_TRUE(rollback) << rollback.error().format();
+  ASSERT_EQ(rollback->size(), 3);
+  EXPECT_NE((*rollback)[0].find("DROP INDEX IF EXISTS"), std::string::npos) << (*rollback)[0];
+  EXPECT_NE((*rollback)[1].find("DROP TABLE IF EXISTS"), std::string::npos) << (*rollback)[1];
+  EXPECT_EQ((*rollback)[2], "DROP TYPE IF EXISTS dockind;");
+}
+
+// clang-format off
+
+struct [[=relx::table("warn_test")]] WarnV1 {
+  [[=relx::ann::pk]] int id;
+};
+
+struct [[=relx::table("warn_test")]] WarnV2 {
+  [[=relx::ann::pk]] int id;
+  std::string label;  // NOT NULL, no default
+};
+
+// clang-format on
+
+TEST(MigrationsTest, AddNotNullColumnWithoutDefaultWarns) {
+  auto migration_result = migrations::generate_migration(relx::t<WarnV1>, relx::t<WarnV2>);
+  ASSERT_TRUE(migration_result) << migration_result.error().format();
+
+  // The SQL still generates (empty tables are a legitimate target), but the hazard
+  // is surfaced instead of silently documented as the happy path
+  ASSERT_EQ(migration_result->warnings().size(), 1);
+  EXPECT_NE(migration_result->warnings()[0].find("label"), std::string::npos);
+  EXPECT_NE(migration_result->warnings()[0].find("NOT NULL"), std::string::npos);
+
+  // Adding a nullable or defaulted column warns about nothing
+  auto reverse = migrations::generate_migration(relx::t<UsersV1>, relx::t<UsersV2>);
+  ASSERT_TRUE(reverse) << reverse.error().format();
+  EXPECT_TRUE(reverse->warnings().empty());
 }
 
 }  // namespace
