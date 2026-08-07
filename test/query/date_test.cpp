@@ -59,8 +59,18 @@ TEST_F(DateFunctionTest, DateDiffFunction) {
 
   auto query_months = select_expr(date_diff("month", emp.hire_date, current_date())).from(emp);
 
+  // TOTAL months (years * 12 + months), not the interval's month component
   EXPECT_EQ(query_months.to_sql(),
-            "SELECT EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.hire_date)) FROM employees");
+            "SELECT (EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.hire_date)) * 12 + "
+            "EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.hire_date))) FROM employees");
+
+  // Plural unit spellings (as documented) normalize to the same SQL
+  auto query_months_plural =
+      select_expr(date_diff("months", emp.hire_date, current_date())).from(emp);
+  EXPECT_EQ(query_months_plural.to_sql(), query_months.to_sql());
+
+  // Unknown units are an error at query build time, not a nonexistent SQL function
+  EXPECT_THROW(date_diff("fortnight", emp.hire_date, current_date()), std::invalid_argument);
 
   auto query_hours = select_expr(date_diff("hour", emp.last_review, current_timestamp())).from(emp);
 
@@ -799,7 +809,8 @@ TEST_F(DateFunctionTest, CurrentDateWithAllFunctions) {
   EXPECT_EQ(date_diff_tests.to_sql(),
             "SELECT "
             "(employees.hire_date::date - CURRENT_DATE::date) AS days_from_current_to_hire, "
-            "EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.birth_date)) AS "
+            "(EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) * 12 + "
+            "EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.birth_date))) AS "
             "months_from_birth_to_current, "
             "EXTRACT(YEAR FROM AGE(employees.termination_date, CURRENT_DATE)) AS "
             "years_from_current_to_termination, "
@@ -972,7 +983,8 @@ TEST_F(DateFunctionTest, CurrentDateWithAllFunctions) {
   EXPECT_EQ(order_by_tests.to_sql(),
             "SELECT employees.id, employees.name FROM employees "
             "ORDER BY (CURRENT_DATE::date - employees.hire_date::date) DESC, "
-            "ABS(EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.birth_date))) ASC, "
+            "ABS((EXTRACT(YEAR FROM AGE(CURRENT_DATE, employees.birth_date)) * 12 + "
+            "EXTRACT(MONTH FROM AGE(CURRENT_DATE, employees.birth_date)))) ASC, "
             "(EXTRACT(year FROM CURRENT_DATE) - EXTRACT(year FROM employees.hire_date)) DESC, "
             "EXTRACT(month FROM (CURRENT_DATE + INTERVAL '6 months')) ASC");
 

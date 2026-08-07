@@ -645,33 +645,6 @@ auto between(const schema::column<TableT, Name, T, Modifiers...>& col, std::stri
   return between(col_expr, std::move(lower), std::move(upper));
 }
 
-// Column support for case expressions
-
-// When with a column condition
-template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
-          typename ResultT>
-auto when(const schema::column<TableT, Name, T, Modifiers...>& condition,
-          const query::Value<ResultT>& result) {
-  auto col_expr = to_expr(condition);
-  return when(col_expr, result);
-}
-
-// When with a column result
-template <typename CondT, typename TableT, schema::fixed_string Name, typename T,
-          typename... Modifiers>
-auto when(const CondT& condition, const schema::column<TableT, Name, T, Modifiers...>& result) {
-  auto result_expr = to_expr(result);
-  return when(condition, result_expr);
-}
-
-// Else with a column result
-template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers>
-// NOLINTNEXTLINE(readability-identifier-naming)
-auto else_(const schema::column<TableT, Name, T, Modifiers...>& result) {
-  auto result_expr = to_expr(result);
-  return else_(result_expr);
-}
-
 // Column support for select expressions
 template <typename TableT, schema::fixed_string Name, typename T, typename... Modifiers,
           typename... Args>

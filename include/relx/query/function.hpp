@@ -381,8 +381,14 @@ public:
 
     std::apply(
         [&](const auto&... items) {
-          ((params.insert(params.end(), items.bind_params().begin(), items.bind_params().end())),
-           ...);
+          // Each bind_params() call returns a distinct temporary; begin()/end() must
+          // come from the same vector or insert computes a garbage distance
+          (
+              [&] {
+                auto item_params = items.bind_params();
+                params.insert(params.end(), item_params.begin(), item_params.end());
+              }(),
+              ...);
         },
         rest_);
 

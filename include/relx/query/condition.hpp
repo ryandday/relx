@@ -7,6 +7,7 @@
 #include "value.hpp"
 
 #include <memory>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -117,6 +118,12 @@ public:
       : expr_(std::move(expr)), values_(std::move(values)) {}
 
   constexpr std::string to_sql() const override {
+    // An empty list would render "IN ()" - a PostgreSQL syntax error. Nothing is a
+    // member of the empty set, so the condition is constant false (bind_params
+    // matches by contributing nothing).
+    if (std::ranges::empty(values_)) {
+      return "1 = 0";
+    }
     std::string out = expr_.to_sql() + " IN (";
     bool first = true;
     for (const auto& _ : values_) {
@@ -131,6 +138,9 @@ public:
   }
 
   constexpr std::vector<bind_param> bind_params() const override {
+    if (std::ranges::empty(values_)) {
+      return {};  // to_sql renders the constant "1 = 0" with no placeholders
+    }
     auto params = expr_.bind_params();
     for (const auto& value : values_) {
       params.push_back(detail::in_list_param(value));
@@ -172,6 +182,12 @@ public:
       : expr_(std::move(expr)), values_(std::move(values)) {}
 
   constexpr std::string to_sql() const override {
+    // An empty list would render "IN ()" - a PostgreSQL syntax error. Nothing is a
+    // member of the empty set, so the condition is constant false (bind_params
+    // matches by contributing nothing).
+    if (std::ranges::empty(values_)) {
+      return "1 = 0";
+    }
     std::string out = expr_.to_sql() + " IN (";
     bool first = true;
     for (const auto& _ : values_) {
@@ -186,6 +202,9 @@ public:
   }
 
   constexpr std::vector<bind_param> bind_params() const override {
+    if (std::ranges::empty(values_)) {
+      return {};  // to_sql renders the constant "1 = 0" with no placeholders
+    }
     auto params = expr_.bind_params();
     for (const auto& value : values_) {
       params.push_back(detail::in_list_param(value));

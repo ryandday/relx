@@ -14,6 +14,7 @@
 #include <concepts>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -28,7 +29,8 @@ public:
         right_(std::move(right)) {}
 
   constexpr std::string to_sql() const override {
-    // Generate PostgreSQL-compatible SQL for date differences
+    // Generate PostgreSQL-compatible SQL for date differences. Units arrive
+    // normalized to singular by date_diff(), which rejects unknown units.
     if (func_name_ == "DATE_DIFF") {
       if (unit_ == "year") {
         return "EXTRACT(YEAR FROM AGE(" + right_.to_sql() + ", " + left_.to_sql() + "))";
@@ -40,7 +42,10 @@ public:
       } else if (unit_ == "second") {
         return "EXTRACT(EPOCH FROM (" + right_.to_sql() + " - " + left_.to_sql() + "))";
       } else if (unit_ == "month") {
-        return "EXTRACT(MONTH FROM AGE(" + right_.to_sql() + ", " + left_.to_sql() + "))";
+        // TOTAL months, not the interval's month component (14 months apart must be
+        // 14, not 2): years * 12 + months from AGE
+        const std::string age = "AGE(" + right_.to_sql() + ", " + left_.to_sql() + ")";
+        return "(EXTRACT(YEAR FROM " + age + ") * 12 + EXTRACT(MONTH FROM " + age + "))";
       } else if (unit_ == "hour") {
         return "EXTRACT(EPOCH FROM (" + right_.to_sql() + " - " + left_.to_sql() + "))/3600";
       } else if (unit_ == "minute") {
@@ -418,17 +423,39 @@ private:
   std::string func_name_;
 };
 
+namespace detail {
+
+/// @brief Normalize a date_diff unit to its singular form and validate it. Unknown
+/// units once fell through to a nonexistent DATE_DIFF(...) SQL function that only
+/// failed at execution time.
+inline std::string normalize_date_diff_unit(std::string_view unit) {
+  std::string normalized(unit);
+  if (!normalized.empty() && normalized.back() == 's') {
+    normalized.pop_back();
+  }
+  for (const std::string_view known : {"year", "month", "day", "hour", "minute", "second"}) {
+    if (normalized == known) {
+      return normalized;
+    }
+  }
+  throw std::invalid_argument("date_diff: unknown unit '" + std::string(unit) +
+                              "' (expected years, months, days, hours, minutes, or seconds)");
+}
+
+}  // namespace detail
+
 /// @brief DATE_DIFF function - calculates difference between two dates
 /// @tparam Expr1 First date expression type
 /// @tparam Expr2 Second date expression type
-/// @param unit Time unit for the difference (e.g., "days", "months", "years")
+/// @param unit Time unit for the difference (e.g., "days", "months", "years";
+/// singular forms also accepted). Unknown units throw std::invalid_argument.
 /// @param date1 First date expression
 /// @param date2 Second date expression
 /// @return A BinaryDateFunctionExpr representing DATE_DIFF(unit, date1, date2)
 template <SqlExpr Expr1, SqlExpr Expr2>
 auto date_diff(std::string_view unit, Expr1 date1, Expr2 date2) {
-  return BinaryDateFunctionExpr<Expr1, Expr2>("DATE_DIFF", std::string(unit), std::move(date1),
-                                              std::move(date2));
+  return BinaryDateFunctionExpr<Expr1, Expr2>("DATE_DIFF", detail::normalize_date_diff_unit(unit),
+                                              std::move(date1), std::move(date2));
 }
 
 // Overload for column types with type checking
@@ -488,15 +515,52 @@ auto date_sub(const T& column, IntervalExpr interval_expr) {
   return date_sub(to_expr(column), std::move(interval_expr));
 }
 
+namespace detail {
+
+/// @brief Validate a date-part unit name (extract/date_trunc): lowercase field
+/// identifiers only. These strings are spliced into SQL text, so anything else is
+/// rejected up front instead of reaching the server.
+inline std::string validated_date_unit(std::string_view unit) {
+  if (unit.empty()) {
+    throw std::invalid_argument("date unit cannot be empty");
+  }
+  for (const char c : unit) {
+    if (!((c >= 'a' && c <= 'z') || c == '_')) {
+      throw std::invalid_argument("invalid date unit '" + std::string(unit) +
+                                  "': units are lowercase field names like year, month, dow");
+    }
+  }
+  return std::string(unit);
+}
+
+/// @brief Validate an interval literal body ("1 day", "3 months"). Spliced into
+/// INTERVAL '...' - quotes and backslashes are rejected, not escaped.
+inline std::string validated_interval(std::string_view interval_str) {
+  if (interval_str.empty()) {
+    throw std::invalid_argument("interval cannot be empty");
+  }
+  for (const char c : interval_str) {
+    const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                    c == ' ' || c == '.' || c == '+' || c == '-' || c == ':';
+    if (!ok) {
+      throw std::invalid_argument("invalid interval '" + std::string(interval_str) +
+                                  "': expected forms like '1 day' or '01:30:00'");
+    }
+  }
+  return std::string(interval_str);
+}
+
+}  // namespace detail
+
 /// @brief EXTRACT function - extracts a date part from a date
 /// @tparam Expr Date expression type
 /// @param unit Date part to extract (e.g., "year", "month", "day", "hour", "minute", "second",
-/// "dow")
+/// "dow"). Invalid unit text throws std::invalid_argument.
 /// @param expr Date expression
 /// @return A UnaryDateFunctionExpr representing EXTRACT(unit FROM expr)
 template <SqlExpr Expr>
 auto extract(std::string_view unit, Expr expr) {
-  return UnaryDateFunctionExpr<Expr>("EXTRACT", std::string(unit), std::move(expr));
+  return UnaryDateFunctionExpr<Expr>("EXTRACT", detail::validated_date_unit(unit), std::move(expr));
 }
 
 // Overload for column types with type checking
@@ -513,7 +577,8 @@ auto extract(std::string_view unit, const T& column) {
 /// @return A UnaryDateFunctionExpr representing DATE_TRUNC(unit, expr)
 template <SqlExpr Expr>
 auto date_trunc(std::string_view unit, Expr expr) {
-  return UnaryDateFunctionExpr<Expr>("DATE_TRUNC", std::string(unit), std::move(expr));
+  return UnaryDateFunctionExpr<Expr>("DATE_TRUNC", detail::validated_date_unit(unit),
+                                     std::move(expr));
 }
 
 // Overload for column types with type checking
@@ -524,10 +589,11 @@ auto date_trunc(std::string_view unit, const T& column) {
 }
 
 /// @brief Create an interval expression
-/// @param interval_str Interval string (e.g., "1 day", "3 months", "2 years")
+/// @param interval_str Interval string (e.g., "1 day", "3 months", "2 years").
+/// Quotes and other splice-capable characters throw std::invalid_argument.
 /// @return An IntervalExpr representing the interval
 inline auto interval(std::string_view interval_str) {
-  return IntervalExpr(std::string(interval_str));
+  return IntervalExpr(detail::validated_interval(interval_str));
 }
 
 /// @brief CURRENT_DATE function - returns the current date
@@ -865,9 +931,11 @@ public:
   constexpr std::string to_sql() const override { return "?"; }
 
   constexpr std::vector<bind_param> bind_params() const override {
-    // Reuse the traits' formatting, stripping the SQL-literal quotes
+    // Typed parameter: the text form reuses the traits' formatting (stripping the
+    // SQL-literal quotes), and make_bind_param adds the timestamptz kind + binary
+    // wire bytes so binary-protocol paths skip server-side text parsing
     std::string quoted = schema::column_traits<value_type>::to_sql_string(value_);
-    return {quoted.substr(1, quoted.size() - 2)};
+    return {relx::make_bind_param(value_, quoted.substr(1, quoted.size() - 2))};
   }
 
   const value_type& value() const { return value_; }
@@ -888,9 +956,10 @@ public:
   constexpr std::string to_sql() const override { return "?"; }
 
   constexpr std::vector<bind_param> bind_params() const override {
-    // Reuse the traits' formatting, stripping the SQL-literal quotes
+    // Typed parameter: text form from the traits (sans SQL-literal quotes), plus the
+    // date kind + binary wire bytes via make_bind_param
     std::string quoted = schema::column_traits<value_type>::to_sql_string(value_);
-    return {quoted.substr(1, quoted.size() - 2)};
+    return {relx::make_bind_param(value_, quoted.substr(1, quoted.size() - 2))};
   }
 
   const value_type& value() const { return value_; }

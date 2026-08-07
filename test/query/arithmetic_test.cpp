@@ -160,6 +160,28 @@ TEST_F(ArithmeticTest, ValueWithColumnDivision) {
   EXPECT_EQ(params[0], "100");
 }
 
+// Regression: the value / ArithmeticExpr overload once stored a const reference to the
+// RHS temporary, so reading the result after the full expression dangled
+TEST_F(ArithmeticTest, ValueWithExpressionDivisionOutlivesTemporary) {
+  auto expr = 100.0 / (table.price * 2.0);
+
+  EXPECT_EQ(expr.to_sql(), "(? / (test_table.price * ?))");
+  auto params = expr.bind_params();
+  ASSERT_EQ(params.size(), 2);
+  EXPECT_EQ(params[0], "100");
+  EXPECT_EQ(params[1], "2");
+}
+
+TEST_F(ArithmeticTest, ValueWithExpressionSubtractionOutlivesTemporary) {
+  auto expr = 100.0 - (table.price + 1.0);
+
+  EXPECT_EQ(expr.to_sql(), "(? - (test_table.price + ?))");
+  auto params = expr.bind_params();
+  ASSERT_EQ(params.size(), 2);
+  EXPECT_EQ(params[0], "100");
+  EXPECT_EQ(params[1], "1");
+}
+
 TEST_F(ArithmeticTest, OptionalColumnAddition) {
   auto query = relx::query::select_expr(table.id + table.optional_id).from(table);
 

@@ -138,32 +138,39 @@ TEST(StringFunctionTest, Coalesce) {
   EXPECT_EQ(params[0], "No biography");
 }
 
-// TODO this test seg faults sometimes
-// TEST(StringFunctionTest, CoalesceMultipleValues) {
-//     users u;
+// Regression: CoalesceExpr::bind_params once built its result from iterators of two
+// distinct temporary vectors, corrupting memory for 3+ argument coalesce with params
+TEST(StringFunctionTest, CoalesceMultipleValues) {
+  constexpr auto u = users;
 
-//     auto query = relx::query::select_expr(
-//         u.id,
-//         relx::query::as(
-//             relx::query::coalesce(
-//                 u.bio,
-//                 u.name,
-//                 "Unknown"
-//             ),
-//             "display_text"
-//         )
-//     )
-//     .from(u);
+  auto query = relx::query::select_expr(
+                   u.id,
+                   relx::query::as(relx::query::coalesce(u.bio, u.name, "Unknown"), "display_text"))
+                   .from(u);
 
-//     std::string expected_sql = "SELECT users.id, COALESCE(users.bio, users.name, ?) AS
-//     display_text FROM users"; EXPECT_EQ(query.to_sql(), expected_sql);
+  std::string expected_sql =
+      "SELECT users.id, COALESCE(users.bio, users.name, ?) AS display_text FROM users";
+  EXPECT_EQ(query.to_sql(), expected_sql);
 
-//     auto params = query.bind_params();
-//     // The parameter count is variable depending on how tests are run
-//     if (!params.empty()) {
-//         EXPECT_EQ(params[0], "Unknown");
-//     }
-// }
+  auto params = query.bind_params();
+  ASSERT_EQ(params.size(), 1);
+  EXPECT_EQ(params[0], "Unknown");
+}
+
+TEST(StringFunctionTest, CoalesceManyParamsInRest) {
+  constexpr auto u = users;
+
+  auto expr = relx::query::coalesce(u.bio, relx::query::val("a"), relx::query::val("b"),
+                                    relx::query::val("c"), relx::query::val("d"));
+  EXPECT_EQ(expr.to_sql(), "COALESCE(users.bio, ?, ?, ?, ?)");
+
+  auto params = expr.bind_params();
+  ASSERT_EQ(params.size(), 4);
+  EXPECT_EQ(params[0], "a");
+  EXPECT_EQ(params[1], "b");
+  EXPECT_EQ(params[2], "c");
+  EXPECT_EQ(params[3], "d");
+}
 
 TEST(StringFunctionTest, CoalesceInWhere) {
   constexpr auto u = users;
