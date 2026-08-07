@@ -137,6 +137,18 @@ constexpr std::optional<E> enum_cast(std::string_view name) {
   return std::nullopt;
 }
 
+/// @brief All enumerator identifiers, in declaration order
+template <typename E>
+  requires std::is_enum_v<E>
+std::vector<std::string> enum_values() {
+  std::vector<std::string> out;
+  template for (constexpr std::meta::info e :
+                std::define_static_array(std::meta::enumerators_of(^^E))) {
+    out.emplace_back(std::meta::identifier_of(e));
+  }
+  return out;
+}
+
 /// @brief All enumerator identifiers as a SQL quoted list: 'a', 'b', 'c'
 template <typename E>
   requires std::is_enum_v<E>
