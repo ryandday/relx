@@ -79,7 +79,12 @@ public:
   constexpr AliasedColumn(Expr expr, std::string alias)
       : expr_(std::move(expr)), alias_(std::move(alias)) {}
 
-  constexpr std::string to_sql() const override { return expr_.to_sql() + " AS " + alias_; }
+  // The alias is quoted like every identifier: mixed case survives PostgreSQL's
+  // folding (so by-name result matching works) and special characters cannot splice
+  // into the SQL text
+  constexpr std::string to_sql() const override {
+    return expr_.to_sql() + " AS " + schema::quote_identifier(alias_);
+  }
 
   constexpr std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
 

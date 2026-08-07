@@ -16,6 +16,7 @@
 #include <sstream>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -24,6 +25,8 @@ namespace relx::query {
 /// @brief Represents a SET clause assignment in an UPDATE statement
 template <ColumnType Column, SqlExpr Value>
 struct SetItem {
+  using column_type = Column;
+
   ColumnRef<Column> column;
   Value value;
 
@@ -198,6 +201,14 @@ public:
   /// @return New UpdateQuery with the SET clause added
   template <ColumnType Col, SqlExpr Val>
   constexpr auto set(const Col& column, Val&& val) const {
+    // A second set() on the same column would silently append a duplicate
+    // assignment ("SET x = ?, x = ?") instead of replacing the first
+    static_assert(
+        ![]<typename... Items>(std::type_identity<std::tuple<Items...>>) {
+          return (std::is_same_v<typename Items::column_type, Col> || ...);
+        }(std::type_identity<Sets>{}),
+        "update().set(): this column already has a SET clause in this query");
+
     using SetItemType = SetItem<Col, std::remove_cvref_t<Val>>;
 
     // Create a new SetItem

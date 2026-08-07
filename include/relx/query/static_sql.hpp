@@ -48,6 +48,46 @@ consteval std::string_view static_pg_sql(const Query& query) {
 
   for (std::size_t i = 0; i < sql.size(); ++i) {
     const char current = sql[i];
+    // Comments pass through verbatim, mirroring the runtime placeholder scanner
+    if (current == '-' && !in_single_quotes && !in_double_quotes && i + 1 < sql.size() &&
+        sql[i + 1] == '-') {
+      while (i < sql.size() && sql[i] != '\n') {
+        out += sql[i++];
+      }
+      if (i < sql.size()) {
+        out += sql[i];
+      }
+      continue;
+    }
+    if (current == '/' && !in_single_quotes && !in_double_quotes && i + 1 < sql.size() &&
+        sql[i + 1] == '*') {
+      int depth = 0;
+      while (i < sql.size()) {
+        if (sql[i] == '/' && i + 1 < sql.size() && sql[i + 1] == '*') {
+          ++depth;
+          out += sql[i++];
+          out += sql[i++];
+        } else if (sql[i] == '*' && i + 1 < sql.size() && sql[i + 1] == '/') {
+          --depth;
+          out += sql[i++];
+          out += sql[i++];
+          if (depth == 0) {
+            break;
+          }
+        } else {
+          out += sql[i++];
+        }
+      }
+      --i;  // the for loop increments past the last consumed character
+      continue;
+    }
+    // ?? escapes a literal ? (the JSONB-operator convention), like the runtime scanner
+    if (current == '?' && !in_single_quotes && !in_double_quotes && i + 1 < sql.size() &&
+        sql[i + 1] == '?') {
+      out += '?';
+      ++i;
+      continue;
+    }
     if (current == '\'' && !in_double_quotes) {
       if (i + 1 < sql.size() && sql[i + 1] == '\'') {
         out += current;

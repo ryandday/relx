@@ -1,210 +1,126 @@
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
 #include <gtest/gtest.h>
 #include <relx/query.hpp>
 #include <relx/schema.hpp>
+
+// Positive half of the type-safety contract: valid combinations compile AND produce
+// the expected SQL and parameters. The negative half (invalid combinations must NOT
+// compile) lives in the compile-fail suite - type_mismatch_comparison.cpp,
+// arithmetic_on_string.cpp, arithmetic_on_bool.cpp, select_zero_columns.cpp - because
+// the operators enforce compatibility with hard static_asserts, which only a
+// compile-fail harness can pin.
 
 namespace {
 
 // clang-format off: annotation/reflection syntax is not yet understood by clang-format 20
 
-struct [[=relx::table("test_table")]] test_table {
+struct [[=relx::table("test_table")]] type_safety_table {
   int id;
   double price;
   std::string name;
   bool is_active;
 
-  // Optional (nullable) columns for testing
   std::optional<int> optional_id;
   std::optional<std::string> optional_name;
   std::optional<double> optional_price;
 };
 
-// Table for testing column-to-column comparisons
-struct [[=relx::table("compatible_table")]] compatible_table {
+struct [[=relx::table("compatible_table")]] type_safety_compat_table {
   int id;
   std::string name;
 };
 
 // clang-format on
 
-inline constexpr auto test_tbl = relx::t<test_table>;
-inline constexpr auto compatible_tbl = relx::t<compatible_table>;
+inline constexpr auto test_tbl = relx::t<type_safety_table>;
+inline constexpr auto compatible_tbl = relx::t<type_safety_compat_table>;
 
-TEST(TypeSafetyTest, ValidComparisons) {
+TEST(TypeSafetyTest, ValidComparisonsProduceExpectedSql) {
   constexpr auto t = test_tbl;
 
-  // These should all compile - valid comparisons
-  auto query1 = relx::query::select(t.id).from(t).where(t.id == 42);  // int column with int value
+  auto by_id = relx::query::select(t.id).from(t).where(t.id == 42);
+  EXPECT_EQ(by_id.to_sql(), "SELECT test_table.id FROM test_table WHERE (test_table.id = ?)");
+  auto id_params = by_id.bind_params();
+  ASSERT_EQ(id_params.size(), 1);
+  EXPECT_EQ(id_params[0], "42");
 
-  auto query2 = relx::query::select(t.price).from(t).where(
-      t.price > 10.5);  // double column with double value
+  auto by_price = relx::query::select(t.price).from(t).where(t.price > 10.5);
+  EXPECT_EQ(by_price.to_sql(),
+            "SELECT test_table.price FROM test_table WHERE (test_table.price > ?)");
+  auto price_params = by_price.bind_params();
+  ASSERT_EQ(price_params.size(), 1);
+  EXPECT_EQ(price_params[0], "10.5");
 
-  auto query3 = relx::query::select(t.name).from(t).where(
-      t.name == "test");  // string column with string literal
-
-  auto query4 = relx::query::select(t.name).from(t).where(
-      t.name == std::string("test"));  // string column with std::string
-
-  auto query5 = relx::query::select(t.is_active)
-                    .from(t)
-                    .where(t.is_active == true);  // bool column with bool value
-
-  // Test string compatibility
-  std::string test_str = "test";
-  auto query6 = relx::query::select(t.name).from(t).where(t.name == test_str);
-
-  std::string_view test_sv = "test";
-  auto query7 = relx::query::select(t.name).from(t).where(t.name == test_sv);
-
-  EXPECT_TRUE(true);  // If we get here, all valid comparisons compiled
+  auto by_bool = relx::query::select(t.is_active).from(t).where(t.is_active == true);
+  auto bool_params = by_bool.bind_params();
+  ASSERT_EQ(bool_params.size(), 1);
+  EXPECT_EQ(bool_params[0].kind, relx::sql_kind::boolean);
 }
 
-TEST(TypeSafetyTest, OptionalTypeComparisons) {
+TEST(TypeSafetyTest, StringLikeTypesAllComparable) {
   constexpr auto t = test_tbl;
 
-  // Optional column with underlying type - should compile
-  auto query1 = relx::query::select(t.optional_id)
-                    .from(t)
-                    .where(t.optional_id == 42);  // optional<int> with int
+  const std::string as_string = "test";
+  const std::string_view as_view = "test";
 
-  auto query2 = relx::query::select(t.optional_price)
-                    .from(t)
-                    .where(t.optional_price > 10.5);  // optional<double> with double
+  auto q1 = relx::query::select(t.name).from(t).where(t.name == "test");
+  auto q2 = relx::query::select(t.name).from(t).where(t.name == as_string);
+  auto q3 = relx::query::select(t.name).from(t).where(t.name == as_view);
 
-  // Non-optional column with optional value - should compile
-  std::optional<int> opt_int = 42;
-  auto query3 = relx::query::select(t.id).from(t).where(t.id == opt_int);  // int with optional<int>
-
-  // Optional string with string-like types - should compile
-  auto query4 = relx::query::select(t.optional_name)
-                    .from(t)
-                    .where(t.optional_name == "test");  // optional<string> with const char*
-
-  auto query5 = relx::query::select(t.optional_name)
-                    .from(t)
-                    .where(t.optional_name == std::string("test"));  // optional<string> with string
-
-  std::string_view test_sv = "test";
-  auto query6 = relx::query::select(t.optional_name)
-                    .from(t)
-                    .where(t.optional_name == test_sv);  // optional<string> with string_view
-
-  // String column with optional string - should compile
-  std::optional<std::string> opt_str = "test";
-  auto query7 = relx::query::select(t.name).from(t).where(t.name ==
-                                                          opt_str);  // string with optional<string>
-
-  // Optional to optional - should compile
-  std::optional<int> opt_int2 = 123;
-  auto query8 = relx::query::select(t.optional_id)
-                    .from(t)
-                    .where(t.optional_id == opt_int2);  // optional<int> with optional<int>
-
-  std::optional<std::string> opt_str2 = "test";
-  auto query9 = relx::query::select(t.optional_name)
-                    .from(t)
-                    .where(t.optional_name == opt_str2);  // optional<string> with optional<string>
-
-  EXPECT_TRUE(true);  // If we get here, all optional comparisons compiled
+  const std::string expected = "SELECT test_table.name FROM test_table WHERE (test_table.name = ?)";
+  EXPECT_EQ(q1.to_sql(), expected);
+  EXPECT_EQ(q2.to_sql(), expected);
+  EXPECT_EQ(q3.to_sql(), expected);
+  EXPECT_EQ(q1.bind_params().at(0), "test");
+  EXPECT_EQ(q2.bind_params().at(0), "test");
+  EXPECT_EQ(q3.bind_params().at(0), "test");
 }
 
-TEST(TypeSafetyTest, CrossTypeComparisons) {
+TEST(TypeSafetyTest, OptionalColumnsCompareWithUnderlyingAndOptional) {
   constexpr auto t = test_tbl;
 
-  // Test if the library allows potentially problematic cross-type comparisons
-  // These might be allowed due to implicit conversions, but we want to understand the behavior
+  auto with_value = relx::query::select(t.optional_id).from(t).where(t.optional_id == 42);
+  EXPECT_EQ(with_value.to_sql(),
+            "SELECT test_table.optional_id FROM test_table WHERE (test_table.optional_id = ?)");
+  EXPECT_EQ(with_value.bind_params().at(0), "42");
 
-  // THESE ARE INTENTIONALLY BLOCKED BY OUR TYPE CHECKING:
-  // Int to double - this is now blocked by type checking
-  // auto query1 = relx::query::select(t.id)
-  //     .from(t)
-  //     .where(t.id == 42.0);  // int column with double value
+  const std::optional<int> engaged = 7;
+  auto with_optional = relx::query::select(t.optional_id).from(t).where(t.optional_id == engaged);
+  EXPECT_EQ(with_optional.bind_params().at(0), "7");
 
-  // Double to int - this is now blocked by type checking
-  // auto query2 = relx::query::select(t.price)
-  //     .from(t)
-  //     .where(t.price == 42);  // double column with int value
+  const std::optional<std::string> opt_name = "alice";
+  auto opt_string = relx::query::select(t.optional_name).from(t).where(t.optional_name == opt_name);
+  EXPECT_EQ(opt_string.bind_params().at(0), "alice");
 
-  // String to numeric - this should probably be allowed since SQL often does implicit conversions
-  auto query3 = relx::query::select(t.name).from(t).where(
-      t.name == "42");  // string column with string value that looks like a number
-
-  // Only test the valid ones
-  EXPECT_NO_THROW({ auto sql3 = query3.to_sql(); });
+  // Non-optional column against an optional value
+  auto reversed = relx::query::select(t.id).from(t).where(t.id == engaged);
+  EXPECT_EQ(reversed.bind_params().at(0), "7");
 }
 
-// Now test invalid comparisons - these should fail at compile time
-TEST(TypeSafetyTest, InvalidComparisons) {
+TEST(TypeSafetyTest, AggregatesOverTypedColumns) {
   constexpr auto t = test_tbl;
 
-  // Test some valid ones first
-  auto query1 = relx::query::select(t.id).from(t).where(t.id == 42);
+  auto summed = relx::query::select_expr(relx::query::sum(t.id)).from(t);
+  EXPECT_EQ(summed.to_sql(), "SELECT SUM(test_table.id) FROM test_table");
 
-  // UNCOMMENT THE FOLLOWING TO TEST TYPE CHECKING:
-  // These should all cause compile-time errors:
+  auto averaged = relx::query::select_expr(relx::query::avg(t.price)).from(t);
+  EXPECT_EQ(averaged.to_sql(), "SELECT AVG(test_table.price) FROM test_table");
 
-  // auto invalid1 = relx::query::select(t.id)
-  //     .from(t)
-  //     .where(t.id == "not_a_number");  // int column with string
+  auto min_max = relx::query::select_expr(relx::query::min(t.id), relx::query::max(t.name)).from(t);
+  EXPECT_EQ(min_max.to_sql(), "SELECT MIN(test_table.id), MAX(test_table.name) FROM test_table");
 
-  // auto invalid2 = relx::query::select(t.price)
-  //     .from(t)
-  //     .where(t.price == true);  // double column with bool
-
-  // auto invalid3 = relx::query::select(t.name)
-  //     .from(t)
-  //     .where(t.name == 42);  // string column with int
-
-  // auto invalid4 = relx::query::select(t.is_active)
-  //     .from(t)
-  //     .where(t.is_active == 1);  // bool column with int
-
-  // // Invalid optional comparisons
-  // auto invalid5 = relx::query::select(t.optional_id)
-  //     .from(t)
-  //     .where(t.optional_id == "not_a_number");  // optional<int> with string
-
-  // auto invalid6 = relx::query::select(t.optional_name)
-  //     .from(t)
-  //     .where(t.optional_name == 42);  // optional<string> with int
-
-  EXPECT_TRUE(true);  // If we get here, the test compiled
+  // COUNT works on any column type
+  auto counted = relx::query::select_expr(relx::query::count(t.is_active)).from(t);
+  EXPECT_EQ(counted.to_sql(), "SELECT COUNT(test_table.is_active) FROM test_table");
 }
 
-TEST(TypeSafetyTest, AggregateFunctionTypeChecking) {
+TEST(TypeSafetyTest, CaseExpressionWithConsistentTypes) {
   constexpr auto t = test_tbl;
 
-  // These should compile - valid aggregate uses
-  auto valid_sum = relx::query::select_expr(relx::query::sum(t.id)).from(t);  // int column
-
-  auto valid_avg = relx::query::select_expr(relx::query::avg(t.price)).from(t);  // double column
-
-  auto valid_min_max = relx::query::select_expr(relx::query::min(t.id),
-                                                relx::query::max(t.name))
-                           .from(t);  // int and string columns
-
-  auto valid_count = relx::query::select_expr(relx::query::count(t.is_active))
-                         .from(t);  // bool column (COUNT works on any type)
-
-  // Test string functions
-  auto valid_lower = relx::query::select_expr(relx::query::lower(t.name)).from(t);  // string column
-
-  // THESE SHOULD FAIL AT COMPILE TIME (uncomment to test):
-  // auto invalid_sum_bool = relx::query::select_expr(relx::query::sum(t.is_active))
-  //     .from(t);  // Error: SUM cannot be used with bool columns
-
-  // auto invalid_avg_string = relx::query::select_expr(relx::query::avg(t.name))
-  //     .from(t);  // Error: AVG cannot be used with string columns
-
-  // auto invalid_lower_int = relx::query::select_expr(relx::query::lower(t.id))
-  //     .from(t);  // Error: LOWER cannot be used with int columns
-
-  EXPECT_TRUE(true);  // Test that valid cases compile
-}
-
-TEST(TypeSafetyTest, CaseExpressionTypeChecking) {
-  constexpr auto t = test_tbl;
-
-  // This should compile - consistent string types
   auto valid_case = relx::query::case_()
                         .when(t.id < 10, "Small")
                         .when(t.id < 100, "Medium")
@@ -214,110 +130,55 @@ TEST(TypeSafetyTest, CaseExpressionTypeChecking) {
   auto query = relx::query::select_expr(t.id,
                                         relx::query::as(std::move(valid_case), "size_category"))
                    .from(t);
-
-  // THESE SHOULD FAIL AT COMPILE TIME (uncomment to test):
-  // Mixed types should fail
-  // auto invalid_case = relx::query::case_()
-  //     .when(t.id < 10, "Small")     // string
-  //     .when(t.id < 100, 42)        // int - ERROR!
-  //     .else_("Large")              // string
-  //     .build();
-
-  EXPECT_TRUE(true);  // Test that valid cases compile
+  EXPECT_NE(query.to_sql().find("CASE WHEN"), std::string::npos) << query.to_sql();
+  EXPECT_NE(query.to_sql().find("AS size_category"), std::string::npos) << query.to_sql();
 }
 
-TEST(TypeSafetyTest, ColumnToColumnComparison) {
+TEST(TypeSafetyTest, ColumnToColumnJoinComparison) {
   constexpr auto t1 = test_tbl;
   constexpr auto t2 = compatible_tbl;
 
-  // This should compile - same types
-  auto valid_join = relx::query::select(t1.id, t1.name)
-                        .from(t1)
-                        .join(t2, relx::query::on(t1.id == t2.id));  // int == int
-
-  // THESE SHOULD FAIL AT COMPILE TIME (uncomment to test):
-  // Different types should fail
-  // auto invalid_join = relx::query::select(t1.id, t1.name)
-  //     .from(t1)
-  //     .join(t2, relx::query::on(t1.id == t2.name));  // int == string - ERROR!
-
-  EXPECT_TRUE(true);  // Test that valid cases compile
+  auto valid_join =
+      relx::query::select(t1.id, t1.name).from(t1).join(t2, relx::query::on(t1.id == t2.id));
+  EXPECT_EQ(valid_join.to_sql(),
+            "SELECT test_table.id, test_table.name FROM test_table JOIN compatible_table ON "
+            "(test_table.id = compatible_table.id)");
 }
 
-TEST(TypeSafetyTest, ArithmeticOperationsTypeChecking) {
+TEST(TypeSafetyTest, ArithmeticOnNumericColumns) {
   constexpr auto t = test_tbl;
 
-  // These should compile - valid arithmetic with numeric columns
-  auto valid_addition =
-      relx::query::select_expr(t.id + t.optional_id).from(t);  // int + optional<int>
+  auto addition = relx::query::select_expr(t.id + t.optional_id).from(t);
+  EXPECT_EQ(addition.to_sql(), "SELECT (test_table.id + test_table.optional_id) FROM test_table");
 
-  auto valid_price_calc = relx::query::select_expr(t.price * 1.2).from(t);  // double * double
+  auto multiply = relx::query::select_expr(t.price * 1.2).from(t);
+  EXPECT_EQ(multiply.to_sql(), "SELECT (test_table.price * ?) FROM test_table");
+  EXPECT_EQ(multiply.bind_params().at(0), "1.2");
 
-  auto valid_subtraction = relx::query::select_expr(t.price - 10.0).from(t);  // double - double
-
-  auto valid_division = relx::query::select_expr(t.id / 2).from(t);  // int / int
-
-  // THESE SHOULD FAIL AT COMPILE TIME (uncomment to test):
-  // String arithmetic should fail
-  // auto invalid_string_add = relx::query::select_expr(t.name + t.name)
-  //     .from(t);  // Error: Cannot add strings
-
-  // Boolean arithmetic should fail
-  // auto invalid_bool_multiply = relx::query::select_expr(t.is_active * 2)
-  //     .from(t);  // Error: Cannot multiply boolean
-
-  // Mixed type arithmetic should fail
-  // auto invalid_mixed = relx::query::select_expr(t.id + t.name)
-  //     .from(t);  // Error: Cannot add int and string
-
-  EXPECT_TRUE(true);  // Test that valid cases compile
+  auto divide = relx::query::select_expr(t.id / 2).from(t);
+  EXPECT_EQ(divide.to_sql(), "SELECT (test_table.id / ?) FROM test_table");
 }
 
-TEST(TypeSafetyTest, UpdateAssignmentTypeChecking) {
+TEST(TypeSafetyTest, UpdateAssignmentsWithMatchingTypes) {
   constexpr auto t = test_tbl;
 
-  // These should compile - valid assignments
-  auto valid_update1 = relx::query::update(t)
-                           .set(t.id, 42)                // int column with int value
-                           .set(t.name, "Updated Name")  // string column with string value
-                           .set(t.price, 99.99);         // double column with double value
-
-  auto valid_update2 = relx::query::update(t)
-                           .set(t.is_active, true)    // bool column with bool value
-                           .set(t.optional_id, 123);  // optional<int> with int value
-
-  // THESE SHOULD FAIL AT COMPILE TIME (uncomment to test):
-  // Type mismatches should fail
-  // auto invalid_update1 = relx::query::update(t)
-  //     .set(t.id, "not a number");  // Error: int column with string value
-
-  // auto invalid_update2 = relx::query::update(t)
-  //     .set(t.price, true);  // Error: double column with bool value
-
-  // auto invalid_update3 = relx::query::update(t)
-  //     .set(t.name, 42);  // Error: string column with int value
-
-  EXPECT_TRUE(true);  // Test that valid cases compile
+  auto update_query =
+      relx::query::update(t).set(t.name, "Updated Name").set(t.price, 99.99).where(t.id == 1);
+  const std::string sql = update_query.to_sql();
+  EXPECT_NE(sql.find("SET"), std::string::npos) << sql;
+  auto params = update_query.bind_params();
+  ASSERT_EQ(params.size(), 3);
+  EXPECT_EQ(params[0], "Updated Name");
+  EXPECT_EQ(params[1], "99.99");
+  EXPECT_EQ(params[2], "1");
 }
 
-TEST(TypeSafetyTest, OrderByTypeChecking) {
+TEST(TypeSafetyTest, OrderByTypedColumns) {
   constexpr auto t = test_tbl;
 
-  // These should compile - valid ORDER BY columns
-  auto valid_order1 = relx::query::select(t.id, t.name).from(t).order_by(t.id);  // int column
-
-  auto valid_order2 =
-      relx::query::select(t.name, t.price).from(t).order_by(t.name);  // string column
-
-  auto valid_order3 = relx::query::select(t.price).from(t).order_by(t.price);  // double column
-
-  // THESE SHOULD FAIL AT COMPILE TIME (uncomment to test):
-  // Complex types should fail for ORDER BY
-  // auto invalid_order = relx::query::select(t.id)
-  //     .from(t)
-  //     .order_by(t.is_active);  // Error: bool columns are not comparable for ordering
-
-  EXPECT_TRUE(true);  // Test that valid cases compile
+  auto ordered = relx::query::select(t.id, t.name).from(t).order_by(t.name);
+  EXPECT_EQ(ordered.to_sql(),
+            "SELECT test_table.id, test_table.name FROM test_table ORDER BY test_table.name ASC");
 }
 
 }  // namespace

@@ -22,7 +22,10 @@ public:
 
   // TODO delete table_name
   constexpr explicit SchemaColumnAdapter(const C& col, std::string_view table_name = "")
-      : col_(col), table_name_(table_name.empty() ? get_parent_table_name() : table_name) {}
+      : col_(col), table_name_(table_name.empty() ? get_parent_table_name() : table_name) {
+    // By-value col_ storage relies on columns being stateless (they are; this pins it)
+    static_assert(std::is_empty_v<C>, "schema columns are expected to be stateless");
+  }
 
   constexpr std::string to_sql() const override { return qualified_name(); }
 
@@ -35,14 +38,20 @@ public:
   const C& column() const { return col_; }
 
 private:
-  const C& col_;
+  // By value: a reference member dangles once the adapter outlives its source column
+  // object (columns are stateless, so the copy is free)
+  C col_;
   std::string_view table_name_;
 
+  /// Quoted like ColumnRef and the SELECT-list path: without this, reserved-word or
+  /// mixed-case columns were quoted in SELECT lists but bare in WHERE/JOIN/GROUP
+  /// BY/ORDER BY/HAVING
   constexpr std::string qualified_name() const override {
     if (table_name_.empty()) {
-      return std::string(C::name);
+      return schema::quote_identifier(std::string_view(C::name));
     }
-    return std::string(table_name_) + "." + std::string(C::name);
+    return schema::quote_identifier(table_name_) + "." +
+           schema::quote_identifier(std::string_view(C::name));
   }
 
   constexpr std::string_view get_parent_table_name() const {

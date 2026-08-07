@@ -81,6 +81,20 @@ TEST(StaticSqlTest, PostgresPlaceholders) {
   SUCCEED();
 }
 
+TEST(StaticSqlTest, PlaceholderScannerMirrorsRuntimeGrammar) {
+  // ?? escapes a literal ?, and ?s inside comments are not placeholders - the same
+  // rules the runtime converter applies
+  struct FakeRaw {
+    constexpr std::string to_sql() const {
+      return "SELECT a ?? b -- is ? here\n FROM t WHERE x = ? /* not ? */";
+    }
+    constexpr std::vector<std::string> bind_params() const { return {}; }
+  };
+  static_assert(relx::static_pg_sql(FakeRaw{}) ==
+                "SELECT a ? b -- is ? here\n FROM t WHERE x = $1 /* not ? */");
+  SUCCEED();
+}
+
 TEST(StaticSqlTest, CaseExpressionConstantEvaluates) {
   // Typed CASE stores its arms by value, so the whole builder chain runs at compile time
   static_assert(relx::static_sql(relx::query::select_expr(

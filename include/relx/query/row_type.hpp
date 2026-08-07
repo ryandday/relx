@@ -43,7 +43,9 @@ public:
   constexpr explicit TypedAlias(Expr expr) : expr_(std::move(expr)) {}
 
   constexpr std::string to_sql() const override {
-    return expr_.to_sql() + " AS " + std::string(std::string_view(alias_name));
+    // Quoted: an unquoted mixed-case alias would be folded by PostgreSQL and the
+    // by-name DTO match would silently fall back to positional
+    return expr_.to_sql() + " AS " + schema::quote_identifier(std::string_view(alias_name));
   }
   constexpr std::vector<bind_param> bind_params() const override { return expr_.bind_params(); }
   std::string column_name() const override { return std::string(std::string_view(alias_name)); }

@@ -298,6 +298,12 @@ public:
   /// @return New InsertQuery with the values added
   template <typename... Args>
   constexpr auto values(Args&&... args) const {
+    // A row whose arity disagrees with the column list would bind values to the
+    // wrong columns (or fail server-side after the fact)
+    static_assert(std::tuple_size_v<Columns> == 0 || sizeof...(Args) == std::tuple_size_v<Columns>,
+                  "insert values(): the number of values must match the number of "
+                  "inserted columns");
+
     // Helper to convert arguments to SqlExpr if they're not already
     auto to_expr = [](auto&& arg) {
       if constexpr (SqlExpr<std::remove_cvref_t<decltype(arg)>>) {

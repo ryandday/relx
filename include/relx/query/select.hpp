@@ -590,6 +590,9 @@ public:
 /// @return A SelectQuery object
 template <typename... Args>
 constexpr auto select(const Args&... args) {
+  static_assert(sizeof...(Args) > 0,
+                "select() needs at least one column: zero columns would render the invalid "
+                "SQL 'SELECT  FROM ...'");
   static_assert((!SelectQueryExpr<Args> && ...),
                 "scalar subqueries in a select list are not supported: the nested SELECT would be "
                 "emitted without parentheses. Use an IN/EXISTS condition, or a join");
