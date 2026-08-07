@@ -11,18 +11,22 @@ namespace relx::connection {
 /// @brief Exception thrown when transaction operations fail
 class TransactionException : public std::runtime_error {
 public:
-  explicit TransactionException(const ConnectionError& error)
-      : std::runtime_error(error.message), error_code_(error.error_code) {}
+  explicit TransactionException(ConnectionError error)
+      : std::runtime_error(error.message), error_(std::move(error)) {}
 
   explicit TransactionException(const std::string& message)
-      : std::runtime_error(message), error_code_(0) {}
+      : std::runtime_error(message), error_{.message = message} {}
 
   /// @brief Get the error code associated with this exception
   /// @return The database-specific error code
-  int error_code() const noexcept { return error_code_; }
+  int error_code() const noexcept { return error_.error_code; }
+
+  /// @brief The full connection error, including sql_state - so retry loops can use
+  /// error().is_serialization_failure() / is_deadlock() through the guard
+  const ConnectionError& error() const noexcept { return error_; }
 
 private:
-  int error_code_;
+  ConnectionError error_;
 };
 
 /// @brief RAII wrapper for database transactions
