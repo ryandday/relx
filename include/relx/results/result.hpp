@@ -5,11 +5,12 @@
 #include "../schema/core.hpp"
 #include "../schema/table.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <concepts>
 #include <expected>
 #include <functional>
-#include <iostream>
 #include <optional>
 #include <ranges>
 #include <sstream>
@@ -60,6 +61,28 @@ inline std::string escape(std::string_view value) {
   return out;
 }
 
+/// @brief Split an encoded row into its encoded cells. N unescaped separators always
+/// produce N+1 cells, so trailing (and leading) empty cells survive the round trip; a
+/// backslash escapes the following character, so escaped separators do not split.
+inline std::vector<std::string_view> split_cells(std::string_view row) {
+  std::vector<std::string_view> cells;
+  size_t start = 0;
+  size_t pos = 0;
+  while (pos < row.size()) {
+    if (row[pos] == '\\' && pos + 1 < row.size()) {
+      pos += 2;
+      continue;
+    }
+    if (row[pos] == '|') {
+      cells.push_back(row.substr(start, pos - start));
+      start = pos + 1;
+    }
+    ++pos;
+  }
+  cells.push_back(row.substr(start));
+  return cells;
+}
+
 inline std::string unescape(std::string_view value) {
   std::string out;
   out.reserve(value.size());
@@ -95,14 +118,6 @@ static constexpr auto class_of(T C::*) {
   return (C*)nullptr;
 }
 
-/// @brief Gets the column name from a column member pointer
-template <auto MemberPtr>
-constexpr std::string_view get_column_name() {
-  using Class = query::class_of_t_t<decltype(MemberPtr)>;
-  using ColumnType = std::remove_reference_t<decltype(std::declval<Class>().*MemberPtr)>;
-  return ColumnType::column_name;
-}
-
 /// @brief Helper to get the value type from a column member pointer
 template <typename Table, typename ColumnMemberPtr>
 struct column_member_value {
@@ -128,9 +143,9 @@ public:
   explicit Cell(std::string value) : value_(std::move(value)) {}
 
   /// @brief Constructs a cell representing SQL NULL. Nullness is out-of-band: a cell
-  /// whose text happens to be "NULL" is NOT null.
+  /// whose text happens to be "NULL" is NOT null, and a NULL cell carries no text.
   static Cell null() {
-    Cell cell{std::string("NULL")};
+    Cell cell{std::string()};
     cell.is_null_ = true;
     return cell;
   }
@@ -163,29 +178,25 @@ public:
       return std::unexpected(ResultError{"Cannot convert NULL to non-optional type"});
     }
 
-    // More strict type checking
-    if constexpr (std::is_same_v<T, bool>) {
-      const auto lower = to_lower(value_);
-
-      // Always accept explicit boolean strings
-      if (lower == "true") {
-        return true;
+    // Optionals delegate to the inner type BEFORE any trait dispatch, so wrapping a
+    // type in std::optional can never change (loosen) its parsing grammar
+    if constexpr (is_optional_v<T>) {
+      using ValueType = typename T::value_type;
+      auto inner = as<ValueType>(allow_numeric_bools);
+      if (!inner) {
+        return std::unexpected(inner.error());
       }
-      if (lower == "false") {
-        return false;
-      }
-      if (lower == "t") {  // PostgreSQL format
-        return true;
-      }
-      if (lower == "f") {  // PostgreSQL format
-        return false;
+      return T{std::move(*inner)};
+    } else if constexpr (std::is_same_v<T, bool>) {
+      if (const auto parsed = schema::detail::parse_bool(value_)) {
+        return *parsed;
       }
       if (allow_numeric_bools) {
-        // Only allow numeric conversion if explicitly allowed
-        if (lower == "1") {
+        // Numeric booleans are an explicit opt-in
+        if (value_ == "1") {
           return true;
         }
-        if (lower == "0") {
+        if (value_ == "0") {
           return false;
         }
       }
@@ -200,19 +211,8 @@ public:
         return std::unexpected(ResultError{"Cannot convert boolean value to integer type"});
       }
 
-      // Use the appropriate parsing for the integer type
       try {
-        if (!is_valid_integer(value_)) {
-          return std::unexpected(ResultError{"Cannot convert to integer: invalid format"});
-        }
-
-        if constexpr (std::is_same_v<T, int>) {
-          return std::stoi(value_);
-        } else if constexpr (std::is_same_v<T, long>) {
-          return std::stol(value_);
-        } else if constexpr (std::is_same_v<T, long long>) {
-          return std::stoll(value_);
-        }
+        return schema::detail::parse_number<T>(value_, "integer");
       } catch (const std::exception& e) {
         return std::unexpected(ResultError{std::string("Error parsing cell value '") + value_ +
                                            "' to integer: " + e.what()});
@@ -248,67 +248,21 @@ private:
     return str;
   }
 
-  // Check if a value is likely a boolean
-  static bool is_boolean_value(const std::string& str) {
-    // Only accept "true", "false", "0", or "1" as possible boolean values
-    return str == "true" || str == "false" || str == "0" || str == "1";
-  }
-
   // Type-specific parsing implementations
   template <typename T>
-  ResultProcessingResult<T> parse_value(bool allow_numeric_bools) const {
+  ResultProcessingResult<T> parse_value(bool /*allow_numeric_bools*/) const {
     try {
-      if constexpr (std::is_same_v<T, int>) {
-        // Validate the string contains only digits and optional sign
-        if (!is_valid_integer(value_)) {
-          return std::unexpected(ResultError{"Cannot convert to int: invalid format"});
-        }
-        return std::stoi(value_);
-      } else if constexpr (std::is_same_v<T, long>) {
-        if (!is_valid_integer(value_)) {
-          return std::unexpected(ResultError{"Cannot convert to long: invalid format"});
-        }
-        return std::stol(value_);
-      } else if constexpr (std::is_same_v<T, long long>) {
-        if (!is_valid_integer(value_)) {
-          return std::unexpected(ResultError{"Cannot convert to long long: invalid format"});
-        }
-        return std::stoll(value_);
-      } else if constexpr (std::is_same_v<T, unsigned long>) {
-        if (!is_valid_unsigned_integer(value_)) {
-          return std::unexpected(ResultError{"Cannot convert to unsigned long: invalid format"});
-        }
-        return std::stoul(value_);
-      } else if constexpr (std::is_same_v<T, unsigned long long>) {
-        if (!is_valid_unsigned_integer(value_)) {
-          return std::unexpected(
-              ResultError{"Cannot convert to unsigned long long: invalid format"});
-        }
-        return std::stoull(value_);
-      } else if constexpr (std::is_same_v<T, float>) {
-        if (!is_valid_float(value_)) {
-          return std::unexpected(ResultError{"Cannot convert to float: invalid format"});
-        }
-        return std::stof(value_);
-      } else if constexpr (std::is_same_v<T, double>) {
-        if (!is_valid_float(value_)) {
-          return std::unexpected(ResultError{"Cannot convert to double: invalid format"});
-        }
-        return std::stod(value_);
-      } else if constexpr (std::is_same_v<T, long double>) {
-        if (!is_valid_float(value_)) {
-          return std::unexpected(ResultError{"Cannot convert to long double: invalid format"});
-        }
-        return std::stold(value_);
+      // Numerics parse via strict full-consumption from_chars: locale-independent,
+      // partial parses rejected, unsigned targets reject negative input instead of
+      // wrapping. char-like types stay unsupported ('5' vs 5 is ambiguous).
+      if constexpr ((std::is_integral_v<T> || std::is_floating_point_v<T>) &&
+                    !std::is_same_v<T, bool> && !std::is_same_v<T, char> &&
+                    !std::is_same_v<T, signed char> && !std::is_same_v<T, unsigned char> &&
+                    !std::is_same_v<T, wchar_t> && !std::is_same_v<T, char8_t> &&
+                    !std::is_same_v<T, char16_t> && !std::is_same_v<T, char32_t>) {
+        return schema::detail::parse_number<T>(value_, "number");
       } else if constexpr (std::is_same_v<T, std::string>) {
         return value_;
-      } else if constexpr (is_optional_v<T>) {
-        using ValueType = typename T::value_type;
-        auto result = as<ValueType>(allow_numeric_bools);
-        if (result) {
-          return T{*result};
-        }
-        return T{std::nullopt};
       } else {
         // For any other type, throw a clear conversion error
         return std::unexpected(
@@ -318,97 +272,6 @@ private:
       return std::unexpected(
           ResultError{std::string("Error parsing cell value '") + value_ + "': " + e.what()});
     }
-  }
-
-  // Helper functions for validation
-  static bool is_valid_integer(const std::string& str) {
-    if (str.empty()) {
-      return false;
-    }
-
-    size_t start = 0;
-    if (str[0] == '-' || str[0] == '+') {
-      start = 1;
-    }
-
-    return str.length() > start &&
-           std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start), str.end(),
-                       [](unsigned char c) { return std::isdigit(c); });
-  }
-
-  static bool is_valid_unsigned_integer(const std::string& str) {
-    if (str.empty()) {
-      return false;
-    }
-
-    size_t start = 0;
-    if (str[0] == '+') {
-      start = 1;
-    }
-
-    return str.length() > start &&
-           std::all_of(str.begin() + static_cast<std::ptrdiff_t>(start), str.end(),
-                       [](unsigned char c) { return std::isdigit(c); });
-  }
-
-  static bool is_valid_float(const std::string& str) {
-    if (str.empty()) {
-      return false;
-    }
-
-    bool has_digit = false;
-    bool has_decimal = false;
-    bool has_exponent = false;
-
-    size_t i = 0;
-    if (str[0] == '-' || str[0] == '+') {
-      i++;
-    }
-
-    for (; i < str.length(); i++) {
-      const char c = str[i];
-
-      if (std::isdigit(static_cast<unsigned char>(c))) {
-        has_digit = true;
-      } else if (c == '.') {
-        if (has_decimal || has_exponent) {
-          return false;
-        }
-        has_decimal = true;
-      } else if (c == 'e' || c == 'E') {
-        if (!has_digit || has_exponent) {
-          return false;
-        }
-        has_exponent = true;
-
-        if (i + 1 < str.length() && (str[i + 1] == '+' || str[i + 1] == '-')) {
-          i++;
-        }
-        if (i + 1 >= str.length()) {
-          return false;  // No digits after exponent
-        }
-      } else {
-        return false;
-      }
-    }
-
-    return has_digit;
-  }
-
-  // Specialization for optional types
-  template <typename T>
-  ResultProcessingResult<std::optional<T>> parse_value(bool allow_numeric_bools) const
-    requires requires { parse_value<T>(allow_numeric_bools); }
-  {
-    if (is_null()) {
-      return std::optional<T>{std::nullopt};
-    }
-
-    auto result = parse_value<T>(allow_numeric_bools);
-    if (!result) {
-      return std::unexpected(result.error());
-    }
-    return std::optional<T>{*result};
   }
 };
 
@@ -886,81 +749,53 @@ private:
 template <query::SqlExpr Query>
 ResultProcessingResult<ResultSet> parse(const Query& /*query*/, const std::string& raw_results) {
   try {
-    // Split the raw results into lines
-    std::vector<std::string> lines;
+    // Split the raw results into lines. `\n` terminates a row, so an empty line is a
+    // real row (a single empty cell); only a final fragment-less terminator adds
+    // nothing. A trailing fragment without a terminator still counts as a line.
+    std::vector<std::string_view> lines;
+    const std::string_view raw_view = raw_results;
     size_t pos = 0;
-    size_t next_pos = 0;
-
-    // Parse header line and data lines
-    while ((next_pos = raw_results.find('\n', pos)) != std::string::npos) {
-      lines.push_back(raw_results.substr(pos, next_pos - pos));
-      pos = next_pos + 1;
+    size_t line_start = 0;
+    while (pos < raw_view.size()) {
+      if (raw_view[pos] == '\n') {
+        lines.push_back(raw_view.substr(line_start, pos - line_start));
+        line_start = pos + 1;
+      }
+      ++pos;
     }
-
-    // Add the last line if it's not empty
-    if (pos < raw_results.size()) {
-      lines.push_back(raw_results.substr(pos));
+    if (line_start < raw_view.size()) {
+      lines.push_back(raw_view.substr(line_start));
     }
 
     if (lines.empty()) {
       return ResultSet{};
     }
 
-    // Parse column names from the first line
+    // Parse column names from the header line
     std::vector<std::string> column_names;
-    const std::string header = lines[0];
-    pos = 0;
-
-    while ((next_pos = header.find('|', pos)) != std::string::npos) {
-      column_names.push_back(header.substr(pos, next_pos - pos));
-      pos = next_pos + 1;
-    }
-
-    // Add the last column
-    if (pos < header.size()) {
-      column_names.push_back(header.substr(pos));
+    for (const auto raw_name : text_format::split_cells(lines[0])) {
+      column_names.push_back(text_format::unescape(raw_name));
     }
 
     // Parse data rows
     std::vector<Row> rows;
 
     for (size_t i = 1; i < lines.size(); ++i) {
-      const auto& line = lines[i];
-
-      // Skip empty lines
-      if (line.empty()) {
-        continue;
-      }
-
-      // Parse cells (backslash escapes cell separators; `\N` is the NULL marker)
       std::vector<Cell> cells;
-      const auto add_cell = [&cells](std::string_view raw) {
+      const auto raw_cells = text_format::split_cells(lines[i]);
+      if (raw_cells.size() != column_names.size()) {
+        return std::unexpected(ResultError{
+            "Row " + std::to_string(i - 1) + " has " + std::to_string(raw_cells.size()) +
+            " cells but the header declares " + std::to_string(column_names.size()) + " columns"});
+      }
+      for (const auto raw : raw_cells) {
         if (raw == text_format::null_marker) {
           cells.push_back(Cell::null());
         } else {
           cells.emplace_back(text_format::unescape(raw));
         }
-      };
-      pos = 0;
-      size_t cell_start = 0;
-      while (pos < line.size()) {
-        if (line[pos] == '\\' && pos + 1 < line.size()) {
-          pos += 2;
-          continue;
-        }
-        if (line[pos] == '|') {
-          add_cell(std::string_view(line).substr(cell_start, pos - cell_start));
-          cell_start = pos + 1;
-        }
-        ++pos;
       }
 
-      // Add the last cell
-      if (cell_start < line.size()) {
-        add_cell(std::string_view(line).substr(cell_start));
-      }
-
-      // Create a row with the cells and column names
       rows.emplace_back(std::move(cells), column_names);
     }
 

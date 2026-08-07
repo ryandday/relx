@@ -27,8 +27,14 @@ public:
   /// escaped and is not null.
   bool is_null() const { return encoded_value() == text_format::null_marker; }
 
-  /// @brief Get the raw string value (unescaped on demand)
-  std::string get_raw_value() const { return text_format::unescape(encoded_value()); }
+  /// @brief Get the raw string value (unescaped on demand). A NULL cell carries no
+  /// text; unescaping its `\N` marker would fabricate the value "N".
+  std::string get_raw_value() const {
+    if (is_null()) {
+      return {};
+    }
+    return text_format::unescape(encoded_value());
+  }
 
   /// @brief Parse the cell's value as the specified type
   template <typename T>
@@ -213,26 +219,13 @@ private:
   void ensure_cells_parsed() const {
     if (cells_parsed_) return;
 
-    // Parse cell positions from raw data; backslash escapes the next character,
-    // so escaped separators inside values do not split cells
-    size_t pos = 0;
-    size_t start = 0;
-
-    while (pos < raw_data_.size()) {
-      if (raw_data_[pos] == '\\' && pos + 1 < raw_data_.size()) {
-        pos += 2;
-        continue;
+    // A default-constructed sentinel row (no data, no columns) has zero cells; any
+    // real row has N separators and N+1 cells, so trailing empty cells survive
+    if (!raw_data_.empty() || !column_names_.empty()) {
+      for (const auto cell : text_format::split_cells(raw_data_)) {
+        const size_t start = static_cast<size_t>(cell.data() - raw_data_.data());
+        cell_positions_.emplace_back(start, start + cell.size());
       }
-      if (raw_data_[pos] == '|') {
-        cell_positions_.emplace_back(start, pos);
-        start = pos + 1;
-      }
-      ++pos;
-    }
-
-    // Add the last cell
-    if (start < raw_data_.size()) {
-      cell_positions_.emplace_back(start, raw_data_.size());
     }
 
     cells_parsed_ = true;
@@ -263,8 +256,9 @@ public:
     }
 
     const auto& [start, end] = row_positions_[index];
-    std::string_view row_data(raw_data_.data() + start, end - start);
-    return LazyRow(row_data, column_names_);
+    // The row owns a copy of its data: a row handed out here must stay valid even if
+    // the result set is moved or destroyed first
+    return LazyRow(std::string(raw_data_, start, end - start), column_names_);
   }
 
   /// @brief Access a row by index using the subscript operator
@@ -357,50 +351,44 @@ private:
   void ensure_rows_parsed() const {
     if (rows_parsed_) return;
 
-    // Find line boundaries
+    // `\n` terminates a row, so an empty line is a real row (a single empty cell);
+    // a trailing fragment without a terminator still counts as a line. Line 1 is the
+    // header.
     size_t pos = 0;
     size_t line_start = 0;
     bool first_line = true;
 
-    while (pos <= raw_data_.size()) {
-      if (pos == raw_data_.size() || raw_data_[pos] == '\n') {
-        if (pos > line_start) {
-          std::string_view line(raw_data_.data() + line_start, pos - line_start);
+    const auto add_line = [&](size_t line_end) {
+      if (first_line) {
+        parse_column_names(std::string_view(raw_data_.data() + line_start, line_end - line_start));
+        first_line = false;
+      } else {
+        row_positions_.emplace_back(line_start, line_end);
+      }
+    };
 
-          if (first_line) {
-            // Parse header line for column names
-            parse_column_names(line);
-            first_line = false;
-          } else if (!line.empty()) {
-            // Add data row
-            row_positions_.emplace_back(line_start, pos);
-          }
-        }
+    while (pos < raw_data_.size()) {
+      if (raw_data_[pos] == '\n') {
+        add_line(pos);
         line_start = pos + 1;
       }
       ++pos;
+    }
+    if (line_start < raw_data_.size()) {
+      add_line(raw_data_.size());
     }
 
     rows_parsed_ = true;
   }
 
+  /// @brief Parse the header line. Empty names are kept - dropping them would shift
+  /// the name-to-index mapping and make get<T>("name") read the wrong column.
   void parse_column_names(std::string_view header_line) const {
-    size_t pos = 0;
-    size_t start = 0;
-
-    while (pos < header_line.size()) {
-      if (header_line[pos] == '|') {
-        if (pos > start) {
-          column_names_.emplace_back(header_line.substr(start, pos - start));
-        }
-        start = pos + 1;
-      }
-      ++pos;
+    if (header_line.empty()) {
+      return;
     }
-
-    // Add the last column
-    if (start < header_line.size()) {
-      column_names_.emplace_back(header_line.substr(start));
+    for (const auto raw_name : text_format::split_cells(header_line)) {
+      column_names_.emplace_back(text_format::unescape(raw_name));
     }
   }
 };

@@ -66,6 +66,13 @@ public:
 
   StreamingResultSet(DataSource source) : source_(std::move(source)) {}
 
+  // Iterators hold a reference to the stored data source; moving or copying the set
+  // would silently end existing iterators, so the set is pinned in place
+  StreamingResultSet(const StreamingResultSet&) = delete;
+  StreamingResultSet& operator=(const StreamingResultSet&) = delete;
+  StreamingResultSet(StreamingResultSet&&) = delete;
+  StreamingResultSet& operator=(StreamingResultSet&&) = delete;
+
   streaming_iterator begin() { return streaming_iterator(source_); }
 
   streaming_iterator end() { return streaming_iterator(source_, true); }

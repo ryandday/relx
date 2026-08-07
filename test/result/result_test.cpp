@@ -47,10 +47,11 @@ protected:
 
   void SetUp() override {
     // Create a sample raw result string (pipe-separated values)
+    // Boolean cells carry 't'/'f' - the spellings PostgreSQL actually emits
     raw_results_ = "id|name|email|age|is_active|score\n"
-                   "1|John Doe|john@example.com|30|1|95.5\n"
-                   "2|Jane Smith|jane@example.com|28|1|92.3\n"
-                   "3|Bob Johnson|bob@example.com|35|0|85.7\n";
+                   "1|John Doe|john@example.com|30|t|95.5\n"
+                   "2|Jane Smith|jane@example.com|28|t|92.3\n"
+                   "3|Bob Johnson|bob@example.com|35|f|85.7\n";
   }
 };
 
@@ -245,21 +246,14 @@ TEST_F(ResultTest, MalformedData) {
   ASSERT_TRUE(empty_result) << empty_result.error().message;
   EXPECT_TRUE(empty_result->empty());
 
-  // Test malformed result (missing column in one row)
+  // A row whose cell count disagrees with the header is data corruption, not a
+  // row with "fewer cells" - parse must refuse it
   std::string malformed = "id|name|email\n"
                           "1|John Doe\n";  // Missing email column
 
   auto malformed_result = relx::result::parse(query_, malformed);
-  ASSERT_TRUE(malformed_result) << malformed_result.error().message;
-  ASSERT_EQ(1, malformed_result->size());
-
-  // The row should still be accessible, but with fewer cells
-  const auto& first_row = malformed_result->at(0);
-  EXPECT_EQ(2, first_row.size());  // Only two cells were parsed
-
-  // Accessing the missing cell should fail
-  auto email = first_row.get<std::string>("email");
-  EXPECT_FALSE(email);
+  ASSERT_FALSE(malformed_result);
+  EXPECT_NE(malformed_result.error().message.find("header declares"), std::string::npos);
 }
 
 // Test structured binding support

@@ -42,6 +42,53 @@ TEST(CellNullSemantics, NullnessIsOutOfBand) {
   EXPECT_FALSE(null_cell.as<int>().has_value());
 }
 
+TEST(CellNullSemantics, NullCellCarriesNoText) {
+  // The raw buffer of a NULL cell must not contain fabricated "NULL" text
+  EXPECT_EQ(Cell::null().raw_value(), "");
+}
+
+TEST(CellBooleanGrammar, OneGrammarRegardlessOfOptionalWrapping) {
+  const Cell numeric{std::string("1")};
+
+  // "1" is not a boolean unless numeric bools are explicitly allowed...
+  EXPECT_FALSE(numeric.as<bool>().has_value());
+  EXPECT_TRUE(numeric.as<bool>(true).has_value());
+
+  // ...and wrapping in optional must not loosen the grammar
+  EXPECT_FALSE(numeric.as<std::optional<bool>>().has_value());
+  auto opt_allowed = numeric.as<std::optional<bool>>(true);
+  ASSERT_TRUE(opt_allowed.has_value());
+  EXPECT_TRUE(opt_allowed->value());
+
+  // PostgreSQL spellings parse either way
+  const Cell pg_true{std::string("t")};
+  EXPECT_TRUE(pg_true.as<bool>().value());
+  EXPECT_TRUE(pg_true.as<std::optional<bool>>().value().value());
+}
+
+TEST(CellOptionalSemantics, ConversionFailureIsAnErrorNotNull) {
+  // A malformed non-NULL value must not silently collapse to nullopt
+  const Cell garbage{std::string("not-a-number")};
+  EXPECT_FALSE(garbage.as<std::optional<int>>().has_value());
+  EXPECT_FALSE(garbage.as<std::optional<double>>().has_value());
+}
+
+TEST(CellNumericParsing, LocaleIndependentAndStrict) {
+  // Full-consumption parsing: partial parses are rejected
+  EXPECT_FALSE(Cell{std::string("12abc")}.as<long long>().has_value());
+  EXPECT_FALSE(Cell{std::string("1.5x")}.as<double>().has_value());
+
+  // Unsigned targets reject negative input instead of wrapping
+  EXPECT_FALSE(Cell{std::string("-1")}.as<unsigned long>().has_value());
+  auto unsigned_ok = Cell{std::string("4000000000")}.as<unsigned int>();
+  ASSERT_TRUE(unsigned_ok.has_value());
+  EXPECT_EQ(*unsigned_ok, 4000000000U);
+
+  auto ld = Cell{std::string("2.5")}.as<long double>();
+  ASSERT_TRUE(ld.has_value());
+  EXPECT_EQ(*ld, 2.5L);
+}
+
 TEST(CellNullSemantics, QuotedTextSurvivesVerbatim) {
   // Raw protocol text is never SQL-literal de-quoted
   const Cell quoted{std::string("'quoted'")};
