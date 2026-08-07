@@ -100,6 +100,22 @@ TEST_F(PostgreSQLConnectionPoolTest, TestPoolInitialization) {
   EXPECT_EQ(3, pool->idle_connections());
 }
 
+TEST_F(PostgreSQLConnectionPoolTest, InitialSizeExceedingMaxSizeIsError) {
+  relx::connection::PostgreSQLConnectionPoolConfig config;
+  config.connection_params = {.host = "localhost",
+                              .port = 5434,
+                              .dbname = "relx_test",
+                              .user = "postgres",
+                              .password = "postgres"};
+  config.initial_size = 10;
+  config.max_size = 5;
+
+  auto pool = relx::connection::PostgreSQLConnectionPool::create(config);
+  auto init_result = pool->initialize();
+  ASSERT_FALSE(init_result);
+  EXPECT_NE(init_result.error().message.find("initial_size"), std::string::npos);
+}
+
 TEST_F(PostgreSQLConnectionPoolTest, TestPoolMaxConnections) {
   relx::connection::PostgreSQLConnectionPoolConfig config;
   config.connection_params = {.host = "localhost",

@@ -1,5 +1,7 @@
 #include "relx/connection/postgresql_connection_pool.hpp"
 
+#include <vector>
+
 namespace relx::connection {
 
 namespace {
@@ -31,6 +33,14 @@ PostgreSQLConnectionPool::~PostgreSQLConnectionPool() {
 }
 
 ConnectionPoolResult<void> PostgreSQLConnectionPool::initialize() {
+  if (config_.initial_size > config_.max_size) {
+    return std::unexpected(ConnectionPoolError{
+        .message = "Invalid pool configuration: initial_size (" +
+                   std::to_string(config_.initial_size) + ") exceeds max_size (" +
+                   std::to_string(config_.max_size) + ")",
+        .error_code = -1});
+  }
+
   // Reserve the slots up front (so concurrent callers cannot overshoot), then
   // connect WITHOUT holding the pool mutex: N blocking PQconnectdb calls under
   // the lock would block every other pool operation for the whole connect window.
@@ -50,13 +60,15 @@ ConnectionPoolResult<void> PostgreSQLConnectionPool::initialize() {
   for (size_t i = 0; i < to_create; ++i) {
     auto conn_result = create_connection();
     if (!conn_result) {
-      // Keep what connected so far, release the unused reserved slots
-      subtract_guarded(total_connections_, to_create - created.size());
+      // Keep what connected so far, release the unused reserved slots (under the
+      // mutex - off-mutex counter changes lose wakeups against waiting checkouts)
       const std::lock_guard<std::mutex> lock(pool_mutex_);
+      subtract_guarded(total_connections_, to_create - created.size());
       for (auto& entry : created) {
         idle_connections_.push(std::move(entry));
         conn_available_.notify_one();
       }
+      conn_available_.notify_one();
       return std::unexpected(ConnectionPoolError{
           .message = "Failed to initialize connection pool: " + conn_result.error().message,
           .error_code = conn_result.error().error_code});
@@ -104,10 +116,13 @@ PostgreSQLConnectionPool::get_raw_connection() {
       if (config_.validate_connections) {
         lock.unlock();
         if (!validate_connection(connection)) {
-          // Discard the dead connection; its slot frees capacity for a waiter
+          // Discard the dead connection; its slot frees capacity for a waiter.
+          // The decrement happens under the mutex: mutating pool state between a
+          // waiter's predicate check and its wait would lose the wakeup and leave
+          // the waiter sleeping out its full timeout.
+          lock.lock();
           decrement_guarded(total_connections_);
           conn_available_.notify_one();
-          lock.lock();
           continue;
         }
         ++active_connections_;
@@ -127,6 +142,9 @@ PostgreSQLConnectionPool::get_raw_connection() {
 
       auto conn_result = create_connection();
       if (!conn_result) {
+        // Release the reserved slot under the mutex (see the validation path above
+        // for why off-mutex releases lose wakeups)
+        lock.lock();
         decrement_guarded(total_connections_);
         conn_available_.notify_one();
         return std::unexpected(ConnectionPoolError{.message = "Failed to create new connection: " +
@@ -215,51 +233,55 @@ bool PostgreSQLConnectionPool::validate_connection(
 void PostgreSQLConnectionPool::cleanup_idle_connections() {
   using namespace std::chrono;
 
-  const std::lock_guard<std::mutex> lock(pool_mutex_);
+  // Connections selected for closing are destroyed AFTER the mutex is released:
+  // PQfinish (and a possible rollback round-trip) under pool_mutex_ would stall
+  // every other pool operation for the whole teardown
+  std::vector<PoolEntry> dropped;
 
-  if (idle_connections_.empty()) {
-    return;
-  }
+  {
+    const std::lock_guard<std::mutex> lock(pool_mutex_);
 
-  // Keep at least config_.initial_size connections
-  if (total_connections_ <= config_.initial_size) {
-    return;
-  }
-
-  // Get the current time
-  auto now = steady_clock::now();
-
-  // Create a temporary queue to hold connections we want to keep
-  std::queue<PoolEntry> keep_connections;
-
-  size_t closed = 0;
-
-  // Process all idle connections
-  while (!idle_connections_.empty()) {
-    auto& pooled_conn = idle_connections_.front();
-
-    // Check if the connection has been idle for too long
-    auto idle_time = now - pooled_conn.last_used;
-
-    const bool should_close = idle_time > config_.max_idle_time &&
-                              (total_connections_ - closed) > config_.initial_size;
-
-    if (should_close) {
-      // Close this connection
-      ++closed;
-    } else {
-      // Keep this connection
-      keep_connections.push(std::move(pooled_conn));
+    if (idle_connections_.empty()) {
+      return;
     }
 
-    idle_connections_.pop();
+    // Keep at least config_.initial_size connections
+    if (total_connections_ <= config_.initial_size) {
+      return;
+    }
+
+    // Get the current time
+    auto now = steady_clock::now();
+
+    // Create a temporary queue to hold connections we want to keep
+    std::queue<PoolEntry> keep_connections;
+
+    // Process all idle connections
+    while (!idle_connections_.empty()) {
+      auto& pooled_conn = idle_connections_.front();
+
+      // Check if the connection has been idle for too long
+      auto idle_time = now - pooled_conn.last_used;
+
+      const bool should_close = idle_time > config_.max_idle_time &&
+                                (total_connections_ - dropped.size()) > config_.initial_size;
+
+      if (should_close) {
+        dropped.push_back(std::move(pooled_conn));
+      } else {
+        keep_connections.push(std::move(pooled_conn));
+      }
+
+      idle_connections_.pop();
+    }
+
+    // Update the idle connections queue
+    idle_connections_ = std::move(keep_connections);
+
+    // Update the total connection count
+    subtract_guarded(total_connections_, dropped.size());
   }
-
-  // Update the idle connections queue
-  idle_connections_ = std::move(keep_connections);
-
-  // Update the total connection count
-  subtract_guarded(total_connections_, closed);
+  // dropped destructs here, closing the connections outside the lock
 }
 
 }  // namespace relx::connection
