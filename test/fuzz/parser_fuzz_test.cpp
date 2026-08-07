@@ -67,7 +67,11 @@ TEST(ParserFuzz, DecodeBinaryCellHandlesArbitraryBytes) {
     // Must return a value or an error - never crash, never read out of bounds
     auto decoded = decode_binary_cell_for_testing(oids[oid_dist(rng)], bytes.data(),
                                                   static_cast<int>(bytes.size()));
-    (void)decoded;
+    if (!decoded.has_value()) {
+      // Errors must carry a message - a silent empty error would be indistinguishable
+      // from data
+      ASSERT_FALSE(decoded.error().empty());
+    }
   }
 }
 

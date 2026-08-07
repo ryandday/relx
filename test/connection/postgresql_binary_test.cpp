@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <relx/connection/postgresql_connection.hpp>
+#include <relx/connection/sql_utils.hpp>
 
 namespace {
 
@@ -253,3 +254,67 @@ TEST_F(PostgreSQLBinaryTest, TestMixedBinaryAndTextParameters) {
 }
 
 }  // namespace
+// Server-free decoder tests: exact wire bytes in, canonical text out. These decoders
+// (base-10000 NUMERIC math, UUID formatting, sign extension) were previously never
+// executed by any test.
+TEST(BinaryCellDecode, NegativeIntegersSignExtend) {
+  using relx::connection::sql_utils::decode_binary_cell_for_testing;
+
+  const char int2_neg[] = {'\xFF', '\xFF'};
+  auto int2_result = decode_binary_cell_for_testing(21, int2_neg, 2);
+  ASSERT_TRUE(int2_result) << int2_result.error();
+  EXPECT_EQ(*int2_result, "-1");
+
+  const char int8_neg[] = {'\xFF', '\xFF', '\xFF', '\xFF', '\xFF', '\xFF', '\xFF', '\xFE'};
+  auto int8_result = decode_binary_cell_for_testing(20, int8_neg, 8);
+  ASSERT_TRUE(int8_result) << int8_result.error();
+  EXPECT_EQ(*int8_result, "-2");
+
+  const char int4_neg[] = {'\x80', '\x00', '\x00', '\x00'};
+  auto int4_result = decode_binary_cell_for_testing(23, int4_neg, 4);
+  ASSERT_TRUE(int4_result) << int4_result.error();
+  EXPECT_EQ(*int4_result, "-2147483648");
+}
+
+TEST(BinaryCellDecode, UuidFormatsCanonically) {
+  using relx::connection::sql_utils::decode_binary_cell_for_testing;
+
+  const char uuid_bytes[] = {'\x12', '\x34', '\x56', '\x78', '\x9a', '\xbc', '\xde', '\xf0',
+                             '\x01', '\x23', '\x45', '\x67', '\x89', '\xab', '\xcd', '\xef'};
+  auto uuid_result = decode_binary_cell_for_testing(2950, uuid_bytes, 16);
+  ASSERT_TRUE(uuid_result) << uuid_result.error();
+  EXPECT_EQ(*uuid_result, "12345678-9abc-def0-0123-456789abcdef");
+}
+
+TEST(BinaryCellDecode, NumericBase10000) {
+  using relx::connection::sql_utils::decode_binary_cell_for_testing;
+
+  // NUMERIC wire format: ndigits, weight, sign, dscale (int16 each), then base-10000
+  // digits. 1234.5678 = digits [1234, 5678], weight 0, dscale 4.
+  const auto make_numeric = [](std::vector<int> halves) {
+    std::string bytes;
+    for (const int h : halves) {
+      bytes += static_cast<char>((h >> 8) & 0xFF);
+      bytes += static_cast<char>(h & 0xFF);
+    }
+    return bytes;
+  };
+
+  const std::string positive = make_numeric({2, 0, 0x0000, 4, 1234, 5678});
+  auto pos_result = decode_binary_cell_for_testing(1700, positive.data(),
+                                                   static_cast<int>(positive.size()));
+  ASSERT_TRUE(pos_result) << pos_result.error();
+  EXPECT_EQ(*pos_result, "1234.5678");
+
+  const std::string negative = make_numeric({2, 0, 0x4000, 4, 1234, 5678});
+  auto neg_result = decode_binary_cell_for_testing(1700, negative.data(),
+                                                   static_cast<int>(negative.size()));
+  ASSERT_TRUE(neg_result) << neg_result.error();
+  EXPECT_EQ(*neg_result, "-1234.5678");
+
+  const std::string zero = make_numeric({0, 0, 0x0000, 0});
+  auto zero_result = decode_binary_cell_for_testing(1700, zero.data(),
+                                                    static_cast<int>(zero.size()));
+  ASSERT_TRUE(zero_result) << zero_result.error();
+  EXPECT_EQ(*zero_result, "0");
+}
