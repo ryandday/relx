@@ -337,6 +337,15 @@ std::string PostgreSQLStreamingSource::convert_pg_bytea_to_binary(
 
 void PostgreSQLStreamingSource::cleanup() {
   if (query_active_) {
+    // Abandoning mid-stream: ask the server to abort the query first, so the drain
+    // below is bounded instead of pulling every remaining row of a large result
+    if (PGconn* pg_conn = connection_->get_pg_conn()) {
+      if (PGcancel* cancel = PQgetCancel(pg_conn)) {
+        char errbuf[256];
+        PQcancel(cancel, errbuf, sizeof errbuf);  // best effort; drain regardless
+        PQfreeCancel(cancel);
+      }
+    }
     drain_results();
     query_active_ = false;
   }

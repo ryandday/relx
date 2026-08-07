@@ -68,6 +68,10 @@ public:
   /// still tell an empty result apart from a failed one.
   const std::optional<ConnectionError>& last_error() const { return last_error_; }
 
+  /// @brief Opt into decoding BYTEA columns from PostgreSQL's hex form to raw bytes.
+  /// Must be set before the first row is fetched (column metadata is captured then).
+  void set_convert_bytea(bool enabled) { convert_bytea_ = enabled; }
+
 private:
   // Pointer, not reference: moves must rebind to the moved-from source's connection
   // (a reference member would move-assign *through* the reference instead)

@@ -45,10 +45,10 @@ protected:
       connection = std::make_unique<connection::PostgreSQLConnection>(conn_str);
       auto connect_result = connection->connect();
 
-      if (!connect_result) {
-        GTEST_SKIP() << "PostgreSQL connection failed: " << connect_result.error().message
-                     << ". Skipping PostgreSQL streaming tests.";
-      }
+      // Hard failure, not GTEST_SKIP: these are the only streaming regression tests,
+      // and a skipped suite would turn CI green with streaming completely untested
+      ASSERT_TRUE(connect_result) << "PostgreSQL connection failed: "
+                                  << connect_result.error().message;
 
       // Create test table and insert test data
       setup_test_data();
@@ -468,6 +468,47 @@ TEST_F(PostgreSQLStreamingTest, PerformanceComparison) {
   }
 
   EXPECT_EQ(regular_result->size(), streaming_count);
+}
+
+TEST_F(PostgreSQLStreamingTest, ByteaConversionOptIn) {
+  if (!connection) GTEST_SKIP();
+
+  auto setup = connection->execute_raw(
+      "DROP TABLE IF EXISTS stream_bytea_test; "
+      "CREATE TABLE stream_bytea_test (id INTEGER, payload BYTEA);");
+  ASSERT_TRUE(setup) << setup.error().message;
+  auto insert = connection->execute_raw(
+      "INSERT INTO stream_bytea_test VALUES (1, '\\x48656c6c6f00ff'::bytea);");
+  ASSERT_TRUE(insert) << insert.error().message;
+
+  // Without opting in, the hex text passes through untouched
+  {
+    auto source = connection::PostgreSQLStreamingSource(*connection,
+                                                        "SELECT payload FROM stream_bytea_test");
+    auto streaming_result = result::StreamingResultSet(std::move(source));
+    auto it = streaming_result.begin();
+    ASSERT_FALSE(it.is_at_end());
+    auto raw = (*it).get<std::string>("payload");
+    ASSERT_TRUE(raw) << raw.error().message;
+    EXPECT_EQ(*raw, "\\x48656c6c6f00ff");
+  }
+
+  // With set_convert_bytea(true) the cell carries the raw bytes
+  {
+    auto source = connection::PostgreSQLStreamingSource(*connection,
+                                                        "SELECT payload FROM stream_bytea_test");
+    source.set_convert_bytea(true);
+    auto streaming_result = result::StreamingResultSet(std::move(source));
+    auto it = streaming_result.begin();
+    ASSERT_FALSE(it.is_at_end());
+    auto decoded = (*it).get<std::string>("payload");
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    const std::string expected{"Hello\x00\xff", 7};
+    EXPECT_EQ(*decoded, expected);
+  }
+
+  auto cleanup = connection->execute_raw("DROP TABLE stream_bytea_test;");
+  ASSERT_TRUE(cleanup) << cleanup.error().message;
 }
 
 }  // namespace relx::test
