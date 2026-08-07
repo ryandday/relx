@@ -10,7 +10,7 @@ namespace relx::connection {
 
 PostgreSQLAsyncStreamingSource::PostgreSQLAsyncStreamingSource(
     PostgreSQLAsyncConnection& connection, std::string sql, std::vector<bind_param> params)
-    : connection_(connection), sql_(std::move(sql)), params_(std::move(params)),
+    : connection_(&connection), sql_(std::move(sql)), params_(std::move(params)),
       initialized_(false), finished_(false), convert_bytea_(false), query_active_(false),
       current_result_(nullptr, PQclear), current_row_index_(0), has_pending_results_(false) {}
 
@@ -25,7 +25,7 @@ PostgreSQLAsyncStreamingSource::PostgreSQLAsyncStreamingSource(
       is_bytea_column_(std::move(other.is_bytea_column_)), initialized_(other.initialized_),
       finished_(other.finished_), convert_bytea_(other.convert_bytea_),
       query_active_(other.query_active_), first_row_cached_(std::move(other.first_row_cached_)),
-      current_result_(std::move(other.current_result_)),
+      last_error_(std::move(other.last_error_)), current_result_(std::move(other.current_result_)),
       current_row_index_(other.current_row_index_),
       has_pending_results_(other.has_pending_results_) {
   // Reset the moved-from object
@@ -41,8 +41,9 @@ PostgreSQLAsyncStreamingSource& PostgreSQLAsyncStreamingSource::operator=(
   if (this != &other) {
     cleanup();
 
-    // connection_ is a reference, it cannot be reassigned
-    // connection_ = other.connection_;  // This line is removed
+    // Rebind to the moved-from source's connection - skipping this reads the wrong
+    // connection and strands the other one in single-row mode
+    connection_ = other.connection_;
     sql_ = std::move(other.sql_);
     params_ = std::move(other.params_);
     column_names_ = std::move(other.column_names_);
@@ -52,6 +53,7 @@ PostgreSQLAsyncStreamingSource& PostgreSQLAsyncStreamingSource::operator=(
     convert_bytea_ = other.convert_bytea_;
     query_active_ = other.query_active_;
     first_row_cached_ = std::move(other.first_row_cached_);
+    last_error_ = std::move(other.last_error_);
     current_result_ = std::move(other.current_result_);
     current_row_index_ = other.current_row_index_;
     has_pending_results_ = other.has_pending_results_;
@@ -70,9 +72,18 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncStreamingSource::i
   if (initialized_) {
     co_return ConnectionResult<void>{};
   }
+  if (finished_) {
+    // A previous start attempt failed; retrying would re-send the query
+    co_return std::unexpected(last_error_.value_or(
+        ConnectionError{.message = "Streaming query already ended", .error_code = -1}));
+  }
 
   auto result = co_await start_query();
   if (!result) {
+    // The query may already be in flight (e.g. a failure after PQsendQuery): mark
+    // the stream dead so has_more_rows() is false and a retry cannot re-send it
+    finished_ = true;
+    last_error_ = result.error();
     co_return std::unexpected(result.error());
   }
 
@@ -84,6 +95,8 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
   if (!initialized_) {
     auto init_result = co_await initialize();
     if (!init_result) {
+      last_error_ = init_result.error();
+      finished_ = true;
       co_return std::nullopt;
     }
   }
@@ -100,17 +113,24 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
   }
 
   // Get the underlying PGconn from the async connection
-  PGconn* pg_conn = connection_.get_async_conn().native_handle();
+  PGconn* pg_conn = connection_->get_async_conn().native_handle();
   if (!pg_conn) {
+    last_error_ = ConnectionError{.message = "Connection lost mid-stream", .error_code = -1};
     finished_ = true;
     co_return std::nullopt;
   }
 
   try {
-    // Wait for the next result asynchronously
+    // Wait for the next result asynchronously. A row pull can only report "no more
+    // rows", so every failure path records last_error_ - without it a stream killed
+    // at row 500k is indistinguishable from clean completion.
     while (true) {
       // Check if we can consume input without blocking
       if (PQconsumeInput(pg_conn) == 0) {
+        last_error_ = ConnectionError{
+            .message = std::string("Failed to consume input mid-stream: ") +
+                       PQerrorMessage(pg_conn),
+            .error_code = -1};
         finished_ = true;
         co_return std::nullopt;
       }
@@ -134,7 +154,9 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
             auto row_data = format_single_row(pg_result);
             PQclear(pg_result);
             co_return row_data;
-          } catch (...) {
+          } catch (const std::exception& e) {
+            last_error_ = ConnectionError{
+                .message = std::string("Failed to decode row: ") + e.what(), .error_code = -1};
             PQclear(pg_result);
             drain_results();
             finished_ = true;
@@ -149,7 +171,10 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
           query_active_ = false;
           co_return std::nullopt;
         } else {
-          // Error condition
+          // Server-reported error mid-stream
+          last_error_ = ConnectionError{.message = std::string("Streaming query failed: ") +
+                                                   PQresultErrorMessage(pg_result),
+                                        .error_code = static_cast<int>(status)};
           PQclear(pg_result);
           drain_results();
           finished_ = true;
@@ -159,8 +184,10 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
       }
 
       // Still busy, wait for the socket to be readable
-      auto socket_result = connection_.get_async_conn().socket();
+      auto socket_result = connection_->get_async_conn().socket();
       if (!socket_result) {
+        last_error_ = ConnectionError{.message = socket_result.error().message,
+                                      .error_code = socket_result.error().error_code};
         finished_ = true;
         co_return std::nullopt;
       }
@@ -171,12 +198,15 @@ boost::asio::awaitable<std::optional<std::string>> PostgreSQLAsyncStreamingSourc
                        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
       if (ec) {
+        last_error_ = ConnectionError{.message = ec.message(), .error_code = ec.value()};
         finished_ = true;
         co_return std::nullopt;
       }
     }
 
   } catch (const std::exception& e) {
+    last_error_ = ConnectionError{.message = std::string("Exception mid-stream: ") + e.what(),
+                                  .error_code = -1};
     finished_ = true;
     co_return std::nullopt;
   }
@@ -187,7 +217,7 @@ const std::vector<std::string>& PostgreSQLAsyncStreamingSource::get_column_names
 }
 
 void PostgreSQLAsyncStreamingSource::drain_results() {
-  PGconn* pg_conn = connection_.get_async_conn().native_handle();
+  PGconn* pg_conn = connection_->get_async_conn().native_handle();
   if (!pg_conn) {
     return;
   }
@@ -199,12 +229,12 @@ void PostgreSQLAsyncStreamingSource::drain_results() {
 }
 
 boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncStreamingSource::start_query() {
-  if (!connection_.is_connected()) {
+  if (!connection_->is_connected()) {
     co_return std::unexpected(
         ConnectionError{.message = "Not connected to database", .error_code = -1});
   }
 
-  PGconn* pg_conn = connection_.get_async_conn().native_handle();
+  PGconn* pg_conn = connection_->get_async_conn().native_handle();
   if (!pg_conn) {
     co_return std::unexpected(ConnectionError{.message = "Invalid connection", .error_code = -1});
   }
@@ -324,7 +354,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncStreamingSource::s
       }
 
       // Still busy, wait for the socket to be readable
-      auto socket_result = connection_.get_async_conn().socket();
+      auto socket_result = connection_->get_async_conn().socket();
       if (!socket_result) {
         co_return std::unexpected(ConnectionError{.message = socket_result.error().message,
                                                   .error_code = socket_result.error().error_code});
@@ -421,9 +451,16 @@ std::string PostgreSQLAsyncStreamingSource::convert_pg_bytea_to_binary(
 
 void PostgreSQLAsyncStreamingSource::cleanup() {
   if (query_active_) {
-    // Consume any remaining results to clean up the connection state
-    PGconn* pg_conn = connection_.get_async_conn().native_handle();
+    // Abandoning mid-stream: ask the server to abort the query first, so the
+    // unavoidable synchronous drain below is bounded instead of pulling every
+    // remaining row of a large result through the event-loop thread
+    PGconn* pg_conn = connection_->get_async_conn().native_handle();
     if (pg_conn) {
+      if (PGcancel* cancel = PQgetCancel(pg_conn)) {
+        char errbuf[256];
+        PQcancel(cancel, errbuf, sizeof errbuf);  // best effort; drain regardless
+        PQfreeCancel(cancel);
+      }
       PGresult* result;
       while ((result = PQgetResult(pg_conn)) != nullptr) {
         PQclear(result);
@@ -443,7 +480,7 @@ boost::asio::awaitable<void> PostgreSQLAsyncStreamingSource::async_cleanup() {
     co_return;
   }
 
-  PGconn* pg_conn = connection_.get_async_conn().native_handle();
+  PGconn* pg_conn = connection_->get_async_conn().native_handle();
   if (!pg_conn) {
     query_active_ = false;
     finished_ = true;
@@ -469,7 +506,7 @@ boost::asio::awaitable<void> PostgreSQLAsyncStreamingSource::async_cleanup() {
         PQclear(result);
       } else {
         // Still busy, wait for the socket to be readable
-        auto socket_result = connection_.get_async_conn().socket();
+        auto socket_result = connection_->get_async_conn().socket();
         if (!socket_result) {
           // Error getting socket, just break out
           break;

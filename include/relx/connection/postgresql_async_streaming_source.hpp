@@ -79,10 +79,22 @@ public:
 
   /// @brief Get reference to the underlying connection
   /// @return Reference to the PostgreSQL async connection
-  PostgreSQLAsyncConnection& get_connection() { return connection_; }
+  PostgreSQLAsyncConnection& get_connection() { return *connection_; }
+
+  /// @brief The error that ended the stream, if any
+  /// @details Empty when the stream ended because the rows ran out. Set when the
+  /// query failed to start or the server/socket reported an error mid-stream, so a
+  /// stream killed at row 500k is distinguishable from clean completion.
+  const std::optional<ConnectionError>& last_error() const { return last_error_; }
+
+  /// @brief Opt into decoding BYTEA columns from PostgreSQL's hex form to raw bytes.
+  /// Must be set before the first row is fetched (column metadata is captured then).
+  void set_convert_bytea(bool enabled) { convert_bytea_ = enabled; }
 
 private:
-  PostgreSQLAsyncConnection& connection_;
+  // Pointer, not reference: moves must rebind to the moved-from source's connection
+  // (a reference member would move-assign *through* the reference instead)
+  PostgreSQLAsyncConnection* connection_;
   std::string sql_;
   std::vector<bind_param> params_;
 
@@ -97,6 +109,9 @@ private:
 
   // Cache for the first row (since we consume it during metadata processing)
   std::optional<std::string> first_row_cached_;
+
+  // Error that ended the stream, if it ended for a reason other than running out of rows
+  std::optional<ConnectionError> last_error_;
 
   // Streaming state for proper result management
   std::unique_ptr<struct pg_result, void (*)(struct pg_result*)> current_result_;
@@ -179,31 +194,22 @@ public:
     }
   }
 
-  // Disable copy operations to ensure single ownership
+  // Iterators hold references to the stored data source and to this set; moving or
+  // copying the set would silently end existing iterators, so the set is pinned in
+  // place (factory returns rely on prvalue elision)
   AsyncStreamingResultSet(const AsyncStreamingResultSet&) = delete;
   AsyncStreamingResultSet& operator=(const AsyncStreamingResultSet&) = delete;
+  AsyncStreamingResultSet(AsyncStreamingResultSet&&) = delete;
+  AsyncStreamingResultSet& operator=(AsyncStreamingResultSet&&) = delete;
 
-  // Allow move operations
-  AsyncStreamingResultSet(AsyncStreamingResultSet&& other) noexcept
-      : source_(std::move(other.source_)), reset_called_(other.reset_called_) {
-    other.reset_called_ = true;  // Prevent cleanup in moved-from object
-  }
-
-  AsyncStreamingResultSet& operator=(AsyncStreamingResultSet&& other) noexcept {
-    if (this != &other) {
-      // Cleanup current object before move
-      if (!reset_called_) {
-        reset_called_ = true;
-        if constexpr (std::is_same_v<DataSource, PostgreSQLAsyncStreamingSource>) {
-          source_.get_connection().reset_connection_state_sync();
-        }
-      }
-
-      source_ = std::move(other.source_);
-      reset_called_ = other.reset_called_;
-      other.reset_called_ = true;  // Prevent cleanup in moved-from object
-    }
-    return *this;
+  /// @brief The error that ended the stream, when the data source tracks one
+  /// @details An empty optional means the rows simply ran out. Without this a failed
+  /// query is indistinguishable from an empty result, since a row pull can only
+  /// report "no more rows".
+  decltype(auto) last_error() const
+    requires requires(const DataSource& source) { source.last_error(); }
+  {
+    return source_.last_error();
   }
 
   /// @brief Begin async iteration

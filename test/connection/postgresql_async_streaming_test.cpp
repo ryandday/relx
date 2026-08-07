@@ -558,6 +558,13 @@ TEST_F(PostgreSQLAsyncStreamingTest, AsyncStreamingErrorHandling) {
     // Should get no results due to error
     EXPECT_EQ(results.size(), 0);
 
+    // A failed query must be distinguishable from an empty result
+    EXPECT_TRUE(streaming_result.last_error().has_value());
+    if (streaming_result.last_error().has_value()) {
+      EXPECT_NE(streaming_result.last_error()->message.find("nonexistent_table_12345"),
+                std::string::npos);
+    }
+
     co_await conn.disconnect();
   });
 }

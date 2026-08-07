@@ -102,6 +102,15 @@ boost::asio::awaitable<ConnectionResult<result::ResultSet>> PostgreSQLAsyncConne
         ConnectionError{.message = "Not connected to database", .error_code = -1});
   }
 
+  if (pending_reset_) {
+    // A destructor-time reset could not drain the wire; finish the job now that an
+    // async wait is possible, or this query fails with "another command in progress"
+    auto reset_result = co_await reset_connection_state();
+    if (!reset_result) {
+      co_return std::unexpected(reset_result.error());
+    }
+  }
+
   // Convert ? placeholders to $1, $2, etc. if params exist
   if (!params.empty()) {
     sql = convert_placeholders(sql);
@@ -133,6 +142,13 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::begin_
   if (!is_connected()) {
     co_return std::unexpected(
         ConnectionError{.message = "Not connected to database", .error_code = -1});
+  }
+
+  if (pending_reset_) {
+    auto reset_result = co_await reset_connection_state();
+    if (!reset_result) {
+      co_return std::unexpected(reset_result.error());
+    }
   }
 
   pgsql_async_wrapper::IsolationLevel pg_isolation;
@@ -267,6 +283,7 @@ boost::asio::awaitable<ConnectionResult<void>> PostgreSQLAsyncConnection::reset_
     // Any exception during reset - just continue, connection might be reset anyway
   }
 
+  pending_reset_ = false;
   co_return ConnectionResult<void>{};
 }
 
@@ -284,28 +301,35 @@ bool PostgreSQLAsyncConnection::reset_connection_state_sync() {
     return true;
   }
 
-  // Non-blocking best-effort drain for destructor scenarios. Returns whether the
-  // connection actually came out clean - callers must not reuse it on false.
-  try {
-    while (true) {
-      if (PQconsumeInput(pg_conn) == 0) {
-        return false;  // input error; connection state unknown
-      }
+  // Non-blocking best-effort drain for destructor scenarios. On failure the
+  // connection remembers it (pending_reset_) and the next async execution drains it
+  // first - so even callers that discard the return value cannot silently reuse a
+  // poisoned connection.
+  const auto drained = [&]() -> bool {
+    try {
+      while (true) {
+        if (PQconsumeInput(pg_conn) == 0) {
+          return false;  // input error; connection state unknown
+        }
 
-      if (PQisBusy(pg_conn)) {
-        // Results still pending and we cannot wait synchronously
-        return false;
-      }
+        if (PQisBusy(pg_conn)) {
+          // Results still pending and we cannot wait synchronously
+          return false;
+        }
 
-      PGresult* result = PQgetResult(pg_conn);
-      if (!result) {
-        return true;  // fully drained
+        PGresult* result = PQgetResult(pg_conn);
+        if (!result) {
+          return true;  // fully drained
+        }
+        PQclear(result);
       }
-      PQclear(result);
+    } catch (...) {
+      return false;
     }
-  } catch (...) {
-    return false;
-  }
+  }();
+
+  pending_reset_ = !drained;
+  return drained;
 }
 
 std::string PostgreSQLAsyncConnection::convert_placeholders(const std::string& sql) {

@@ -13,6 +13,10 @@ static std::string convert_placeholders(const std::string& sql) {
 
 // Implementation of PreparedStatement methods
 boost::asio::awaitable<PgResult<void>> PreparedStatement::prepare() {
+  if (conn_ == nullptr) {
+    co_return std::unexpected(
+        PgError{.message = "Connection has been closed or destroyed", .error_code = -1});
+  }
   if (prepared_) {
     co_return PgResult<void>{};
   }
@@ -45,6 +49,10 @@ boost::asio::awaitable<PgResult<void>> PreparedStatement::prepare() {
 
 boost::asio::awaitable<PgResult<Result>> PreparedStatement::execute(
     const std::vector<std::string>& params) {
+  if (conn_ == nullptr) {
+    co_return std::unexpected(
+        PgError{.message = "Connection has been closed or destroyed", .error_code = -1});
+  }
   if (!prepared_) {
     auto prepare_result = co_await prepare();
     if (!prepare_result) {
@@ -79,6 +87,10 @@ boost::asio::awaitable<PgResult<Result>> PreparedStatement::execute(
 boost::asio::awaitable<PgResult<void>> PreparedStatement::deallocate() {
   if (!prepared_) {
     co_return PgResult<void>{};
+  }
+  if (conn_ == nullptr) {
+    co_return std::unexpected(
+        PgError{.message = "Connection has been closed or destroyed", .error_code = -1});
   }
 
   const std::string deallocate_cmd = "DEALLOCATE " + name_;

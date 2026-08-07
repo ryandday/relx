@@ -194,7 +194,9 @@ public:
 // ----------------------------------------------------------------------
 class Connection {
 private:
-  boost::asio::io_context& io_;
+  // Pointer, not reference: move-assignment must rebind to the source's io_context
+  // (an unrebindable reference would leave the socket wrapped on the wrong executor)
+  boost::asio::io_context* io_;
   PGconn* conn_ = nullptr;
   std::unique_ptr<boost::asio::posix::stream_descriptor> socket_;
   std::unordered_map<std::string, std::shared_ptr<PreparedStatement>> statements_;
@@ -223,7 +225,7 @@ private:
 
     // A protocol-agnostic descriptor: libpq's fd may be IPv4, IPv6, or a unix
     // socket, so never assume tcp::v4
-    socket_ = std::make_unique<boost::asio::posix::stream_descriptor>(io_, sock);
+    socket_ = std::make_unique<boost::asio::posix::stream_descriptor>(*io_, sock);
     return PgResult<void>{};
   }
 
@@ -283,9 +285,10 @@ private:
         PGresult* res = PQgetResult(conn_);
         Result result_obj(res);
 
-        // Flush all remaining results (normally there should be none for a single query)
+        // Keep the LAST result, mirroring PQexec: for multi-statement scripts an
+        // error in a later statement must not be masked by an earlier success
         while ((res = PQgetResult(conn_)) != nullptr) {
-          PQclear(res);
+          result_obj = Result(res);
         }
 
         co_return result_obj;
@@ -309,7 +312,7 @@ private:
   }
 
 public:
-  Connection(boost::asio::io_context& io) : io_(io) {}
+  Connection(boost::asio::io_context& io) : io_(&io) {}
 
   ~Connection() { close(); }
 
@@ -329,6 +332,7 @@ public:
   Connection& operator=(Connection&& other) noexcept {
     if (this != &other) {
       close();
+      io_ = other.io_;
       conn_ = other.conn_;
       socket_ = std::move(other.socket_);
       statements_ = std::move(other.statements_);
@@ -341,6 +345,15 @@ public:
   }
 
   void close() {
+    // User-held shared_ptrs to statements survive the map clear; null their
+    // connection pointer so a later call errors instead of dereferencing a dead
+    // Connection
+    for (auto& [name, stmt] : statements_) {
+      if (stmt) {
+        stmt->conn_ = nullptr;
+        stmt->prepared_ = false;
+      }
+    }
     statements_.clear();
 
     if (socket_) {
@@ -512,12 +525,17 @@ public:
       }
     }
 
-    if (!PQsendQueryParams(
-            conn_, query_text.c_str(), static_cast<int>(params.size()),
-            params.empty() ? nullptr : types.data(), params.empty() ? nullptr : values.data(),
-            params.empty() ? nullptr : lengths.data(), params.empty() ? nullptr : formats.data(),
-            0  // result format - text format
-            )) {
+    // Paramless queries go through PQsendQuery so multi-statement scripts (e.g.
+    // migration DDL) work exactly as they do on the synchronous path; PQsendQueryParams
+    // permits only a single statement
+    const int send_ok = params.empty()
+                            ? PQsendQuery(conn_, query_text.c_str())
+                            : PQsendQueryParams(conn_, query_text.c_str(),
+                                                static_cast<int>(params.size()), types.data(),
+                                                values.data(), lengths.data(), formats.data(),
+                                                0  // result format - text format
+                              );
+    if (!send_ok) {
       co_return std::unexpected(PgError::from_conn(conn_));
     }
 
@@ -627,29 +645,29 @@ public:
     if (it != statements_.end()) {
       // Statement with this name already exists
       if (it->second->query() != query_text) {
-        // Deallocate the old statement since the query is different
-        auto deallocate_result = co_await it->second->deallocate();
+        // Remove it from the map BEFORE awaiting: another coroutine may mutate
+        // statements_ during the await, invalidating the iterator
+        auto old_stmt = it->second;
+        statements_.erase(it);
+        auto deallocate_result = co_await old_stmt->deallocate();
         if (!deallocate_result) {
           co_return std::unexpected(deallocate_result.error());
         }
-        statements_.erase(it);
       } else {
         // Return the existing statement if it has the same query
         co_return it->second;
       }
     }
 
-    // Create a new prepared statement
+    // Create and prepare the statement; it becomes visible to other coroutines
+    // only once preparation succeeded
     auto stmt = std::make_shared<PreparedStatement>(*this, name, query_text);
-    statements_[name] = stmt;
-
-    // Prepare it
     auto prepare_result = co_await stmt->prepare();
     if (!prepare_result) {
-      statements_.erase(name);
       co_return std::unexpected(prepare_result.error());
     }
 
+    statements_[name] = stmt;
     co_return stmt;
   }
 

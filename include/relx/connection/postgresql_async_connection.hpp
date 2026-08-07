@@ -214,14 +214,21 @@ public:
   /// @brief Reset connection state synchronously (for use in destructors)
   /// @return True if reset was successful, false otherwise
   /// @details This is a non-blocking version that can be called from destructors
-  /// when async streaming result sets go out of scope before completion
+  /// when async streaming result sets go out of scope before completion. On failure
+  /// the connection remembers it needs a reset (pending_reset_) and the next async
+  /// execution drains it first, so a poisoned connection repairs itself instead of
+  /// failing with "another command is already in progress".
   bool reset_connection_state_sync();
+
+  /// @brief Whether a failed synchronous reset left results pending on the wire
+  bool needs_reset() const { return pending_reset_; }
 
 private:
   boost::asio::io_context& io_context_;
   std::string connection_string_;
   std::unique_ptr<pgsql_async_wrapper::Connection> async_conn_;
   bool is_connected_ = false;
+  bool pending_reset_ = false;
 
   /// @brief Helper method to convert pgsql_async_wrapper::result to relx::result::ResultSet
   static ConnectionResult<result::ResultSet> convert_result(
